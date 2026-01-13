@@ -564,6 +564,27 @@ defineExpose({ editor });
   margin: 0.25em 0;
 }
 
+/* GitHub-style bullet variations for nested unordered lists */
+.editor-content .tiptap ul {
+  list-style-type: disc;
+}
+
+.editor-content .tiptap ul ul {
+  list-style-type: circle;
+}
+
+.editor-content .tiptap ul ul ul {
+  list-style-type: square;
+}
+
+/* Proper indentation for nested lists */
+.editor-content .tiptap ul ul,
+.editor-content .tiptap ol ol,
+.editor-content .tiptap ul ol,
+.editor-content .tiptap ol ul {
+  padding-left: 1.5em;
+}
+
 /* Definition list styles (dl, dt, dd) */
 .editor-content .tiptap dl {
   margin: 1em 0;

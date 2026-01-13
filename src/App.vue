@@ -651,32 +651,145 @@ const markdownToHtml = (md: string): string => {
   // Blockquotes
   html = html.replace(/^&gt; (.*$)/gim, "<blockquote><p>$1</p></blockquote>");
 
-  // Unordered lists - handle nested lists by preserving structure
-  // First, convert all list items (including nested ones with indentation)
-  html = html.replace(/^(\s*)- (.*)$/gim, (_, indent, content) => {
-    const level = Math.floor(indent.length / 2);
-    return `<li data-indent="${level}"><p>${content}</p></li>`;
-  });
+  // Process lists (both unordered and ordered, with nesting support)
+  // Parse list blocks and convert to proper nested HTML structure
+  const parseMarkdownLists = (text: string): string => {
+    const lines = text.split('\n');
+    const result: string[] = [];
+    let i = 0;
 
-  // Wrap consecutive list items in ul, excluding task items
-  html = html.replace(/(<li data-indent="\d+"[^>]*>[\s\S]*?<\/li>\n?)+/g, (match) => {
-    if (match.includes('data-type="taskItem"')) {
-      return match;
+    // Helper to parse a list block starting at line index
+    const parseListBlock = (startIndex: number): { html: string; endIndex: number } => {
+      interface ListItem {
+        indent: number;
+        content: string;
+        type: 'ul' | 'ol';
+        number?: number;
+      }
+
+      const items: ListItem[] = [];
+      let idx = startIndex;
+
+      // Collect all consecutive list items
+      while (idx < lines.length) {
+        const line = lines[idx];
+        // Match unordered list item: spaces + "- " + content
+        const ulMatch = line.match(/^(\s*)- (.*)$/);
+        // Match ordered list item: spaces + "number. " + content
+        const olMatch = line.match(/^(\s*)(\d+)\. (.*)$/);
+
+        if (ulMatch) {
+          const indent = Math.floor(ulMatch[1].length / 2);
+          const content = ulMatch[2].trim();
+          // Skip empty list items
+          if (content) {
+            items.push({ indent, content, type: 'ul' });
+          }
+          idx++;
+        } else if (olMatch) {
+          const indent = Math.floor(olMatch[1].length / 2);
+          const content = olMatch[3].trim();
+          // Skip empty list items
+          if (content) {
+            items.push({ indent, content, type: 'ol', number: parseInt(olMatch[2]) });
+          }
+          idx++;
+        } else {
+          // Not a list item, stop
+          break;
+        }
+      }
+
+      if (items.length === 0) {
+        return { html: '', endIndex: idx };
+      }
+
+      // Build nested list HTML from flat items
+      const buildNestedList = (items: ListItem[], startIdx: number, baseIndent: number): { html: string; endIdx: number } => {
+        if (startIdx >= items.length) {
+          return { html: '', endIdx: startIdx };
+        }
+
+        const firstItem = items[startIdx];
+        if (firstItem.indent < baseIndent) {
+          return { html: '', endIdx: startIdx };
+        }
+
+        const listType = firstItem.type;
+        let html = `<${listType}>`;
+        let idx = startIdx;
+
+        while (idx < items.length) {
+          const item = items[idx];
+
+          // If indent is less than base, we're done with this list level
+          if (item.indent < baseIndent) {
+            break;
+          }
+
+          // If indent matches base and type matches, add as sibling
+          if (item.indent === baseIndent) {
+            // Check if we're switching list types
+            if (item.type !== listType) {
+              // Close current list and start a new one
+              break;
+            }
+            html += `<li><p>${item.content}</p>`;
+            idx++;
+
+            // Check for nested items
+            if (idx < items.length && items[idx].indent > baseIndent) {
+              const nested = buildNestedList(items, idx, items[idx].indent);
+              html += nested.html;
+              idx = nested.endIdx;
+            }
+
+            html += '</li>';
+          } else if (item.indent > baseIndent) {
+            // This is a nested item, should have been handled above
+            // But if we get here, handle it anyway
+            const nested = buildNestedList(items, idx, item.indent);
+            html += nested.html;
+            idx = nested.endIdx;
+          }
+        }
+
+        html += `</${listType}>`;
+        return { html, endIdx: idx };
+      };
+
+      // Process all items, handling type switches
+      let fullHtml = '';
+      let processedIdx = 0;
+      while (processedIdx < items.length) {
+        const result = buildNestedList(items, processedIdx, items[processedIdx].indent);
+        fullHtml += result.html;
+        processedIdx = result.endIdx;
+      }
+
+      return { html: fullHtml, endIndex: idx };
+    };
+
+    while (i < lines.length) {
+      const line = lines[i];
+      // Check if this is a list item (but not a task item which is handled separately)
+      const isUnorderedList = /^\s*- /.test(line) && !/^\s*- \[[ x]\]/.test(line);
+      const isOrderedList = /^\s*\d+\. /.test(line);
+
+      if (isUnorderedList || isOrderedList) {
+        const { html: listHtml, endIndex } = parseListBlock(i);
+        result.push(listHtml);
+        i = endIndex;
+      } else {
+        result.push(line);
+        i++;
+      }
     }
-    // Remove the data-indent attribute as TipTap doesn't use it
-    const cleaned = match.replace(/ data-indent="\d+"/g, "");
-    return `<ul>${cleaned}</ul>`;
-  });
 
-  // Ordered lists
-  html = html.replace(/^(\s*)\d+\. (.*)$/gim, (_, _indent, content) => {
-    return `<li><p>${content}</p></li>`;
-  });
+    return result.join('\n');
+  };
 
-  // Wrap consecutive ordered list items
-  html = html.replace(/(<li><p>(?!.*data-type|.*data-indent)[\s\S]*?<\/p><\/li>\n?)+/g, (match) => {
-    return `<ol>${match}</ol>`;
-  });
+  html = parseMarkdownLists(html);
 
   // Paragraphs - wrap remaining text lines
   html = html.replace(/^(?!<[huplodtb]|<\/|<hr|<img|<a |<code|<strong|<em|<s>|__)(.+)$/gim, "<p>$1</p>");
