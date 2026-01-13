@@ -120,6 +120,7 @@ const closeDropdowns = () => {
 const emit = defineEmits<{
   openFile: [];
   saveFile: [];
+  saveFileAs: [];
   exportPdf: [];
 }>();
 </script>
@@ -143,6 +144,15 @@ const emit = defineEmits<{
             <polyline points="7,3 7,8 15,8"/>
           </svg>
           <span>Zapisz</span>
+        </button>
+        <button @click="emit('saveFileAs')" class="toolbar-btn" title="Zapisz jako nowy plik (Ctrl+Shift+S)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="14,3 14,8 19,8"/>
+            <line x1="12" y1="12" x2="12" y2="18"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          <span>Zapisz jako</span>
         </button>
         <button @click="emit('exportPdf')" class="toolbar-btn" title="Eksportuj do PDF">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
