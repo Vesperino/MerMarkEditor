@@ -1,7 +1,24 @@
 {
-  "name": "mdreader",
-  "private": true,
+  "name": "mermark-editor",
+  "private": false,
   "version": "0.1.0",
+  "description": "Modern Markdown editor with Mermaid diagram support",
+  "author": "Vesperino",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vesperino/MerMarkEditor.git"
+  },
+  "keywords": [
+    "markdown",
+    "mermaid",
+    "editor",
+    "diagrams",
+    "flowchart",
+    "wysiwyg",
+    "tauri",
+    "desktop"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
