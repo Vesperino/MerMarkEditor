@@ -35,6 +35,7 @@ export const MermaidExtension = Node.create<MermaidOptions>({
         parseHTML: (element) => {
           const dataCode = element.getAttribute("data-code");
           if (dataCode) {
+            // Decode the URL-encoded code - preserve <br> tags as they are valid mermaid syntax
             return decodeURIComponent(dataCode);
           }
           return element.textContent || undefined;
@@ -42,6 +43,7 @@ export const MermaidExtension = Node.create<MermaidOptions>({
         // Render to data-code attribute
         renderHTML: (attributes) => {
           if (!attributes.code) return {};
+          // Preserve code as-is - <br> tags are valid mermaid syntax for line breaks in messages
           return {
             "data-code": encodeURIComponent(attributes.code),
           };
@@ -57,9 +59,11 @@ export const MermaidExtension = Node.create<MermaidOptions>({
         getAttrs: (dom) => {
           if (typeof dom === "string") return {};
           const dataCode = dom.getAttribute("data-code");
-          return {
-            code: dataCode ? decodeURIComponent(dataCode) : undefined,
-          };
+          if (dataCode) {
+            // Preserve code as-is - <br> tags are valid mermaid syntax
+            return { code: decodeURIComponent(dataCode) };
+          }
+          return { code: undefined };
         },
       },
     ];
