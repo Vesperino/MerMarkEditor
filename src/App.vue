@@ -6,11 +6,33 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Editor as TiptapEditor } from "@tiptap/vue-3";
 
+// Tab interface
+interface Tab {
+  id: string;
+  filePath: string | null;
+  fileName: string;
+  content: string;
+  hasChanges: boolean;
+}
+
+// Tab management
+const tabs = ref<Tab[]>([{
+  id: "tab-1",
+  filePath: null,
+  fileName: "Nowy dokument",
+  content: "<p></p>",
+  hasChanges: false,
+}]);
+const activeTabId = ref("tab-1");
+let tabCounter = 1;
+
+const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value) || tabs.value[0]);
+
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
 const editorInstance = ref<TiptapEditor | null>(null);
-const currentFile = ref<string | null>(null);
-const hasChanges = ref(false);
-const content = ref("<p></p>");
+const currentFile = computed(() => activeTab.value?.filePath || null);
+const hasChanges = computed(() => activeTab.value?.hasChanges || false);
+const content = computed(() => activeTab.value?.content || "<p></p>");
 
 // Watch for editor instance changes
 watch(
@@ -27,9 +49,149 @@ provide("editor", editorInstance);
 provide("currentFile", currentFile);
 provide("hasChanges", hasChanges);
 
+// Tab management functions
+const createNewTab = (filePath: string | null = null, fileContent: string = "<p></p>", fileName: string = "Nowy dokument"): string => {
+  tabCounter++;
+  const newTabId = `tab-${tabCounter}`;
+  tabs.value.push({
+    id: newTabId,
+    filePath,
+    fileName,
+    content: fileContent,
+    hasChanges: false,
+  });
+  return newTabId;
+};
+
+const switchToTab = (tabId: string) => {
+  // Save current editor content to current tab before switching
+  if (editorRef.value?.editor && activeTab.value) {
+    const currentTabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+    if (currentTabIndex !== -1) {
+      tabs.value[currentTabIndex].content = editorRef.value.editor.getHTML();
+    }
+  }
+
+  activeTabId.value = tabId;
+
+  // Update editor with new tab's content
+  if (editorRef.value?.editor) {
+    editorRef.value.editor.commands.setContent(activeTab.value?.content || "<p></p>");
+  }
+};
+
+const closeTab = async (tabId: string) => {
+  const tabIndex = tabs.value.findIndex(t => t.id === tabId);
+  if (tabIndex === -1) return;
+
+  const tab = tabs.value[tabIndex];
+
+  // Check for unsaved changes
+  if (tab.hasChanges) {
+    // In a real app, you'd show a confirmation dialog
+    // For now, we'll just allow closing
+  }
+
+  // Remove the tab
+  tabs.value.splice(tabIndex, 1);
+
+  // If we closed the active tab, switch to another
+  if (activeTabId.value === tabId) {
+    if (tabs.value.length > 0) {
+      // Switch to the previous tab, or the first one if we were at index 0
+      const newIndex = Math.max(0, tabIndex - 1);
+      activeTabId.value = tabs.value[newIndex].id;
+      if (editorRef.value?.editor) {
+        editorRef.value.editor.commands.setContent(tabs.value[newIndex].content);
+      }
+    } else {
+      // Create a new empty tab if all tabs are closed
+      const newTabId = createNewTab();
+      activeTabId.value = newTabId;
+      if (editorRef.value?.editor) {
+        editorRef.value.editor.commands.setContent("<p></p>");
+      }
+    }
+  }
+};
+
+// Find tab by file path
+const findTabByFilePath = (filePath: string): Tab | undefined => {
+  return tabs.value.find(t => t.filePath === filePath);
+};
+
+// Get directory from file path
+const getDirectoryFromPath = (filePath: string): string => {
+  const lastSlash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+  return lastSlash > 0 ? filePath.substring(0, lastSlash) : "";
+};
+
+// Open file in new tab (for internal links)
+const openFileInNewTab = async (relativePath: string) => {
+  try {
+    // Get current file's directory as base
+    const baseDir = currentFile.value ? getDirectoryFromPath(currentFile.value) : "";
+
+    // Resolve the relative path
+    let fullPath = relativePath;
+    if (baseDir && !relativePath.match(/^[a-zA-Z]:/)) {
+      // It's a relative path, combine with base directory
+      fullPath = `${baseDir}/${relativePath}`.replace(/\\/g, "/");
+      // Normalize path (handle ../ and ./)
+      const parts = fullPath.split("/");
+      const normalized: string[] = [];
+      for (const part of parts) {
+        if (part === "..") {
+          normalized.pop();
+        } else if (part !== "." && part !== "") {
+          normalized.push(part);
+        }
+      }
+      fullPath = normalized.join("/");
+      // On Windows, restore the drive letter format
+      if (fullPath.match(/^[a-zA-Z]\//)) {
+        fullPath = fullPath.replace(/^([a-zA-Z])\//, "$1:/");
+      }
+    }
+
+    // Check if file is already open
+    const existingTab = findTabByFilePath(fullPath);
+    if (existingTab) {
+      switchToTab(existingTab.id);
+      return;
+    }
+
+    // Read the file
+    const fileContent = await readTextFile(fullPath);
+    const htmlContent = markdownToHtml(fileContent);
+    const fileName = fullPath.split(/[/\\]/).pop() || "Dokument";
+
+    // Create new tab and switch to it
+    const newTabId = createNewTab(fullPath, htmlContent, fileName);
+    switchToTab(newTabId);
+  } catch (error) {
+    console.error("Błąd otwierania pliku:", error);
+  }
+};
+
+// Handle link clicks from editor
+const handleLinkClick = (href: string) => {
+  // Check if it's a relative markdown link
+  if (href.endsWith(".md") || href.endsWith(".markdown")) {
+    // It's likely an internal markdown link
+    openFileInNewTab(href);
+  } else if (href.startsWith("http://") || href.startsWith("https://")) {
+    // External link - open in browser (could use Tauri's shell.open)
+    window.open(href, "_blank");
+  } else {
+    // Could be a relative link to any file
+    openFileInNewTab(href);
+  }
+};
+
 const windowTitle = computed(() => {
-  const fileName = currentFile.value?.split(/[/\\]/).pop() || "Nowy dokument";
-  const changeIndicator = hasChanges.value ? " *" : "";
+  const fileName = activeTab.value?.fileName || "Nowy dokument";
+  const changeIndicator = activeTab.value?.hasChanges ? " *" : "";
   return `${fileName}${changeIndicator} - MdReader`;
 });
 
@@ -48,7 +210,24 @@ const decodeHtmlEntities = (text: string): string => {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x27;/g, "'")
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec));
+    // Arrow entities
+    .replace(/&rarr;/g, "→")
+    .replace(/&larr;/g, "←")
+    .replace(/&uarr;/g, "↑")
+    .replace(/&darr;/g, "↓")
+    .replace(/&harr;/g, "↔")
+    // Other common entities
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&bull;/g, "•")
+    .replace(/&hellip;/g, "…")
+    .replace(/&copy;/g, "©")
+    .replace(/&reg;/g, "®")
+    .replace(/&trade;/g, "™")
+    // Hex entities
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    // Decimal entities
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
 };
 
 const htmlToMarkdown = (html: string): string => {
@@ -57,20 +236,32 @@ const htmlToMarkdown = (html: string): string => {
   // Normalize line endings (Windows \r\n to \n)
   md = md.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  // Mermaid blocks - must be first
-  md = md.replace(/<div[^>]*data-type="mermaid"[^>]*>[\s\S]*?<\/div>/gi, (match) => {
-    const codeMatch = match.match(/data-code="([^"]*)"/);
+  // Extract mermaid and code blocks first to protect their content
+  const protectedBlocks: string[] = [];
+
+  // Mermaid blocks - must be FIRST before any other processing
+  // Handle both double and single quotes, and various attribute orders
+  // Match the complete div element including any inner content
+  md = md.replace(/<div[^>]*data-type=["']mermaid["'][^>]*>[\s\S]*?<\/div>/gi, (match) => {
+    // Extract data-code from the div
+    const codeMatch = match.match(/data-code=["']([^"']*)["']/);
     if (codeMatch) {
-      return "\n```mermaid\n" + decodeURIComponent(codeMatch[1]) + "\n```\n";
+      const code = decodeURIComponent(codeMatch[1]);
+      const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
+      protectedBlocks.push(`\n\`\`\`mermaid\n${code}\n\`\`\`\n`);
+      return placeholder;
     }
     return "";
   });
 
   // Code blocks - must be before inline code, decode HTML entities in code content
-  md = md.replace(/<pre[^>]*><code[^>]*(?:\sclass="language-(\w+)")?[^>]*>([\s\S]*?)<\/code><\/pre>/gi, (_, lang, code) => {
+  // Handle various code block formats from TipTap
+  md = md.replace(/<pre[^>]*>\s*<code[^>]*(?:class=["']language-(\w+)["'])?[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, lang, code) => {
     const decodedCode = decodeHtmlEntities(code);
     const langSpec = lang ? lang : "";
-    return `\n\`\`\`${langSpec}\n${decodedCode}\n\`\`\`\n`;
+    const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
+    protectedBlocks.push(`\n\`\`\`${langSpec}\n${decodedCode}\n\`\`\`\n`);
+    return placeholder;
   });
 
   // Tables
@@ -99,62 +290,194 @@ const htmlToMarkdown = (html: string): string => {
     return result + "\n";
   });
 
-  // Task lists - fix checkbox detection (must match exact attribute value)
-  md = md.replace(/<ul[^>]*data-type="taskList"[^>]*>([\s\S]*?)<\/ul>/gi, (_, content) => {
-    let result = "\n";
-    const items = content.match(/<li[^>]*>[\s\S]*?<\/li>/gi) || [];
-    items.forEach((item: string) => {
-      // Only check for exact data-checked="true" attribute, not partial matches
-      const isChecked = /data-checked=["']true["']/i.test(item);
-      const text = item.replace(/<li[^>]*>([\s\S]*?)<\/li>/i, "$1")
+  // Helper function to convert inline HTML to markdown
+  const convertInlineToMarkdown = (html: string): string => {
+    let result = html;
+    // Convert inline code first (before links, as code might contain angle brackets)
+    result = result.replace(/<code(?:\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_, content) => {
+      const decoded = decodeHtmlEntities(content);
+      return `\`${decoded}\``;
+    });
+    // Convert links
+    result = result.replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
+      const cleanText = text.replace(/<[^>]+>/g, "").trim();
+      return `[${cleanText}](${href})`;
+    });
+    // Convert bold
+    result = result.replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**");
+    result = result.replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**");
+    // Convert italic
+    result = result.replace(/<em[^>]*>(.*?)<\/em>/gi, "*$1*");
+    result = result.replace(/<i[^>]*>(.*?)<\/i>/gi, "*$1*");
+    // Convert strikethrough
+    result = result.replace(/<s[^>]*>(.*?)<\/s>/gi, "~~$1~~");
+    // Remove remaining tags
+    result = result.replace(/<[^>]+>/g, "");
+    // Decode HTML entities
+    result = decodeHtmlEntities(result);
+    return result.trim();
+  };
+
+  // Helper function to parse nested lists recursively
+  const parseList = (html: string, indent: number = 0, isOrdered: boolean = false, startIndex: number = 1): string => {
+    let result = "";
+    const indentStr = "  ".repeat(indent);
+
+    // Find all direct children list items (not nested ones)
+    // We need to carefully extract li elements at the current level
+    let remaining = html;
+    let itemIndex = startIndex;
+
+    while (remaining.length > 0) {
+      // Find the next <li> opening tag
+      const liStartMatch = remaining.match(/^[\s\S]*?<li([^>]*)>/i);
+      if (!liStartMatch) break;
+
+      const liStartIndex = remaining.indexOf(liStartMatch[0]);
+      remaining = remaining.slice(liStartIndex + liStartMatch[0].length);
+
+      // Now we need to find the matching </li>, counting nested lists
+      let depth = 1;
+      let liContent = "";
+      let pos = 0;
+
+      while (depth > 0 && pos < remaining.length) {
+        const nextLiOpen = remaining.indexOf("<li", pos);
+        const nextLiClose = remaining.indexOf("</li>", pos);
+
+        if (nextLiClose === -1) break;
+
+        if (nextLiOpen !== -1 && nextLiOpen < nextLiClose) {
+          // Found another opening <li> before the close
+          liContent += remaining.slice(pos, nextLiOpen + 3);
+          pos = nextLiOpen + 3;
+          // Skip to after the > to properly count
+          const endOfTag = remaining.indexOf(">", pos);
+          if (endOfTag !== -1) {
+            liContent += remaining.slice(pos, endOfTag + 1);
+            pos = endOfTag + 1;
+          }
+          depth++;
+        } else {
+          // Found </li> first
+          liContent += remaining.slice(pos, nextLiClose);
+          pos = nextLiClose + 5; // length of "</li>"
+          depth--;
+        }
+      }
+
+      remaining = remaining.slice(pos);
+
+      // Check if this is a task list item
+      const isTaskItem = /data-type=["']taskItem["']/i.test(liStartMatch[1] || "");
+      const isChecked = /data-checked=["']true["']/i.test(liStartMatch[1] || "");
+
+      // Extract text content (before any nested list)
+      let textContent = liContent;
+      let nestedListHtml = "";
+
+      // Check for nested <ul> or <ol>
+      const nestedUlMatch = liContent.match(/<ul[^>]*>([\s\S]*)<\/ul>\s*$/i);
+      const nestedOlMatch = liContent.match(/<ol[^>]*>([\s\S]*)<\/ol>\s*$/i);
+
+      if (nestedUlMatch) {
+        textContent = liContent.slice(0, liContent.lastIndexOf("<ul"));
+        nestedListHtml = nestedUlMatch[0];
+      } else if (nestedOlMatch) {
+        textContent = liContent.slice(0, liContent.lastIndexOf("<ol"));
+        nestedListHtml = nestedOlMatch[0];
+      }
+
+      // Clean up text content
+      textContent = textContent
         .replace(/<label[^>]*>[\s\S]*?<\/label>/gi, "")
-        .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1")
-        .replace(/<[^>]+>/g, "")
-        .trim();
-      result += `- [${isChecked ? "x" : " "}] ${text}\n`;
-    });
+        .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1");
+      const text = convertInlineToMarkdown(textContent);
+
+      // Generate the list item marker
+      let marker: string;
+      if (isTaskItem) {
+        marker = `- [${isChecked ? "x" : " "}]`;
+      } else if (isOrdered) {
+        marker = `${itemIndex}.`;
+        itemIndex++;
+      } else {
+        marker = "-";
+      }
+
+      if (text.trim()) {
+        result += `${indentStr}${marker} ${text}\n`;
+      }
+
+      // Process nested list if present
+      if (nestedListHtml) {
+        const isNestedOrdered = nestedListHtml.startsWith("<ol");
+        const nestedContent = nestedListHtml.replace(/^<[uo]l[^>]*>([\s\S]*)<\/[uo]l>$/i, "$1");
+        result += parseList(nestedContent, indent + 1, isNestedOrdered);
+      }
+    }
+
     return result;
+  };
+
+  // Task lists - convert using recursive parser
+  md = md.replace(/<ul[^>]*data-type=["']taskList["'][^>]*>([\s\S]*?)<\/ul>/gi, (match) => {
+    // Check if this is a nested task list (has parent list)
+    // Only process top-level task lists here
+    const content = match.replace(/^<ul[^>]*>([\s\S]*)<\/ul>$/i, "$1");
+    return "\n" + parseList(content, 0, false);
   });
 
-  // Regular lists - unordered
-  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, content) => {
-    let result = "\n";
-    const items = content.match(/<li[^>]*>[\s\S]*?<\/li>/gi) || [];
-    items.forEach((item: string) => {
-      const text = item.replace(/<li[^>]*>([\s\S]*?)<\/li>/i, "$1")
-        .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1")
-        .replace(/<[^>]+>/g, "")
-        .trim();
-      result += `- ${text}\n`;
+  // Regular lists - unordered (process from innermost to outermost)
+  // First, let's find and replace all ul that don't contain nested ul/ol
+  const processLists = (html: string): string => {
+    let result = html;
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+
+      // Process unordered lists that don't have task list type
+      result = result.replace(/<ul(?![^>]*data-type=["']taskList["'])[^>]*>((?:(?!<ul|<ol)[\s\S])*?)<\/ul>/gi, (_match, content) => {
+        changed = true;
+        return "\n" + parseList(content, 0, false);
+      });
+
+      // Process ordered lists
+      result = result.replace(/<ol[^>]*>((?:(?!<ul|<ol)[\s\S])*?)<\/ol>/gi, (_match, content) => {
+        changed = true;
+        return "\n" + parseList(content, 0, true);
+      });
+    }
+
+    // Now handle any remaining lists with nested content
+    result = result.replace(/<ul(?![^>]*data-type=["']taskList["'])[^>]*>([\s\S]*?)<\/ul>/gi, (match) => {
+      const content = match.replace(/^<ul[^>]*>([\s\S]*)<\/ul>$/i, "$1");
+      return "\n" + parseList(content, 0, false);
     });
-    return result;
-  });
 
-  // Regular lists - ordered
-  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, content) => {
-    let result = "\n";
-    const items = content.match(/<li[^>]*>[\s\S]*?<\/li>/gi) || [];
-    items.forEach((item: string, index: number) => {
-      const text = item.replace(/<li[^>]*>([\s\S]*?)<\/li>/i, "$1")
-        .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1")
-        .replace(/<[^>]+>/g, "")
-        .trim();
-      result += `${index + 1}. ${text}\n`;
+    result = result.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (match) => {
+      const content = match.replace(/^<ol[^>]*>([\s\S]*)<\/ol>$/i, "$1");
+      return "\n" + parseList(content, 0, true);
     });
+
     return result;
-  });
+  };
 
-  // Headers
-  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, content) => `\n# ${content.replace(/<[^>]+>/g, "").trim()}\n\n`);
-  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, content) => `\n## ${content.replace(/<[^>]+>/g, "").trim()}\n\n`);
-  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, content) => `\n### ${content.replace(/<[^>]+>/g, "").trim()}\n\n`);
-  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, content) => `\n#### ${content.replace(/<[^>]+>/g, "").trim()}\n\n`);
-  md = md.replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, (_, content) => `\n##### ${content.replace(/<[^>]+>/g, "").trim()}\n\n`);
-  md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, (_, content) => `\n###### ${content.replace(/<[^>]+>/g, "").trim()}\n\n`);
+  md = processLists(md);
 
-  // Blockquote
+  // Headers - preserve inline formatting
+  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, content) => `\n# ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, content) => `\n## ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, content) => `\n### ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, content) => `\n#### ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, (_, content) => `\n##### ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, (_, content) => `\n###### ${convertInlineToMarkdown(content)}\n\n`);
+
+  // Blockquote - preserve inline formatting
   md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content) => {
-    const text = content.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1").replace(/<[^>]+>/g, "").trim();
+    const innerContent = content.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1");
+    const text = convertInlineToMarkdown(innerContent);
     return `\n> ${text}\n\n`;
   });
 
@@ -176,14 +499,25 @@ const htmlToMarkdown = (html: string): string => {
   md = md.replace(/<u[^>]*>(.*?)<\/u>/gi, "$1");
   md = md.replace(/<mark[^>]*>(.*?)<\/mark>/gi, "$1");
 
-  // Inline code
-  md = md.replace(/<code[^>]*>(.*?)<\/code>/gi, "`$1`");
+  // Inline code - handle both with and without attributes
+  // Use non-greedy match for content to handle HTML entities like &lt; &gt;
+  md = md.replace(/<code(?:\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_, content) => {
+    // Decode HTML entities inside inline code
+    const decoded = decodeHtmlEntities(content);
+    return `\`${decoded}\``;
+  });
 
-  // Links and images
-  md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)");
-  md = md.replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*\/?>/gi, "![$2]($1)");
-  md = md.replace(/<img[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*\/?>/gi, "![$1]($2)");
-  md = md.replace(/<img[^>]*src="([^"]*)"[^>]*\/?>/gi, "![]($1)");
+  // Links - handle various attribute orders and quote styles
+  md = md.replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
+    // Remove any remaining HTML tags from link text
+    const cleanText = text.replace(/<[^>]+>/g, "").trim();
+    return `[${cleanText}](${href})`;
+  });
+
+  // Images - handle various attribute orders
+  md = md.replace(/<img\s+[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*\/?>/gi, "![$2]($1)");
+  md = md.replace(/<img\s+[^>]*alt=["']([^"']*)["'][^>]*src=["']([^"']*)["'][^>]*\/?>/gi, "![$1]($2)");
+  md = md.replace(/<img\s+[^>]*src=["']([^"']*)["'][^>]*\/?>/gi, "![]($1)");
 
   // Paragraphs and line breaks
   md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1\n\n");
@@ -195,12 +529,13 @@ const htmlToMarkdown = (html: string): string => {
   // Remove any remaining div tags
   md = md.replace(/<\/?div[^>]*>/gi, "\n");
 
-  // Clean up HTML entities
-  md = md.replace(/&nbsp;/g, " ");
-  md = md.replace(/&amp;/g, "&");
-  md = md.replace(/&lt;/g, "<");
-  md = md.replace(/&gt;/g, ">");
-  md = md.replace(/&quot;/g, '"');
+  // Clean up all HTML entities using the helper function
+  md = decodeHtmlEntities(md);
+
+  // Restore protected blocks (mermaid and code blocks)
+  protectedBlocks.forEach((block, index) => {
+    md = md.replace(`__PROTECTED_BLOCK_${index}__`, block);
+  });
 
   // Clean up extra whitespace
   md = md.replace(/\n{3,}/g, "\n\n");
@@ -303,7 +638,7 @@ const markdownToHtml = (md: string): string => {
   html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
   html = html.replace(/~~([^~]+)~~/g, "<s>$1</s>");
 
-  // Inline code
+  // Inline code - must be before links to handle code inside link text
   html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
 
   // Links and images
@@ -316,17 +651,32 @@ const markdownToHtml = (md: string): string => {
   // Blockquotes
   html = html.replace(/^&gt; (.*$)/gim, "<blockquote><p>$1</p></blockquote>");
 
-  // Regular unordered lists
-  html = html.replace(/^- (.*)$/gim, "<li><p>$1</p></li>");
-  html = html.replace(/(<li><p>(?!.*data-type)[\s\S]*?<\/p><\/li>\n?)+/g, (match) => {
-    if (!match.includes('data-type="taskItem"')) {
-      return `<ul>${match}</ul>`;
+  // Unordered lists - handle nested lists by preserving structure
+  // First, convert all list items (including nested ones with indentation)
+  html = html.replace(/^(\s*)- (.*)$/gim, (_, indent, content) => {
+    const level = Math.floor(indent.length / 2);
+    return `<li data-indent="${level}"><p>${content}</p></li>`;
+  });
+
+  // Wrap consecutive list items in ul, excluding task items
+  html = html.replace(/(<li data-indent="\d+"[^>]*>[\s\S]*?<\/li>\n?)+/g, (match) => {
+    if (match.includes('data-type="taskItem"')) {
+      return match;
     }
-    return match;
+    // Remove the data-indent attribute as TipTap doesn't use it
+    const cleaned = match.replace(/ data-indent="\d+"/g, "");
+    return `<ul>${cleaned}</ul>`;
   });
 
   // Ordered lists
-  html = html.replace(/^\d+\. (.*)$/gim, "<li><p>$1</p></li>");
+  html = html.replace(/^(\s*)\d+\. (.*)$/gim, (_, _indent, content) => {
+    return `<li><p>${content}</p></li>`;
+  });
+
+  // Wrap consecutive ordered list items
+  html = html.replace(/(<li><p>(?!.*data-type|.*data-indent)[\s\S]*?<\/p><\/li>\n?)+/g, (match) => {
+    return `<ol>${match}</ol>`;
+  });
 
   // Paragraphs - wrap remaining text lines
   html = html.replace(/^(?!<[huplodtb]|<\/|<hr|<img|<a |<code|<strong|<em|<s>|__)(.+)$/gim, "<p>$1</p>");
@@ -354,13 +704,37 @@ const openFile = async () => {
     });
 
     if (selected) {
-      const fileContent = await readTextFile(selected as string);
-      content.value = markdownToHtml(fileContent);
-      currentFile.value = selected as string;
-      hasChanges.value = false;
+      const filePath = selected as string;
+
+      // Check if file is already open
+      const existingTab = findTabByFilePath(filePath);
+      if (existingTab) {
+        switchToTab(existingTab.id);
+        return;
+      }
+
+      const fileContent = await readTextFile(filePath);
+      const htmlContent = markdownToHtml(fileContent);
+      const fileName = filePath.split(/[/\\]/).pop() || "Dokument";
+
+      // If current tab is empty and has no changes, replace it
+      if (!activeTab.value?.filePath && !activeTab.value?.hasChanges && activeTab.value?.content === "<p></p>") {
+        const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+        if (tabIndex !== -1) {
+          tabs.value[tabIndex].filePath = filePath;
+          tabs.value[tabIndex].fileName = fileName;
+          tabs.value[tabIndex].content = htmlContent;
+          tabs.value[tabIndex].hasChanges = false;
+        }
+      } else {
+        // Create a new tab
+        const newTabId = createNewTab(filePath, htmlContent, fileName);
+        switchToTab(newTabId);
+        return;
+      }
 
       if (editorRef.value?.editor) {
-        editorRef.value.editor.commands.setContent(content.value);
+        editorRef.value.editor.commands.setContent(htmlContent);
       }
     }
   } catch (error) {
@@ -385,8 +759,44 @@ const saveFile = async () => {
       const html = editorRef.value?.editor?.getHTML() || "";
       const markdown = htmlToMarkdown(html);
       await writeTextFile(filePath, markdown);
-      currentFile.value = filePath;
-      hasChanges.value = false;
+
+      // Update the active tab
+      const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+      if (tabIndex !== -1) {
+        tabs.value[tabIndex].filePath = filePath;
+        tabs.value[tabIndex].fileName = filePath.split(/[/\\]/).pop() || "Dokument";
+        tabs.value[tabIndex].hasChanges = false;
+        tabs.value[tabIndex].content = html;
+      }
+    }
+  } catch (error) {
+    console.error("Błąd zapisywania pliku:", error);
+  }
+};
+
+const saveFileAs = async () => {
+  try {
+    // Always show save dialog for "Save As"
+    const filePath = await save({
+      filters: [
+        { name: "Markdown", extensions: ["md"] },
+      ],
+      defaultPath: currentFile.value?.split(/[/\\]/).pop() || "dokument.md",
+    });
+
+    if (filePath) {
+      const html = editorRef.value?.editor?.getHTML() || "";
+      const markdown = htmlToMarkdown(html);
+      await writeTextFile(filePath, markdown);
+
+      // Update the active tab
+      const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+      if (tabIndex !== -1) {
+        tabs.value[tabIndex].filePath = filePath;
+        tabs.value[tabIndex].fileName = filePath.split(/[/\\]/).pop() || "Dokument";
+        tabs.value[tabIndex].hasChanges = false;
+        tabs.value[tabIndex].content = html;
+      }
     }
   } catch (error) {
     console.error("Błąd zapisywania pliku:", error);
@@ -400,11 +810,19 @@ const exportPdf = async () => {
 };
 
 const onContentUpdate = (newContent: string) => {
-  content.value = newContent;
+  // Update the active tab's content
+  const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+  if (tabIndex !== -1) {
+    tabs.value[tabIndex].content = newContent;
+  }
 };
 
 const onChangesUpdate = (changed: boolean) => {
-  hasChanges.value = changed;
+  // Update the active tab's hasChanges
+  const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+  if (tabIndex !== -1) {
+    tabs.value[tabIndex].hasChanges = changed;
+  }
 };
 
 // Keyboard shortcuts
@@ -416,7 +834,11 @@ const handleKeyboard = (event: KeyboardEvent) => {
     switch (event.key.toLowerCase()) {
       case 's':
         event.preventDefault();
-        saveFile();
+        if (event.shiftKey) {
+          saveFileAs();
+        } else {
+          saveFile();
+        }
         break;
       case 'o':
         event.preventDefault();
@@ -444,13 +866,28 @@ onUnmounted(() => {
     <Toolbar
       @open-file="openFile"
       @save-file="saveFile"
+      @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
     />
+    <!-- Tab Bar -->
+    <div class="tab-bar" v-if="tabs.length > 1">
+      <div
+        v-for="tab in tabs"
+        :key="tab.id"
+        class="tab"
+        :class="{ active: tab.id === activeTabId }"
+        @click="switchToTab(tab.id)"
+      >
+        <span class="tab-name">{{ tab.fileName }}{{ tab.hasChanges ? ' *' : '' }}</span>
+        <button class="tab-close" @click.stop="closeTab(tab.id)" title="Zamknij">&times;</button>
+      </div>
+    </div>
     <Editor
       ref="editorRef"
       :model-value="content"
       @update:model-value="onContentUpdate"
       @update:has-changes="onChangesUpdate"
+      @link-click="handleLinkClick"
     />
   </div>
 </template>
@@ -461,6 +898,76 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100vh;
   background: #ffffff;
+}
+
+/* Tab Bar Styles */
+.tab-bar {
+  display: flex;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+  min-height: 36px;
+  padding: 0 8px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #e2e8f0;
+  border-radius: 6px 6px 0 0;
+  margin-top: 4px;
+  cursor: pointer;
+  user-select: none;
+  max-width: 200px;
+  transition: background 0.15s;
+}
+
+.tab:hover {
+  background: #cbd5e1;
+}
+
+.tab.active {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-bottom: none;
+  margin-bottom: -1px;
+}
+
+.tab-name {
+  font-size: 13px;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab.active .tab-name {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.tab-close {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 0;
+}
+
+.tab-close:hover {
+  background: #ef4444;
+  color: white;
 }
 
 @media print {

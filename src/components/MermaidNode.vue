@@ -27,8 +27,8 @@ const translateY = ref(0);
 const isPanning = ref(false);
 const panStart = ref({ x: 0, y: 0 });
 const isFullscreen = ref(false);
-const MIN_SCALE = 0.25;
-const MAX_SCALE = 4;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 10;
 const ZOOM_STEP = 0.25;
 
 const toggleFullscreen = () => {
@@ -857,6 +857,10 @@ const insertTemplate = (code: string) => {
   align-items: center;
   justify-content: center;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .fullscreen-viewport:active {
@@ -869,6 +873,10 @@ const insertTemplate = (code: string) => {
   padding: 40px;
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .fullscreen-content :deep(svg) {

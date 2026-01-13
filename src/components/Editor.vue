@@ -13,9 +13,11 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
-import { watch } from "vue";
+import { watch, ref } from "vue";
 import { Extension } from "@tiptap/core";
 import { MermaidExtension } from "../extensions/MermaidExtension";
+
+const editorContainerRef = ref<HTMLDivElement | null>(null);
 
 // Custom extension for list keyboard shortcuts (Tab/Shift+Tab indentation)
 const ListKeymap = Extension.create({
@@ -156,6 +158,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:modelValue": [value: string];
   "update:hasChanges": [value: boolean];
+  "linkClick": [href: string];
 }>();
 
 const editor = useEditor({
@@ -246,11 +249,27 @@ watch(
   }
 );
 
+// Handle clicks on links
+const handleEditorClick = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+
+  // Check if clicked element is a link or is inside a link
+  const link = target.closest('a');
+  if (link) {
+    event.preventDefault();
+    event.stopPropagation();
+    const href = link.getAttribute('href');
+    if (href) {
+      emit('linkClick', href);
+    }
+  }
+};
+
 defineExpose({ editor });
 </script>
 
 <template>
-  <div class="editor-container">
+  <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick">
     <EditorContent :editor="editor" class="editor-content" />
   </div>
 </template>
