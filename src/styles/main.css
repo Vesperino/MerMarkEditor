@@ -35,3 +35,217 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ========== Print Styles ========== */
+
+/* Page setup - removes browser headers/footers */
+@page {
+  size: A4;
+  margin: 20mm 15mm 20mm 15mm;
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    width: 210mm;
+    height: auto;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body {
+    overflow: visible !important;
+    background: white !important;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #000 !important;
+  }
+
+  /* Hide app UI */
+  .toolbar,
+  .app > header,
+  .mermaid-header,
+  .mermaid-actions,
+  .mermaid-editor,
+  .mermaid-error,
+  .zoom-controls,
+  .template-modal-overlay,
+  .fullscreen-overlay,
+  .btn-edit,
+  .btn-delete,
+  .btn-save,
+  .btn-cancel,
+  .btn-template,
+  .btn-more-templates {
+    display: none !important;
+  }
+
+  /* Editor container */
+  .editor-container {
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  .editor-content {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    min-height: auto !important;
+  }
+
+  /* Typography */
+  h1 {
+    font-size: 22pt;
+    margin-top: 0;
+    color: #000 !important;
+  }
+  h2 {
+    font-size: 16pt;
+    color: #000 !important;
+  }
+  h3 {
+    font-size: 13pt;
+    color: #000 !important;
+  }
+  h4, h5, h6 {
+    font-size: 11pt;
+    color: #000 !important;
+  }
+
+  p {
+    orphans: 3;
+    widows: 3;
+    color: #000 !important;
+  }
+
+  /* Code blocks - light theme for print */
+  pre {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    background: #f8f8f8 !important;
+    border: 1px solid #ccc !important;
+    padding: 12px !important;
+    font-size: 9pt !important;
+    border-radius: 4px !important;
+    page-break-inside: avoid;
+    color: #333 !important;
+  }
+
+  pre code {
+    background: transparent !important;
+    color: #333 !important;
+  }
+
+  code {
+    background: #f0f0f0 !important;
+    font-size: 9pt !important;
+    color: #333 !important;
+    padding: 2px 4px !important;
+  }
+
+  /* Syntax highlighting - dark colors for print */
+  pre .hljs-keyword { color: #7928a1 !important; }
+  pre .hljs-string { color: #1a7f37 !important; }
+  pre .hljs-number { color: #953800 !important; }
+  pre .hljs-function { color: #0550ae !important; }
+  pre .hljs-comment { color: #6e7781 !important; }
+  pre .hljs-variable { color: #953800 !important; }
+  pre .hljs-attr { color: #953800 !important; }
+  pre .hljs-tag { color: #0550ae !important; }
+  pre .hljs-title { color: #8250df !important; }
+  pre .hljs-built_in { color: #0550ae !important; }
+
+  /* Tables */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    border: 1px solid #333 !important;
+    padding: 6px 10px !important;
+    text-align: left !important;
+    color: #000 !important;
+  }
+
+  th {
+    background: #e8e8e8 !important;
+    font-weight: bold !important;
+  }
+
+  /* Images */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* Lists */
+  ul, ol {
+    margin-left: 20px !important;
+    color: #000 !important;
+  }
+
+  li {
+    color: #000 !important;
+  }
+
+  /* Blockquotes */
+  blockquote {
+    border-left: 3px solid #555 !important;
+    padding-left: 15px !important;
+    margin-left: 0 !important;
+    font-style: italic !important;
+    color: #333 !important;
+    background: transparent !important;
+  }
+
+  /* Horizontal rule */
+  hr {
+    border: none !important;
+    border-top: 1px solid #333 !important;
+    margin: 16px 0 !important;
+  }
+
+  /* Links - show URL */
+  a {
+    color: #000 !important;
+    text-decoration: underline !important;
+  }
+
+  /* Mermaid diagrams */
+  .mermaid-wrapper {
+    border: none !important;
+    background: transparent !important;
+    padding: 10px 0 !important;
+    page-break-inside: avoid !important;
+  }
+
+  .mermaid-viewport {
+    overflow: visible !important;
+    max-height: none !important;
+    border: none !important;
+    min-height: auto !important;
+  }
+
+  .mermaid-content {
+    display: flex !important;
+    transform: none !important;
+    padding: 0 !important;
+    min-height: auto !important;
+  }
+
+  .mermaid-content.hidden {
+    display: flex !important;
+  }
+
+  .mermaid-content svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
