@@ -31,6 +31,21 @@ export const MermaidExtension = Node.create<MermaidOptions>({
     return {
       code: {
         default: "graph LR\n  A[Start] --> B[End]",
+        // Parse from data-code attribute
+        parseHTML: (element) => {
+          const dataCode = element.getAttribute("data-code");
+          if (dataCode) {
+            return decodeURIComponent(dataCode);
+          }
+          return element.textContent || undefined;
+        },
+        // Render to data-code attribute
+        renderHTML: (attributes) => {
+          if (!attributes.code) return {};
+          return {
+            "data-code": encodeURIComponent(attributes.code),
+          };
+        },
       },
     };
   },
@@ -39,6 +54,13 @@ export const MermaidExtension = Node.create<MermaidOptions>({
     return [
       {
         tag: 'div[data-type="mermaid"]',
+        getAttrs: (dom) => {
+          if (typeof dom === "string") return {};
+          const dataCode = dom.getAttribute("data-code");
+          return {
+            code: dataCode ? decodeURIComponent(dataCode) : undefined,
+          };
+        },
       },
     ];
   },
@@ -53,7 +75,7 @@ export const MermaidExtension = Node.create<MermaidOptions>({
   },
 
   addNodeView() {
-    return VueNodeViewRenderer(MermaidNode);
+    return VueNodeViewRenderer(MermaidNode as any);
   },
 
   addCommands() {
