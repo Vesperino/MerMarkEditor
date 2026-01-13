@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { inject, ref, computed, type Ref } from "vue";
 import type { Editor } from "@tiptap/vue-3";
+import { useI18n } from "../i18n";
 
+const { t, locale, toggleLocale } = useI18n();
 const editor = inject<Ref<Editor | null>>("editor");
 
 const showTableMenu = ref(false);
@@ -424,10 +426,22 @@ const emit = defineEmits<{
       <!-- Spacer & Stats -->
       <div class="toolbar-spacer"></div>
       <div class="stats-display">
-        <span>{{ characterCount }} znaków</span>
+        <span>{{ characterCount }} {{ t.characters }}</span>
         <span class="separator">|</span>
-        <span>{{ wordCount }} słów</span>
+        <span>{{ wordCount }} {{ t.words }}</span>
       </div>
+
+      <div class="toolbar-separator"></div>
+
+      <!-- Language Toggle -->
+      <button
+        @click="toggleLocale"
+        class="toolbar-btn lang-btn"
+        :title="locale === 'en' ? 'Switch to Polish' : 'Przełącz na angielski'"
+      >
+        <span class="lang-flag">{{ locale === 'en' ? '🇬🇧' : '🇵🇱' }}</span>
+        <span class="lang-code">{{ locale.toUpperCase() }}</span>
+      </button>
     </div>
   </div>
 </template>
@@ -617,5 +631,26 @@ const emit = defineEmits<{
 
 .stats-display .separator {
   color: #cbd5e1;
+}
+
+/* Language Toggle */
+.lang-btn {
+  gap: 4px;
+  padding: 4px 8px !important;
+  font-size: 12px;
+  min-width: auto;
+}
+
+.lang-flag {
+  font-size: 14px;
+}
+
+.lang-code {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.lang-btn:hover .lang-code {
+  color: #1e293b;
 }
 </style>
