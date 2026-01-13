@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="assets/logo.png" alt="MerMark Editor Logo" width="128" height="128">
+  <img src="assets/mermark-banner.jpeg" alt="MerMark Editor - Mermaid Markdown Editor" width="600">
 </p>
-
-<h1 align="center">MerMark Editor</h1>
 
 <p align="center">
   <strong>A modern, open-source Markdown editor with built-in Mermaid diagram support</strong>
