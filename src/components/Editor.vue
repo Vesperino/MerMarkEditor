@@ -14,8 +14,60 @@ import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
 import { watch, ref } from "vue";
-import { Extension } from "@tiptap/core";
+import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import { MermaidExtension } from "../extensions/MermaidExtension";
+
+// Custom Heading extension that preserves id attributes for anchor navigation
+const HeadingWithId = Node.create({
+  name: 'heading',
+  addOptions() {
+    return {
+      levels: [1, 2, 3, 4, 5, 6],
+      HTMLAttributes: {},
+    };
+  },
+  content: 'inline*',
+  group: 'block',
+  defining: true,
+  addAttributes() {
+    return {
+      level: {
+        default: 1,
+        rendered: false,
+      },
+      id: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('id'),
+        renderHTML: (attributes: { id?: string }) => {
+          if (!attributes.id) {
+            return {};
+          }
+          return { id: attributes.id };
+        },
+      },
+    };
+  },
+  parseHTML() {
+    return this.options.levels.map((level: number) => ({
+      tag: `h${level}`,
+      attrs: { level },
+    }));
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const hasLevel = this.options.levels.includes(node.attrs.level);
+    const level = hasLevel ? node.attrs.level : this.options.levels[0];
+    return [`h${level}`, mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
+  },
+  addKeyboardShortcuts() {
+    return this.options.levels.reduce(
+      (items: Record<string, () => boolean>, level: number) => ({
+        ...items,
+        [`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }),
+      }),
+      {}
+    );
+  },
+});
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
 
@@ -166,9 +218,10 @@ const editor = useEditor({
   extensions: [
     StarterKit.configure({
       codeBlock: false,
-      heading: {
-        levels: [1, 2, 3, 4, 5, 6],
-      },
+      heading: false, // Disable default heading, use HeadingWithId instead
+    }),
+    HeadingWithId.configure({
+      levels: [1, 2, 3, 4, 5, 6],
     }),
     ListKeymap,
     Link.configure({

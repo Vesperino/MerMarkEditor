@@ -131,7 +131,9 @@ const renderMermaid = async () => {
   try {
     error.value = null;
     const id = `mermaid-${Date.now()}`;
-    const { svg } = await mermaid.render(id, props.node.attrs.code);
+    // Convert placeholder back to <br> for mermaid rendering
+    const codeForRender = props.node.attrs.code.replace(/__BR__/g, '<br/>');
+    const { svg } = await mermaid.render(id, codeForRender);
     containerRef.value.innerHTML = svg;
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Błąd renderowania diagramu";
@@ -151,17 +153,21 @@ watch(
 );
 
 const startEdit = () => {
-  editCode.value = props.node.attrs.code;
+  // Show <br> tags to user during editing (convert placeholder to actual syntax)
+  editCode.value = props.node.attrs.code.replace(/__BR__/g, '<br/>');
   isEditing.value = true;
 };
 
 const saveEdit = () => {
-  props.updateAttributes({ code: editCode.value });
+  // Convert <br> tags back to placeholder for safe storage
+  const safeCode = editCode.value.replace(/<br\s*\/?>/gi, '__BR__');
+  props.updateAttributes({ code: safeCode });
   isEditing.value = false;
 };
 
 const cancelEdit = () => {
-  editCode.value = props.node.attrs.code;
+  // Reset to original code (with <br> tags for display)
+  editCode.value = props.node.attrs.code.replace(/__BR__/g, '<br/>');
   isEditing.value = false;
 };
 

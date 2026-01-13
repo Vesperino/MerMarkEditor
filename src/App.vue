@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import Editor from "./components/Editor.vue";
 import Toolbar from "./components/Toolbar.vue";
-import { ref, provide, computed, watchEffect, watch, onMounted, onUnmounted } from "vue";
+import { ref, provide, computed, watchEffect, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 import type { Editor as TiptapEditor } from "@tiptap/vue-3";
 
 // Tab interface
@@ -34,6 +35,9 @@ const currentFile = computed(() => activeTab.value?.filePath || null);
 const hasChanges = computed(() => activeTab.value?.hasChanges || false);
 const content = computed(() => activeTab.value?.content || "<p></p>");
 
+// Flag to ignore hasChanges updates when loading content programmatically
+const isLoadingContent = ref(false);
+
 // Watch for editor instance changes
 watch(
   () => editorRef.value?.editor,
@@ -63,7 +67,7 @@ const createNewTab = (filePath: string | null = null, fileContent: string = "<p>
   return newTabId;
 };
 
-const switchToTab = (tabId: string) => {
+const switchToTab = async (tabId: string, preserveHasChanges: boolean = true) => {
   // Save current editor content to current tab before switching
   if (editorRef.value?.editor && activeTab.value) {
     const currentTabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
@@ -72,11 +76,28 @@ const switchToTab = (tabId: string) => {
     }
   }
 
+  // Get the target tab's hasChanges state before switching
+  const targetTab = tabs.value.find(t => t.id === tabId);
+  const targetHasChanges = targetTab?.hasChanges || false;
+
   activeTabId.value = tabId;
 
   // Update editor with new tab's content
   if (editorRef.value?.editor) {
+    isLoadingContent.value = true;
     editorRef.value.editor.commands.setContent(activeTab.value?.content || "<p></p>");
+
+    // Wait for the next tick and reset hasChanges if needed
+    await nextTick();
+    isLoadingContent.value = false;
+
+    // Preserve the tab's original hasChanges state after content load
+    if (preserveHasChanges) {
+      const tabIndex = tabs.value.findIndex(t => t.id === tabId);
+      if (tabIndex !== -1) {
+        tabs.value[tabIndex].hasChanges = targetHasChanges;
+      }
+    }
   }
 };
 
@@ -102,14 +123,20 @@ const closeTab = async (tabId: string) => {
       const newIndex = Math.max(0, tabIndex - 1);
       activeTabId.value = tabs.value[newIndex].id;
       if (editorRef.value?.editor) {
+        isLoadingContent.value = true;
         editorRef.value.editor.commands.setContent(tabs.value[newIndex].content);
+        await nextTick();
+        isLoadingContent.value = false;
       }
     } else {
       // Create a new empty tab if all tabs are closed
       const newTabId = createNewTab();
       activeTabId.value = newTabId;
       if (editorRef.value?.editor) {
+        isLoadingContent.value = true;
         editorRef.value.editor.commands.setContent("<p></p>");
+        await nextTick();
+        isLoadingContent.value = false;
       }
     }
   }
@@ -157,7 +184,7 @@ const openFileInNewTab = async (relativePath: string) => {
     // Check if file is already open
     const existingTab = findTabByFilePath(fullPath);
     if (existingTab) {
-      switchToTab(existingTab.id);
+      await switchToTab(existingTab.id);
       return;
     }
 
@@ -168,21 +195,64 @@ const openFileInNewTab = async (relativePath: string) => {
 
     // Create new tab and switch to it
     const newTabId = createNewTab(fullPath, htmlContent, fileName);
-    switchToTab(newTabId);
+    await switchToTab(newTabId);
   } catch (error) {
     console.error("Błąd otwierania pliku:", error);
   }
 };
 
+// External link confirmation state
+const showExternalLinkDialog = ref(false);
+const pendingExternalUrl = ref('');
+
+const confirmExternalLink = async () => {
+  if (pendingExternalUrl.value) {
+    try {
+      await openExternal(pendingExternalUrl.value);
+    } catch (error) {
+      console.error("Błąd otwierania linku:", error);
+    }
+  }
+  showExternalLinkDialog.value = false;
+  pendingExternalUrl.value = '';
+};
+
+const cancelExternalLink = () => {
+  showExternalLinkDialog.value = false;
+  pendingExternalUrl.value = '';
+};
+
 // Handle link clicks from editor
 const handleLinkClick = (href: string) => {
+  // Check if it's an anchor link (internal navigation)
+  if (href.startsWith("#")) {
+    // Find the element with matching ID and scroll only the editor container
+    const targetId = href.slice(1); // Remove the # prefix
+    const editorContainer = document.querySelector('.editor-container');
+    const targetElement = editorContainer?.querySelector(`[id="${targetId}"]`) as HTMLElement | null;
+    if (targetElement && editorContainer) {
+      // Calculate the scroll position relative to the editor container
+      const containerRect = editorContainer.getBoundingClientRect();
+      const elementRect = targetElement.getBoundingClientRect();
+      const scrollOffset = elementRect.top - containerRect.top + editorContainer.scrollTop - 20; // 20px padding from top
+
+      // Scroll only the editor container, not the whole page
+      editorContainer.scrollTo({
+        top: scrollOffset,
+        behavior: 'smooth'
+      });
+    }
+    return;
+  }
+
   // Check if it's a relative markdown link
   if (href.endsWith(".md") || href.endsWith(".markdown")) {
     // It's likely an internal markdown link
     openFileInNewTab(href);
-  } else if (href.startsWith("http://") || href.startsWith("https://")) {
-    // External link - open in browser (could use Tauri's shell.open)
-    window.open(href, "_blank");
+  } else if (href.startsWith("http://") || href.startsWith("https://") || href.includes(".") && !href.includes("/")) {
+    // External link - show confirmation dialog
+    pendingExternalUrl.value = href.startsWith("http") ? href : `https://${href}`;
+    showExternalLinkDialog.value = true;
   } else {
     // Could be a relative link to any file
     openFileInNewTab(href);
@@ -244,9 +314,17 @@ const htmlToMarkdown = (html: string): string => {
   // Match the complete div element including any inner content
   md = md.replace(/<div[^>]*data-type=["']mermaid["'][^>]*>[\s\S]*?<\/div>/gi, (match) => {
     // Extract data-code from the div
-    const codeMatch = match.match(/data-code=["']([^"']*)["']/);
+    // IMPORTANT: Match double-quoted values first (our output format), then single-quoted
+    // We must not use [^"']* as it stops at EITHER quote, causing truncation
+    // when content contains single quotes (like 'message' in mermaid)
+    let codeMatch = match.match(/data-code="([^"]*)"/);
+    if (!codeMatch) {
+      codeMatch = match.match(/data-code='([^']*)'/);
+    }
     if (codeMatch) {
-      const code = decodeURIComponent(codeMatch[1]);
+      let code = decodeURIComponent(codeMatch[1]);
+      // Convert placeholder back to <br> tags for proper mermaid syntax in saved file
+      code = code.replace(/__BR__/g, '<br/>');
       const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
       protectedBlocks.push(`\n\`\`\`mermaid\n${code}\n\`\`\`\n`);
       return placeholder;
@@ -293,11 +371,17 @@ const htmlToMarkdown = (html: string): string => {
   // Helper function to convert inline HTML to markdown
   const convertInlineToMarkdown = (html: string): string => {
     let result = html;
-    // Convert inline code first (before links, as code might contain angle brackets)
+
+    // Protect inline code content FIRST with placeholders
+    // This prevents <T>, <TId>, etc. from being stripped as HTML tags later
+    const inlineCodeBlocks: string[] = [];
     result = result.replace(/<code(?:\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_, content) => {
       const decoded = decodeHtmlEntities(content);
-      return `\`${decoded}\``;
+      const placeholder = `__INLINE_CODE_${inlineCodeBlocks.length}__`;
+      inlineCodeBlocks.push(`\`${decoded}\``);
+      return placeholder;
     });
+
     // Convert links
     result = result.replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
       const cleanText = text.replace(/<[^>]+>/g, "").trim();
@@ -315,6 +399,12 @@ const htmlToMarkdown = (html: string): string => {
     result = result.replace(/<[^>]+>/g, "");
     // Decode HTML entities
     result = decodeHtmlEntities(result);
+
+    // Restore inline code blocks (with their original content including <T>, etc.)
+    inlineCodeBlocks.forEach((code, index) => {
+      result = result.replace(`__INLINE_CODE_${index}__`, code);
+    });
+
     return result.trim();
   };
 
@@ -563,9 +653,12 @@ const markdownToHtml = (md: string): string => {
   const codeBlocks: string[] = [];
 
   // Mermaid blocks - extract first
+  // Replace <br> tags with placeholder to prevent HTML processing corruption
   html = html.replace(/```mermaid\n([\s\S]*?)```/gi, (_, code) => {
     const placeholder = `__MERMAID_BLOCK_${codeBlocks.length}__`;
-    codeBlocks.push(`<div data-type="mermaid" data-code="${encodeURIComponent(code.trim())}"></div>`);
+    // Convert <br> and <br/> to safe placeholder that won't be processed as HTML
+    const safeCode = code.trim().replace(/<br\s*\/?>/gi, '__BR__');
+    codeBlocks.push(`<div data-type="mermaid" data-code="${encodeURIComponent(safeCode)}"></div>`);
     return placeholder;
   });
 
@@ -625,13 +718,23 @@ const markdownToHtml = (md: string): string => {
   // Wrap consecutive task items in task list
   html = html.replace(/(<li data-type="taskItem"[^>]*>[\s\S]*?<\/li>\n?)+/g, '<ul data-type="taskList">$&</ul>');
 
-  // Headers
-  html = html.replace(/^###### (.*$)/gim, "<h6>$1</h6>");
-  html = html.replace(/^##### (.*$)/gim, "<h5>$1</h5>");
-  html = html.replace(/^#### (.*$)/gim, "<h4>$1</h4>");
-  html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
-  html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
-  html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
+  // Helper: Generate slug ID from header text (GitHub-style)
+  const generateSlug = (text: string): string => {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')     // Replace spaces with hyphens
+      .replace(/-+/g, '-')      // Replace multiple hyphens with single
+      .trim();
+  };
+
+  // Headers with IDs for anchor navigation
+  html = html.replace(/^###### (.*$)/gim, (_, content) => `<h6 id="${generateSlug(content)}">${content}</h6>`);
+  html = html.replace(/^##### (.*$)/gim, (_, content) => `<h5 id="${generateSlug(content)}">${content}</h5>`);
+  html = html.replace(/^#### (.*$)/gim, (_, content) => `<h4 id="${generateSlug(content)}">${content}</h4>`);
+  html = html.replace(/^### (.*$)/gim, (_, content) => `<h3 id="${generateSlug(content)}">${content}</h3>`);
+  html = html.replace(/^## (.*$)/gim, (_, content) => `<h2 id="${generateSlug(content)}">${content}</h2>`);
+  html = html.replace(/^# (.*$)/gim, (_, content) => `<h1 id="${generateSlug(content)}">${content}</h1>`);
 
   // Bold, italic, strike
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -822,7 +925,7 @@ const openFile = async () => {
       // Check if file is already open
       const existingTab = findTabByFilePath(filePath);
       if (existingTab) {
-        switchToTab(existingTab.id);
+        await switchToTab(existingTab.id);
         return;
       }
 
@@ -838,16 +941,20 @@ const openFile = async () => {
           tabs.value[tabIndex].fileName = fileName;
           tabs.value[tabIndex].content = htmlContent;
           tabs.value[tabIndex].hasChanges = false;
+
+          if (editorRef.value?.editor) {
+            isLoadingContent.value = true;
+            editorRef.value.editor.commands.setContent(htmlContent);
+            await nextTick();
+            isLoadingContent.value = false;
+            // Ensure hasChanges stays false
+            tabs.value[tabIndex].hasChanges = false;
+          }
         }
       } else {
         // Create a new tab
         const newTabId = createNewTab(filePath, htmlContent, fileName);
-        switchToTab(newTabId);
-        return;
-      }
-
-      if (editorRef.value?.editor) {
-        editorRef.value.editor.commands.setContent(htmlContent);
+        await switchToTab(newTabId);
       }
     }
   } catch (error) {
@@ -931,6 +1038,9 @@ const onContentUpdate = (newContent: string) => {
 };
 
 const onChangesUpdate = (changed: boolean) => {
+  // Ignore hasChanges updates when loading content programmatically
+  if (isLoadingContent.value) return;
+
   // Update the active tab's hasChanges
   const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
   if (tabIndex !== -1) {
@@ -1002,6 +1112,23 @@ onUnmounted(() => {
       @update:has-changes="onChangesUpdate"
       @link-click="handleLinkClick"
     />
+
+    <!-- External Link Confirmation Dialog -->
+    <div v-if="showExternalLinkDialog" class="dialog-overlay" @click.self="cancelExternalLink">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>Otwórz link zewnętrzny</h3>
+        </div>
+        <div class="dialog-content">
+          <p>Czy na pewno chcesz przejść do:</p>
+          <p class="dialog-url">{{ pendingExternalUrl }}</p>
+        </div>
+        <div class="dialog-actions">
+          <button @click="cancelExternalLink" class="btn-cancel">Anuluj</button>
+          <button @click="confirmExternalLink" class="btn-confirm">Otwórz</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1104,5 +1231,97 @@ onUnmounted(() => {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+}
+
+/* External Link Dialog */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.dialog {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 450px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.dialog-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #1e293b;
+}
+
+.dialog-content {
+  padding: 20px;
+}
+
+.dialog-content p {
+  margin: 0 0 8px 0;
+  color: #475569;
+}
+
+.dialog-url {
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 13px;
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 6px;
+  word-break: break-all;
+  color: #2563eb;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dialog-actions .btn-cancel {
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #e2e8f0;
+  color: #475569;
+  border: none;
+  transition: all 0.2s;
+}
+
+.dialog-actions .btn-cancel:hover {
+  background: #cbd5e1;
+}
+
+.dialog-actions .btn-confirm {
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+  border: none;
+  transition: all 0.2s;
+}
+
+.dialog-actions .btn-confirm:hover {
+  background: #1d4ed8;
 }
 </style>
