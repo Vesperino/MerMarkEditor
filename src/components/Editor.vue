@@ -267,6 +267,15 @@ const editor = useEditor({
     emit("update:hasChanges", true);
   },
   editorProps: {
+    // Disable spell-check, autocomplete, and autocorrect to prevent interference with code blocks
+    attributes: {
+      spellcheck: "false",
+      autocorrect: "off",
+      autocapitalize: "off",
+      "data-gramm": "false", // Disable Grammarly
+      "data-gramm_editor": "false",
+      "data-enable-grammarly": "false",
+    },
     handlePaste: (_view, event) => {
       const clipboardData = event.clipboardData;
       if (!clipboardData) return false;

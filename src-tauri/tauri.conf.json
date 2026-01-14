@@ -35,11 +35,37 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "wix": {
+        "language": ["en-US", "pl-PL"]
+      },
+      "nsis": {
+        "languages": ["English", "Polish"],
+        "displayLanguageSelector": true
+      }
     },
     "category": "Productivity",
     "shortDescription": "Modern Markdown editor with Mermaid diagrams",
-    "longDescription": "MerMark Editor is a modern, open-source Markdown editor with built-in Mermaid diagram support. Create beautiful documents with flowcharts, sequence diagrams, and more."
+    "longDescription": "MerMark Editor is a modern, open-source Markdown editor with built-in Mermaid diagram support. Create beautiful documents with flowcharts, sequence diagrams, and more.",
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown Document",
+        "description": "Markdown text file",
+        "role": "Editor",
+        "mimeType": "text/markdown"
+      }
+    ]
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": []
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["mermark"]
+      }
+    }
+  }
 }
