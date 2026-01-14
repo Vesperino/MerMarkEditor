@@ -894,10 +894,11 @@ const insertTemplate = (code: string) => {
 }
 
 /* ========== Print Styles ========== */
+/* ========== Print Styles ========== */
 @media print {
   .mermaid-wrapper {
     border: none !important;
-    background: transparent !important;
+    background: white !important;
     padding: 10px 0 !important;
     margin: 15px 0 !important;
     page-break-inside: avoid;
@@ -931,16 +932,89 @@ const insertTemplate = (code: string) => {
     overflow: visible !important;
     max-height: none !important;
     border: none !important;
+    background: white !important;
   }
 
   .mermaid-content {
     display: flex !important;
     transform: none !important;
+    justify-content: center !important;
+    background: white !important;
   }
 
   .mermaid-content :deep(svg) {
     max-width: 100% !important;
     height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Preserve SVG colors during print */
+  .mermaid-content :deep(svg *) {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ensure text is visible */
+  .mermaid-content :deep(svg text) {
+    fill: #333 !important;
+    stroke: none !important;
+  }
+
+  /* Ensure node shapes have visible strokes */
+  .mermaid-content :deep(svg .node rect),
+  .mermaid-content :deep(svg .node circle),
+  .mermaid-content :deep(svg .node ellipse),
+  .mermaid-content :deep(svg .node polygon),
+  .mermaid-content :deep(svg .node path) {
+    stroke: #333 !important;
+    stroke-width: 1px !important;
+  }
+
+  /* Ensure edges/arrows are visible */
+  .mermaid-content :deep(svg .edgePath path),
+  .mermaid-content :deep(svg .flowchart-link),
+  .mermaid-content :deep(svg path.path) {
+    stroke: #333 !important;
+    stroke-width: 1px !important;
+  }
+
+  /* Arrow markers */
+  .mermaid-content :deep(svg marker path) {
+    fill: #333 !important;
+  }
+
+  /* Edge labels background */
+  .mermaid-content :deep(svg .edgeLabel) {
+    background-color: white !important;
+  }
+
+  /* Cluster/group backgrounds */
+  .mermaid-content :deep(svg .cluster rect) {
+    fill: #f8f8f8 !important;
+    stroke: #ccc !important;
+  }
+
+  /* Sequence diagram specific */
+  .mermaid-content :deep(svg line),
+  .mermaid-content :deep(svg .messageLine0),
+  .mermaid-content :deep(svg .messageLine1) {
+    stroke: #333 !important;
+  }
+
+  .mermaid-content :deep(svg .actor) {
+    stroke: #333 !important;
+    fill: #f8f8f8 !important;
+  }
+
+  /* Gantt chart specific */
+  .mermaid-content :deep(svg .section0),
+  .mermaid-content :deep(svg .section1) {
+    fill: #f0f0f0 !important;
+  }
+
+  .mermaid-content :deep(svg .task) {
+    stroke: #333 !important;
   }
 }
 </style>
