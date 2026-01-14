@@ -34,7 +34,7 @@
 - **Natywna wydajność** - Zbudowany z Tauri dla szybkiego, lekkiego działania
 - **Edycja WYSIWYG** - Zobacz sformatowaną treść podczas pisania
 - **Integracja Mermaid** - Twórz diagramy bezpośrednio w dokumentach
-- **Wieloplatformowy** - Dostępny dla Windows, macOS i Linux
+- **Wieloplatformowy** - Obecnie Windows, macOS i Linux wkrótce
 
 ---
 
@@ -72,25 +72,34 @@
 
 ## Zrzuty ekranu
 
-<!-- PLACEHOLDER: Zrzut głównego edytora -->
 <p align="center">
-  <img src="assets/screenshots/editor-main.png" alt="MerMark Editor - Główny interfejs" width="800">
+  <img src="assets/screenshots/editor-welcome.png" alt="MerMark Editor - Ekran powitalny" width="800">
   <br>
-  <em>Czysty, minimalistyczny interfejs edycji</em>
+  <em>Czysty, minimalistyczny interfejs z intuicyjnym paskiem narzędzi</em>
 </p>
 
-<!-- PLACEHOLDER: Zrzut diagramu Mermaid -->
 <p align="center">
-  <img src="assets/screenshots/mermaid-diagram.png" alt="MerMark Editor - Diagramy Mermaid" width="800">
+  <img src="assets/screenshots/document-with-toc.png" alt="MerMark Editor - Dokument ze spisem treści" width="800">
   <br>
-  <em>Twórz piękne diagramy ze składnią Mermaid</em>
+  <em>Edycja wielu dokumentów w zakładkach z klikalnym spisem treści</em>
 </p>
 
-<!-- PLACEHOLDER: Zrzut kolorowania kodu -->
 <p align="center">
-  <img src="assets/screenshots/code-highlight.png" alt="MerMark Editor - Kolorowanie kodu" width="800">
+  <img src="assets/screenshots/mermaid-diagrams.png" alt="MerMark Editor - Diagramy Mermaid" width="800">
   <br>
-  <em>Kolorowanie składni dla ponad 50 języków programowania</em>
+  <em>Diagramy architektury C4 z kontrolą powiększenia i trybem pełnoekranowym</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/diagram-fullscreen.png" alt="MerMark Editor - Pełnoekranowy widok diagramu" width="800">
+  <br>
+  <em>Pełnoekranowy widok diagramu z 400% powiększeniem dla szczegółowej inspekcji</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/code-and-documentation.png" alt="MerMark Editor - Kod i dokumentacja" width="800">
+  <br>
+  <em>Dokumentacja techniczna z blokami kodu i osadzonymi diagramami</em>
 </p>
 
 ---
@@ -99,19 +108,17 @@
 
 ### Pobieranie
 
-Pobierz najnowszą wersję dla swojego systemu operacyjnego ze [strony wydań](https://github.com/Vesperino/MerMarkEditor/releases).
+Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMarkEditor/releases).
 
 | Platforma | Pobierz |
 |-----------|---------|
-| Windows   | [MerMark-Editor-x.x.x-setup.exe](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
-| macOS     | [MerMark-Editor-x.x.x.dmg](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
-| Linux     | [MerMark-Editor-x.x.x.AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| Windows   | [MerMark Editor_x.x.x_x64-setup.exe](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+
+> **Uwaga:** Wersje dla macOS i Linux już wkrótce!
 
 ### Wymagania systemowe
 
-- **Windows**: Windows 10 lub nowszy
-- **macOS**: macOS 10.15 (Catalina) lub nowszy
-- **Linux**: Ubuntu 18.04 lub odpowiednik
+- **Windows**: Windows 10 lub nowszy (64-bit)
 
 ---
 

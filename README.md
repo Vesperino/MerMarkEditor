@@ -34,7 +34,7 @@
 - **Native performance** - Built with Tauri for fast, lightweight operation
 - **WYSIWYG editing** - See your formatted content as you type
 - **Mermaid integration** - Create diagrams directly in your documents
-- **Cross-platform** - Available for Windows, macOS, and Linux
+- **Cross-platform** - Windows now, macOS and Linux coming soon
 
 ---
 
@@ -72,25 +72,34 @@
 
 ## Screenshots
 
-<!-- PLACEHOLDER: Main editor screenshot -->
 <p align="center">
-  <img src="assets/screenshots/editor-main.png" alt="MerMark Editor - Main Interface" width="800">
+  <img src="assets/screenshots/editor-welcome.png" alt="MerMark Editor - Welcome Screen" width="800">
   <br>
-  <em>Clean, distraction-free editing interface</em>
+  <em>Clean, minimalist interface with intuitive toolbar</em>
 </p>
 
-<!-- PLACEHOLDER: Mermaid diagram screenshot -->
 <p align="center">
-  <img src="assets/screenshots/mermaid-diagram.png" alt="MerMark Editor - Mermaid Diagrams" width="800">
+  <img src="assets/screenshots/document-with-toc.png" alt="MerMark Editor - Document with Table of Contents" width="800">
   <br>
-  <em>Create beautiful diagrams with Mermaid syntax</em>
+  <em>Multi-tab editing with formatted documents and clickable table of contents</em>
 </p>
 
-<!-- PLACEHOLDER: Code highlighting screenshot -->
 <p align="center">
-  <img src="assets/screenshots/code-highlight.png" alt="MerMark Editor - Code Highlighting" width="800">
+  <img src="assets/screenshots/mermaid-diagrams.png" alt="MerMark Editor - Mermaid Diagrams" width="800">
   <br>
-  <em>Syntax highlighting for 50+ programming languages</em>
+  <em>C4 Architecture diagrams with zoom controls and fullscreen mode</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/diagram-fullscreen.png" alt="MerMark Editor - Fullscreen Diagram View" width="800">
+  <br>
+  <em>Fullscreen diagram view with 400% zoom for detailed inspection</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/code-and-documentation.png" alt="MerMark Editor - Code and Documentation" width="800">
+  <br>
+  <em>Technical documentation with code blocks and embedded diagrams</em>
 </p>
 
 ---
@@ -99,19 +108,17 @@
 
 ### Download
 
-Download the latest version for your operating system from the [Releases page](https://github.com/Vesperino/MerMarkEditor/releases).
+Download the latest version from the [Releases page](https://github.com/Vesperino/MerMarkEditor/releases).
 
 | Platform | Download |
 |----------|----------|
-| Windows  | [MerMark-Editor-x.x.x-setup.exe](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
-| macOS    | [MerMark-Editor-x.x.x.dmg](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
-| Linux    | [MerMark-Editor-x.x.x.AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| Windows  | [MerMark Editor_x.x.x_x64-setup.exe](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+
+> **Note:** macOS and Linux builds coming soon!
 
 ### System Requirements
 
-- **Windows**: Windows 10 or later
-- **macOS**: macOS 10.15 (Catalina) or later
-- **Linux**: Ubuntu 18.04 or equivalent
+- **Windows**: Windows 10 or later (64-bit)
 
 ---
 
