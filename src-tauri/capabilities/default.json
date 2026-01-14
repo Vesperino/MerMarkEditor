@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:event:default",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
@@ -19,6 +20,10 @@
       "allow": [{ "path": "**" }]
     },
     "fs:allow-exists",
-    "shell:allow-open"
+    "shell:allow-open",
+    "deep-link:default",
+    "updater:default",
+    "process:default",
+    "core:window:allow-set-focus"
   ]
 }

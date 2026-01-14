@@ -44,6 +44,10 @@ button:disabled {
   margin: 20mm 15mm 20mm 15mm;
 }
 
+@page :first {
+  margin-top: 20mm;
+}
+
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;
@@ -65,8 +69,9 @@ button:disabled {
     color: #000 !important;
   }
 
-  /* Hide app UI */
+  /* Hide app UI - including tab bar and dialogs */
   .toolbar,
+  .tab-bar,
   .app > header,
   .mermaid-header,
   .mermaid-actions,
@@ -75,6 +80,7 @@ button:disabled {
   .zoom-controls,
   .template-modal-overlay,
   .fullscreen-overlay,
+  .dialog-overlay,
   .btn-edit,
   .btn-delete,
   .btn-save,
@@ -218,10 +224,10 @@ button:disabled {
     text-decoration: underline !important;
   }
 
-  /* Mermaid diagrams */
+  /* Mermaid diagrams - preserve all colors for print */
   .mermaid-wrapper {
     border: none !important;
-    background: transparent !important;
+    background: white !important;
     padding: 10px 0 !important;
     page-break-inside: avoid !important;
   }
@@ -231,6 +237,7 @@ button:disabled {
     max-height: none !important;
     border: none !important;
     min-height: auto !important;
+    background: white !important;
   }
 
   .mermaid-content {
@@ -238,6 +245,7 @@ button:disabled {
     transform: none !important;
     padding: 0 !important;
     min-height: auto !important;
+    justify-content: center !important;
   }
 
   .mermaid-content.hidden {
@@ -247,5 +255,49 @@ button:disabled {
   .mermaid-content svg {
     max-width: 100% !important;
     height: auto !important;
+  }
+
+  /* Mermaid SVG specific - preserve colors */
+  .mermaid-content svg * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .mermaid-content svg text {
+    fill: #333 !important;
+  }
+
+  .mermaid-content svg .node rect,
+  .mermaid-content svg .node circle,
+  .mermaid-content svg .node ellipse,
+  .mermaid-content svg .node polygon,
+  .mermaid-content svg .node path {
+    stroke: #333 !important;
+  }
+
+  .mermaid-content svg .edgePath path {
+    stroke: #333 !important;
+  }
+
+  .mermaid-content svg .edgeLabel {
+    background-color: white !important;
+  }
+
+  .mermaid-content svg .label {
+    color: #333 !important;
+  }
+
+  /* Ensure mermaid background shapes are visible */
+  .mermaid-content svg .cluster rect {
+    fill: #f8f8f8 !important;
+    stroke: #ccc !important;
+  }
+
+  .mermaid-content svg .flowchart-link {
+    stroke: #333 !important;
+  }
+
+  .mermaid-content svg marker path {
+    fill: #333 !important;
   }
 }

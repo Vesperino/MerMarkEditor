@@ -5,6 +5,8 @@ import { ref, provide, computed, watchEffect, watch, onMounted, onUnmounted, nex
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Editor as TiptapEditor } from "@tiptap/vue-3";
 
 // Tab interface
@@ -962,6 +964,47 @@ const openFile = async () => {
   }
 };
 
+// Open file directly from path (for file association / CLI args)
+const openFileFromPath = async (filePath: string) => {
+  try {
+    // Check if file is already open
+    const existingTab = findTabByFilePath(filePath);
+    if (existingTab) {
+      await switchToTab(existingTab.id);
+      return;
+    }
+
+    const fileContent = await readTextFile(filePath);
+    const htmlContent = markdownToHtml(fileContent);
+    const fileName = filePath.split(/[/\\]/).pop() || "Dokument";
+
+    // If current tab is empty and has no changes, replace it
+    if (!activeTab.value?.filePath && !activeTab.value?.hasChanges && activeTab.value?.content === "<p></p>") {
+      const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+      if (tabIndex !== -1) {
+        tabs.value[tabIndex].filePath = filePath;
+        tabs.value[tabIndex].fileName = fileName;
+        tabs.value[tabIndex].content = htmlContent;
+        tabs.value[tabIndex].hasChanges = false;
+
+        if (editorRef.value?.editor) {
+          isLoadingContent.value = true;
+          editorRef.value.editor.commands.setContent(htmlContent);
+          await nextTick();
+          isLoadingContent.value = false;
+          tabs.value[tabIndex].hasChanges = false;
+        }
+      }
+    } else {
+      // Create a new tab
+      const newTabId = createNewTab(filePath, htmlContent, fileName);
+      await switchToTab(newTabId);
+    }
+  } catch (error) {
+    console.error("Błąd otwierania pliku z argumentów:", error);
+  }
+};
+
 const saveFile = async () => {
   try {
     let filePath = currentFile.value;
@@ -1025,8 +1068,35 @@ const saveFileAs = async () => {
 
 const exportPdf = async () => {
   // Używamy systemowego dialogu drukowania z opcją zapisu do PDF
+  // Nagłówki i stopki są ukryte przez style CSS @page
   // Użytkownik może wybrać "Zapisz jako PDF" w opcjach drukarki
-  window.print();
+
+  // Add a class to body during print for better control
+  document.body.classList.add('printing');
+
+  try {
+    // Use Tauri webview print API if available (for better control)
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    const webview = getCurrentWebview();
+
+    // Try using the print method (might not have types in all versions)
+    if (typeof (webview as unknown as { print: unknown }).print === 'function') {
+      await (webview as unknown as { print: (options?: unknown) => Promise<void> }).print({
+        margins: { marginType: "Custom", top: 20, bottom: 20, left: 15, right: 15 },
+        headerFooterEnabled: false,
+        landscape: false,
+        scaleFactor: 100,
+        printBackground: true
+      });
+    } else {
+      window.print();
+    }
+  } catch {
+    // Fallback to regular window.print()
+    window.print();
+  } finally {
+    document.body.classList.remove('printing');
+  }
 };
 
 const onContentUpdate = (newContent: string) => {
@@ -1075,12 +1145,109 @@ const handleKeyboard = (event: KeyboardEvent) => {
   }
 };
 
-onMounted(() => {
+// Store unlisten function for cleanup
+let unlistenOpenFile: UnlistenFn | null = null;
+
+// Auto-update state
+const showUpdateDialog = ref(false);
+const updateInfo = ref<{ version: string; notes: string } | null>(null);
+const updateProgress = ref(0);
+const isUpdating = ref(false);
+const updateError = ref<string | null>(null);
+
+// Check for updates
+const checkForUpdates = async () => {
+  try {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const update = await check();
+
+    if (update) {
+      updateInfo.value = {
+        version: update.version,
+        notes: update.body || "",
+      };
+      showUpdateDialog.value = true;
+    }
+  } catch (error) {
+    // Silently fail if update check fails (might not have endpoints configured)
+    console.log("Sprawdzanie aktualizacji pominięte:", error);
+  }
+};
+
+// Download and install update
+const downloadAndInstallUpdate = async () => {
+  try {
+    isUpdating.value = true;
+    updateError.value = null;
+    updateProgress.value = 0;
+
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const update = await check();
+
+    if (update) {
+      // Download with progress - use type from plugin
+      await update.downloadAndInstall((progress) => {
+        if (progress.event === "Started") {
+          updateProgress.value = 0;
+        } else if (progress.event === "Progress") {
+          updateProgress.value = Math.min(99, updateProgress.value + 1);
+        } else if (progress.event === "Finished") {
+          updateProgress.value = 100;
+        }
+      });
+
+      // Restart the app after update
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      await relaunch();
+    }
+  } catch (error) {
+    updateError.value = error instanceof Error ? error.message : "Błąd podczas aktualizacji";
+    isUpdating.value = false;
+  }
+};
+
+const closeUpdateDialog = () => {
+  if (!isUpdating.value) {
+    showUpdateDialog.value = false;
+    updateInfo.value = null;
+    updateError.value = null;
+  }
+};
+
+
+onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
+
+  // Check for file path from CLI arguments (file association on first launch)
+  try {
+    const filePath = await invoke<string | null>('get_open_file_path');
+    if (filePath) {
+      // Wait for editor to be ready
+      await nextTick();
+      setTimeout(() => openFileFromPath(filePath), 100);
+    }
+  } catch (error) {
+    console.error("Błąd pobierania ścieżki pliku:", error);
+  }
+
+  // Listen for open-file events (when app is already running)
+  try {
+    unlistenOpenFile = await listen<string>('open-file', (event) => {
+      openFileFromPath(event.payload);
+    });
+  } catch (error) {
+    console.error("Błąd nasłuchiwania zdarzeń:", error);
+  }
+
+  // Check for updates after app is ready (with delay to not slow down startup)
+  setTimeout(() => checkForUpdates(), 3000);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyboard);
+  if (unlistenOpenFile) {
+    unlistenOpenFile();
+  }
 });
 </script>
 
@@ -1126,6 +1293,34 @@ onUnmounted(() => {
         <div class="dialog-actions">
           <button @click="cancelExternalLink" class="btn-cancel">Anuluj</button>
           <button @click="confirmExternalLink" class="btn-confirm">Otwórz</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Update Available Dialog -->
+    <div v-if="showUpdateDialog" class="dialog-overlay" @click.self="closeUpdateDialog">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>Dostępna aktualizacja</h3>
+        </div>
+        <div class="dialog-content">
+          <p v-if="updateInfo">Dostępna jest nowa wersja: <strong>{{ updateInfo.version }}</strong></p>
+          <div v-if="updateInfo?.notes" class="update-notes">
+            <p>{{ updateInfo.notes }}</p>
+          </div>
+          <div v-if="isUpdating" class="update-progress">
+            <p>Pobieranie aktualizacji...</p>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${updateProgress}%` }"></div>
+            </div>
+          </div>
+          <p v-if="updateError" class="update-error">{{ updateError }}</p>
+        </div>
+        <div class="dialog-actions">
+          <button @click="closeUpdateDialog" class="btn-cancel" :disabled="isUpdating">Później</button>
+          <button @click="downloadAndInstallUpdate" class="btn-confirm" :disabled="isUpdating">
+            {{ isUpdating ? 'Aktualizowanie...' : 'Aktualizuj teraz' }}
+          </button>
         </div>
       </div>
     </div>
@@ -1323,5 +1518,46 @@ onUnmounted(() => {
 
 .dialog-actions .btn-confirm:hover {
   background: #1d4ed8;
+}
+.dialog-actions .btn-confirm:disabled,
+.dialog-actions .btn-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Update Dialog Styles */
+.update-notes {
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #475569;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.update-progress {
+  margin-top: 16px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #2563eb;
+  transition: width 0.3s ease;
+}
+
+.update-error {
+  color: #dc2626;
+  margin-top: 12px;
+  font-size: 13px;
 }
 </style>
