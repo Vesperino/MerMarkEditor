@@ -16,6 +16,9 @@ import { common, createLowlight } from "lowlight";
 import { watch, ref } from "vue";
 import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import { MermaidExtension } from "../extensions/MermaidExtension";
+import { useI18n } from "../i18n";
+
+const { t } = useI18n();
 
 // Custom Heading extension that preserves id attributes for anchor navigation
 const HeadingWithId = Node.create({
@@ -214,7 +217,7 @@ const emit = defineEmits<{
 }>();
 
 const editor = useEditor({
-  content: props.modelValue || "<p>Zacznij pisać...</p>",
+  content: props.modelValue || `<p>${t.value.placeholder}</p>`,
   extensions: [
     StarterKit.configure({
       codeBlock: false,
@@ -252,7 +255,7 @@ const editor = useEditor({
       lowlight,
     }),
     Placeholder.configure({
-      placeholder: "Zacznij pisać lub wklej tekst...",
+      placeholder: t.value.placeholder,
     }),
     MermaidExtension,
     CharacterCount.configure({

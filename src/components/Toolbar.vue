@@ -93,7 +93,7 @@ const deleteTable = () => {
 // Links and images
 const setLink = () => {
   const previousUrl = editor?.value?.getAttributes("link").href;
-  const url = window.prompt("URL linku:", previousUrl);
+  const url = window.prompt(t.value.linkPrompt, previousUrl);
   if (url === null) return;
   if (url === "") {
     runCommand((e) => e.chain().focus().unsetLink().run());
@@ -103,7 +103,7 @@ const setLink = () => {
 };
 
 const insertImage = () => {
-  const url = window.prompt("URL obrazka:");
+  const url = window.prompt(t.value.imagePrompt);
   if (url) {
     runCommand((e) => e.chain().focus().setImage({ src: url }).run());
   }
@@ -132,38 +132,38 @@ const emit = defineEmits<{
     <div class="toolbar-row">
       <!-- File operations -->
       <div class="toolbar-group">
-        <button @click="emit('openFile')" class="toolbar-btn" title="Otwórz plik Markdown (Ctrl+O)">
+        <button @click="emit('openFile')" class="toolbar-btn" :title="`${t.open} (Ctrl+O)`">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
             <path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/>
           </svg>
-          <span>Otwórz</span>
+          <span>{{ t.open }}</span>
         </button>
-        <button @click="emit('saveFile')" class="toolbar-btn" title="Zapisz jako Markdown (Ctrl+S)">
+        <button @click="emit('saveFile')" class="toolbar-btn" :title="`${t.save} (Ctrl+S)`">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
             <polyline points="17,21 17,13 7,13 7,21"/>
             <polyline points="7,3 7,8 15,8"/>
           </svg>
-          <span>Zapisz</span>
+          <span>{{ t.save }}</span>
         </button>
-        <button @click="emit('saveFileAs')" class="toolbar-btn" title="Zapisz jako nowy plik (Ctrl+Shift+S)">
+        <button @click="emit('saveFileAs')" class="toolbar-btn" :title="`${t.saveAs} (Ctrl+Shift+S)`">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/>
             <polyline points="14,3 14,8 19,8"/>
             <line x1="12" y1="12" x2="12" y2="18"/>
             <line x1="9" y1="15" x2="15" y2="15"/>
           </svg>
-          <span>Zapisz jako</span>
+          <span>{{ t.saveAs }}</span>
         </button>
-        <button @click="emit('exportPdf')" class="toolbar-btn" title="Eksportuj do PDF">
+        <button @click="emit('exportPdf')" class="toolbar-btn" :title="t.exportPdf">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
             <polyline points="14,2 14,8 20,8"/>
             <path d="M12 18v-6"/>
             <path d="M9 15l3 3 3-3"/>
           </svg>
-          <span>PDF</span>
+          <span>{{ t.exportPdf }}</span>
         </button>
       </div>
 
@@ -174,7 +174,7 @@ const emit = defineEmits<{
         <button
           @click="runCommand(e => e.chain().focus().undo().run())"
           class="toolbar-btn icon-only"
-          title="Cofnij (Ctrl+Z)"
+          :title="`${t.undo} (Ctrl+Z)`"
           :disabled="!editor?.can().undo()"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -185,7 +185,7 @@ const emit = defineEmits<{
         <button
           @click="runCommand(e => e.chain().focus().redo().run())"
           class="toolbar-btn icon-only"
-          title="Ponów (Ctrl+Y)"
+          :title="`${t.redo} (Ctrl+Y)`"
           :disabled="!editor?.can().redo()"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -203,15 +203,15 @@ const emit = defineEmits<{
           :value="currentHeadingLevel"
           @change="(e: Event) => setHeading(parseInt((e.target as HTMLSelectElement).value))"
           class="heading-select"
-          title="Styl tekstu"
+          :title="t.heading"
         >
-          <option value="0">Paragraf</option>
-          <option value="1">Nagłówek 1</option>
-          <option value="2">Nagłówek 2</option>
-          <option value="3">Nagłówek 3</option>
-          <option value="4">Nagłówek 4</option>
-          <option value="5">Nagłówek 5</option>
-          <option value="6">Nagłówek 6</option>
+          <option value="0">{{ t.paragraph }}</option>
+          <option value="1">{{ t.headingLevel(1) }}</option>
+          <option value="2">{{ t.headingLevel(2) }}</option>
+          <option value="3">{{ t.headingLevel(3) }}</option>
+          <option value="4">{{ t.headingLevel(4) }}</option>
+          <option value="5">{{ t.headingLevel(5) }}</option>
+          <option value="6">{{ t.headingLevel(6) }}</option>
         </select>
       </div>
 
@@ -223,31 +223,31 @@ const emit = defineEmits<{
           @click="runCommand(e => e.chain().focus().toggleBold().run())"
           :class="{ active: isActive('bold') }"
           class="toolbar-btn icon-only"
-          title="Pogrubienie **tekst** (Ctrl+B)"
+          :title="t.boldTooltip"
         >
-          <strong>B</strong>
+          <strong>{{ t.bold }}</strong>
         </button>
         <button
           @click="runCommand(e => e.chain().focus().toggleItalic().run())"
           :class="{ active: isActive('italic') }"
           class="toolbar-btn icon-only"
-          title="Kursywa *tekst* (Ctrl+I)"
+          :title="t.italicTooltip"
         >
-          <em>I</em>
+          <em>{{ t.italic }}</em>
         </button>
         <button
           @click="runCommand(e => e.chain().focus().toggleStrike().run())"
           :class="{ active: isActive('strike') }"
           class="toolbar-btn icon-only"
-          title="Przekreślenie ~~tekst~~"
+          :title="t.strikethroughTooltip"
         >
-          <s>S</s>
+          <s>{{ t.strikethrough }}</s>
         </button>
         <button
           @click="runCommand(e => e.chain().focus().toggleCode().run())"
           :class="{ active: isActive('code') }"
           class="toolbar-btn icon-only"
-          title="Kod inline `kod`"
+          :title="t.inlineCodeTooltip"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="16,18 22,12 16,6"/>
@@ -264,7 +264,7 @@ const emit = defineEmits<{
           @click="runCommand(e => e.chain().focus().toggleBulletList().run())"
           :class="{ active: isActive('bulletList') }"
           class="toolbar-btn icon-only"
-          title="Lista punktowana - element"
+          :title="t.bulletList"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="9" y1="6" x2="20" y2="6"/>
@@ -279,7 +279,7 @@ const emit = defineEmits<{
           @click="runCommand(e => e.chain().focus().toggleOrderedList().run())"
           :class="{ active: isActive('orderedList') }"
           class="toolbar-btn icon-only"
-          title="Lista numerowana 1. element"
+          :title="t.orderedList"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="10" y1="6" x2="20" y2="6"/>
@@ -294,7 +294,7 @@ const emit = defineEmits<{
           @click="runCommand(e => e.chain().focus().toggleTaskList().run())"
           :class="{ active: isActive('taskList') }"
           class="toolbar-btn icon-only"
-          title="Lista zadań - [x] zadanie"
+          :title="t.taskList"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="5" width="6" height="6" rx="1"/>
@@ -314,7 +314,7 @@ const emit = defineEmits<{
           @click="runCommand(e => e.chain().focus().toggleBlockquote().run())"
           :class="{ active: isActive('blockquote') }"
           class="toolbar-btn icon-only"
-          title="Cytat > tekst"
+          :title="t.blockquote"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10 11l-4 4V7a2 2 0 012-2h2"/>
@@ -325,7 +325,7 @@ const emit = defineEmits<{
           @click="runCommand(e => e.chain().focus().toggleCodeBlock().run())"
           :class="{ active: isActive('codeBlock') }"
           class="toolbar-btn icon-only"
-          title="Blok kodu ```kod```"
+          :title="t.codeBlock"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -336,7 +336,7 @@ const emit = defineEmits<{
         <button
           @click="runCommand(e => e.chain().focus().setHorizontalRule().run())"
           class="toolbar-btn icon-only"
-          title="Linia pozioma ---"
+          :title="t.horizontalRule"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="3" y1="12" x2="21" y2="12"/>
@@ -352,14 +352,14 @@ const emit = defineEmits<{
           @click="setLink"
           :class="{ active: isActive('link') }"
           class="toolbar-btn icon-only"
-          title="Link [tekst](url)"
+          :title="t.link"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
             <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
           </svg>
         </button>
-        <button @click="insertImage" class="toolbar-btn icon-only" title="Obrazek ![alt](url)">
+        <button @click="insertImage" class="toolbar-btn icon-only" :title="t.image">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -376,7 +376,7 @@ const emit = defineEmits<{
           @click="showTableMenu = !showTableMenu"
           :class="{ active: isActive('table') }"
           class="toolbar-btn icon-only"
-          title="Tabela Markdown"
+          :title="t.table"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -393,17 +393,17 @@ const emit = defineEmits<{
               <line x1="12" y1="8" x2="12" y2="16"/>
               <line x1="8" y1="12" x2="16" y2="12"/>
             </svg>
-            Wstaw tabelę
+            {{ t.insertTable }}
           </button>
           <div class="dropdown-divider"></div>
-          <button @click="addRowBefore" class="dropdown-item" :disabled="!isActive('table')">Dodaj wiersz powyżej</button>
-          <button @click="addRowAfter" class="dropdown-item" :disabled="!isActive('table')">Dodaj wiersz poniżej</button>
-          <button @click="addColumnBefore" class="dropdown-item" :disabled="!isActive('table')">Dodaj kolumnę przed</button>
-          <button @click="addColumnAfter" class="dropdown-item" :disabled="!isActive('table')">Dodaj kolumnę po</button>
+          <button @click="addRowBefore" class="dropdown-item" :disabled="!isActive('table')">{{ t.addRowAbove }}</button>
+          <button @click="addRowAfter" class="dropdown-item" :disabled="!isActive('table')">{{ t.addRowBelow }}</button>
+          <button @click="addColumnBefore" class="dropdown-item" :disabled="!isActive('table')">{{ t.addColumnBefore }}</button>
+          <button @click="addColumnAfter" class="dropdown-item" :disabled="!isActive('table')">{{ t.addColumnAfter }}</button>
           <div class="dropdown-divider"></div>
-          <button @click="deleteRow" class="dropdown-item danger" :disabled="!isActive('table')">Usuń wiersz</button>
-          <button @click="deleteColumn" class="dropdown-item danger" :disabled="!isActive('table')">Usuń kolumnę</button>
-          <button @click="deleteTable" class="dropdown-item danger" :disabled="!isActive('table')">Usuń tabelę</button>
+          <button @click="deleteRow" class="dropdown-item danger" :disabled="!isActive('table')">{{ t.deleteRow }}</button>
+          <button @click="deleteColumn" class="dropdown-item danger" :disabled="!isActive('table')">{{ t.deleteColumn }}</button>
+          <button @click="deleteTable" class="dropdown-item danger" :disabled="!isActive('table')">{{ t.deleteTable }}</button>
         </div>
       </div>
 
@@ -411,7 +411,7 @@ const emit = defineEmits<{
 
       <!-- Mermaid -->
       <div class="toolbar-group">
-        <button @click="insertMermaid" class="toolbar-btn mermaid-btn" title="Wstaw diagram Mermaid">
+        <button @click="insertMermaid" class="toolbar-btn mermaid-btn" :title="t.insertMermaid">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="6" height="6" rx="1"/>
             <rect x="15" y="3" width="6" height="6" rx="1"/>
@@ -419,7 +419,7 @@ const emit = defineEmits<{
             <path d="M6 9v3a3 3 0 003 3h6a3 3 0 003-3V9"/>
             <line x1="12" y1="12" x2="12" y2="15"/>
           </svg>
-          <span>Mermaid</span>
+          <span>{{ t.mermaid }}</span>
         </button>
       </div>
 
