@@ -80,7 +80,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const openButton = wrapper.find('button[title*="Otwórz"]');
+      const openButton = wrapper.find('button[title*="Open"]');
       await openButton.trigger('click');
 
       expect(wrapper.emitted('openFile')).toBeTruthy();
@@ -95,7 +95,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const saveButton = wrapper.find('button[title*="Zapisz jako Markdown"]');
+      const saveButton = wrapper.find('button[title*="Save (Ctrl+S)"]');
       await saveButton.trigger('click');
 
       expect(wrapper.emitted('saveFile')).toBeTruthy();
@@ -110,7 +110,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const saveAsButton = wrapper.find('button[title*="Zapisz jako nowy"]');
+      const saveAsButton = wrapper.find('button[title*="Save As"]');
       await saveAsButton.trigger('click');
 
       expect(wrapper.emitted('saveFileAs')).toBeTruthy();
@@ -125,7 +125,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const pdfButton = wrapper.find('button[title*="PDF"]');
+      const pdfButton = wrapper.find('button[title="PDF"]');
       await pdfButton.trigger('click');
 
       expect(wrapper.emitted('exportPdf')).toBeTruthy();
@@ -142,7 +142,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      expect(wrapper.text()).toContain('150 znaków');
+      expect(wrapper.text()).toContain('150 characters');
     });
 
     it('displays word count from editor', () => {
@@ -154,7 +154,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      expect(wrapper.text()).toContain('25 słów');
+      expect(wrapper.text()).toContain('25 words');
     });
 
     it('shows 0 counts when editor is not available', () => {
@@ -166,8 +166,8 @@ describe('Toolbar Component', () => {
         },
       });
 
-      expect(wrapper.text()).toContain('0 znaków');
-      expect(wrapper.text()).toContain('0 słów');
+      expect(wrapper.text()).toContain('0 characters');
+      expect(wrapper.text()).toContain('0 words');
     });
   });
 
@@ -181,7 +181,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const undoButton = wrapper.find('button[title*="Cofnij"]');
+      const undoButton = wrapper.find('button[title*="Undo"]');
       expect(undoButton.attributes('disabled')).toBeDefined();
     });
 
@@ -194,7 +194,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const redoButton = wrapper.find('button[title*="Ponów"]');
+      const redoButton = wrapper.find('button[title*="Redo"]');
       expect(redoButton.attributes('disabled')).toBeDefined();
     });
 
@@ -207,7 +207,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const undoButton = wrapper.find('button[title*="Cofnij"]');
+      const undoButton = wrapper.find('button[title*="Undo"]');
       expect(undoButton.attributes('disabled')).toBeUndefined();
     });
   });
@@ -224,7 +224,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const boldButton = wrapper.find('button[title*="Pogrubienie"]');
+      const boldButton = wrapper.find('button[title*="Bold"]');
       expect(boldButton.classes()).toContain('active');
     });
 
@@ -239,7 +239,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const italicButton = wrapper.find('button[title*="Kursywa"]');
+      const italicButton = wrapper.find('button[title*="Italic"]');
       expect(italicButton.classes()).toContain('active');
     });
 
@@ -254,7 +254,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const strikeButton = wrapper.find('button[title*="Przekreślenie"]');
+      const strikeButton = wrapper.find('button[title*="Strikethrough"]');
       expect(strikeButton.classes()).toContain('active');
     });
 
@@ -269,7 +269,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const codeButton = wrapper.find('button[title*="Kod inline"]');
+      const codeButton = wrapper.find('button[title*="Inline code"]');
       expect(codeButton.classes()).toContain('active');
     });
   });
@@ -286,7 +286,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const bulletButton = wrapper.find('button[title*="Lista punktowana"]');
+      const bulletButton = wrapper.find('button[title*="Bullet list"]');
       expect(bulletButton.classes()).toContain('active');
     });
 
@@ -301,7 +301,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const orderedButton = wrapper.find('button[title*="Lista numerowana"]');
+      const orderedButton = wrapper.find('button[title*="Numbered list"]');
       expect(orderedButton.classes()).toContain('active');
     });
 
@@ -316,7 +316,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const taskButton = wrapper.find('button[title*="Lista zadań"]');
+      const taskButton = wrapper.find('button[title*="Task list"]');
       expect(taskButton.classes()).toContain('active');
     });
   });
@@ -331,7 +331,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const tableButton = wrapper.find('button[title*="Tabela"]');
+      const tableButton = wrapper.find('button[title*="Table"]');
       await tableButton.trigger('click');
 
       expect(wrapper.find('.dropdown-menu').exists()).toBe(true);
@@ -346,7 +346,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const tableButton = wrapper.find('button[title*="Tabela"]');
+      const tableButton = wrapper.find('button[title*="Table"]');
       await tableButton.trigger('click');
       await tableButton.trigger('click');
 
@@ -364,7 +364,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const tableButton = wrapper.find('button[title*="Tabela"]');
+      const tableButton = wrapper.find('button[title*="Table"]');
       await tableButton.trigger('click');
 
       const addRowButton = wrapper.find('.dropdown-item:nth-child(3)');
@@ -386,9 +386,9 @@ describe('Toolbar Component', () => {
       const options = select.findAll('option');
 
       expect(options.length).toBe(7); // Paragraph + 6 heading levels
-      expect(options[0].text()).toBe('Paragraf');
-      expect(options[1].text()).toBe('Nagłówek 1');
-      expect(options[6].text()).toBe('Nagłówek 6');
+      expect(options[0].text()).toBe('Paragraph');
+      expect(options[1].text()).toBe('Heading 1');
+      expect(options[6].text()).toBe('Heading 6');
     });
 
     it('shows current heading level', () => {

@@ -87,6 +87,24 @@ export interface Translations {
   diagramError: string;
   templates: string;
   basic: string;
+  deleteDiagram: string;
+  moreTemplates: string;
+  mermaidDiagramTemplates: string;
+  enterMermaidCode: string;
+  zoomIn: string;
+  zoomOut: string;
+  reset: string;
+  fit: string;
+  fullscreen: string;
+  close: string;
+
+  // Template categories
+  categoryBasic: string;
+  categoryStatesProcesses: string;
+  categoryDataRelations: string;
+  categoryGitRequirements: string;
+  categoryC4Model: string;
+  categoryAdvanced: string;
 
   // File dialogs
   openFile: string;
@@ -174,12 +192,30 @@ const translations: Record<Locale, Translations> = {
     closeTab: 'Close tab',
 
     // Mermaid Node
-    editDiagram: 'Edit diagram',
+    editDiagram: 'Edit',
     saveDiagram: 'Save',
     cancelEdit: 'Cancel',
     diagramError: 'Diagram rendering error',
     templates: 'Templates',
     basic: 'Basic',
+    deleteDiagram: 'Delete',
+    moreTemplates: 'More templates...',
+    mermaidDiagramTemplates: 'Mermaid Diagram Templates',
+    enterMermaidCode: 'Enter Mermaid code...',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    reset: 'Reset',
+    fit: 'Fit',
+    fullscreen: 'Fullscreen',
+    close: 'Close',
+
+    // Template categories
+    categoryBasic: 'Basic',
+    categoryStatesProcesses: 'States & Processes',
+    categoryDataRelations: 'Data & Relations',
+    categoryGitRequirements: 'Git & Requirements',
+    categoryC4Model: 'C4 Model',
+    categoryAdvanced: 'Advanced',
 
     // File dialogs
     openFile: 'Open Markdown file',
@@ -266,12 +302,30 @@ const translations: Record<Locale, Translations> = {
     closeTab: 'Zamknij kartę',
 
     // Mermaid Node
-    editDiagram: 'Edytuj diagram',
+    editDiagram: 'Edytuj',
     saveDiagram: 'Zapisz',
     cancelEdit: 'Anuluj',
     diagramError: 'Błąd renderowania diagramu',
     templates: 'Szablony',
     basic: 'Podstawowe',
+    deleteDiagram: 'Usuń',
+    moreTemplates: 'Więcej szablonów...',
+    mermaidDiagramTemplates: 'Szablony diagramów Mermaid',
+    enterMermaidCode: 'Wprowadź kod Mermaid...',
+    zoomIn: 'Powiększ',
+    zoomOut: 'Pomniejsz',
+    reset: 'Reset',
+    fit: 'Dopasuj',
+    fullscreen: 'Pełny ekran',
+    close: 'Zamknij',
+
+    // Template categories
+    categoryBasic: 'Podstawowe',
+    categoryStatesProcesses: 'Stany i procesy',
+    categoryDataRelations: 'Dane i relacje',
+    categoryGitRequirements: 'Git i wymagania',
+    categoryC4Model: 'C4 Model',
+    categoryAdvanced: 'Zaawansowane',
 
     // File dialogs
     openFile: 'Otwórz plik Markdown',
@@ -281,16 +335,10 @@ const translations: Record<Locale, Translations> = {
   },
 };
 
-// Detect browser language
-function detectLanguage(): Locale {
-  const browserLang = navigator.language.split('-')[0];
-  return browserLang === 'pl' ? 'pl' : 'en';
-}
-
-// Get saved language or detect
+// Get saved language or default to English
 function getInitialLocale(): Locale {
   const saved = localStorage.getItem('mermark-locale') as Locale | null;
-  return saved || detectLanguage();
+  return saved || 'en';
 }
 
 // Reactive locale state

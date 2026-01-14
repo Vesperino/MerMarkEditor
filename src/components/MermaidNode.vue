@@ -2,6 +2,9 @@
 import { NodeViewWrapper } from "@tiptap/vue-3";
 import { ref, watch, onMounted, computed } from "vue";
 import mermaid from "mermaid";
+import { useI18n } from "../i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   node: {
@@ -136,7 +139,7 @@ const renderMermaid = async () => {
     const { svg } = await mermaid.render(id, codeForRender);
     containerRef.value.innerHTML = svg;
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Błąd renderowania diagramu";
+    error.value = e instanceof Error ? e.message : t.value.diagramError;
     containerRef.value.innerHTML = "";
   }
 };
@@ -171,10 +174,10 @@ const cancelEdit = () => {
   isEditing.value = false;
 };
 
-// Kategorie szablonów Mermaid
-const diagramCategories = [
+// Mermaid template categories with translation keys
+const diagramCategories = computed(() => [
   {
-    category: "Podstawowe",
+    categoryKey: 'categoryBasic',
     templates: [
       {
         name: "Flowchart",
@@ -195,7 +198,7 @@ const diagramCategories = [
     ]
   },
   {
-    category: "Stany i procesy",
+    categoryKey: 'categoryStatesProcesses',
     templates: [
       {
         name: "State",
@@ -212,7 +215,7 @@ const diagramCategories = [
     ]
   },
   {
-    category: "Dane i relacje",
+    categoryKey: 'categoryDataRelations',
     templates: [
       {
         name: "ER Diagram",
@@ -233,7 +236,7 @@ const diagramCategories = [
     ]
   },
   {
-    category: "Git i wymagania",
+    categoryKey: 'categoryGitRequirements',
     templates: [
       {
         name: "Gitgraph",
@@ -246,7 +249,7 @@ const diagramCategories = [
     ]
   },
   {
-    category: "C4 Model",
+    categoryKey: 'categoryC4Model',
     templates: [
       {
         name: "C4 Context",
@@ -271,7 +274,7 @@ const diagramCategories = [
     ]
   },
   {
-    category: "Zaawansowane",
+    categoryKey: 'categoryAdvanced',
     templates: [
       {
         name: "Sankey",
@@ -287,9 +290,9 @@ const diagramCategories = [
       },
     ]
   },
-];
+]);
 
-// Płaska lista szablonów do wyświetlenia w przyciskach (najważniejsze)
+// Flat list of popular templates for quick access buttons
 const diagramTemplates = [
   { name: "Flowchart", code: "graph TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Action 1]\n  B -->|No| D[Action 2]\n  C --> E[End]\n  D --> E" },
   { name: "Sequence", code: "sequenceDiagram\n  participant U as User\n  participant S as System\n  U->>S: Request\n  S-->>U: Response" },
@@ -313,8 +316,8 @@ const insertTemplate = (code: string) => {
     <div class="mermaid-header">
       <span class="mermaid-label">Mermaid Diagram</span>
       <div class="mermaid-actions">
-        <button v-if="!isEditing" @click="startEdit" class="btn-edit">Edytuj</button>
-        <button @click="props.deleteNode" class="btn-delete">Usuń</button>
+        <button v-if="!isEditing" @click="startEdit" class="btn-edit">{{ t.editDiagram }}</button>
+        <button @click="props.deleteNode" class="btn-delete">{{ t.deleteDiagram }}</button>
       </div>
     </div>
 
@@ -331,31 +334,31 @@ const insertTemplate = (code: string) => {
           </button>
         </div>
         <button @click="showTemplateModal = true" class="btn-more-templates">
-          Więcej szablonów...
+          {{ t.moreTemplates }}
         </button>
       </div>
       <textarea
         v-model="editCode"
         class="mermaid-textarea"
-        placeholder="Wprowadź kod Mermaid..."
+        :placeholder="t.enterMermaidCode"
         rows="10"
       ></textarea>
       <div class="editor-actions">
-        <button @click="saveEdit" class="btn-save">Zapisz</button>
-        <button @click="cancelEdit" class="btn-cancel">Anuluj</button>
+        <button @click="saveEdit" class="btn-save">{{ t.saveDiagram }}</button>
+        <button @click="cancelEdit" class="btn-cancel">{{ t.cancelEdit }}</button>
       </div>
     </div>
 
-    <!-- Modal z wszystkimi szablonami -->
+    <!-- Template modal -->
     <div v-if="showTemplateModal" class="template-modal-overlay" @click.self="showTemplateModal = false">
       <div class="template-modal">
         <div class="modal-header">
-          <h3>Szablony diagramów Mermaid</h3>
+          <h3>{{ t.mermaidDiagramTemplates }}</h3>
           <button @click="showTemplateModal = false" class="btn-close">&times;</button>
         </div>
         <div class="modal-content">
-          <div v-for="cat in diagramCategories" :key="cat.category" class="template-category">
-            <h4>{{ cat.category }}</h4>
+          <div v-for="cat in diagramCategories" :key="cat.categoryKey" class="template-category">
+            <h4>{{ t[cat.categoryKey as keyof typeof t] }}</h4>
             <div class="category-templates">
               <button
                 v-for="tmpl in cat.templates"
@@ -377,12 +380,12 @@ const insertTemplate = (code: string) => {
 
     <!-- Zoom Controls -->
     <div v-if="!isEditing" class="zoom-controls">
-      <button @click="zoomOut" class="btn-zoom" title="Pomniejsz (-)">−</button>
+      <button @click="zoomOut" class="btn-zoom" :title="`${t.zoomOut} (-)`">−</button>
       <span class="zoom-level">{{ zoomPercent }}%</span>
-      <button @click="zoomIn" class="btn-zoom" title="Powiększ (+)">+</button>
-      <button @click="resetZoom" class="btn-zoom-text" title="Reset (100%)">Reset</button>
-      <button @click="fitToView" class="btn-zoom-text" title="Dopasuj do widoku">Dopasuj</button>
-      <button @click="toggleFullscreen" class="btn-zoom-text btn-fullscreen" title="Pełny ekran (Esc aby zamknąć)">Pełny ekran</button>
+      <button @click="zoomIn" class="btn-zoom" :title="`${t.zoomIn} (+)`">+</button>
+      <button @click="resetZoom" class="btn-zoom-text" :title="`${t.reset} (100%)`">{{ t.reset }}</button>
+      <button @click="fitToView" class="btn-zoom-text" :title="t.fit">{{ t.fit }}</button>
+      <button @click="toggleFullscreen" class="btn-zoom-text btn-fullscreen" :title="`${t.fullscreen} (Esc)`">{{ t.fullscreen }}</button>
     </div>
 
     <!-- Viewport with pan/zoom -->
@@ -407,12 +410,12 @@ const insertTemplate = (code: string) => {
     <Teleport to="body">
       <div v-if="isFullscreen" class="fullscreen-overlay" @click.self="toggleFullscreen">
         <div class="fullscreen-controls">
-          <button @click="zoomOut" class="btn-zoom" title="Pomniejsz">−</button>
+          <button @click="zoomOut" class="btn-zoom" :title="t.zoomOut">−</button>
           <span class="zoom-level">{{ zoomPercent }}%</span>
-          <button @click="zoomIn" class="btn-zoom" title="Powiększ">+</button>
-          <button @click="resetZoom" class="btn-zoom-text">Reset</button>
-          <button @click="fitToView" class="btn-zoom-text">Dopasuj</button>
-          <button @click="toggleFullscreen" class="btn-close-fullscreen">✕ Zamknij</button>
+          <button @click="zoomIn" class="btn-zoom" :title="t.zoomIn">+</button>
+          <button @click="resetZoom" class="btn-zoom-text">{{ t.reset }}</button>
+          <button @click="fitToView" class="btn-zoom-text">{{ t.fit }}</button>
+          <button @click="toggleFullscreen" class="btn-close-fullscreen">✕ {{ t.close }}</button>
         </div>
         <div
           class="fullscreen-viewport"

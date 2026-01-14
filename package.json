@@ -26,7 +26,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@tauri-apps/plugin-dialog": "^2.5.0",
@@ -65,7 +66,10 @@
     "@tauri-apps/cli": "^2.5.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/test-utils": "^2.4.6",
+    "ico-endec": "^0.1.6",
     "jsdom": "^27.4.0",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
     "typescript": "~5.7.3",
     "vite": "^6.3.5",
     "vitest": "^4.0.17",
