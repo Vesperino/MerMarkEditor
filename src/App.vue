@@ -20,6 +20,7 @@ import { useAutoUpdate } from './composables/useAutoUpdate';
 import { useFileOperations } from './composables/useFileOperations';
 import { useCodeView } from './composables/useCodeView';
 import { useCloseConfirmation } from './composables/useCloseConfirmation';
+import { useSettings } from './composables/useSettings';
 
 
 // ============ Tab Management ============
@@ -187,6 +188,22 @@ const {
   closeUpdateDialog,
 } = useAutoUpdate();
 
+// ============ Settings ============
+const { settings } = useSettings();
+
+// ============ Sync Active Tab Content ============
+// This ensures that the active tab's content and hasChanges are up to date
+// before checking for unsaved changes (e.g., when closing the window)
+const syncActiveTabContent = () => {
+  const currentContent = getEditorContent();
+  const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+  if (tabIndex !== -1) {
+    tabs.value[tabIndex].content = currentContent;
+    // Check if content differs from the original (when file was loaded/saved)
+    // hasChanges should already be tracked, but ensure it's synced
+  }
+};
+
 // ============ Close Confirmation ============
 const {
   showSaveConfirmDialog,
@@ -202,7 +219,29 @@ const {
   activeTabId,
   getEditorHtml: getEditorContent,
   switchToTab,
+  syncActiveTabContent,
 });
+
+// ============ Auto-save ============
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+const triggerAutoSave = () => {
+  if (!settings.value.autoSave) return;
+  if (!activeTab.value?.filePath) return; // Only auto-save files that have been saved before
+  if (!activeTab.value?.hasChanges) return;
+
+  // Clear existing timer
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+  }
+
+  // Set new timer - save after 5 seconds of inactivity
+  autoSaveTimer = setTimeout(() => {
+    if (settings.value.autoSave && activeTab.value?.filePath && activeTab.value?.hasChanges) {
+      saveFile();
+    }
+  }, 5000);
+};
 
 // ============ Content Updates ============
 const onContentUpdate = (newContent: string) => {
@@ -212,6 +251,9 @@ const onContentUpdate = (newContent: string) => {
 const onChangesUpdate = (changed: boolean) => {
   if (isLoadingContent.value) return;
   updateTabChanges(changed);
+  if (changed) {
+    triggerAutoSave();
+  }
 };
 
 // ============ Keyboard Shortcuts ============

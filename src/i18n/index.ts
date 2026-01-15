@@ -115,6 +115,11 @@ export interface Translations {
   saveFile: string;
   markdownFiles: string;
   allFiles: string;
+
+  // Settings
+  autoSave: string;
+  autoSaveOn: string;
+  autoSaveOff: string;
 }
 
 const translations: Record<Locale, Translations> = {
@@ -230,6 +235,11 @@ const translations: Record<Locale, Translations> = {
     saveFile: 'Save Markdown file',
     markdownFiles: 'Markdown Files',
     allFiles: 'All Files',
+
+    // Settings
+    autoSave: 'Auto-save',
+    autoSaveOn: 'On',
+    autoSaveOff: 'Off',
   },
 
   pl: {
@@ -344,6 +354,11 @@ const translations: Record<Locale, Translations> = {
     saveFile: 'Zapisz plik Markdown',
     markdownFiles: 'Pliki Markdown',
     allFiles: 'Wszystkie pliki',
+
+    // Settings
+    autoSave: 'Autozapis',
+    autoSaveOn: 'Wł.',
+    autoSaveOff: 'Wył.',
   },
 };
 
