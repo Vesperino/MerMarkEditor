@@ -306,7 +306,7 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const triggerAutoSave = () => {
   if (!settings.value.autoSave) return;
-  if (!activeTab.value?.filePath) return; // Only auto-save files that have been saved before
+  if (!activeTab.value?.filePath) return;
   if (!activeTab.value?.hasChanges) return;
 
   // Clear existing timer
@@ -321,6 +321,13 @@ const triggerAutoSave = () => {
     }
   }, 5000);
 };
+
+// Watch for autosave setting changes - if turned on with unsaved changes, trigger save
+watch(() => settings.value.autoSave, (newValue) => {
+  if (newValue && activeTab.value?.filePath && activeTab.value?.hasChanges) {
+    triggerAutoSave();
+  }
+});
 
 // ============ Content Updates ============
 const onContentUpdate = (newContent: string) => {
