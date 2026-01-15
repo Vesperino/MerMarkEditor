@@ -8,7 +8,6 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Editor as TiptapEditor } from "@tiptap/vue-3";
-import { htmlToMarkdown, markdownToHtml } from "./utils/markdown-converter";
 
 // Tab interface
 interface Tab {
@@ -17,6 +16,7 @@ interface Tab {
   fileName: string;
   content: string;
   hasChanges: boolean;
+  scrollTop: number;
 }
 
 // Tab management
@@ -26,6 +26,7 @@ const tabs = ref<Tab[]>([{
   fileName: "Nowy dokument",
   content: "<p></p>",
   hasChanges: false,
+  scrollTop: 0,
 }]);
 const activeTabId = ref("tab-1");
 let tabCounter = 1;
@@ -44,13 +45,50 @@ const isLoadingContent = ref(false);
 // Code view toggle
 const codeView = ref(false);
 const codeContent = ref("");
+const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
 
-const toggleCodeView = () => {
+// Loading state for file operations
+const isLoadingFile = ref(false);
+
+const toggleCodeView = async () => {
   if (!codeView.value) {
     // Switching to code view - convert HTML to Markdown
     const html = activeTab.value?.content || "<p></p>";
     codeContent.value = htmlToMarkdown(html);
+
+    // Get cursor position from editor before switching
+    let cursorOffset = 0;
+    if (editorRef.value?.editor) {
+      const selection = editorRef.value.editor.state.selection;
+      cursorOffset = selection.from;
+    }
+
     codeView.value = true;
+
+    // After switching, scroll to approximate cursor position
+    await nextTick();
+    if (codeEditorRef.value && cursorOffset > 0) {
+      const markdown = codeContent.value;
+      // Estimate line from cursor offset (rough approximation)
+      // The markdown might have different length than HTML, so we use a ratio
+      const htmlLength = html.length || 1;
+      const mdLength = markdown.length;
+      const estimatedMdOffset = Math.floor((cursorOffset / htmlLength) * mdLength);
+
+      // Count newlines up to estimated offset to find line number
+      const textBeforeCursor = markdown.substring(0, Math.min(estimatedMdOffset, mdLength));
+      const lineNumber = (textBeforeCursor.match(/\n/g) || []).length;
+
+      // Calculate scroll position based on line height (approx 22px per line)
+      const lineHeight = 22;
+      const scrollTop = Math.max(0, lineNumber * lineHeight - 100); // -100 to show some context above
+
+      codeEditorRef.value.scrollTop = scrollTop;
+      // Also set cursor position in textarea
+      codeEditorRef.value.selectionStart = estimatedMdOffset;
+      codeEditorRef.value.selectionEnd = estimatedMdOffset;
+      codeEditorRef.value.focus();
+    }
   } else {
     // Switching back to visual view - convert Markdown to HTML
     const html = markdownToHtml(codeContent.value);
@@ -98,22 +136,29 @@ const createNewTab = (filePath: string | null = null, fileContent: string = "<p>
     fileName,
     content: fileContent,
     hasChanges: false,
+    scrollTop: 0,
   });
   return newTabId;
 };
 
 const switchToTab = async (tabId: string, preserveHasChanges: boolean = true) => {
-  // Save current editor content to current tab before switching
+  // Save current editor content and scroll position to current tab before switching
   if (editorRef.value?.editor && activeTab.value) {
     const currentTabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
     if (currentTabIndex !== -1) {
       tabs.value[currentTabIndex].content = editorRef.value.editor.getHTML();
+      // Save scroll position
+      const editorContainer = document.querySelector('.editor-container');
+      if (editorContainer) {
+        tabs.value[currentTabIndex].scrollTop = editorContainer.scrollTop;
+      }
     }
   }
 
-  // Get the target tab's hasChanges state before switching
+  // Get the target tab's hasChanges state and scroll position before switching
   const targetTab = tabs.value.find(t => t.id === tabId);
   const targetHasChanges = targetTab?.hasChanges || false;
+  const targetScrollTop = targetTab?.scrollTop || 0;
 
   activeTabId.value = tabId;
 
@@ -132,6 +177,13 @@ const switchToTab = async (tabId: string, preserveHasChanges: boolean = true) =>
       if (tabIndex !== -1) {
         tabs.value[tabIndex].hasChanges = targetHasChanges;
       }
+    }
+
+    // Restore scroll position after content is loaded
+    await nextTick();
+    const editorContainer = document.querySelector('.editor-container');
+    if (editorContainer) {
+      editorContainer.scrollTop = targetScrollTop;
     }
   }
 };
@@ -191,6 +243,20 @@ const getDirectoryFromPath = (filePath: string): string => {
 // Open file in new tab (for internal links)
 const openFileInNewTab = async (relativePath: string) => {
   try {
+    // Save current scroll position before navigating
+    if (activeTab.value) {
+      const editorContainer = document.querySelector('.editor-container');
+      if (editorContainer) {
+        const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+        if (tabIndex !== -1) {
+          tabs.value[tabIndex].scrollTop = editorContainer.scrollTop;
+        }
+      }
+    }
+
+    // Show loading indicator
+    isLoadingFile.value = true;
+
     // Get current file's directory as base
     const baseDir = currentFile.value ? getDirectoryFromPath(currentFile.value) : "";
 
@@ -220,6 +286,7 @@ const openFileInNewTab = async (relativePath: string) => {
     const existingTab = findTabByFilePath(fullPath);
     if (existingTab) {
       await switchToTab(existingTab.id);
+      isLoadingFile.value = false;
       return;
     }
 
@@ -231,8 +298,10 @@ const openFileInNewTab = async (relativePath: string) => {
     // Create new tab and switch to it
     const newTabId = createNewTab(fullPath, htmlContent, fileName);
     await switchToTab(newTabId);
+    isLoadingFile.value = false;
   } catch (error) {
     console.error("Błąd otwierania pliku:", error);
+    isLoadingFile.value = false;
   }
 };
 
@@ -1299,6 +1368,7 @@ onUnmounted(() => {
     <!-- Code View (Raw Markdown) -->
     <div v-else class="code-editor-container">
       <textarea
+        ref="codeEditorRef"
         class="code-editor"
         :value="codeContent"
         @input="(e) => onCodeContentUpdate((e.target as HTMLTextAreaElement).value)"
@@ -1307,6 +1377,12 @@ onUnmounted(() => {
         autocorrect="off"
         autocapitalize="off"
       ></textarea>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div v-if="isLoadingFile" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <p>Otwieranie pliku...</p>
     </div>
 
     <!-- External Link Confirmation Dialog -->
@@ -1618,5 +1694,42 @@ onUnmounted(() => {
   color: #dc2626;
   margin-top: 12px;
   font-size: 13px;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-overlay p {
+  color: #475569;
+  font-size: 14px;
+  margin: 0;
 }
 </style>
