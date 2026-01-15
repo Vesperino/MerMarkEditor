@@ -46,7 +46,7 @@ const isLoadingContent = ref(false);
 const codeView = ref(false);
 const codeContent = ref("");
 const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
-const savedEditorScrollTop = ref(0); // Save scroll position when switching views
+const savedScrollRatio = ref(0); // Save scroll ratio when switching views
 
 // Loading state for file operations
 const isLoadingFile = ref(false);
@@ -57,54 +57,30 @@ const toggleCodeView = async () => {
     const html = activeTab.value?.content || "<p></p>";
     codeContent.value = htmlToMarkdown(html);
 
-    // Save current scroll position from visual editor
+    // Save current scroll ratio from visual editor (ratio = scrollTop / maxScroll)
     const editorContainer = document.querySelector('.editor-container');
     if (editorContainer) {
-      savedEditorScrollTop.value = editorContainer.scrollTop;
-    }
-
-    // Get cursor position from editor before switching
-    let cursorOffset = 0;
-    if (editorRef.value?.editor) {
-      const selection = editorRef.value.editor.state.selection;
-      cursorOffset = selection.from;
+      const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
+      savedScrollRatio.value = maxScroll > 0 ? editorContainer.scrollTop / maxScroll : 0;
     }
 
     codeView.value = true;
 
-    // After switching, scroll to approximate cursor position
+    // After switching, apply the same scroll ratio to code editor
     await nextTick();
-    if (codeEditorRef.value && cursorOffset > 0) {
-      const markdown = codeContent.value;
-      // Estimate line from cursor offset (rough approximation)
-      // The markdown might have different length than HTML, so we use a ratio
-      const htmlLength = html.length || 1;
-      const mdLength = markdown.length;
-      const estimatedMdOffset = Math.floor((cursorOffset / htmlLength) * mdLength);
-
-      // Count newlines up to estimated offset to find line number
-      const textBeforeCursor = markdown.substring(0, Math.min(estimatedMdOffset, mdLength));
-      const lineNumber = (textBeforeCursor.match(/\n/g) || []).length;
-
-      // Calculate scroll position based on line height (approx 22px per line)
-      const lineHeight = 22;
-      const scrollTop = Math.max(0, lineNumber * lineHeight - 100); // -100 to show some context above
-
-      codeEditorRef.value.scrollTop = scrollTop;
-      // Also set cursor position in textarea
-      codeEditorRef.value.selectionStart = estimatedMdOffset;
-      codeEditorRef.value.selectionEnd = estimatedMdOffset;
+    await nextTick(); // Wait for content and layout to be ready
+    if (codeEditorRef.value) {
+      const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
+      const targetScroll = Math.round(savedScrollRatio.value * codeMaxScroll);
+      codeEditorRef.value.scrollTop = targetScroll;
       codeEditorRef.value.focus();
     }
   } else {
     // Switching back to visual view - convert Markdown to HTML
-    // Save code editor scroll position to estimate visual editor position
-    let codeScrollRatio = 0;
+    // Save code editor scroll ratio
     if (codeEditorRef.value) {
-      const scrollHeight = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
-      if (scrollHeight > 0) {
-        codeScrollRatio = codeEditorRef.value.scrollTop / scrollHeight;
-      }
+      const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
+      savedScrollRatio.value = codeMaxScroll > 0 ? codeEditorRef.value.scrollTop / codeMaxScroll : 0;
     }
 
     const html = markdownToHtml(codeContent.value);
@@ -115,16 +91,14 @@ const toggleCodeView = async () => {
     }
     codeView.value = false;
 
-    // Restore scroll position in visual editor
+    // Restore scroll position in visual editor using the saved ratio
     await nextTick();
     await nextTick(); // Wait for content to render
+    await nextTick(); // Extra tick for complex content
     const editorContainer = document.querySelector('.editor-container');
     if (editorContainer) {
-      // Use the saved scroll position, or estimate from code editor scroll ratio
       const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
-      const targetScroll = savedEditorScrollTop.value > 0
-        ? Math.min(savedEditorScrollTop.value, maxScroll)
-        : codeScrollRatio * maxScroll;
+      const targetScroll = Math.round(savedScrollRatio.value * maxScroll);
       editorContainer.scrollTop = targetScroll;
     }
     isLoadingContent.value = false;

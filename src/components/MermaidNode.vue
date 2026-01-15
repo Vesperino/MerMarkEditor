@@ -80,20 +80,70 @@ const resetZoom = () => {
   translateY.value = 0;
 };
 
-const fitToView = () => {
+const fitToView = async () => {
   if (!containerRef.value || !viewportRef.value) return;
   const svg = containerRef.value.querySelector('svg');
   if (!svg) return;
 
-  // Get natural SVG dimensions (before any transforms)
-  const svgWidth = svg.getBBox().width || svg.clientWidth;
-  const svgHeight = svg.getBBox().height || svg.clientHeight;
-  const viewportRect = viewportRef.value.getBoundingClientRect();
+  // Reset transform first to get accurate measurements
+  scale.value = 1;
+  translateX.value = 0;
+  translateY.value = 0;
 
-  // Calculate scale to fit SVG in viewport with 10% padding
-  const scaleX = (viewportRect.width * 0.9) / svgWidth;
-  const scaleY = (viewportRect.height * 0.9) / svgHeight;
-  const newScale = Math.min(scaleX, scaleY, 1);
+  // Wait for the DOM to update
+  await new Promise(resolve => requestAnimationFrame(resolve));
+
+  // Get SVG dimensions - try multiple methods for reliability
+  let svgWidth = 0;
+  let svgHeight = 0;
+
+  // Method 1: Try viewBox attribute (most reliable for Mermaid)
+  const viewBox = svg.getAttribute('viewBox');
+  if (viewBox) {
+    const parts = viewBox.split(/\s+/);
+    if (parts.length >= 4) {
+      svgWidth = parseFloat(parts[2]) || 0;
+      svgHeight = parseFloat(parts[3]) || 0;
+    }
+  }
+
+  // Method 2: Try width/height attributes
+  if (!svgWidth || !svgHeight) {
+    const widthAttr = svg.getAttribute('width');
+    const heightAttr = svg.getAttribute('height');
+    if (widthAttr && heightAttr) {
+      svgWidth = parseFloat(widthAttr) || 0;
+      svgHeight = parseFloat(heightAttr) || 0;
+    }
+  }
+
+  // Method 3: Use getBoundingClientRect (actual rendered size)
+  if (!svgWidth || !svgHeight) {
+    const svgRect = svg.getBoundingClientRect();
+    svgWidth = svgRect.width || svg.clientWidth || 0;
+    svgHeight = svgRect.height || svg.clientHeight || 0;
+  }
+
+  // Fallback to getBBox only if other methods fail
+  if (!svgWidth || !svgHeight) {
+    try {
+      const bbox = svg.getBBox();
+      svgWidth = bbox.width || 100;
+      svgHeight = bbox.height || 100;
+    } catch {
+      svgWidth = 100;
+      svgHeight = 100;
+    }
+  }
+
+  const viewportRect = viewportRef.value.getBoundingClientRect();
+  const availableWidth = viewportRect.width - 40; // 20px padding on each side
+  const availableHeight = viewportRect.height - 40;
+
+  // Calculate scale to fit SVG in viewport
+  const scaleX = availableWidth / svgWidth;
+  const scaleY = availableHeight / svgHeight;
+  const newScale = Math.min(scaleX, scaleY, 2); // Allow up to 2x for small diagrams
 
   scale.value = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
   translateX.value = 0;
