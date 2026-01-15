@@ -60,7 +60,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzQjY2RjM1MDUyQUQ4MTMKUldRVDJDb0ZOVysydzBwczJZSDVnRkJoVmE5bytSWmRoOUhmM042eDE2TEhFWXArN2t4Nno0cnIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcyOThEMzhFM0ZBN0Q0MzYKUldRMjFLYy9qdE9ZY2hYTUZZcXB2UERCWXFMaDdjS1BaeThaWUJmVHVjUHlkMTdHU1J4blc5SEIK",
       "endpoints": [
         "https://github.com/Vesperino/MerMarkEditor/releases/latest/download/latest.json"
       ]
