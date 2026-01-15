@@ -2,7 +2,9 @@
 import { ref, provide, computed, watchEffect, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
+import { htmlToMarkdown } from './utils/markdown-converter';
 
 // Components
 import Editor from './components/Editor.vue';
@@ -304,10 +306,46 @@ const {
 // ============ Auto-save ============
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Save a specific tab (works for both active and inactive tabs)
+const saveTabById = async (tabId: string) => {
+  const tab = tabs.value.find(t => t.id === tabId);
+  if (!tab?.filePath || !tab?.hasChanges) return;
+
+  try {
+    // For active tab, get fresh content from editor; for others, use stored content
+    const html = tabId === activeTabId.value ? getEditorContent() : tab.content;
+    const markdown = htmlToMarkdown(html);
+    await writeTextFile(tab.filePath, markdown);
+
+    // Update tab state
+    tab.hasChanges = false;
+    tab.content = html;
+  } catch (error) {
+    console.error('Błąd automatycznego zapisywania:', error);
+  }
+};
+
+// Save all tabs with unsaved changes
+const autoSaveAllTabs = async () => {
+  if (!settings.value.autoSave) return;
+
+  // Sync active tab content first
+  syncActiveTabContent();
+
+  // Find all tabs with unsaved changes and a file path
+  const tabsToSave = tabs.value.filter(t => t.filePath && t.hasChanges);
+
+  for (const tab of tabsToSave) {
+    await saveTabById(tab.id);
+  }
+};
+
 const triggerAutoSave = () => {
   if (!settings.value.autoSave) return;
-  if (!activeTab.value?.filePath) return;
-  if (!activeTab.value?.hasChanges) return;
+
+  // Check if any tab has unsaved changes
+  const hasUnsavedTabs = tabs.value.some(t => t.filePath && t.hasChanges);
+  if (!hasUnsavedTabs) return;
 
   // Clear existing timer
   if (autoSaveTimer) {
@@ -316,16 +354,17 @@ const triggerAutoSave = () => {
 
   // Set new timer - save after 5 seconds of inactivity
   autoSaveTimer = setTimeout(() => {
-    if (settings.value.autoSave && activeTab.value?.filePath && activeTab.value?.hasChanges) {
-      saveFile();
-    }
+    autoSaveAllTabs();
   }, 5000);
 };
 
 // Watch for autosave setting changes - if turned on with unsaved changes, trigger save
 watch(() => settings.value.autoSave, (newValue) => {
-  if (newValue && activeTab.value?.filePath && activeTab.value?.hasChanges) {
-    triggerAutoSave();
+  if (newValue) {
+    const hasUnsavedTabs = tabs.value.some(t => t.filePath && t.hasChanges);
+    if (hasUnsavedTabs) {
+      triggerAutoSave();
+    }
   }
 });
 
