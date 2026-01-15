@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
-import Toolbar from './Toolbar.vue';
+import Toolbar from '../../components/Toolbar.vue';
 
 // Mock editor for injection
 const createMockEditor = (options: {

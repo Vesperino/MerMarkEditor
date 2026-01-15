@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ref } from 'vue';
-import type { Tab } from './useTabs';
+import type { Tab } from '../../composables/useTabs';
 
 // Mock Tauri APIs before importing the module
 vi.mock('@tauri-apps/api/window', () => ({
@@ -21,11 +21,11 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   writeTextFile: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('../utils/markdown-converter', () => ({
+vi.mock('../../utils/markdown-converter', () => ({
   htmlToMarkdown: vi.fn((html: string) => html),
 }));
 
-import { useCloseConfirmation } from './useCloseConfirmation';
+import { useCloseConfirmation } from '../../composables/useCloseConfirmation';
 
 describe('useCloseConfirmation', () => {
   const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
