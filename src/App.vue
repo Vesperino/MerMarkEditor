@@ -106,8 +106,57 @@ const switchToTab = async (tabId: string, preserveHasChanges = true) => {
   }
 };
 
+// ============ Tab Close Confirmation ============
+const showTabCloseDialog = ref(false);
+const tabToClose = ref<{ id: string; fileName: string } | null>(null);
+
 const closeTab = async (tabId: string) => {
+  // Check if tab has unsaved changes
+  const tab = tabs.value.find(t => t.id === tabId);
+  if (tab?.hasChanges) {
+    // Show confirmation dialog
+    tabToClose.value = { id: tabId, fileName: tab.fileName };
+    showTabCloseDialog.value = true;
+    return;
+  }
   await closeTabBase(tabId, getEditorContent, setEditorContent);
+};
+
+const handleTabCloseSave = async () => {
+  if (!tabToClose.value) return;
+
+  const tab = tabs.value.find(t => t.id === tabToClose.value!.id);
+  if (tab) {
+    // Switch to the tab first if not active
+    if (activeTabId.value !== tab.id) {
+      await switchToTab(tab.id, true);
+    }
+    // Save the file
+    await saveFile();
+    // If save was successful (hasChanges becomes false), close the tab
+    if (!tab.hasChanges) {
+      showTabCloseDialog.value = false;
+      await closeTabBase(tabToClose.value.id, getEditorContent, setEditorContent);
+      tabToClose.value = null;
+    }
+  }
+};
+
+const handleTabCloseDiscard = async () => {
+  if (!tabToClose.value) return;
+
+  const tab = tabs.value.find(t => t.id === tabToClose.value!.id);
+  if (tab) {
+    tab.hasChanges = false;
+  }
+  showTabCloseDialog.value = false;
+  await closeTabBase(tabToClose.value.id, getEditorContent, setEditorContent);
+  tabToClose.value = null;
+};
+
+const handleTabCloseCancel = () => {
+  showTabCloseDialog.value = false;
+  tabToClose.value = null;
 };
 
 // ============ File Operations ============
@@ -170,15 +219,36 @@ watch(
 
 const toggleCodeView = async () => {
   const wasInCodeView = codeView.value;
+
+  // Save scroll position before toggling
+  const editorContainer = document.querySelector('.editor-container');
+  const savedScrollTop = editorContainer?.scrollTop || 0;
+
   await toggleCodeViewBase(editorRef.value?.editor);
 
   if (wasInCodeView && !codeView.value) {
-    // Returning from code view - update editor content and restore focus
+    // Returning from code view - update editor content
     isLoadingContent.value = true;
     if (editorRef.value?.editor && activeTab.value) {
       editorRef.value.editor.commands.setContent(activeTab.value.content);
       await nextTick();
-      editorRef.value.editor.commands.focus();
+
+      // Restore scroll position that was set by toggleCodeViewBase
+      // or use the saved position as fallback
+      await nextTick();
+      const container = document.querySelector('.editor-container');
+      if (container) {
+        // Allow a moment for DOM to settle after setContent
+        requestAnimationFrame(() => {
+          const containerEl = document.querySelector('.editor-container');
+          if (containerEl && containerEl.scrollTop === 0 && savedScrollTop > 0) {
+            // If scroll was reset, try to restore
+            containerEl.scrollTop = savedScrollTop;
+          }
+          // Focus after scroll is restored
+          editorRef.value?.editor?.commands.focus();
+        });
+      }
     }
     await nextTick();
     isLoadingContent.value = false;
@@ -408,7 +478,7 @@ onUnmounted(() => {
       @update="downloadAndInstallUpdate"
     />
 
-    <!-- Save Confirmation Dialog -->
+    <!-- Save Confirmation Dialog (Window Close) -->
     <SaveConfirmDialog
       v-if="showSaveConfirmDialog && currentTabToSave"
       :file-name="currentTabToSave.tab.fileName"
@@ -417,6 +487,17 @@ onUnmounted(() => {
       @save="handleSave"
       @discard="handleDiscard"
       @cancel="handleCancel"
+    />
+
+    <!-- Tab Close Confirmation Dialog -->
+    <SaveConfirmDialog
+      v-if="showTabCloseDialog && tabToClose"
+      :file-name="tabToClose.fileName"
+      :current-index="1"
+      :total-count="1"
+      @save="handleTabCloseSave"
+      @discard="handleTabCloseDiscard"
+      @cancel="handleTabCloseCancel"
     />
   </div>
 </template>
