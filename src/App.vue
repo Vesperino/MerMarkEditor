@@ -12,12 +12,14 @@ import LoadingOverlay from './components/LoadingOverlay.vue';
 import ExternalLinkDialog from './components/ExternalLinkDialog.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
+import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 
 // Composables
 import { useTabs } from './composables/useTabs';
 import { useAutoUpdate } from './composables/useAutoUpdate';
 import { useFileOperations } from './composables/useFileOperations';
 import { useCodeView } from './composables/useCodeView';
+import { useCloseConfirmation } from './composables/useCloseConfirmation';
 
 
 // ============ Tab Management ============
@@ -37,7 +39,8 @@ const {
 // ============ Editor References ============
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
 const editorInstance = ref<TiptapEditor | null>(null);
-const isLoadingContent = ref(false);
+// Start as true to prevent initial change detection from marking document as changed
+const isLoadingContent = ref(true);
 
 // Provide editor to child components
 watch(
@@ -184,6 +187,23 @@ const {
   closeUpdateDialog,
 } = useAutoUpdate();
 
+// ============ Close Confirmation ============
+const {
+  showSaveConfirmDialog,
+  currentTabToSave,
+  tabsToSaveCount,
+  currentTabIndex,
+  setupCloseHandler,
+  handleSave,
+  handleDiscard,
+  handleCancel,
+} = useCloseConfirmation({
+  tabs,
+  activeTabId,
+  getEditorHtml: getEditorContent,
+  switchToTab,
+});
+
 // ============ Content Updates ============
 const onContentUpdate = (newContent: string) => {
   updateTabContent(newContent);
@@ -222,9 +242,17 @@ const handleKeyboard = (event: KeyboardEvent) => {
 
 // ============ Lifecycle ============
 let unlistenOpenFile: UnlistenFn | null = null;
+let unlistenCloseRequest: (() => void) | null = null;
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
+
+  // Set up close confirmation handler
+  try {
+    unlistenCloseRequest = await setupCloseHandler();
+  } catch (error) {
+    console.error('Błąd konfiguracji obsługi zamknięcia:', error);
+  }
 
   // Check for file path from CLI arguments
   try {
@@ -246,6 +274,11 @@ onMounted(async () => {
     console.error('Błąd nasłuchiwania zdarzeń:', error);
   }
 
+  // Enable change detection after editor stabilizes
+  setTimeout(() => {
+    isLoadingContent.value = false;
+  }, 200);
+
   // Check for updates
   setTimeout(() => checkForUpdates(), 3000);
 });
@@ -254,6 +287,9 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyboard);
   if (unlistenOpenFile) {
     unlistenOpenFile();
+  }
+  if (unlistenCloseRequest) {
+    unlistenCloseRequest();
   }
 });
 </script>
@@ -317,6 +353,17 @@ onUnmounted(() => {
       :error="updateError"
       @close="closeUpdateDialog"
       @update="downloadAndInstallUpdate"
+    />
+
+    <!-- Save Confirmation Dialog -->
+    <SaveConfirmDialog
+      v-if="showSaveConfirmDialog && currentTabToSave"
+      :file-name="currentTabToSave.tab.fileName"
+      :current-index="currentTabIndex"
+      :total-count="tabsToSaveCount"
+      @save="handleSave"
+      @discard="handleDiscard"
+      @cancel="handleCancel"
     />
   </div>
 </template>
