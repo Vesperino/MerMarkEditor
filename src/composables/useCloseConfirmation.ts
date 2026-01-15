@@ -16,6 +16,7 @@ export interface UseCloseConfirmationOptions {
   activeTabId: Ref<string>;
   getEditorHtml: () => string;
   switchToTab: (tabId: string, preserveHasChanges?: boolean) => Promise<void>;
+  syncActiveTabContent?: () => void;
 }
 
 export interface UseCloseConfirmationReturn {
@@ -30,7 +31,7 @@ export interface UseCloseConfirmationReturn {
 }
 
 export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseCloseConfirmationReturn {
-  const { tabs, activeTabId, getEditorHtml, switchToTab } = options;
+  const { tabs, activeTabId, getEditorHtml, switchToTab, syncActiveTabContent } = options;
 
   const showSaveConfirmDialog = ref(false);
   const currentTabToSave = ref<TabToSave | null>(null);
@@ -139,6 +140,11 @@ export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseC
       console.log('[CloseHandler] Close requested!');
 
       try {
+        // Sync active tab content before checking for unsaved changes
+        if (syncActiveTabContent) {
+          syncActiveTabContent();
+        }
+
         console.log('[CloseHandler] Tabs:', JSON.stringify(tabs.value.map(t => ({ id: t.id, hasChanges: t.hasChanges, fileName: t.fileName }))));
 
         const unsavedTabs = collectUnsavedTabs();

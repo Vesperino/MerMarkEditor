@@ -2,8 +2,10 @@
 import { inject, ref, computed, type Ref } from "vue";
 import type { Editor } from "@tiptap/vue-3";
 import { useI18n } from "../i18n";
+import { useSettings } from "../composables/useSettings";
 
 const { t, locale, toggleLocale } = useI18n();
+const { settings, toggleAutoSave } = useSettings();
 const editor = inject<Ref<Editor | null>>("editor");
 
 const showTableMenu = ref(false);
@@ -466,6 +468,35 @@ const emit = defineEmits<{
 
       <div class="toolbar-separator"></div>
 
+      <!-- Auto-save Toggle -->
+      <div class="toolbar-group autosave-group">
+        <span class="autosave-label">{{ t.autoSave }}:</span>
+        <div class="radio-group">
+          <label class="radio-option" :class="{ active: !settings.autoSave }">
+            <input
+              type="radio"
+              name="autosave"
+              :value="false"
+              :checked="!settings.autoSave"
+              @change="toggleAutoSave"
+            />
+            <span>{{ t.autoSaveOff }}</span>
+          </label>
+          <label class="radio-option" :class="{ active: settings.autoSave }">
+            <input
+              type="radio"
+              name="autosave"
+              :value="true"
+              :checked="settings.autoSave"
+              @change="toggleAutoSave"
+            />
+            <span>{{ t.autoSaveOn }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
       <!-- Language Toggle -->
       <button
         @click="toggleLocale"
@@ -702,5 +733,52 @@ const emit = defineEmits<{
 
 .lang-btn:hover .lang-code {
   color: #1e293b;
+}
+
+/* Auto-save Toggle */
+.autosave-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.autosave-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.radio-group {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #64748b;
+  transition: all 0.15s;
+}
+
+.radio-option input {
+  display: none;
+}
+
+.radio-option:hover {
+  color: #475569;
+}
+
+.radio-option.active {
+  background: #ffffff;
+  color: #1e293b;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 </style>
