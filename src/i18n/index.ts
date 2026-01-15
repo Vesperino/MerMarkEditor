@@ -62,6 +62,10 @@ export interface Translations {
   mermaid: string;
   insertMermaid: string;
 
+  // Toolbar - Code View
+  codeView: string;
+  visualView: string;
+
   // Stats
   characters: string;
   words: string;
@@ -173,6 +177,10 @@ const translations: Record<Locale, Translations> = {
     mermaid: 'Mermaid',
     insertMermaid: 'Insert Mermaid diagram',
 
+    // Toolbar - Code View
+    codeView: 'Code',
+    visualView: 'Visual',
+
     // Stats
     characters: 'characters',
     words: 'words',
@@ -282,6 +290,10 @@ const translations: Record<Locale, Translations> = {
     // Toolbar - Mermaid
     mermaid: 'Mermaid',
     insertMermaid: 'Wstaw diagram Mermaid',
+
+    // Toolbar - Code View
+    codeView: 'Kod',
+    visualView: 'Wizualny',
 
     // Stats
     characters: 'znaków',

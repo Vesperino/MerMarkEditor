@@ -38,14 +38,14 @@ button:disabled {
 
 /* ========== Print Styles ========== */
 
-/* Page setup - removes browser headers/footers */
+/* Page setup */
 @page {
   size: A4;
-  margin: 20mm 15mm 20mm 15mm;
+  margin: 10mm 15mm 15mm 15mm;
 }
 
 @page :first {
-  margin-top: 20mm;
+  margin-top: 10mm;
 }
 
 @media print {
