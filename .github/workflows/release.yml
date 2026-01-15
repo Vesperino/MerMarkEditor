@@ -100,6 +100,13 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Debug secrets
+        run: |
+          echo "TAURI_SIGNING_PRIVATE_KEY is set: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}"
+          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}"
+          echo "Key length: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" | wc -c
+          echo "Key starts with: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" | head -c 50
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
