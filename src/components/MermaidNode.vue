@@ -85,12 +85,15 @@ const fitToView = () => {
   const svg = containerRef.value.querySelector('svg');
   if (!svg) return;
 
-  const svgRect = svg.getBoundingClientRect();
+  // Get natural SVG dimensions (before any transforms)
+  const svgWidth = svg.getBBox().width || svg.clientWidth;
+  const svgHeight = svg.getBBox().height || svg.clientHeight;
   const viewportRect = viewportRef.value.getBoundingClientRect();
 
-  const scaleX = viewportRect.width / svgRect.width;
-  const scaleY = viewportRect.height / svgRect.height;
-  const newScale = Math.min(scaleX, scaleY, 1) * 0.9; // 90% to add some padding
+  // Calculate scale to fit SVG in viewport with 10% padding
+  const scaleX = (viewportRect.width * 0.9) / svgWidth;
+  const scaleY = (viewportRect.height * 0.9) / svgHeight;
+  const newScale = Math.min(scaleX, scaleY, 1);
 
   scale.value = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
   translateX.value = 0;
@@ -752,8 +755,9 @@ const insertTemplate = (code: string) => {
   font-size: 12px;
   font-weight: 600;
   color: #475569;
-  min-width: 45px;
+  min-width: 50px;
   text-align: center;
+  padding: 0 4px;
 }
 
 /* Viewport for pan/zoom */
