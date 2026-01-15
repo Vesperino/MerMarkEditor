@@ -59,8 +59,10 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
-      "endpoints": []
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1QTREMTM3MTA1NTIwQjAKUldTd0lGVVFOOUdreFlaYTRYREh2dDduRzNyc0todysxblNXanlCTkJ6blZ3cFdueXdZNTBFY1kK",
+      "endpoints": [
+        "https://github.com/Vesperino/MerMarkEditor/releases/latest/download/latest.json"
+      ]
     },
     "deep-link": {
       "desktop": {
