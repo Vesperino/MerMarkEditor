@@ -249,9 +249,11 @@ onMounted(async () => {
 
   // Set up close confirmation handler
   try {
+    console.log('[App] Setting up close handler...');
     unlistenCloseRequest = await setupCloseHandler();
+    console.log('[App] Close handler set up successfully');
   } catch (error) {
-    console.error('Błąd konfiguracji obsługi zamknięcia:', error);
+    console.error('[App] Błąd konfiguracji obsługi zamknięcia:', error);
   }
 
   // Check for file path from CLI arguments
