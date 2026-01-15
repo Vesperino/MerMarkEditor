@@ -119,11 +119,16 @@ const closeDropdowns = () => {
   showTableMenu.value = false;
 };
 
+const props = defineProps<{
+  codeView?: boolean;
+}>();
+
 const emit = defineEmits<{
   openFile: [];
   saveFile: [];
   saveFileAs: [];
   exportPdf: [];
+  toggleCodeView: [];
 }>();
 </script>
 
@@ -177,9 +182,11 @@ const emit = defineEmits<{
           :title="`${t.undo} (Ctrl+Z)`"
           :disabled="!editor?.can().undo()"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 7v6h6"/>
-            <path d="M3 13a9 9 0 1 0 3-7.5"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 10h6"/>
+            <path d="M3 10l4-4"/>
+            <path d="M3 10l4 4"/>
+            <path d="M9 10a7 7 0 1 1 0 8"/>
           </svg>
         </button>
         <button
@@ -188,9 +195,11 @@ const emit = defineEmits<{
           :title="`${t.redo} (Ctrl+Y)`"
           :disabled="!editor?.can().redo()"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 7v6h-6"/>
-            <path d="M21 13a9 9 0 1 1-3-7.5"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10h-6"/>
+            <path d="M21 10l-4-4"/>
+            <path d="M21 10l-4 4"/>
+            <path d="M15 10a7 7 0 1 0 0 8"/>
           </svg>
         </button>
       </div>
@@ -282,12 +291,15 @@ const emit = defineEmits<{
           :title="t.orderedList"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="10" y1="6" x2="20" y2="6"/>
-            <line x1="10" y1="12" x2="20" y2="12"/>
-            <line x1="10" y1="18" x2="20" y2="18"/>
-            <text x="2" y="8" font-size="8" fill="currentColor" font-weight="bold">1</text>
-            <text x="2" y="14" font-size="8" fill="currentColor" font-weight="bold">2</text>
-            <text x="2" y="20" font-size="8" fill="currentColor" font-weight="bold">3</text>
+            <line x1="10" y1="6" x2="21" y2="6"/>
+            <line x1="10" y1="12" x2="21" y2="12"/>
+            <line x1="10" y1="18" x2="21" y2="18"/>
+            <!-- Number 1 -->
+            <path d="M4.5 5V7.5M3.8 7.5H5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <!-- Number 2 -->
+            <path d="M3.2 10.8C3.2 10.4 3.6 10 4.3 10C5 10 5.4 10.4 5.4 10.8C5.4 11.2 5 11.6 3.2 13.5H5.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <!-- Number 3 -->
+            <path d="M3.2 16.3C3.2 16 3.6 15.6 4.3 15.6C5 15.6 5.4 16 5.4 16.3C5.4 16.6 5 17 4.3 17C5 17 5.4 17.4 5.4 17.7C5.4 18 5 18.4 4.3 18.4C3.6 18.4 3.2 18 3.2 17.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
           </svg>
         </button>
         <button
@@ -433,6 +445,27 @@ const emit = defineEmits<{
 
       <div class="toolbar-separator"></div>
 
+      <!-- Code View Toggle -->
+      <button
+        @click="emit('toggleCodeView')"
+        :class="{ active: props.codeView }"
+        class="toolbar-btn code-toggle-btn"
+        :title="props.codeView ? t.visualView : t.codeView"
+      >
+        <svg v-if="!props.codeView" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="16,18 22,12 16,6"/>
+          <polyline points="8,6 2,12 8,18"/>
+          <line x1="14" y1="4" x2="10" y2="20"/>
+        </svg>
+        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+        <span>{{ props.codeView ? t.visualView : t.codeView }}</span>
+      </button>
+
+      <div class="toolbar-separator"></div>
+
       <!-- Language Toggle -->
       <button
         @click="toggleLocale"
@@ -538,6 +571,23 @@ const emit = defineEmits<{
 .mermaid-btn:hover {
   background: #d1fae5;
   border-color: #6ee7b7;
+}
+
+.code-toggle-btn {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+
+.code-toggle-btn:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+.code-toggle-btn.active {
+  background: #0ea5e9;
+  border-color: #0284c7;
+  color: white;
 }
 
 .heading-select {

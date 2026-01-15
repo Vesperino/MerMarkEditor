@@ -8,6 +8,7 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Editor as TiptapEditor } from "@tiptap/vue-3";
+import { htmlToMarkdown, markdownToHtml } from "./utils/markdown-converter";
 
 // Tab interface
 interface Tab {
@@ -39,6 +40,38 @@ const content = computed(() => activeTab.value?.content || "<p></p>");
 
 // Flag to ignore hasChanges updates when loading content programmatically
 const isLoadingContent = ref(false);
+
+// Code view toggle
+const codeView = ref(false);
+const codeContent = ref("");
+
+const toggleCodeView = () => {
+  if (!codeView.value) {
+    // Switching to code view - convert HTML to Markdown
+    const html = activeTab.value?.content || "<p></p>";
+    codeContent.value = htmlToMarkdown(html);
+    codeView.value = true;
+  } else {
+    // Switching back to visual view - convert Markdown to HTML
+    const html = markdownToHtml(codeContent.value);
+    if (activeTab.value) {
+      isLoadingContent.value = true;
+      activeTab.value.content = html;
+      activeTab.value.hasChanges = true;
+      nextTick(() => {
+        isLoadingContent.value = false;
+      });
+    }
+    codeView.value = false;
+  }
+};
+
+const onCodeContentUpdate = (value: string) => {
+  codeContent.value = value;
+  if (activeTab.value) {
+    activeTab.value.hasChanges = true;
+  }
+};
 
 // Watch for editor instance changes
 watch(
@@ -1066,37 +1099,16 @@ const saveFileAs = async () => {
   }
 };
 
-const exportPdf = async () => {
-  // Używamy systemowego dialogu drukowania z opcją zapisu do PDF
-  // Nagłówki i stopki są ukryte przez style CSS @page
-  // Użytkownik może wybrać "Zapisz jako PDF" w opcjach drukarki
-
+const exportPdf = () => {
   // Add a class to body during print for better control
   document.body.classList.add('printing');
 
-  try {
-    // Use Tauri webview print API if available (for better control)
-    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-    const webview = getCurrentWebview();
+  // Use window.print() - Tauri webview print options don't fully work on Windows
+  // Note: Headers/footers are controlled by browser/OS settings
+  // Users can disable them in the print dialog settings
+  window.print();
 
-    // Try using the print method (might not have types in all versions)
-    if (typeof (webview as unknown as { print: unknown }).print === 'function') {
-      await (webview as unknown as { print: (options?: unknown) => Promise<void> }).print({
-        margins: { marginType: "Custom", top: 20, bottom: 20, left: 15, right: 15 },
-        headerFooterEnabled: false,
-        landscape: false,
-        scaleFactor: 100,
-        printBackground: true
-      });
-    } else {
-      window.print();
-    }
-  } catch {
-    // Fallback to regular window.print()
-    window.print();
-  } finally {
-    document.body.classList.remove('printing');
-  }
+  document.body.classList.remove('printing');
 };
 
 const onContentUpdate = (newContent: string) => {
@@ -1254,10 +1266,12 @@ onUnmounted(() => {
 <template>
   <div class="app">
     <Toolbar
+      :code-view="codeView"
       @open-file="openFile"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
+      @toggle-code-view="toggleCodeView"
     />
     <!-- Tab Bar -->
     <div class="tab-bar" v-if="tabs.length > 1">
@@ -1272,13 +1286,28 @@ onUnmounted(() => {
         <button class="tab-close" @click.stop="closeTab(tab.id)" title="Zamknij">&times;</button>
       </div>
     </div>
+    <!-- Visual Editor -->
     <Editor
+      v-if="!codeView"
       ref="editorRef"
       :model-value="content"
       @update:model-value="onContentUpdate"
       @update:has-changes="onChangesUpdate"
       @link-click="handleLinkClick"
     />
+
+    <!-- Code View (Raw Markdown) -->
+    <div v-else class="code-editor-container">
+      <textarea
+        class="code-editor"
+        :value="codeContent"
+        @input="(e) => onCodeContentUpdate((e.target as HTMLTextAreaElement).value)"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+      ></textarea>
+    </div>
 
     <!-- External Link Confirmation Dialog -->
     <div v-if="showExternalLinkDialog" class="dialog-overlay" @click.self="cancelExternalLink">
@@ -1333,6 +1362,36 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100vh;
   background: #ffffff;
+}
+
+/* Code Editor Styles */
+.code-editor-container {
+  flex: 1;
+  overflow: auto;
+  background: #1e293b;
+  padding: 20px;
+}
+
+.code-editor {
+  width: 100%;
+  height: 100%;
+  min-height: calc(100vh - 180px);
+  background: #0f172a;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 8px;
+  padding: 24px;
+  font-family: "Fira Code", "Consolas", "Monaco", monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  tab-size: 2;
+}
+
+.code-editor:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
 
 /* Tab Bar Styles */
