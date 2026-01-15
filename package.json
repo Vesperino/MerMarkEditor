@@ -1,7 +1,7 @@
 {
   "name": "mermark-editor",
   "private": false,
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Modern Markdown editor with Mermaid diagram support",
   "author": "Vesperino",
   "license": "MIT",
