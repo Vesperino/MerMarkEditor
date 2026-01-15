@@ -46,6 +46,7 @@ const isLoadingContent = ref(false);
 const codeView = ref(false);
 const codeContent = ref("");
 const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
+const savedEditorScrollTop = ref(0); // Save scroll position when switching views
 
 // Loading state for file operations
 const isLoadingFile = ref(false);
@@ -55,6 +56,12 @@ const toggleCodeView = async () => {
     // Switching to code view - convert HTML to Markdown
     const html = activeTab.value?.content || "<p></p>";
     codeContent.value = htmlToMarkdown(html);
+
+    // Save current scroll position from visual editor
+    const editorContainer = document.querySelector('.editor-container');
+    if (editorContainer) {
+      savedEditorScrollTop.value = editorContainer.scrollTop;
+    }
 
     // Get cursor position from editor before switching
     let cursorOffset = 0;
@@ -91,16 +98,36 @@ const toggleCodeView = async () => {
     }
   } else {
     // Switching back to visual view - convert Markdown to HTML
+    // Save code editor scroll position to estimate visual editor position
+    let codeScrollRatio = 0;
+    if (codeEditorRef.value) {
+      const scrollHeight = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
+      if (scrollHeight > 0) {
+        codeScrollRatio = codeEditorRef.value.scrollTop / scrollHeight;
+      }
+    }
+
     const html = markdownToHtml(codeContent.value);
     if (activeTab.value) {
       isLoadingContent.value = true;
       activeTab.value.content = html;
       activeTab.value.hasChanges = true;
-      nextTick(() => {
-        isLoadingContent.value = false;
-      });
     }
     codeView.value = false;
+
+    // Restore scroll position in visual editor
+    await nextTick();
+    await nextTick(); // Wait for content to render
+    const editorContainer = document.querySelector('.editor-container');
+    if (editorContainer) {
+      // Use the saved scroll position, or estimate from code editor scroll ratio
+      const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
+      const targetScroll = savedEditorScrollTop.value > 0
+        ? Math.min(savedEditorScrollTop.value, maxScroll)
+        : codeScrollRatio * maxScroll;
+      editorContainer.scrollTop = targetScroll;
+    }
+    isLoadingContent.value = false;
   }
 };
 
