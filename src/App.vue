@@ -147,7 +147,6 @@ const {
   getActiveContent: () => activeTab.value?.content || '<p></p>',
   setActiveContent: (content: string) => {
     if (activeTab.value) {
-      isLoadingContent.value = true;
       activeTab.value.content = content;
     }
   },
@@ -170,8 +169,18 @@ watch(
 );
 
 const toggleCodeView = async () => {
+  const wasInCodeView = codeView.value;
   await toggleCodeViewBase(editorRef.value?.editor);
-  if (!codeView.value) {
+
+  if (wasInCodeView && !codeView.value) {
+    // Returning from code view - update editor content and restore focus
+    isLoadingContent.value = true;
+    if (editorRef.value?.editor && activeTab.value) {
+      editorRef.value.editor.commands.setContent(activeTab.value.content);
+      await nextTick();
+      editorRef.value.editor.commands.focus();
+    }
+    await nextTick();
     isLoadingContent.value = false;
   }
 };
