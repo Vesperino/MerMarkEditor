@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from "@tiptap/vue-3";
-import { ref, watch, onMounted, computed } from "vue";
+import { ref, watch, onMounted } from "vue";
 import mermaid from "mermaid";
 import { useI18n } from "../i18n";
+import { useZoomPan } from "../composables/useZoomPan";
+import { useFullscreen } from "../composables/useFullscreen";
+import { quickAccessTemplates } from "../data/diagramTemplates";
+import DiagramTemplateModal from "./DiagramTemplateModal.vue";
 
 const { t } = useI18n();
 
@@ -22,157 +26,37 @@ const viewportRef = ref<HTMLDivElement | null>(null);
 const isEditing = ref(false);
 const editCode = ref(props.node.attrs.code);
 const error = ref<string | null>(null);
+const showTemplateModal = ref(false);
 
-// Zoom & Pan state
-const scale = ref(1);
-const translateX = ref(0);
-const translateY = ref(0);
-const isPanning = ref(false);
-const panStart = ref({ x: 0, y: 0 });
-const isFullscreen = ref(false);
-const MIN_SCALE = 0.1;
-const MAX_SCALE = 10;
-const ZOOM_STEP = 0.25;
+// Use composables
+const {
+  zoomPercent,
+  transformStyle,
+  zoomIn,
+  zoomOut,
+  resetZoom,
+  fitToView,
+  startPan: startPanBase,
+  doPan,
+  endPan,
+  handleWheel: handleWheelBase,
+} = useZoomPan();
 
-const toggleFullscreen = () => {
-  isFullscreen.value = !isFullscreen.value;
-  if (isFullscreen.value) {
-    document.body.style.overflow = 'hidden';
-  } else {
-    document.body.style.overflow = '';
-  }
-};
+const { isFullscreen, toggleFullscreen } = useFullscreen();
 
-const closeFullscreen = (e: KeyboardEvent) => {
-  if (e.key === 'Escape' && isFullscreen.value) {
-    toggleFullscreen();
-  }
-};
-
-// Add/remove keyboard listener for Escape
-watch(isFullscreen, (val) => {
-  if (val) {
-    window.addEventListener('keydown', closeFullscreen);
-  } else {
-    window.removeEventListener('keydown', closeFullscreen);
-  }
-});
-
-const transformStyle = computed(() => ({
-  transform: `translate(${translateX.value}px, ${translateY.value}px) scale(${scale.value})`,
-  transformOrigin: 'center center',
-  cursor: isPanning.value ? 'grabbing' : 'grab',
-}));
-
-const zoomPercent = computed(() => Math.round(scale.value * 100));
-
-const zoomIn = () => {
-  scale.value = Math.min(MAX_SCALE, scale.value + ZOOM_STEP);
-};
-
-const zoomOut = () => {
-  scale.value = Math.max(MIN_SCALE, scale.value - ZOOM_STEP);
-};
-
-const resetZoom = () => {
-  scale.value = 1;
-  translateX.value = 0;
-  translateY.value = 0;
-};
-
-const fitToView = async () => {
-  if (!containerRef.value || !viewportRef.value) return;
-  const svg = containerRef.value.querySelector('svg');
-  if (!svg) return;
-
-  // Reset transform first to get accurate measurements
-  scale.value = 1;
-  translateX.value = 0;
-  translateY.value = 0;
-
-  // Wait for the DOM to update
-  await new Promise(resolve => requestAnimationFrame(resolve));
-
-  // Get SVG dimensions - try multiple methods for reliability
-  let svgWidth = 0;
-  let svgHeight = 0;
-
-  // Method 1: Try viewBox attribute (most reliable for Mermaid)
-  const viewBox = svg.getAttribute('viewBox');
-  if (viewBox) {
-    const parts = viewBox.split(/\s+/);
-    if (parts.length >= 4) {
-      svgWidth = parseFloat(parts[2]) || 0;
-      svgHeight = parseFloat(parts[3]) || 0;
-    }
-  }
-
-  // Method 2: Try width/height attributes
-  if (!svgWidth || !svgHeight) {
-    const widthAttr = svg.getAttribute('width');
-    const heightAttr = svg.getAttribute('height');
-    if (widthAttr && heightAttr) {
-      svgWidth = parseFloat(widthAttr) || 0;
-      svgHeight = parseFloat(heightAttr) || 0;
-    }
-  }
-
-  // Method 3: Use getBoundingClientRect (actual rendered size)
-  if (!svgWidth || !svgHeight) {
-    const svgRect = svg.getBoundingClientRect();
-    svgWidth = svgRect.width || svg.clientWidth || 0;
-    svgHeight = svgRect.height || svg.clientHeight || 0;
-  }
-
-  // Fallback to getBBox only if other methods fail
-  if (!svgWidth || !svgHeight) {
-    try {
-      const bbox = svg.getBBox();
-      svgWidth = bbox.width || 100;
-      svgHeight = bbox.height || 100;
-    } catch {
-      svgWidth = 100;
-      svgHeight = 100;
-    }
-  }
-
-  const viewportRect = viewportRef.value.getBoundingClientRect();
-  const availableWidth = viewportRect.width - 40; // 20px padding on each side
-  const availableHeight = viewportRect.height - 40;
-
-  // Calculate scale to fit SVG in viewport
-  const scaleX = availableWidth / svgWidth;
-  const scaleY = availableHeight / svgHeight;
-  const newScale = Math.min(scaleX, scaleY, 2); // Allow up to 2x for small diagrams
-
-  scale.value = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-  translateX.value = 0;
-  translateY.value = 0;
-};
-
-// Pan handlers
+// Wrap pan/zoom handlers to check editing state
 const startPan = (e: MouseEvent) => {
   if (isEditing.value) return;
-  isPanning.value = true;
-  panStart.value = { x: e.clientX - translateX.value, y: e.clientY - translateY.value };
+  startPanBase(e);
 };
 
-const doPan = (e: MouseEvent) => {
-  if (!isPanning.value) return;
-  translateX.value = e.clientX - panStart.value.x;
-  translateY.value = e.clientY - panStart.value.y;
-};
-
-const endPan = () => {
-  isPanning.value = false;
-};
-
-// Wheel zoom
 const handleWheel = (e: WheelEvent) => {
   if (isEditing.value) return;
-  e.preventDefault();
-  const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-  scale.value = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale.value + delta));
+  handleWheelBase(e);
+};
+
+const handleFitToView = () => {
+  fitToView(containerRef.value, viewportRef.value);
 };
 
 mermaid.initialize({
@@ -227,140 +111,12 @@ const cancelEdit = () => {
   isEditing.value = false;
 };
 
-// Mermaid template categories with translation keys
-const diagramCategories = computed(() => [
-  {
-    categoryKey: 'categoryBasic',
-    templates: [
-      {
-        name: "Flowchart",
-        code: "graph TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Action 1]\n  B -->|No| D[Action 2]\n  C --> E[End]\n  D --> E"
-      },
-      {
-        name: "Flowchart LR",
-        code: "graph LR\n  A[Input] --> B[Process]\n  B --> C[Output]\n  B --> D[Error]\n  D --> B"
-      },
-      {
-        name: "Sequence",
-        code: "sequenceDiagram\n  participant U as User\n  participant S as System\n  participant D as Database\n  U->>S: Request\n  S->>D: Query\n  D-->>S: Result\n  S-->>U: Response"
-      },
-      {
-        name: "Class",
-        code: "classDiagram\n  class Animal {\n    +String name\n    +int age\n    +makeSound()\n  }\n  class Dog {\n    +String breed\n    +bark()\n  }\n  class Cat {\n    +meow()\n  }\n  Animal <|-- Dog\n  Animal <|-- Cat"
-      },
-    ]
-  },
-  {
-    categoryKey: 'categoryStatesProcesses',
-    templates: [
-      {
-        name: "State",
-        code: "stateDiagram-v2\n  [*] --> Idle\n  Idle --> Processing : Start\n  Processing --> Success : Complete\n  Processing --> Error : Fail\n  Success --> [*]\n  Error --> Idle : Retry"
-      },
-      {
-        name: "Gantt",
-        code: "gantt\n  title Project Plan\n  dateFormat YYYY-MM-DD\n  section Phase 1\n    Task 1 :a1, 2024-01-01, 30d\n    Task 2 :after a1, 20d\n  section Phase 2\n    Task 3 :2024-02-15, 25d\n    Task 4 :2024-03-01, 15d"
-      },
-      {
-        name: "Journey",
-        code: "journey\n  title User Journey\n  section Registration\n    Visit site: 5: User\n    Fill form: 3: User\n    Confirm email: 4: User\n  section Usage\n    Login: 5: User\n    Browse: 4: User\n    Purchase: 3: User"
-      },
-    ]
-  },
-  {
-    categoryKey: 'categoryDataRelations',
-    templates: [
-      {
-        name: "ER Diagram",
-        code: "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ||--|{ LINE-ITEM : contains\n  PRODUCT ||--o{ LINE-ITEM : \"ordered in\"\n  CUSTOMER {\n    string name\n    string email\n  }\n  ORDER {\n    int id\n    date created\n  }"
-      },
-      {
-        name: "Pie Chart",
-        code: "pie showData\n  title Project Distribution\n  \"Development\" : 45\n  \"Testing\" : 25\n  \"Documentation\" : 15\n  \"Deployment\" : 15"
-      },
-      {
-        name: "Mindmap",
-        code: "mindmap\n  root((Project))\n    Backend\n      API\n      Database\n      Auth\n    Frontend\n      Components\n      Styles\n      State\n    DevOps\n      CI/CD\n      Monitoring"
-      },
-      {
-        name: "Timeline",
-        code: "timeline\n  title Project Timeline\n  section 2024 Q1\n    January : Planning\n    February : Development\n    March : Testing\n  section 2024 Q2\n    April : Beta release\n    May : Feedback\n    June : Production"
-      },
-    ]
-  },
-  {
-    categoryKey: 'categoryGitRequirements',
-    templates: [
-      {
-        name: "Gitgraph",
-        code: "gitGraph\n  commit id: \"Initial\"\n  branch develop\n  checkout develop\n  commit id: \"Feature A\"\n  commit id: \"Feature B\"\n  checkout main\n  merge develop id: \"v1.0\"\n  commit id: \"Hotfix\"\n  branch feature\n  commit id: \"New feature\""
-      },
-      {
-        name: "Requirement",
-        code: "requirementDiagram\n  requirement user_req {\n    id: 1\n    text: User authentication\n    risk: high\n    verifymethod: test\n  }\n  element auth_module {\n    type: module\n  }\n  auth_module - satisfies -> user_req"
-      },
-    ]
-  },
-  {
-    categoryKey: 'categoryC4Model',
-    templates: [
-      {
-        name: "C4 Context",
-        code: "C4Context\n  title System Context Diagram\n\n  Person(user, \"User\", \"End user of the system\")\n  System(mainSystem, \"Main System\", \"Core application\")\n  System_Ext(extSystem, \"External System\", \"Third-party service\")\n\n  Rel(user, mainSystem, \"Uses\")\n  Rel(mainSystem, extSystem, \"Calls API\")"
-      },
-      {
-        name: "C4 Container",
-        code: "C4Container\n  title Container Diagram\n\n  Person(user, \"User\", \"System user\")\n\n  System_Boundary(system, \"System\") {\n    Container(webapp, \"Web App\", \"Vue.js\", \"Frontend application\")\n    Container(api, \"API\", \"Node.js\", \"Backend API\")\n    ContainerDb(db, \"Database\", \"PostgreSQL\", \"Data storage\")\n  }\n\n  Rel(user, webapp, \"Uses\", \"HTTPS\")\n  Rel(webapp, api, \"Calls\", \"REST/JSON\")\n  Rel(api, db, \"Reads/Writes\")"
-      },
-      {
-        name: "C4 Component",
-        code: "C4Component\n  title Component Diagram\n\n  Container_Boundary(api, \"API Application\") {\n    Component(auth, \"Auth Controller\", \"TypeScript\", \"Handles authentication\")\n    Component(users, \"User Controller\", \"TypeScript\", \"User management\")\n    Component(service, \"User Service\", \"TypeScript\", \"Business logic\")\n    Component(repo, \"User Repository\", \"TypeScript\", \"Data access\")\n  }\n\n  Rel(auth, service, \"Uses\")\n  Rel(users, service, \"Uses\")\n  Rel(service, repo, \"Uses\")"
-      },
-      {
-        name: "C4 Dynamic",
-        code: "C4Dynamic\n  title Dynamic Diagram - Login Flow\n\n  Person(user, \"User\")\n  Container(spa, \"SPA\", \"Vue.js\")\n  Container(api, \"API\", \"Node.js\")\n  ContainerDb(db, \"DB\", \"PostgreSQL\")\n\n  Rel(user, spa, \"1. Enter credentials\")\n  Rel(spa, api, \"2. POST /login\")\n  Rel(api, db, \"3. Verify user\")\n  Rel(api, spa, \"4. Return JWT\")\n  Rel(spa, user, \"5. Show dashboard\")"
-      },
-      {
-        name: "C4 Deployment",
-        code: "C4Deployment\n  title Deployment Diagram\n\n  Deployment_Node(cloud, \"Cloud Provider\") {\n    Deployment_Node(k8s, \"Kubernetes Cluster\") {\n      Container(webapp, \"Web App\", \"Vue.js\")\n      Container(api, \"API\", \"Node.js\")\n    }\n    Deployment_Node(db_server, \"Database Server\") {\n      ContainerDb(db, \"Database\", \"PostgreSQL\")\n    }\n  }\n\n  Rel(webapp, api, \"Calls\")\n  Rel(api, db, \"Reads/Writes\")"
-      },
-    ]
-  },
-  {
-    categoryKey: 'categoryAdvanced',
-    templates: [
-      {
-        name: "Sankey",
-        code: "sankey-beta\n\nSource A,Target X,50\nSource A,Target Y,30\nSource B,Target X,20\nSource B,Target Z,40\nTarget X,Final,70\nTarget Y,Final,30\nTarget Z,Final,40"
-      },
-      {
-        name: "XY Chart",
-        code: "xychart-beta\n  title \"Sales Data\"\n  x-axis [jan, feb, mar, apr, may, jun]\n  y-axis \"Revenue\" 0 --> 100\n  bar [20, 35, 45, 60, 55, 80]\n  line [15, 30, 40, 55, 50, 75]"
-      },
-      {
-        name: "Block",
-        code: "block-beta\n  columns 3\n  Frontend:3\n  space down1<[\" \"]>(down) space\n  Backend\n  space down2<[\" \"]>(down)\n  Database"
-      },
-    ]
-  },
-]);
-
-// Flat list of popular templates for quick access buttons
-const diagramTemplates = [
-  { name: "Flowchart", code: "graph TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Action 1]\n  B -->|No| D[Action 2]\n  C --> E[End]\n  D --> E" },
-  { name: "Sequence", code: "sequenceDiagram\n  participant U as User\n  participant S as System\n  U->>S: Request\n  S-->>U: Response" },
-  { name: "Class", code: "classDiagram\n  class Animal {\n    +String name\n    +makeSound()\n  }\n  class Dog\n  Animal <|-- Dog" },
-  { name: "State", code: "stateDiagram-v2\n  [*] --> Active\n  Active --> Inactive\n  Inactive --> [*]" },
-  { name: "ER", code: "erDiagram\n  USER ||--o{ ORDER : places\n  ORDER ||--|{ ITEM : contains" },
-  { name: "Gantt", code: "gantt\n  title Plan\n  Task 1 :a1, 2024-01-01, 30d\n  Task 2 :after a1, 20d" },
-  { name: "Pie", code: "pie\n  \"A\" : 40\n  \"B\" : 30\n  \"C\" : 30" },
-  { name: "Mindmap", code: "mindmap\n  root((Main))\n    Topic A\n    Topic B\n    Topic C" },
-];
-
-const showTemplateModal = ref(false);
-
 const insertTemplate = (code: string) => {
   editCode.value = code;
+};
+
+const handleTemplateSelect = (code: string) => {
+  insertTemplate(code);
 };
 </script>
 
@@ -378,7 +134,7 @@ const insertTemplate = (code: string) => {
       <div class="template-row">
         <div class="template-buttons">
           <button
-            v-for="tmpl in diagramTemplates"
+            v-for="tmpl in quickAccessTemplates"
             :key="tmpl.name"
             @click="insertTemplate(tmpl.code)"
             class="btn-template"
@@ -403,29 +159,11 @@ const insertTemplate = (code: string) => {
     </div>
 
     <!-- Template modal -->
-    <div v-if="showTemplateModal" class="template-modal-overlay" @click.self="showTemplateModal = false">
-      <div class="template-modal">
-        <div class="modal-header">
-          <h3>{{ t.mermaidDiagramTemplates }}</h3>
-          <button @click="showTemplateModal = false" class="btn-close">&times;</button>
-        </div>
-        <div class="modal-content">
-          <div v-for="cat in diagramCategories" :key="cat.categoryKey" class="template-category">
-            <h4>{{ t[cat.categoryKey as keyof typeof t] }}</h4>
-            <div class="category-templates">
-              <button
-                v-for="tmpl in cat.templates"
-                :key="tmpl.name"
-                @click="insertTemplate(tmpl.code); showTemplateModal = false"
-                class="btn-template-large"
-              >
-                {{ tmpl.name }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DiagramTemplateModal
+      :show="showTemplateModal"
+      @close="showTemplateModal = false"
+      @select="handleTemplateSelect"
+    />
 
     <div v-if="error" class="mermaid-error">
       {{ error }}
@@ -437,7 +175,7 @@ const insertTemplate = (code: string) => {
       <span class="zoom-level">{{ zoomPercent }}%</span>
       <button @click="zoomIn" class="btn-zoom" :title="`${t.zoomIn} (+)`">+</button>
       <button @click="resetZoom" class="btn-zoom-text" :title="`${t.reset} (100%)`">{{ t.reset }}</button>
-      <button @click="fitToView" class="btn-zoom-text" :title="t.fit">{{ t.fit }}</button>
+      <button @click="handleFitToView" class="btn-zoom-text" :title="t.fit">{{ t.fit }}</button>
       <button @click="toggleFullscreen" class="btn-zoom-text btn-fullscreen" :title="`${t.fullscreen} (Esc)`">{{ t.fullscreen }}</button>
     </div>
 
@@ -467,7 +205,7 @@ const insertTemplate = (code: string) => {
           <span class="zoom-level">{{ zoomPercent }}%</span>
           <button @click="zoomIn" class="btn-zoom" :title="t.zoomIn">+</button>
           <button @click="resetZoom" class="btn-zoom-text">{{ t.reset }}</button>
-          <button @click="fitToView" class="btn-zoom-text">{{ t.fit }}</button>
+          <button @click="handleFitToView" class="btn-zoom-text">{{ t.fit }}</button>
           <button @click="toggleFullscreen" class="btn-close-fullscreen">✕ {{ t.close }}</button>
         </div>
         <div
@@ -533,6 +271,7 @@ const insertTemplate = (code: string) => {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
+  border: none;
 }
 
 .btn-edit {
@@ -607,116 +346,11 @@ const insertTemplate = (code: string) => {
   color: white;
   white-space: nowrap;
   transition: all 0.2s;
+  border: none;
 }
 
 .btn-more-templates:hover {
   background: #1d4ed8;
-}
-
-/* Modal */
-.template-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.template-modal {
-  background: white;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 800px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #1e293b;
-}
-
-.btn-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  font-size: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f1f5f9;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-close:hover {
-  background: #e2e8f0;
-  color: #1e293b;
-}
-
-.modal-content {
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.template-category {
-  margin-bottom: 24px;
-}
-
-.template-category:last-child {
-  margin-bottom: 0;
-}
-
-.template-category h4 {
-  font-size: 14px;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 0 0 12px 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.category-templates {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-}
-
-.btn-template-large {
-  padding: 12px 16px;
-  font-size: 13px;
-  border-radius: 8px;
-  cursor: pointer;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #475569;
-  text-align: center;
-  transition: all 0.2s;
-}
-
-.btn-template-large:hover {
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-  color: #1e293b;
 }
 
 .mermaid-textarea {
@@ -948,7 +582,6 @@ const insertTemplate = (code: string) => {
 }
 
 /* ========== Print Styles ========== */
-/* ========== Print Styles ========== */
 @media print {
   .mermaid-wrapper {
     border: none !important;
@@ -958,26 +591,10 @@ const insertTemplate = (code: string) => {
     page-break-inside: avoid;
   }
 
-  .mermaid-header {
-    display: none !important;
-  }
-
-  .mermaid-actions {
-    display: none !important;
-  }
-
-  .mermaid-editor {
-    display: none !important;
-  }
-
-  .mermaid-error {
-    display: none !important;
-  }
-
-  .template-modal-overlay {
-    display: none !important;
-  }
-
+  .mermaid-header,
+  .mermaid-actions,
+  .mermaid-editor,
+  .mermaid-error,
   .zoom-controls {
     display: none !important;
   }
@@ -1003,19 +620,16 @@ const insertTemplate = (code: string) => {
     print-color-adjust: exact !important;
   }
 
-  /* Preserve SVG colors during print */
   .mermaid-content :deep(svg *) {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Ensure text is visible */
   .mermaid-content :deep(svg text) {
     fill: #333 !important;
     stroke: none !important;
   }
 
-  /* Ensure node shapes have visible strokes */
   .mermaid-content :deep(svg .node rect),
   .mermaid-content :deep(svg .node circle),
   .mermaid-content :deep(svg .node ellipse),
@@ -1025,7 +639,6 @@ const insertTemplate = (code: string) => {
     stroke-width: 1px !important;
   }
 
-  /* Ensure edges/arrows are visible */
   .mermaid-content :deep(svg .edgePath path),
   .mermaid-content :deep(svg .flowchart-link),
   .mermaid-content :deep(svg path.path) {
@@ -1033,23 +646,19 @@ const insertTemplate = (code: string) => {
     stroke-width: 1px !important;
   }
 
-  /* Arrow markers */
   .mermaid-content :deep(svg marker path) {
     fill: #333 !important;
   }
 
-  /* Edge labels background */
   .mermaid-content :deep(svg .edgeLabel) {
     background-color: white !important;
   }
 
-  /* Cluster/group backgrounds */
   .mermaid-content :deep(svg .cluster rect) {
     fill: #f8f8f8 !important;
     stroke: #ccc !important;
   }
 
-  /* Sequence diagram specific */
   .mermaid-content :deep(svg line),
   .mermaid-content :deep(svg .messageLine0),
   .mermaid-content :deep(svg .messageLine1) {
@@ -1061,7 +670,6 @@ const insertTemplate = (code: string) => {
     fill: #f8f8f8 !important;
   }
 
-  /* Gantt chart specific */
   .mermaid-content :deep(svg .section0),
   .mermaid-content :deep(svg .section1) {
     fill: #f0f0f0 !important;
