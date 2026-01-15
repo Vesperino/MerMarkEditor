@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { useTabs } from './useTabs';
+import { useTabs } from '../../composables/useTabs';
 
 describe('useTabs', () => {
   describe('initial state', () => {

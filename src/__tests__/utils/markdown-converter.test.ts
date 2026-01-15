@@ -5,7 +5,7 @@ import {
   generateSlug,
   htmlToMarkdown,
   markdownToHtml,
-} from './markdown-converter';
+} from '../../utils/markdown-converter';
 
 describe('decodeHtmlEntities', () => {
   it('decodes basic HTML entities', () => {
