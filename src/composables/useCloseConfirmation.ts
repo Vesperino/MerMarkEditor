@@ -131,29 +131,45 @@ export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseC
   };
 
   const setupCloseHandler = async (): Promise<() => void> => {
+    console.log('[CloseHandler] Setting up close handler...');
     const appWindow = getCurrentWindow();
+    console.log('[CloseHandler] Got window:', appWindow);
 
-    const unlisten = await appWindow.onCloseRequested((event) => {
-      const unsavedTabs = collectUnsavedTabs();
+    const unlisten = await appWindow.onCloseRequested(async (event) => {
+      console.log('[CloseHandler] Close requested!');
 
-      if (unsavedTabs.length === 0) {
-        // No unsaved changes, allow close
-        return;
+      try {
+        console.log('[CloseHandler] Tabs:', JSON.stringify(tabs.value.map(t => ({ id: t.id, hasChanges: t.hasChanges, fileName: t.fileName }))));
+
+        const unsavedTabs = collectUnsavedTabs();
+        console.log('[CloseHandler] Unsaved tabs count:', unsavedTabs.length);
+
+        if (unsavedTabs.length === 0) {
+          console.log('[CloseHandler] No unsaved tabs, allowing natural close...');
+          // No unsaved changes - don't prevent close, let it proceed naturally
+          // Do NOT call event.preventDefault() - this allows the window to close
+          return;
+        }
+
+        console.log('[CloseHandler] Has unsaved tabs, preventing close and showing dialog...');
+        // Prevent default close - this is the ONLY case where we prevent close
+        event.preventDefault();
+
+        // Set up the confirmation process
+        tabsToSave.value = [...unsavedTabs];
+        tabsToSaveCount.value = unsavedTabs.length;
+        currentTabIndex.value = 0;
+
+        // Start showing dialogs
+        processNextTab();
+        showSaveConfirmDialog.value = true;
+      } catch (error) {
+        console.error('[CloseHandler] Error:', error);
+        // On error, don't prevent - let window close
       }
-
-      // Prevent default close
-      event.preventDefault();
-
-      // Set up the confirmation process
-      tabsToSave.value = [...unsavedTabs];
-      tabsToSaveCount.value = unsavedTabs.length;
-      currentTabIndex.value = 0;
-
-      // Start showing dialogs
-      processNextTab();
-      showSaveConfirmDialog.value = true;
     });
 
+    console.log('[CloseHandler] Handler registered');
     return unlisten;
   };
 
