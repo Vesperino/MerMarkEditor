@@ -55,7 +55,15 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
           if (progress.event === 'Started') {
             updateProgress.value = 0;
           } else if (progress.event === 'Progress') {
-            updateProgress.value = Math.min(99, updateProgress.value + 1);
+            // Calculate actual percentage based on content length if available
+            const progressData = progress.data as { chunkLength?: number; contentLength?: number };
+            if (progressData.contentLength && progressData.contentLength > 0) {
+              const currentProgress = updateProgress.value * progressData.contentLength / 100;
+              const newProgress = ((currentProgress + (progressData.chunkLength || 0)) / progressData.contentLength) * 100;
+              updateProgress.value = Math.min(99, Math.round(newProgress));
+            } else {
+              updateProgress.value = Math.min(99, updateProgress.value + 1);
+            }
           } else if (progress.event === 'Finished') {
             updateProgress.value = 100;
           }
