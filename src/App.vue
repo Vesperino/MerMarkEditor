@@ -47,6 +47,7 @@ const codeView = ref(false);
 const codeContent = ref("");
 const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
 const savedScrollRatio = ref(0); // Save scroll ratio when switching views
+const savedCursorText = ref(""); // Save text at cursor for syncing between views
 
 // Loading state for file operations
 const isLoadingFile = ref(false);
@@ -57,7 +58,42 @@ const toggleCodeView = async () => {
     const html = activeTab.value?.content || "<p></p>";
     codeContent.value = htmlToMarkdown(html);
 
-    // Save current scroll ratio from visual editor (ratio = scrollTop / maxScroll)
+    // Get the text at cursor position from TipTap for syncing
+    savedCursorText.value = "";
+    if (editorRef.value?.editor) {
+      const editor = editorRef.value.editor;
+      const { from } = editor.state.selection;
+
+      // Get the node at cursor position
+      const $pos = editor.state.doc.resolve(from);
+
+      // Try to find the parent block (heading, paragraph, etc.)
+      for (let depth = $pos.depth; depth >= 0; depth--) {
+        const node = $pos.node(depth);
+        if (node.type.name === 'heading') {
+          // For headings, save the prefix (### ) + text
+          const level = node.attrs.level || 1;
+          const prefix = '#'.repeat(level) + ' ';
+          const text = node.textContent;
+          savedCursorText.value = prefix + text;
+          break;
+        } else if (node.type.name === 'paragraph' && node.textContent.trim()) {
+          // For paragraphs, save just the text (first 50 chars to avoid false matches)
+          savedCursorText.value = node.textContent.trim().slice(0, 50);
+          break;
+        } else if (node.type.name === 'codeBlock') {
+          // For code blocks, save a portion of the code
+          savedCursorText.value = '```';
+          break;
+        } else if (node.type.name === 'listItem' && node.textContent.trim()) {
+          // For list items, save the text
+          savedCursorText.value = node.textContent.trim().slice(0, 50);
+          break;
+        }
+      }
+    }
+
+    // Save current scroll ratio as fallback
     const editorContainer = document.querySelector('.editor-container');
     if (editorContainer) {
       const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
@@ -66,19 +102,65 @@ const toggleCodeView = async () => {
 
     codeView.value = true;
 
-    // After switching, apply the same scroll ratio to code editor
+    // After switching, find and set cursor position in code editor
     await nextTick();
-    await nextTick(); // Wait for content and layout to be ready
+    await nextTick();
     if (codeEditorRef.value) {
-      const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
-      const targetScroll = Math.round(savedScrollRatio.value * codeMaxScroll);
-      codeEditorRef.value.scrollTop = targetScroll;
-      codeEditorRef.value.focus();
+      let cursorSet = false;
+
+      if (savedCursorText.value) {
+        // Find the text in the Markdown content
+        const searchText = savedCursorText.value;
+        const pos = codeContent.value.indexOf(searchText);
+
+        if (pos !== -1) {
+          // Set cursor at the found position
+          codeEditorRef.value.focus();
+          codeEditorRef.value.setSelectionRange(pos, pos);
+
+          // Scroll to make cursor visible
+          // Calculate line number for scrolling
+          const textBefore = codeContent.value.slice(0, pos);
+          const lineNumber = textBefore.split('\n').length;
+          const lineHeight = 22.4; // Approximate line height (14px font * 1.6 line-height)
+          const scrollTarget = Math.max(0, (lineNumber - 5) * lineHeight);
+          codeEditorRef.value.scrollTop = scrollTarget;
+          cursorSet = true;
+        }
+      }
+
+      if (!cursorSet) {
+        // Fallback to scroll ratio
+        const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
+        const targetScroll = Math.round(savedScrollRatio.value * codeMaxScroll);
+        codeEditorRef.value.scrollTop = targetScroll;
+        codeEditorRef.value.focus();
+      }
     }
   } else {
     // Switching back to visual view - convert Markdown to HTML
-    // Save code editor scroll ratio
+    // Save the text at cursor position in code editor for syncing
+    savedCursorText.value = "";
     if (codeEditorRef.value) {
+      const cursorPos = codeEditorRef.value.selectionStart;
+      const content = codeContent.value;
+
+      // Find the line at cursor position
+      const textBefore = content.slice(0, cursorPos);
+      const lineStart = textBefore.lastIndexOf('\n') + 1;
+      const lineEnd = content.indexOf('\n', cursorPos);
+      const currentLine = content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd);
+
+      // Check if it's a heading line
+      const headingMatch = currentLine.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        savedCursorText.value = headingMatch[2].trim(); // Save just the heading text
+      } else if (currentLine.trim()) {
+        // Save first 50 chars of the line for matching
+        savedCursorText.value = currentLine.trim().slice(0, 50);
+      }
+
+      // Also save scroll ratio as fallback
       const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
       savedScrollRatio.value = codeMaxScroll > 0 ? codeEditorRef.value.scrollTop / codeMaxScroll : 0;
     }
@@ -91,16 +173,63 @@ const toggleCodeView = async () => {
     }
     codeView.value = false;
 
-    // Restore scroll position in visual editor using the saved ratio
+    // Find and scroll to the matching content in visual editor
     await nextTick();
-    await nextTick(); // Wait for content to render
-    await nextTick(); // Extra tick for complex content
-    const editorContainer = document.querySelector('.editor-container');
-    if (editorContainer) {
-      const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
-      const targetScroll = Math.round(savedScrollRatio.value * maxScroll);
-      editorContainer.scrollTop = targetScroll;
+    await nextTick();
+    await nextTick();
+
+    let scrollDone = false;
+    if (savedCursorText.value && editorRef.value?.editor) {
+      const editor = editorRef.value.editor;
+      const searchText = savedCursorText.value;
+
+      // Search through the document for matching text
+      let foundPos = -1;
+      editor.state.doc.descendants((node, pos) => {
+        if (foundPos !== -1) return false; // Already found
+
+        if (node.isBlock && node.textContent) {
+          const nodeText = node.textContent.trim();
+          if (nodeText.includes(searchText) || searchText.includes(nodeText.slice(0, 30))) {
+            foundPos = pos;
+            return false;
+          }
+        }
+        return true;
+      });
+
+      if (foundPos !== -1) {
+        // Set cursor and scroll to position
+        editor.commands.setTextSelection(foundPos + 1);
+
+        // Use scrollIntoView after setting selection
+        await nextTick();
+        const editorContainer = document.querySelector('.editor-container');
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && editorContainer) {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          const containerRect = editorContainer.getBoundingClientRect();
+
+          if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) {
+            const scrollOffset = rect.top - containerRect.top + editorContainer.scrollTop - 100;
+            editorContainer.scrollTop = Math.max(0, scrollOffset);
+          }
+        }
+        scrollDone = true;
+      }
     }
+
+    if (!scrollDone) {
+      // Fallback to scroll ratio
+      const editorContainer = document.querySelector('.editor-container');
+      if (editorContainer) {
+        const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
+        const targetScroll = Math.round(savedScrollRatio.value * maxScroll);
+        editorContainer.scrollTop = targetScroll;
+      }
+    }
+
     isLoadingContent.value = false;
   }
 };
