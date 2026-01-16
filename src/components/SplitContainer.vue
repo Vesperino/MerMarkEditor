@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSplitView } from '../composables/useSplitView';
+import { useTabDrag } from '../composables/useTabDrag';
 import EditorPane from './EditorPane.vue';
 
 const {
@@ -18,6 +19,8 @@ const {
   reorderTabWithinPane,
 } = useSplitView();
 
+const { setOnDrop } = useTabDrag();
+
 const emit = defineEmits<{
   linkClick: [href: string];
   closeTabRequest: [paneId: string, tabId: string];
@@ -29,22 +32,27 @@ const rightPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
 
 // Divider dragging state
 const isDragging = ref(false);
-
-// Tab dragging state (for showing drop overlays)
-const isTabDragging = ref(false);
-
-// Handle tab drag start
-const handleTabDragStart = () => {
-  console.log('[SplitContainer] Tab drag started');
-  isTabDragging.value = true;
-};
-
-// Handle tab drag end
-const handleTabDragEnd = () => {
-  console.log('[SplitContainer] Tab drag ended');
-  isTabDragging.value = false;
-};
 const containerRef = ref<HTMLDivElement | null>(null);
+
+// Setup drop callback on mount
+onMounted(() => {
+  setOnDrop((tabId, sourcePaneId, targetPaneId, targetIndex) => {
+    console.log('[SplitContainer] Drop callback:', { tabId, sourcePaneId, targetPaneId, targetIndex });
+
+    if (sourcePaneId === targetPaneId) {
+      // Reorder within same pane
+      reorderTabWithinPane(targetPaneId, tabId, targetIndex);
+    } else {
+      // Move between panes
+      moveTabBetweenPanes({
+        tabId,
+        sourcePaneId,
+        targetPaneId,
+        targetIndex,
+      });
+    }
+  });
+});
 
 // Computed styles for panes
 const leftPaneStyle = computed(() => ({
@@ -115,29 +123,6 @@ const handlePaneFocus = (paneId: string) => {
   setActivePane(paneId);
 };
 
-// Handle tab drop (from drag & drop)
-const handleDropTab = (tabId: string, sourcePaneId: string, targetPaneId: string, targetIndex: number) => {
-  console.log('[SplitContainer] handleDropTab:', { tabId, sourcePaneId, targetPaneId, targetIndex });
-
-  // Reset dragging state
-  isTabDragging.value = false;
-
-  if (sourcePaneId === targetPaneId) {
-    // Reorder within the same pane
-    console.log('[SplitContainer] Reordering within pane:', targetPaneId);
-    reorderTabWithinPane(targetPaneId, tabId, targetIndex);
-  } else {
-    // Move between panes
-    console.log('[SplitContainer] Moving between panes:', sourcePaneId, '->', targetPaneId);
-    moveTabBetweenPanes({
-      tabId,
-      sourcePaneId,
-      targetPaneId,
-      targetIndex,
-    });
-  }
-};
-
 // Get editor content for a specific pane
 const getEditorContent = (paneId: string): string => {
   if (paneId === 'left' && leftPaneRef.value) {
@@ -191,16 +176,13 @@ defineExpose({
   <div
     ref="containerRef"
     class="split-container"
-    :class="{ dragging: isDragging, 'split-active': isSplitActive, 'tab-dragging': isTabDragging }"
-    @dragstart="handleTabDragStart"
-    @dragend="handleTabDragEnd"
+    :class="{ dragging: isDragging, 'split-active': isSplitActive }"
   >
     <!-- Left Pane (always visible) -->
     <EditorPane
       ref="leftPaneRef"
       :pane="leftPane"
       :is-active="activePaneId === 'left'"
-      :is-tab-dragging="isTabDragging"
       :style="leftPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('left', tabId)"
       @close-tab="(tabId) => handleCloseTab('left', tabId)"
@@ -208,7 +190,6 @@ defineExpose({
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('left', tabId, hasChanges)"
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('left')"
-      @drop-tab="handleDropTab"
     />
 
     <!-- Divider (only visible in split mode) -->
@@ -227,7 +208,6 @@ defineExpose({
       ref="rightPaneRef"
       :pane="rightPane"
       :is-active="activePaneId === 'right'"
-      :is-tab-dragging="isTabDragging"
       :style="rightPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('right', tabId)"
       @close-tab="(tabId) => handleCloseTab('right', tabId)"
@@ -235,7 +215,6 @@ defineExpose({
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('right', tabId, hasChanges)"
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('right')"
-      @drop-tab="handleDropTab"
     />
   </div>
 </template>

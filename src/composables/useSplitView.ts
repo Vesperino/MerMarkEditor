@@ -4,7 +4,6 @@ import {
   type Pane,
   type SplitViewState,
   type TabMovePayload,
-  createDefaultPane,
   createDefaultSplitViewState,
 } from '../types/pane';
 
@@ -130,8 +129,13 @@ export function useSplitView(): UseSplitViewReturn {
   const enableSplit = (): void => {
     if (splitState.value.isSplitActive) return;
 
-    // Create right pane
-    const rightPane = createDefaultPane('right');
+    // Create right pane WITHOUT default tab (empty pane)
+    const rightPane: Pane = {
+      id: 'right',
+      tabs: [], // Empty - user will drag tabs here
+      activeTabId: '',
+      scrollTop: 0,
+    };
     splitState.value.panes.push(rightPane);
     splitState.value.isSplitActive = true;
   };
@@ -291,9 +295,19 @@ export function useSplitView(): UseSplitViewReturn {
     // Update active tabs
     targetPane.activeTabId = tab.id;
 
-    // If source pane is now empty, create a new tab
+    // If source pane is now empty
     if (sourcePane.tabs.length === 0) {
-      createTab(sourcePaneId);
+      // If split is active and source pane becomes empty, auto-close split
+      if (splitState.value.isSplitActive) {
+        // Move focus to target pane before disabling split
+        splitState.value.activePaneId = targetPaneId;
+        // Disable split - this will move remaining tabs to left pane
+        disableSplit();
+        return;
+      } else {
+        // Create a new empty tab (shouldn't happen in split mode but safety)
+        createTab(sourcePaneId);
+      }
     } else if (sourcePane.activeTabId === tabId) {
       // Switch to another tab in source pane
       sourcePane.activeTabId = sourcePane.tabs[Math.max(0, tabIndex - 1)].id;

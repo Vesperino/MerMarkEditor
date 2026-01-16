@@ -257,27 +257,31 @@ describe('useSplitView', () => {
       expect(rightPane.value?.activeTabId).toBe(tabId);
     });
 
-    it('should create new tab in source pane if it becomes empty after move', () => {
-      const { enableSplit, moveTabBetweenPanes, leftPane, closeTab } = useSplitView();
+    it('should auto-close split when source pane becomes empty after move', () => {
+      const { enableSplit, moveTabBetweenPanes, leftPane, isSplitActive, closeTab, createTab } = useSplitView();
+
+      // First ensure split is disabled and we have a known starting state
+      // Create a fresh tab that we'll move
+      const testTabId = createTab('left', '/test/file.md', '<p>Test</p>', 'Test Tab');
 
       enableSplit();
 
-      // Close all tabs except one
-      while (leftPane.value.tabs.length > 1) {
-        closeTab('left', leftPane.value.tabs[0].id);
-      }
+      // Close all tabs except the test tab
+      const tabsToClose = leftPane.value.tabs.filter(t => t.id !== testTabId);
+      tabsToClose.forEach(t => closeTab('left', t.id));
 
-      const lastTabId = leftPane.value.tabs[0].id;
+      expect(leftPane.value.tabs.length).toBe(1);
+      expect(leftPane.value.tabs[0].id).toBe(testTabId);
 
       moveTabBetweenPanes({
-        tabId: lastTabId,
+        tabId: testTabId,
         sourcePaneId: 'left',
         targetPaneId: 'right',
       });
 
-      // Should have created a new tab in left pane
-      expect(leftPane.value.tabs.length).toBe(1);
-      expect(leftPane.value.tabs[0].id).not.toBe(lastTabId);
+      // Split should be disabled and tabs merged to left pane
+      expect(isSplitActive.value).toBe(false);
+      expect(leftPane.value.tabs.some(t => t.id === testTabId)).toBe(true);
     });
 
     it('should reorder tabs within the same pane', () => {
