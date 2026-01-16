@@ -18,8 +18,18 @@ const emit = defineEmits<{
 
 const dragOverIndex = ref<number | null>(null);
 
+const handleMouseDown = () => {
+  // Log to verify mousedown is working
+  console.log('[TabBar] mousedown on tab');
+};
+
 const handleDragStart = (event: DragEvent, tab: Tab) => {
-  if (!event.dataTransfer) return;
+  console.log('[TabBar] dragstart fired for tab:', tab.id, tab.fileName);
+
+  if (!event.dataTransfer) {
+    console.log('[TabBar] No dataTransfer available');
+    return;
+  }
 
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('text/plain', JSON.stringify({
@@ -27,6 +37,13 @@ const handleDragStart = (event: DragEvent, tab: Tab) => {
     paneId: props.paneId || 'left',
   }));
 
+  // Add a drag image for better visual feedback
+  const target = event.target as HTMLElement;
+  if (target) {
+    event.dataTransfer.setDragImage(target, 10, 10);
+  }
+
+  console.log('[TabBar] Drag data set:', { tabId: tab.id, paneId: props.paneId || 'left' });
   emit('dragStart', tab.id, props.paneId || 'left');
 };
 
@@ -37,10 +54,12 @@ const handleDragEnd = () => {
 
 const handleDragOver = (event: DragEvent, index: number) => {
   event.preventDefault();
+  event.stopPropagation();
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move';
   }
   dragOverIndex.value = index;
+  console.log('[TabBar] dragover at index:', index);
 };
 
 const handleDragLeave = () => {
@@ -49,15 +68,24 @@ const handleDragLeave = () => {
 
 const handleDrop = (event: DragEvent, targetIndex: number) => {
   event.preventDefault();
+  event.stopPropagation();
   dragOverIndex.value = null;
 
-  if (!event.dataTransfer) return;
+  console.log('[TabBar] drop event at index:', targetIndex);
+
+  if (!event.dataTransfer) {
+    console.log('[TabBar] No dataTransfer on drop');
+    return;
+  }
 
   try {
-    const data = JSON.parse(event.dataTransfer.getData('text/plain'));
+    const rawData = event.dataTransfer.getData('text/plain');
+    console.log('[TabBar] Raw drop data:', rawData);
+    const data = JSON.parse(rawData);
+    console.log('[TabBar] Parsed drop data:', data);
     emit('dropTab', data.tabId, data.paneId, targetIndex);
   } catch (e) {
-    console.error('Failed to parse drop data:', e);
+    console.error('[TabBar] Failed to parse drop data:', e);
   }
 };
 
@@ -65,14 +93,21 @@ const handleDropOnBar = (event: DragEvent) => {
   event.preventDefault();
   dragOverIndex.value = null;
 
-  if (!event.dataTransfer) return;
+  console.log('[TabBar] dropOnBar event');
+
+  if (!event.dataTransfer) {
+    console.log('[TabBar] No dataTransfer on bar drop');
+    return;
+  }
 
   try {
-    const data = JSON.parse(event.dataTransfer.getData('text/plain'));
+    const rawData = event.dataTransfer.getData('text/plain');
+    console.log('[TabBar] Bar drop raw data:', rawData);
+    const data = JSON.parse(rawData);
     // Drop at end of tabs
     emit('dropTab', data.tabId, data.paneId, props.tabs.length);
   } catch (e) {
-    console.error('Failed to parse drop data:', e);
+    console.error('[TabBar] Failed to parse bar drop data:', e);
   }
 };
 </script>
@@ -91,16 +126,23 @@ const handleDropOnBar = (event: DragEvent) => {
         active: tab.id === activeTabId,
         'drag-over': dragOverIndex === index
       }"
-      draggable="true"
+      :draggable="true"
       @click="emit('switchTab', tab.id)"
+      @mousedown.left="handleMouseDown"
       @dragstart="handleDragStart($event, tab)"
       @dragend="handleDragEnd"
       @dragover="handleDragOver($event, index)"
       @dragleave="handleDragLeave"
       @drop="handleDrop($event, index)"
     >
-      <span class="tab-name">{{ tab.fileName }}{{ tab.hasChanges ? ' *' : '' }}</span>
-      <button class="tab-close" @click.stop="emit('closeTab', tab.id)" title="Zamknij">&times;</button>
+      <span class="tab-name" draggable="false">{{ tab.fileName }}{{ tab.hasChanges ? ' *' : '' }}</span>
+      <button
+        class="tab-close"
+        draggable="false"
+        @click.stop="emit('closeTab', tab.id)"
+        @mousedown.stop
+        title="Zamknij"
+      >&times;</button>
     </div>
   </div>
 </template>
@@ -145,20 +187,26 @@ const handleDropOnBar = (event: DragEvent) => {
   padding-left: 9px;
 }
 
+.tab[draggable],
 .tab[draggable="true"] {
   cursor: grab;
+  -webkit-user-drag: element;
 }
 
+.tab[draggable]:active,
 .tab[draggable="true"]:active {
   cursor: grabbing;
+  opacity: 0.7;
 }
 
+/* Prevent tab-name from interfering with drag */
 .tab-name {
   font-size: 13px;
   color: #475569;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .tab.active .tab-name {

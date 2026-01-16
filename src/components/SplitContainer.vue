@@ -102,11 +102,15 @@ const handlePaneFocus = (paneId: string) => {
 
 // Handle tab drop (from drag & drop)
 const handleDropTab = (tabId: string, sourcePaneId: string, targetPaneId: string, targetIndex: number) => {
+  console.log('[SplitContainer] handleDropTab:', { tabId, sourcePaneId, targetPaneId, targetIndex });
+
   if (sourcePaneId === targetPaneId) {
     // Reorder within the same pane
+    console.log('[SplitContainer] Reordering within pane:', targetPaneId);
     reorderTabWithinPane(targetPaneId, tabId, targetIndex);
   } else {
     // Move between panes
+    console.log('[SplitContainer] Moving between panes:', sourcePaneId, '->', targetPaneId);
     moveTabBetweenPanes({
       tabId,
       sourcePaneId,
