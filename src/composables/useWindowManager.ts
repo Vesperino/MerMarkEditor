@@ -1,41 +1,59 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-/**
- * Composable for managing multi-window operations
- */
+export interface TabTransferPayload {
+  file_path: string;
+  source_window: string;
+  target_window: string;
+}
+
 export function useWindowManager() {
-  /**
-   * Create a new window with an optional file path
-   * @param filePath - Optional file path to open in the new window
-   * @returns Promise with the new window label
-   */
   const createNewWindow = async (filePath?: string | null): Promise<string> => {
-    try {
-      const windowLabel = await invoke<string>('create_new_window', {
-        filePath: filePath || null,
-      });
-      return windowLabel;
-    } catch (error) {
-      console.error('Error creating new window:', error);
-      throw error;
-    }
+    return invoke<string>('create_new_window', {
+      filePath: filePath || null,
+    });
   };
 
-  /**
-   * Get file path from URL query parameters (for new windows)
-   * @returns The file path from URL or null
-   */
   const getFilePathFromUrl = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
     const filePath = urlParams.get('file');
-    if (filePath) {
-      return decodeURIComponent(filePath);
-    }
-    return null;
+    return filePath ? decodeURIComponent(filePath) : null;
+  };
+
+  const getAllWindows = async (): Promise<string[]> => {
+    return invoke<string[]>('get_all_windows');
+  };
+
+  const getCurrentWindowLabel = async (): Promise<string> => {
+    return invoke<string>('get_current_window_label');
+  };
+
+  const transferTabToWindow = async (
+    filePath: string,
+    sourceWindow: string,
+    targetWindow: string
+  ): Promise<void> => {
+    return invoke('transfer_tab_to_window', {
+      filePath,
+      sourceWindow,
+      targetWindow,
+    });
+  };
+
+  const onTabTransfer = async (
+    callback: (payload: TabTransferPayload) => void
+  ): Promise<UnlistenFn> => {
+    return listen<TabTransferPayload>('tab-transfer', (event) => {
+      callback(event.payload);
+    });
   };
 
   return {
     createNewWindow,
     getFilePathFromUrl,
+    getAllWindows,
+    getCurrentWindowLabel,
+    transferTabToWindow,
+    onTabTransfer,
   };
 }

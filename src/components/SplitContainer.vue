@@ -22,7 +22,7 @@ const {
 } = useSplitView();
 
 const { setOnDrop, setOnDropOutside } = useTabDrag();
-const { createNewWindow } = useWindowManager();
+const { createNewWindow, getAllWindows, getCurrentWindowLabel, transferTabToWindow } = useWindowManager();
 
 const emit = defineEmits<{
   linkClick: [href: string];
@@ -58,31 +58,35 @@ onMounted(() => {
     }
   });
 
-  // Handle drop outside window - open in new window
+  // Handle drop outside window - transfer to existing window or create new
   setOnDropOutside(async (tabId, paneId, filePath) => {
-    console.log('[SplitContainer] Drop outside callback:', { tabId, paneId, filePath });
-
-    // Only allow creating new window for saved files
     if (!filePath) {
-      console.log('[SplitContainer] Cannot open new window for unsaved document');
+      console.log('[SplitContainer] Cannot transfer unsaved document');
       return;
     }
 
     try {
-      // Create new window with the file
-      await createNewWindow(filePath);
+      const currentWindow = await getCurrentWindowLabel();
+      const allWindows = await getAllWindows();
+      const otherWindows = allWindows.filter(w => w !== currentWindow);
 
-      // Close the tab in current window (without confirmation since it will be opened in new window)
-      // Find the pane and tab to remove hasChanges flag first
+      if (otherWindows.length > 0) {
+        // Transfer to the first available window
+        await transferTabToWindow(filePath, currentWindow, otherWindows[0]);
+      } else {
+        // No other windows, create a new one
+        await createNewWindow(filePath);
+      }
+
+      // Close the tab in current window
       const pane = splitState.value.panes.find(p => p.id === paneId);
       const tab = pane?.tabs.find(t => t.id === tabId);
       if (tab) {
-        tab.hasChanges = false; // Clear changes flag to avoid save confirmation
+        tab.hasChanges = false;
       }
-
       closeTab(paneId, tabId);
     } catch (error) {
-      console.error('[SplitContainer] Error creating new window:', error);
+      console.error('[SplitContainer] Error transferring tab:', error);
     }
   });
 });
