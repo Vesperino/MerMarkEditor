@@ -248,7 +248,6 @@ const {
   isLoadingFile,
   showExternalLinkDialog,
   pendingExternalUrl,
-  openFile,
   openFileFromPath,
   saveFile,
   saveFileAs,

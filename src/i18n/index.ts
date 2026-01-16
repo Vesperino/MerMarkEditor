@@ -73,6 +73,8 @@ export interface Translations {
   // Stats
   characters: string;
   words: string;
+  tokens: string;
+  tokensTooltip: string;
 
   // Editor
   placeholder: string;
@@ -197,6 +199,8 @@ const translations: Record<Locale, Translations> = {
     // Stats
     characters: 'characters',
     words: 'words',
+    tokens: 'tokens',
+    tokensTooltip: 'Estimated tokens for AI models (click to change model)',
 
     // Editor
     placeholder: 'Start typing or paste text...',
@@ -320,6 +324,8 @@ const translations: Record<Locale, Translations> = {
     // Stats
     characters: 'znaków',
     words: 'słów',
+    tokens: 'tokenów',
+    tokensTooltip: 'Szacunkowa liczba tokenów dla modeli AI (kliknij aby zmienić model)',
 
     // Editor
     placeholder: 'Zacznij pisać lub wklej tekst...',

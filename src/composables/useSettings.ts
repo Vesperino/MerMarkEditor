@@ -1,7 +1,10 @@
 import { ref, watch } from 'vue';
+import type { TokenModelId } from '../services/tokenCounter';
 
 export interface AppSettings {
   autoSave: boolean;
+  showTokenCount: boolean;
+  tokenModel: TokenModelId;
 }
 
 const STORAGE_KEY = 'mermark-settings';
@@ -21,6 +24,8 @@ function loadSettings(): AppSettings {
 function getDefaultSettings(): AppSettings {
   return {
     autoSave: false,
+    showTokenCount: true,
+    tokenModel: 'gpt4',
   };
 }
 
@@ -49,9 +54,24 @@ export function useSettings() {
     settings.value.autoSave = !settings.value.autoSave;
   };
 
+  const setShowTokenCount = (value: boolean) => {
+    settings.value.showTokenCount = value;
+  };
+
+  const toggleShowTokenCount = () => {
+    settings.value.showTokenCount = !settings.value.showTokenCount;
+  };
+
+  const setTokenModel = (model: TokenModelId) => {
+    settings.value.tokenModel = model;
+  };
+
   return {
     settings,
     setAutoSave,
     toggleAutoSave,
+    setShowTokenCount,
+    toggleShowTokenCount,
+    setTokenModel,
   };
 }
