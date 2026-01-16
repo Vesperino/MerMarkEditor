@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { Tab } from '../composables/useTabs';
+import { useTabDrag } from '../composables/useTabDrag';
 
 const props = defineProps<{
   tabs: Tab[];
@@ -11,103 +12,87 @@ const props = defineProps<{
 const emit = defineEmits<{
   switchTab: [tabId: string];
   closeTab: [tabId: string];
-  dragStart: [tabId: string, paneId: string];
-  dragEnd: [];
-  dropTab: [tabId: string, sourcePaneId: string, targetIndex: number];
 }>();
 
-const dragOverIndex = ref<number | null>(null);
+const { isDragging, draggedTab, startDrag, setDropZone, clearDropZone } = useTabDrag();
 
-const handleMouseDown = () => {
-  // Log to verify mousedown is working
-  console.log('[TabBar] mousedown on tab');
-};
+const dropTargetIndex = ref<number | null>(null);
 
-const handleDragStart = (event: DragEvent, tab: Tab) => {
-  console.log('[TabBar] dragstart fired for tab:', tab.id, tab.fileName);
+// Check if we're dragging over this pane
+const isDraggingOverThisPane = computed(() => {
+  return isDragging.value && draggedTab.value?.paneId !== props.paneId;
+});
 
-  if (!event.dataTransfer) {
-    console.log('[TabBar] No dataTransfer available');
-    return;
-  }
+const handleMouseDown = (event: MouseEvent, tab: Tab) => {
+  // Only left click
+  if (event.button !== 0) return;
 
-  event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('text/plain', JSON.stringify({
-    tabId: tab.id,
-    paneId: props.paneId || 'left',
-  }));
-
-  // Add a drag image for better visual feedback
+  // Don't start drag if clicking close button
   const target = event.target as HTMLElement;
-  if (target) {
-    event.dataTransfer.setDragImage(target, 10, 10);
-  }
+  if (target.closest('.tab-close')) return;
 
-  console.log('[TabBar] Drag data set:', { tabId: tab.id, paneId: props.paneId || 'left' });
-  emit('dragStart', tab.id, props.paneId || 'left');
-};
-
-const handleDragEnd = () => {
-  dragOverIndex.value = null;
-  emit('dragEnd');
-};
-
-const handleDragOver = (event: DragEvent, index: number) => {
+  // Prevent text selection
   event.preventDefault();
-  event.stopPropagation();
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move';
-  }
-  dragOverIndex.value = index;
-  console.log('[TabBar] dragover at index:', index);
+
+  // Store initial position to detect drag threshold
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const DRAG_THRESHOLD = 5;
+
+  const handleMouseMove = (moveEvent: MouseEvent) => {
+    const dx = Math.abs(moveEvent.clientX - startX);
+    const dy = Math.abs(moveEvent.clientY - startY);
+
+    if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+      // Start actual drag
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      startDrag({
+        tabId: tab.id,
+        paneId: props.paneId || 'left',
+        fileName: tab.fileName,
+        element: event.currentTarget as HTMLElement,
+      }, moveEvent);
+    }
+  };
+
+  const handleMouseUp = () => {
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    // Just a click, not a drag - switch tab
+    emit('switchTab', tab.id);
+  };
+
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
 };
 
-const handleDragLeave = () => {
-  dragOverIndex.value = null;
-};
-
-const handleDrop = (event: DragEvent, targetIndex: number) => {
-  event.preventDefault();
-  event.stopPropagation();
-  dragOverIndex.value = null;
-
-  console.log('[TabBar] drop event at index:', targetIndex);
-
-  if (!event.dataTransfer) {
-    console.log('[TabBar] No dataTransfer on drop');
-    return;
-  }
-
-  try {
-    const rawData = event.dataTransfer.getData('text/plain');
-    console.log('[TabBar] Raw drop data:', rawData);
-    const data = JSON.parse(rawData);
-    console.log('[TabBar] Parsed drop data:', data);
-    emit('dropTab', data.tabId, data.paneId, targetIndex);
-  } catch (e) {
-    console.error('[TabBar] Failed to parse drop data:', e);
+const handleMouseEnter = (index: number) => {
+  if (isDragging.value) {
+    dropTargetIndex.value = index;
+    setDropZone(props.paneId || 'left', index);
   }
 };
 
-const handleDropOnBar = (event: DragEvent) => {
-  event.preventDefault();
-  dragOverIndex.value = null;
-
-  console.log('[TabBar] dropOnBar event');
-
-  if (!event.dataTransfer) {
-    console.log('[TabBar] No dataTransfer on bar drop');
-    return;
+const handleMouseLeave = () => {
+  if (isDragging.value) {
+    dropTargetIndex.value = null;
+    clearDropZone();
   }
+};
 
-  try {
-    const rawData = event.dataTransfer.getData('text/plain');
-    console.log('[TabBar] Bar drop raw data:', rawData);
-    const data = JSON.parse(rawData);
-    // Drop at end of tabs
-    emit('dropTab', data.tabId, data.paneId, props.tabs.length);
-  } catch (e) {
-    console.error('[TabBar] Failed to parse bar drop data:', e);
+const handleBarMouseEnter = () => {
+  if (isDragging.value) {
+    // Drop at end when hovering over empty bar area
+    setDropZone(props.paneId || 'left', props.tabs.length);
+  }
+};
+
+const handleBarMouseLeave = () => {
+  if (isDragging.value) {
+    dropTargetIndex.value = null;
+    clearDropZone();
   }
 };
 </script>
@@ -115,8 +100,9 @@ const handleDropOnBar = (event: DragEvent) => {
 <template>
   <div
     class="tab-bar"
-    @dragover.prevent
-    @drop="handleDropOnBar"
+    :class="{ 'drag-active': isDragging, 'drag-target': isDraggingOverThisPane }"
+    @mouseenter="handleBarMouseEnter"
+    @mouseleave="handleBarMouseLeave"
   >
     <div
       v-for="(tab, index) in tabs"
@@ -124,23 +110,17 @@ const handleDropOnBar = (event: DragEvent) => {
       class="tab"
       :class="{
         active: tab.id === activeTabId,
-        'drag-over': dragOverIndex === index
+        'drop-before': dropTargetIndex === index && isDragging,
+        'being-dragged': isDragging && draggedTab?.tabId === tab.id
       }"
-      :draggable="true"
-      @click="emit('switchTab', tab.id)"
-      @mousedown.left="handleMouseDown"
-      @dragstart="handleDragStart($event, tab)"
-      @dragend="handleDragEnd"
-      @dragover="handleDragOver($event, index)"
-      @dragleave="handleDragLeave"
-      @drop="handleDrop($event, index)"
+      @mousedown="handleMouseDown($event, tab)"
+      @mouseenter="handleMouseEnter(index)"
+      @mouseleave="handleMouseLeave"
     >
-      <span class="tab-name" draggable="false">{{ tab.fileName }}{{ tab.hasChanges ? ' *' : '' }}</span>
+      <span class="tab-name">{{ tab.fileName }}{{ tab.hasChanges ? ' *' : '' }}</span>
       <button
         class="tab-close"
-        draggable="false"
         @click.stop="emit('closeTab', tab.id)"
-        @mousedown.stop
         title="Zamknij"
       >&times;</button>
     </div>
@@ -157,6 +137,14 @@ const handleDropOnBar = (event: DragEvent) => {
   padding: 0 8px;
 }
 
+.tab-bar.drag-active {
+  /* Visual feedback that drag is in progress */
+}
+
+.tab-bar.drag-target {
+  background: #ecfdf5;
+}
+
 .tab {
   display: flex;
   align-items: center;
@@ -165,10 +153,10 @@ const handleDropOnBar = (event: DragEvent) => {
   background: #e2e8f0;
   border-radius: 6px 6px 0 0;
   margin-top: 4px;
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
   max-width: 200px;
-  transition: background 0.15s;
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .tab:hover {
@@ -182,24 +170,15 @@ const handleDropOnBar = (event: DragEvent) => {
   margin-bottom: -1px;
 }
 
-.tab.drag-over {
-  border-left: 3px solid #3b82f6;
+.tab.drop-before {
+  border-left: 3px solid #10b981;
   padding-left: 9px;
 }
 
-.tab[draggable],
-.tab[draggable="true"] {
-  cursor: grab;
-  -webkit-user-drag: element;
+.tab.being-dragged {
+  opacity: 0.4;
 }
 
-.tab[draggable]:active,
-.tab[draggable="true"]:active {
-  cursor: grabbing;
-  opacity: 0.7;
-}
-
-/* Prevent tab-name from interfering with drag */
 .tab-name {
   font-size: 13px;
   color: #475569;

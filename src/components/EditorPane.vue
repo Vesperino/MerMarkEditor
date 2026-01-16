@@ -3,18 +3,12 @@ import { ref, computed, watch, nextTick } from 'vue';
 import type { Pane } from '../types/pane';
 import TabBar from './TabBar.vue';
 import Editor from './Editor.vue';
+import { useTabDrag } from '../composables/useTabDrag';
 
 const props = defineProps<{
   pane: Pane;
   isActive: boolean;
-  isTabDragging?: boolean; // Global flag when any tab is being dragged
 }>();
-
-// Track if we're dragging over this pane
-const isDragOver = ref(false);
-
-// Show overlay when any tab is being dragged
-const showDropOverlay = computed(() => props.isTabDragging || false);
 
 const emit = defineEmits<{
   switchTab: [tabId: string];
@@ -23,10 +17,13 @@ const emit = defineEmits<{
   updateChanges: [tabId: string, hasChanges: boolean];
   linkClick: [href: string];
   focus: [];
-  dropTab: [tabId: string, sourcePaneId: string, targetPaneId: string, targetIndex: number];
 }>();
 
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
+const { isDragging, draggedTab, setDropZone, clearDropZone } = useTabDrag();
+
+// Check if pane is empty (no tabs)
+const isEmpty = computed(() => props.pane.tabs.length === 0);
 
 // Get the active tab for this pane
 const activeTab = computed(() => {
@@ -35,6 +32,11 @@ const activeTab = computed(() => {
 
 // Content for the editor (from active tab)
 const editorContent = computed(() => activeTab.value?.content || '<p></p>');
+
+// Check if we're a valid drop target (not dragging from this pane)
+const isValidDropTarget = computed(() => {
+  return isDragging.value && draggedTab.value?.paneId !== props.pane.id;
+});
 
 // Handle content updates from editor
 const handleContentUpdate = (content: string) => {
@@ -70,58 +72,16 @@ const handlePaneFocus = () => {
   emit('focus');
 };
 
-// Handle tab drop from TabBar
-const handleDropTab = (tabId: string, sourcePaneId: string, targetIndex: number) => {
-  console.log('[EditorPane] handleDropTab from TabBar:', { tabId, sourcePaneId, targetPaneId: props.pane.id, targetIndex });
-  emit('dropTab', tabId, sourcePaneId, props.pane.id, targetIndex);
-};
-
-// Handle dragenter on overlay
-const handlePaneDragEnter = (event: DragEvent) => {
-  console.log('[EditorPane] dragenter on pane:', props.pane.id);
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move';
-  }
-  isDragOver.value = true;
-};
-
-// Handle dragover on entire pane (allows dropping anywhere)
-const handlePaneDragOver = (event: DragEvent) => {
-  console.log('[EditorPane] dragover on pane:', props.pane.id);
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move';
-  }
-  isDragOver.value = true;
-};
-
-// Handle dragleave on pane
-const handlePaneDragLeave = (event: DragEvent) => {
-  // Only reset if we're leaving the pane entirely (not just moving to a child)
-  const relatedTarget = event.relatedTarget as HTMLElement;
-  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
-    isDragOver.value = false;
+// Drop zone handling for empty pane or editor area
+const handlePaneMouseEnter = () => {
+  if (isDragging.value && isValidDropTarget.value) {
+    setDropZone(props.pane.id, props.pane.tabs.length);
   }
 };
 
-// Handle drop on the editor area (not on TabBar)
-const handlePaneDrop = (event: DragEvent) => {
-  event.preventDefault();
-  isDragOver.value = false;
-  console.log('[EditorPane] drop on pane:', props.pane.id);
-
-  if (!event.dataTransfer) {
-    console.log('[EditorPane] No dataTransfer on pane drop');
-    return;
-  }
-
-  try {
-    const rawData = event.dataTransfer.getData('text/plain');
-    console.log('[EditorPane] Pane drop raw data:', rawData);
-    const data = JSON.parse(rawData);
-    // Drop at the end of tabs
-    emit('dropTab', data.tabId, data.paneId, props.pane.id, props.pane.tabs.length);
-  } catch (e) {
-    console.error('[EditorPane] Failed to parse pane drop data:', e);
+const handlePaneMouseLeave = () => {
+  if (isDragging.value) {
+    clearDropZone();
   }
 };
 
@@ -136,7 +96,7 @@ watch(() => props.pane.activeTabId, async () => {
   }
 });
 
-// Expose editor for external access (e.g., getting HTML content)
+// Expose editor for external access
 defineExpose({
   editor: computed(() => editorRef.value?.editor),
   getEditorContent: () => editorRef.value?.editor?.getHTML() || '',
@@ -149,36 +109,50 @@ defineExpose({
 <template>
   <div
     class="editor-pane"
-    :class="{ active: isActive, 'drag-over': isDragOver }"
+    :class="{
+      active: isActive,
+      'drop-target': isValidDropTarget,
+      empty: isEmpty
+    }"
     @mousedown="handlePaneFocus"
     @focusin="handlePaneFocus"
+    @mouseenter="handlePaneMouseEnter"
+    @mouseleave="handlePaneMouseLeave"
   >
+    <!-- Tab bar (only show if has tabs) -->
     <TabBar
+      v-if="!isEmpty"
       :tabs="pane.tabs"
       :active-tab-id="pane.activeTabId"
       :pane-id="pane.id"
       @switch-tab="handleSwitchTab"
       @close-tab="handleCloseTab"
-      @drop-tab="handleDropTab"
     />
+
+    <!-- Editor content or empty state -->
     <div class="editor-wrapper">
       <Editor
+        v-if="!isEmpty"
         ref="editorRef"
         :model-value="editorContent"
         @update:model-value="handleContentUpdate"
         @update:has-changes="handleChangesUpdate"
         @link-click="handleLinkClick"
       />
-      <!-- Drop overlay - always present but only visible/interactive during drag -->
+
+      <!-- Empty state - shown when no tabs -->
+      <div v-else class="empty-pane">
+        <div class="empty-icon">📄</div>
+        <div class="empty-title">Przeciągnij kartę tutaj</div>
+        <div class="empty-subtitle">lub otwórz plik w tym panelu</div>
+      </div>
+
+      <!-- Drop overlay during drag -->
       <div
+        v-if="isValidDropTarget && !isEmpty"
         class="drop-overlay"
-        :class="{ 'visible': showDropOverlay, 'drag-over': isDragOver }"
-        @dragenter.prevent="handlePaneDragEnter"
-        @dragover.prevent="handlePaneDragOver"
-        @dragleave="handlePaneDragLeave"
-        @drop.prevent="handlePaneDrop"
       >
-        <div v-if="showDropOverlay" class="drop-message">Upuść kartę tutaj</div>
+        <div class="drop-message">Upuść kartę tutaj</div>
       </div>
     </div>
   </div>
@@ -192,7 +166,7 @@ defineExpose({
   min-width: 0;
   background: #f8fafc;
   border: 2px solid transparent;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .editor-pane.active {
@@ -203,9 +177,18 @@ defineExpose({
   opacity: 0.95;
 }
 
-.editor-pane.drag-over {
+.editor-pane.drop-target {
   border-color: #10b981;
   background: #ecfdf5;
+}
+
+.editor-pane.empty {
+  background: #f1f5f9;
+}
+
+.editor-pane.empty.drop-target {
+  background: #d1fae5;
+  border-color: #10b981;
 }
 
 .editor-wrapper {
@@ -216,31 +199,45 @@ defineExpose({
   flex-direction: column;
 }
 
+.empty-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #64748b;
+  user-select: none;
+}
+
+.empty-icon {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.empty-subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
 .drop-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: transparent;
-  border: 3px dashed transparent;
+  background: rgba(16, 185, 129, 0.15);
+  border: 3px dashed #10b981;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  pointer-events: none;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.drop-overlay.visible {
-  pointer-events: auto;
-  background: rgba(16, 185, 129, 0.1);
-  border-color: #10b981;
-}
-
-.drop-overlay.visible.drag-over {
-  background: rgba(16, 185, 129, 0.25);
-  border-color: #059669;
 }
 
 .drop-message {
