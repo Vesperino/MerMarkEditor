@@ -1,4 +1,5 @@
 import { ref, computed, nextTick, type Ref, type ComputedRef } from 'vue';
+import { t } from '../i18n';
 
 export interface Tab {
   id: string;
@@ -30,7 +31,7 @@ export function useTabs(): UseTabsReturn {
   const tabs = ref<Tab[]>([{
     id: 'tab-1',
     filePath: null,
-    fileName: 'Nowy dokument',
+    fileName: t.value.newDocument,
     content: '<p></p>',
     hasChanges: false,
     scrollTop: 0,
@@ -46,14 +47,14 @@ export function useTabs(): UseTabsReturn {
   const createNewTab = (
     filePath: string | null = null,
     fileContent: string = '<p></p>',
-    fileName: string = 'Nowy dokument'
+    fileName?: string
   ): string => {
     tabCounter++;
     const newTabId = `tab-${tabCounter}`;
     tabs.value.push({
       id: newTabId,
       filePath,
-      fileName,
+      fileName: fileName ?? t.value.newDocument,
       content: fileContent,
       hasChanges: false,
       scrollTop: 0,

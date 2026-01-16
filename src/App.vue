@@ -25,6 +25,7 @@ import { useFileOperations } from './composables/useFileOperations';
 import { useCloseConfirmation } from './composables/useCloseConfirmation';
 import { useWindowManager } from './composables/useWindowManager';
 import { useTabDrag } from './composables/useTabDrag';
+import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
 const {
@@ -60,7 +61,7 @@ const activeTabId = computed(() => activePane.value?.activeTabId || '');
 const activeTab = computed(() => {
   const tab = getActiveTabForPane(activePaneId.value);
   // Return a default tab if none exists (should never happen in practice)
-  return tab || { id: '', filePath: null, fileName: 'Nowy dokument', content: '<p></p>', hasChanges: false, scrollTop: 0 };
+  return tab || { id: '', filePath: null, fileName: t.value.newDocument, content: '<p></p>', hasChanges: false, scrollTop: 0 };
 });
 
 // ============ Editor References ============
@@ -106,7 +107,7 @@ provide('hasChanges', hasChanges);
 
 // ============ Window Title ============
 const windowTitle = computed(() => {
-  const fileName = activeTab.value?.fileName || 'Nowy dokument';
+  const fileName = activeTab.value?.fileName || t.value.newDocument;
   const changeIndicator = activeTab.value?.hasChanges ? ' *' : '';
   return `${fileName}${changeIndicator} - MdReader`;
 });
