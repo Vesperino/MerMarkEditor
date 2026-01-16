@@ -225,31 +225,42 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             // Try to find the text in the DOM and scroll to it
             const proseMirror = editorContainer.querySelector('.ProseMirror');
             if (proseMirror) {
-              const walker = document.createTreeWalker(
-                proseMirror,
-                NodeFilter.SHOW_TEXT,
-                null
-              );
+              // Search in block-level elements (handles text split across nodes)
+              const blockElements = proseMirror.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre');
+              let foundElement: Element | null = null;
+              const searchText = savedCursorText.value.toLowerCase();
 
-              let foundNode: Node | null = null;
-              let node: Node | null;
-              while ((node = walker.nextNode())) {
-                if (node.textContent?.includes(savedCursorText.value)) {
-                  foundNode = node;
+              // Try exact match first, then partial match
+              for (const element of blockElements) {
+                const elementText = element.textContent?.toLowerCase() || '';
+                if (elementText.includes(searchText)) {
+                  foundElement = element;
                   break;
                 }
               }
 
-              if (foundNode && foundNode.parentElement) {
-                const rect = foundNode.parentElement.getBoundingClientRect();
+              // If not found, try with first 20 chars
+              if (!foundElement && searchText.length > 20) {
+                const shortSearch = searchText.slice(0, 20);
+                for (const element of blockElements) {
+                  const elementText = element.textContent?.toLowerCase() || '';
+                  if (elementText.includes(shortSearch)) {
+                    foundElement = element;
+                    break;
+                  }
+                }
+              }
+
+              if (foundElement) {
+                const rect = foundElement.getBoundingClientRect();
                 const containerRect = editorContainer.getBoundingClientRect();
                 const scrollOffset = rect.top - containerRect.top + editorContainer.scrollTop - 100;
                 editorContainer.scrollTop = Math.max(0, scrollOffset);
 
                 // Highlight the found element
-                foundNode.parentElement.classList.add('cursor-highlight-line');
+                foundElement.classList.add('cursor-highlight-line');
                 setTimeout(() => {
-                  foundNode?.parentElement?.classList.remove('cursor-highlight-line');
+                  foundElement?.classList.remove('cursor-highlight-line');
                 }, 1000);
                 return;
               }
