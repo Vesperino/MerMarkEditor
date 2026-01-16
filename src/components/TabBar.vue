@@ -1,25 +1,103 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { Tab } from '../composables/useTabs';
 
-defineProps<{
+const props = defineProps<{
   tabs: Tab[];
   activeTabId: string;
+  paneId?: string;
 }>();
 
 const emit = defineEmits<{
   switchTab: [tabId: string];
   closeTab: [tabId: string];
+  dragStart: [tabId: string, paneId: string];
+  dragEnd: [];
+  dropTab: [tabId: string, sourcePaneId: string, targetIndex: number];
 }>();
+
+const dragOverIndex = ref<number | null>(null);
+
+const handleDragStart = (event: DragEvent, tab: Tab) => {
+  if (!event.dataTransfer) return;
+
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', JSON.stringify({
+    tabId: tab.id,
+    paneId: props.paneId || 'left',
+  }));
+
+  emit('dragStart', tab.id, props.paneId || 'left');
+};
+
+const handleDragEnd = () => {
+  dragOverIndex.value = null;
+  emit('dragEnd');
+};
+
+const handleDragOver = (event: DragEvent, index: number) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+  dragOverIndex.value = index;
+};
+
+const handleDragLeave = () => {
+  dragOverIndex.value = null;
+};
+
+const handleDrop = (event: DragEvent, targetIndex: number) => {
+  event.preventDefault();
+  dragOverIndex.value = null;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('text/plain'));
+    emit('dropTab', data.tabId, data.paneId, targetIndex);
+  } catch (e) {
+    console.error('Failed to parse drop data:', e);
+  }
+};
+
+const handleDropOnBar = (event: DragEvent) => {
+  event.preventDefault();
+  dragOverIndex.value = null;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('text/plain'));
+    // Drop at end of tabs
+    emit('dropTab', data.tabId, data.paneId, props.tabs.length);
+  } catch (e) {
+    console.error('Failed to parse drop data:', e);
+  }
+};
 </script>
 
 <template>
-  <div class="tab-bar">
+  <div
+    class="tab-bar"
+    @dragover.prevent
+    @drop="handleDropOnBar"
+  >
     <div
-      v-for="tab in tabs"
+      v-for="(tab, index) in tabs"
       :key="tab.id"
       class="tab"
-      :class="{ active: tab.id === activeTabId }"
+      :class="{
+        active: tab.id === activeTabId,
+        'drag-over': dragOverIndex === index
+      }"
+      draggable="true"
       @click="emit('switchTab', tab.id)"
+      @dragstart="handleDragStart($event, tab)"
+      @dragend="handleDragEnd"
+      @dragover="handleDragOver($event, index)"
+      @dragleave="handleDragLeave"
+      @drop="handleDrop($event, index)"
     >
       <span class="tab-name">{{ tab.fileName }}{{ tab.hasChanges ? ' *' : '' }}</span>
       <button class="tab-close" @click.stop="emit('closeTab', tab.id)" title="Zamknij">&times;</button>
@@ -60,6 +138,19 @@ const emit = defineEmits<{
   border: 1px solid #e2e8f0;
   border-bottom: none;
   margin-bottom: -1px;
+}
+
+.tab.drag-over {
+  border-left: 3px solid #3b82f6;
+  padding-left: 9px;
+}
+
+.tab[draggable="true"] {
+  cursor: grab;
+}
+
+.tab[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .tab-name {

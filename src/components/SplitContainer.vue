@@ -14,6 +14,8 @@ const {
   switchTab,
   updateTabContent,
   updateTabChanges,
+  moveTabBetweenPanes,
+  reorderTabWithinPane,
 } = useSplitView();
 
 const emit = defineEmits<{
@@ -98,6 +100,22 @@ const handlePaneFocus = (paneId: string) => {
   setActivePane(paneId);
 };
 
+// Handle tab drop (from drag & drop)
+const handleDropTab = (tabId: string, sourcePaneId: string, targetPaneId: string, targetIndex: number) => {
+  if (sourcePaneId === targetPaneId) {
+    // Reorder within the same pane
+    reorderTabWithinPane(targetPaneId, tabId, targetIndex);
+  } else {
+    // Move between panes
+    moveTabBetweenPanes({
+      tabId,
+      sourcePaneId,
+      targetPaneId,
+      targetIndex,
+    });
+  }
+};
+
 // Get editor content for a specific pane
 const getEditorContent = (paneId: string): string => {
   if (paneId === 'left' && leftPaneRef.value) {
@@ -165,6 +183,7 @@ defineExpose({
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('left', tabId, hasChanges)"
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('left')"
+      @drop-tab="handleDropTab"
     />
 
     <!-- Divider (only visible in split mode) -->
@@ -190,6 +209,7 @@ defineExpose({
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('right', tabId, hasChanges)"
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('right')"
+      @drop-tab="handleDropTab"
     />
   </div>
 </template>

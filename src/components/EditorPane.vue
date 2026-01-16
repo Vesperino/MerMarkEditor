@@ -16,6 +16,7 @@ const emit = defineEmits<{
   updateChanges: [tabId: string, hasChanges: boolean];
   linkClick: [href: string];
   focus: [];
+  dropTab: [tabId: string, sourcePaneId: string, targetPaneId: string, targetIndex: number];
 }>();
 
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
@@ -62,6 +63,11 @@ const handlePaneFocus = () => {
   emit('focus');
 };
 
+// Handle tab drop
+const handleDropTab = (tabId: string, sourcePaneId: string, targetIndex: number) => {
+  emit('dropTab', tabId, sourcePaneId, props.pane.id, targetIndex);
+};
+
 // Watch for active tab changes to update editor content
 watch(() => props.pane.activeTabId, async () => {
   await nextTick();
@@ -93,8 +99,10 @@ defineExpose({
     <TabBar
       :tabs="pane.tabs"
       :active-tab-id="pane.activeTabId"
+      :pane-id="pane.id"
       @switch-tab="handleSwitchTab"
       @close-tab="handleCloseTab"
+      @drop-tab="handleDropTab"
     />
     <Editor
       ref="editorRef"
