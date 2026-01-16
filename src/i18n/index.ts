@@ -7,6 +7,7 @@ export interface Translations {
   appName: string;
 
   // Toolbar - File operations
+  new: string;
   open: string;
   save: string;
   saveAs: string;
@@ -133,6 +134,7 @@ const translations: Record<Locale, Translations> = {
     appName: 'MerMark Editor',
 
     // Toolbar - File operations
+    new: 'New',
     open: 'Open',
     save: 'Save',
     saveAs: 'Save As',
@@ -258,6 +260,7 @@ const translations: Record<Locale, Translations> = {
     appName: 'MerMark Editor',
 
     // Toolbar - File operations
+    new: 'Nowy',
     open: 'Otwórz',
     save: 'Zapisz',
     saveAs: 'Zapisz jako',

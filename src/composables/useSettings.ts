@@ -1,5 +1,6 @@
 import { ref, watch } from 'vue';
 import type { TokenModelId } from '../services/tokenCounter';
+import { TOKEN_MODELS } from '../services/tokenCounter';
 
 export interface AppSettings {
   autoSave: boolean;
@@ -9,11 +10,48 @@ export interface AppSettings {
 
 const STORAGE_KEY = 'mermark-settings';
 
+// Valid model IDs for migration
+const VALID_MODEL_IDS = Object.keys(TOKEN_MODELS) as TokenModelId[];
+
+function migrateTokenModel(modelId: string): TokenModelId {
+  // If already valid, return as-is
+  if (VALID_MODEL_IDS.includes(modelId as TokenModelId)) {
+    return modelId as TokenModelId;
+  }
+
+  // Migration map for old model IDs to new simplified IDs
+  const migrationMap: Record<string, TokenModelId> = {
+    // Old GPT models -> gpt
+    'gpt3': 'gpt',
+    'gpt4': 'gpt',
+    'gpt4o': 'gpt',
+    'gpt5': 'gpt',
+    'gpt52': 'gpt',
+    'o1': 'gpt',
+    // Old Claude models -> claude
+    'claude-opus': 'claude',
+    'claude-sonnet': 'claude',
+    'claude-haiku': 'claude',
+    // Old Gemini models -> gemini
+    'gemini-pro': 'gemini',
+    'gemini-flash': 'gemini',
+    // Other
+    'llama3': 'gpt', // Fallback to GPT
+  };
+
+  return migrationMap[modelId] || 'gpt';
+}
+
 function loadSettings(): AppSettings {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      return { ...getDefaultSettings(), ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved);
+      // Migrate old token model IDs
+      if (parsed.tokenModel) {
+        parsed.tokenModel = migrateTokenModel(parsed.tokenModel);
+      }
+      return { ...getDefaultSettings(), ...parsed };
     }
   } catch (error) {
     console.error('Error loading settings:', error);
@@ -25,7 +63,7 @@ function getDefaultSettings(): AppSettings {
   return {
     autoSave: false,
     showTokenCount: true,
-    tokenModel: 'gpt4',
+    tokenModel: 'gpt',
   };
 }
 

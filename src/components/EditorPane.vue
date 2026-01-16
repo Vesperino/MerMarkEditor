@@ -76,15 +76,18 @@ const handlePaneMouseLeave = () => {
 
 watch(() => props.pane.activeTabId, async () => {
   await nextTick();
-  if (editorRef.value?.editor && activeTab.value) {
-    const currentContent = editorRef.value.editor.getHTML();
+  // Vue automatically unwraps ShallowRef from defineExpose, so editor is already the Editor instance
+  const editor = editorRef.value?.editor;
+  if (editor && activeTab.value) {
+    const currentContent = editor.getHTML();
     if (currentContent !== activeTab.value.content) {
-      editorRef.value.editor.commands.setContent(activeTab.value.content);
+      editor.commands.setContent(activeTab.value.content);
     }
   }
 });
 
 defineExpose({
+  // Vue automatically unwraps ShallowRef from defineExpose, so this computed returns Editor directly
   editor: computed(() => editorRef.value?.editor),
   getEditorContent: () => editorRef.value?.editor?.getHTML() || '',
   setEditorContent: (content: string) => {
