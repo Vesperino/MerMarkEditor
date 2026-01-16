@@ -52,6 +52,7 @@ const handleMouseDown = (event: MouseEvent, tab: Tab) => {
         tabId: tab.id,
         paneId: props.paneId || 'left',
         fileName: tab.fileName,
+        filePath: tab.filePath,
         element: event.currentTarget as HTMLElement,
       }, moveEvent);
     }
