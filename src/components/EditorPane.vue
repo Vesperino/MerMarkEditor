@@ -7,10 +7,14 @@ import Editor from './Editor.vue';
 const props = defineProps<{
   pane: Pane;
   isActive: boolean;
+  isTabDragging?: boolean; // Global flag when any tab is being dragged
 }>();
 
 // Track if we're dragging over this pane
 const isDragOver = ref(false);
+
+// Show overlay when any tab is being dragged
+const showDropOverlay = computed(() => props.isTabDragging || false);
 
 const emit = defineEmits<{
   switchTab: [tabId: string];
@@ -139,9 +143,6 @@ defineExpose({
     :class="{ active: isActive, 'drag-over': isDragOver }"
     @mousedown="handlePaneFocus"
     @focusin="handlePaneFocus"
-    @dragover="handlePaneDragOver"
-    @dragleave="handlePaneDragLeave"
-    @drop="handlePaneDrop"
   >
     <TabBar
       :tabs="pane.tabs"
@@ -151,13 +152,26 @@ defineExpose({
       @close-tab="handleCloseTab"
       @drop-tab="handleDropTab"
     />
-    <Editor
-      ref="editorRef"
-      :model-value="editorContent"
-      @update:model-value="handleContentUpdate"
-      @update:has-changes="handleChangesUpdate"
-      @link-click="handleLinkClick"
-    />
+    <div class="editor-wrapper">
+      <Editor
+        ref="editorRef"
+        :model-value="editorContent"
+        @update:model-value="handleContentUpdate"
+        @update:has-changes="handleChangesUpdate"
+        @link-click="handleLinkClick"
+      />
+      <!-- Drop overlay - catches drag events above the editor -->
+      <div
+        v-if="showDropOverlay"
+        class="drop-overlay"
+        :class="{ 'drag-over': isDragOver }"
+        @dragover="handlePaneDragOver"
+        @dragleave="handlePaneDragLeave"
+        @drop="handlePaneDrop"
+      >
+        <div class="drop-message">Upuść kartę tutaj</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -183,6 +197,44 @@ defineExpose({
 .editor-pane.drag-over {
   border-color: #10b981;
   background: #ecfdf5;
+}
+
+.editor-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.drop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(16, 185, 129, 0.1);
+  border: 3px dashed #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: auto;
+}
+
+.drop-overlay.drag-over {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #059669;
+}
+
+.drop-message {
+  font-size: 18px;
+  font-weight: 600;
+  color: #059669;
+  background: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 @media print {
