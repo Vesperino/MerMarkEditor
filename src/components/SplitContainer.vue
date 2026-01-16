@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSplitView } from '../composables/useSplitView';
 import { useTabDrag } from '../composables/useTabDrag';
+import { useWindowManager } from '../composables/useWindowManager';
 import EditorPane from './EditorPane.vue';
 
 const {
@@ -13,13 +14,15 @@ const {
   setActivePane,
   setSplitRatio,
   switchTab,
+  closeTab,
   updateTabContent,
   updateTabChanges,
   moveTabBetweenPanes,
   reorderTabWithinPane,
 } = useSplitView();
 
-const { setOnDrop } = useTabDrag();
+const { setOnDrop, setOnDropOutside } = useTabDrag();
+const { createNewWindow } = useWindowManager();
 
 const emit = defineEmits<{
   linkClick: [href: string];
@@ -35,8 +38,9 @@ const rightPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
 const isDragging = ref(false);
 const containerRef = ref<HTMLDivElement | null>(null);
 
-// Setup drop callback on mount
+// Setup drop callbacks on mount
 onMounted(() => {
+  // Handle drop within the app (between panes or reordering)
   setOnDrop((tabId, sourcePaneId, targetPaneId, targetIndex) => {
     console.log('[SplitContainer] Drop callback:', { tabId, sourcePaneId, targetPaneId, targetIndex });
 
@@ -51,6 +55,34 @@ onMounted(() => {
         targetPaneId,
         targetIndex,
       });
+    }
+  });
+
+  // Handle drop outside window - open in new window
+  setOnDropOutside(async (tabId, paneId, filePath) => {
+    console.log('[SplitContainer] Drop outside callback:', { tabId, paneId, filePath });
+
+    // Only allow creating new window for saved files
+    if (!filePath) {
+      console.log('[SplitContainer] Cannot open new window for unsaved document');
+      return;
+    }
+
+    try {
+      // Create new window with the file
+      await createNewWindow(filePath);
+
+      // Close the tab in current window (without confirmation since it will be opened in new window)
+      // Find the pane and tab to remove hasChanges flag first
+      const pane = splitState.value.panes.find(p => p.id === paneId);
+      const tab = pane?.tabs.find(t => t.id === tabId);
+      if (tab) {
+        tab.hasChanges = false; // Clear changes flag to avoid save confirmation
+      }
+
+      closeTab(paneId, tabId);
+    } catch (error) {
+      console.error('[SplitContainer] Error creating new window:', error);
     }
   });
 });

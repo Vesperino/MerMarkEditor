@@ -22,6 +22,7 @@ import { useSettings } from './composables/useSettings';
 import { useSplitView } from './composables/useSplitView';
 import { useFileOperations } from './composables/useFileOperations';
 import { useCloseConfirmation } from './composables/useCloseConfirmation';
+import { useWindowManager } from './composables/useWindowManager';
 
 // ============ Split View & Tab Management ============
 const {
@@ -458,15 +459,24 @@ onMounted(async () => {
     console.error('[App] Błąd konfiguracji obsługi zamknięcia:', error);
   }
 
-  // Check for file path from CLI arguments
-  try {
-    const filePath = await invoke<string | null>('get_open_file_path');
-    if (filePath) {
-      await nextTick();
-      setTimeout(() => openFileFromPath(filePath), 100);
+  // Check for file path from URL query parameters (for new windows created via drag)
+  const { getFilePathFromUrl } = useWindowManager();
+  const urlFilePath = getFilePathFromUrl();
+  if (urlFilePath) {
+    console.log('[App] Opening file from URL:', urlFilePath);
+    await nextTick();
+    setTimeout(() => openFileFromPath(urlFilePath), 100);
+  } else {
+    // Check for file path from CLI arguments (for main window / file associations)
+    try {
+      const filePath = await invoke<string | null>('get_open_file_path');
+      if (filePath) {
+        await nextTick();
+        setTimeout(() => openFileFromPath(filePath), 100);
+      }
+    } catch (error) {
+      console.error('Błąd pobierania ścieżki pliku:', error);
     }
-  } catch (error) {
-    console.error('Błąd pobierania ścieżki pliku:', error);
   }
 
   // Listen for open-file events

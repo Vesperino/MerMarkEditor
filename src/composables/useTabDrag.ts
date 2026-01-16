@@ -4,6 +4,7 @@ export interface DraggedTab {
   tabId: string;
   paneId: string;
   fileName: string;
+  filePath: string | null;
   element: HTMLElement | null;
 }
 
@@ -103,10 +104,9 @@ function handleMouseUp(event: MouseEvent): void {
     const y = event.clientY;
 
     if (x < 0 || x > windowWidth || y < 0 || y > windowHeight) {
-      // Dropped outside window - could open new instance
+      // Dropped outside window - open in new window
       if (onDropOutsideCallback) {
-        // We need to get the filePath from somewhere - this will be handled by the callback
-        onDropOutsideCallback(tab.tabId, tab.paneId, null);
+        onDropOutsideCallback(tab.tabId, tab.paneId, tab.filePath);
       }
     }
   }
