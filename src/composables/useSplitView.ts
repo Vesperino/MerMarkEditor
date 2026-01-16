@@ -11,15 +11,11 @@ const STORAGE_KEY = 'mermark-split-view';
 const MIN_SPLIT_RATIO = 0.2;
 const MAX_SPLIT_RATIO = 0.8;
 
-/**
- * Load split view state from localStorage
- */
 function loadSplitViewState(): SplitViewState {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Only restore splitRatio, not the full state (tabs should start fresh)
       const defaultState = createDefaultSplitViewState();
       return {
         ...defaultState,
@@ -32,9 +28,6 @@ function loadSplitViewState(): SplitViewState {
   return createDefaultSplitViewState();
 }
 
-/**
- * Save split view preferences to localStorage
- */
 function saveSplitViewPreferences(state: SplitViewState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -45,11 +38,9 @@ function saveSplitViewPreferences(state: SplitViewState): void {
   }
 }
 
-// Singleton state
 const splitState = ref<SplitViewState>(loadSplitViewState());
 let tabCounter = 1;
 
-// Auto-save preferences when they change
 watch(() => splitState.value.splitRatio, () => {
   saveSplitViewPreferences(splitState.value);
 });
@@ -80,6 +71,8 @@ export interface UseSplitViewReturn {
   // Tab Actions (within pane)
   createTab: (paneId: string, filePath?: string | null, content?: string, fileName?: string) => string;
   closeTab: (paneId: string, tabId: string) => void;
+  removeTabWithoutCreate: (paneId: string, tabId: string) => void;
+  isWindowEmpty: () => boolean;
   switchTab: (paneId: string, tabId: string) => void;
   updateTabContent: (paneId: string, tabId: string, content: string) => void;
   updateTabChanges: (paneId: string, tabId: string, hasChanges: boolean) => void;
@@ -96,7 +89,6 @@ export interface UseSplitViewReturn {
 }
 
 export function useSplitView(): UseSplitViewReturn {
-  // Computed properties
   const activePaneId = computed(() => splitState.value.activePaneId);
 
   const activePane = computed(() => {
@@ -105,34 +97,27 @@ export function useSplitView(): UseSplitViewReturn {
   });
 
   const isSplitActive = computed(() => splitState.value.isSplitActive);
-
   const leftPane = computed(() => splitState.value.panes[0]);
-
   const rightPane = computed(() =>
     splitState.value.isSplitActive ? splitState.value.panes[1] : undefined
   );
-
   const splitRatio = computed(() => splitState.value.splitRatio);
 
-  // Helper to find pane by ID
   const findPane = (paneId: string): Pane | undefined => {
     return splitState.value.panes.find(p => p.id === paneId);
   };
 
-  // Helper to generate unique tab ID
   const generateTabId = (paneId: string): string => {
     tabCounter++;
     return `${paneId}-tab-${tabCounter}`;
   };
 
-  // Pane Actions
   const enableSplit = (): void => {
     if (splitState.value.isSplitActive) return;
 
-    // Create right pane WITHOUT default tab (empty pane)
     const rightPane: Pane = {
       id: 'right',
-      tabs: [], // Empty - user will drag tabs here
+      tabs: [],
       activeTabId: '',
       scrollTop: 0,
     };
@@ -143,14 +128,12 @@ export function useSplitView(): UseSplitViewReturn {
   const disableSplit = (): void => {
     if (!splitState.value.isSplitActive) return;
 
-    // Move all tabs from right pane to left pane
     const right = splitState.value.panes[1];
     if (right) {
       const left = splitState.value.panes[0];
       left.tabs.push(...right.tabs);
     }
 
-    // Remove right pane
     splitState.value.panes = [splitState.value.panes[0]];
     splitState.value.isSplitActive = false;
     splitState.value.activePaneId = 'left';
@@ -175,7 +158,6 @@ export function useSplitView(): UseSplitViewReturn {
     splitState.value.splitRatio = Math.max(MIN_SPLIT_RATIO, Math.min(MAX_SPLIT_RATIO, ratio));
   };
 
-  // Tab Actions
   const createTab = (
     paneId: string,
     filePath: string | null = null,
@@ -210,16 +192,33 @@ export function useSplitView(): UseSplitViewReturn {
 
     pane.tabs.splice(tabIndex, 1);
 
-    // If we closed the active tab, switch to another
     if (pane.activeTabId === tabId) {
       if (pane.tabs.length > 0) {
         const newIndex = Math.max(0, tabIndex - 1);
         pane.activeTabId = pane.tabs[newIndex].id;
       } else {
-        // Create a new empty tab if all tabs are closed
         createTab(paneId);
       }
     }
+  };
+
+  const removeTabWithoutCreate = (paneId: string, tabId: string): void => {
+    const pane = findPane(paneId);
+    if (!pane) return;
+
+    const tabIndex = pane.tabs.findIndex(t => t.id === tabId);
+    if (tabIndex === -1) return;
+
+    pane.tabs.splice(tabIndex, 1);
+
+    if (pane.activeTabId === tabId && pane.tabs.length > 0) {
+      const newIndex = Math.max(0, tabIndex - 1);
+      pane.activeTabId = pane.tabs[newIndex].id;
+    }
+  };
+
+  const isWindowEmpty = (): boolean => {
+    return splitState.value.panes.every(pane => pane.tabs.length === 0);
   };
 
   const switchTab = (paneId: string, tabId: string): void => {
@@ -269,7 +268,6 @@ export function useSplitView(): UseSplitViewReturn {
     return undefined;
   };
 
-  // Cross-pane Actions
   const moveTabBetweenPanes = (payload: TabMovePayload): void => {
     const { tabId, sourcePaneId, targetPaneId, targetIndex } = payload;
 
@@ -282,38 +280,26 @@ export function useSplitView(): UseSplitViewReturn {
     const tabIndex = sourcePane.tabs.findIndex(t => t.id === tabId);
     if (tabIndex === -1) return;
 
-    // Remove from source
     const [tab] = sourcePane.tabs.splice(tabIndex, 1);
 
-    // Add to target
     if (targetIndex !== undefined && targetIndex >= 0) {
       targetPane.tabs.splice(targetIndex, 0, tab);
     } else {
       targetPane.tabs.push(tab);
     }
 
-    // Update active tabs
     targetPane.activeTabId = tab.id;
 
-    // If source pane is now empty
     if (sourcePane.tabs.length === 0) {
-      // If split is active and source pane becomes empty, auto-close split
       if (splitState.value.isSplitActive) {
-        // Move focus to target pane before disabling split
         splitState.value.activePaneId = targetPaneId;
-        // Disable split - this will move remaining tabs to left pane
         disableSplit();
         return;
-      } else {
-        // Create a new empty tab (shouldn't happen in split mode but safety)
-        createTab(sourcePaneId);
       }
     } else if (sourcePane.activeTabId === tabId) {
-      // Switch to another tab in source pane
       sourcePane.activeTabId = sourcePane.tabs[Math.max(0, tabIndex - 1)].id;
     }
 
-    // Focus target pane
     splitState.value.activePaneId = targetPaneId;
   };
 
@@ -324,17 +310,11 @@ export function useSplitView(): UseSplitViewReturn {
     const currentIndex = pane.tabs.findIndex(t => t.id === tabId);
     if (currentIndex === -1 || currentIndex === newIndex) return;
 
-    // Remove tab from current position
     const [tab] = pane.tabs.splice(currentIndex, 1);
-
-    // Adjust newIndex if needed (after removal)
     const adjustedIndex = newIndex > currentIndex ? newIndex - 1 : newIndex;
-
-    // Insert at new position
     pane.tabs.splice(adjustedIndex, 0, tab);
   };
 
-  // Utility
   const getActiveTabForPane = (paneId: string): Tab | undefined => {
     const pane = findPane(paneId);
     if (!pane) return undefined;
@@ -370,6 +350,8 @@ export function useSplitView(): UseSplitViewReturn {
 
     createTab,
     closeTab,
+    removeTabWithoutCreate,
+    isWindowEmpty,
     switchTab,
     updateTabContent,
     updateTabChanges,

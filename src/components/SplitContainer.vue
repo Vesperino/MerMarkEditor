@@ -14,7 +14,8 @@ const {
   setActivePane,
   setSplitRatio,
   switchTab,
-  closeTab,
+  removeTabWithoutCreate,
+  isWindowEmpty,
   updateTabContent,
   updateTabChanges,
   moveTabBetweenPanes,
@@ -22,7 +23,7 @@ const {
 } = useSplitView();
 
 const { setOnDrop, setOnDropOutside } = useTabDrag();
-const { createNewWindow, getAllWindows, getCurrentWindowLabel, transferTabToWindow } = useWindowManager();
+const { createNewWindow, getAllWindows, getCurrentWindowLabel, transferTabToWindow, closeCurrentWindow } = useWindowManager();
 
 const emit = defineEmits<{
   linkClick: [href: string];
@@ -30,25 +31,16 @@ const emit = defineEmits<{
   changesUpdated: [paneId: string, tabId: string, hasChanges: boolean];
 }>();
 
-// Refs for pane components
 const leftPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
 const rightPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
-
-// Divider dragging state
 const isDragging = ref(false);
 const containerRef = ref<HTMLDivElement | null>(null);
 
-// Setup drop callbacks on mount
 onMounted(() => {
-  // Handle drop within the app (between panes or reordering)
   setOnDrop((tabId, sourcePaneId, targetPaneId, targetIndex) => {
-    console.log('[SplitContainer] Drop callback:', { tabId, sourcePaneId, targetPaneId, targetIndex });
-
     if (sourcePaneId === targetPaneId) {
-      // Reorder within same pane
       reorderTabWithinPane(targetPaneId, tabId, targetIndex);
     } else {
-      // Move between panes
       moveTabBetweenPanes({
         tabId,
         sourcePaneId,
@@ -58,7 +50,6 @@ onMounted(() => {
     }
   });
 
-  // Handle drop outside window - transfer to existing window or create new
   setOnDropOutside(async (tabId, paneId, filePath) => {
     if (!filePath) {
       console.log('[SplitContainer] Cannot transfer unsaved document');
@@ -71,27 +62,27 @@ onMounted(() => {
       const otherWindows = allWindows.filter(w => w !== currentWindow);
 
       if (otherWindows.length > 0) {
-        // Transfer to the first available window
         await transferTabToWindow(filePath, currentWindow, otherWindows[0]);
       } else {
-        // No other windows, create a new one
         await createNewWindow(filePath);
       }
 
-      // Close the tab in current window
       const pane = splitState.value.panes.find(p => p.id === paneId);
       const tab = pane?.tabs.find(t => t.id === tabId);
       if (tab) {
         tab.hasChanges = false;
       }
-      closeTab(paneId, tabId);
+      removeTabWithoutCreate(paneId, tabId);
+
+      if (isWindowEmpty()) {
+        await closeCurrentWindow();
+      }
     } catch (error) {
       console.error('[SplitContainer] Error transferring tab:', error);
     }
   });
 });
 
-// Computed styles for panes
 const leftPaneStyle = computed(() => ({
   flex: isSplitActive.value ? `0 0 ${splitState.value.splitRatio * 100}%` : '1',
   maxWidth: isSplitActive.value ? `${splitState.value.splitRatio * 100}%` : '100%',
@@ -102,7 +93,6 @@ const rightPaneStyle = computed(() => ({
   maxWidth: isSplitActive.value ? `${(1 - splitState.value.splitRatio) * 100}%` : '0',
 }));
 
-// Divider drag handlers
 const startDrag = (event: MouseEvent) => {
   event.preventDefault();
   isDragging.value = true;
@@ -130,38 +120,31 @@ const stopDrag = () => {
   document.body.style.userSelect = '';
 };
 
-// Handle tab switching within a pane
 const handleSwitchTab = (paneId: string, tabId: string) => {
   switchTab(paneId, tabId);
 };
 
-// Handle tab closing - emit event to parent for confirmation
 const handleCloseTab = (paneId: string, tabId: string) => {
   emit('closeTabRequest', paneId, tabId);
 };
 
-// Handle content updates
 const handleContentUpdate = (paneId: string, tabId: string, content: string) => {
   updateTabContent(paneId, tabId, content);
 };
 
-// Handle changes updates
 const handleChangesUpdate = (paneId: string, tabId: string, hasChanges: boolean) => {
   updateTabChanges(paneId, tabId, hasChanges);
   emit('changesUpdated', paneId, tabId, hasChanges);
 };
 
-// Handle link clicks
 const handleLinkClick = (href: string) => {
   emit('linkClick', href);
 };
 
-// Handle pane focus
 const handlePaneFocus = (paneId: string) => {
   setActivePane(paneId);
 };
 
-// Get editor content for a specific pane
 const getEditorContent = (paneId: string): string => {
   if (paneId === 'left' && leftPaneRef.value) {
     return leftPaneRef.value.getEditorContent();
@@ -172,7 +155,6 @@ const getEditorContent = (paneId: string): string => {
   return '';
 };
 
-// Set editor content for a specific pane
 const setEditorContent = (paneId: string, content: string) => {
   if (paneId === 'left' && leftPaneRef.value) {
     leftPaneRef.value.setEditorContent(content);
@@ -182,24 +164,20 @@ const setEditorContent = (paneId: string, content: string) => {
   }
 };
 
-// Get active pane's editor content
 const getActiveEditorContent = (): string => {
   return getEditorContent(activePaneId.value);
 };
 
-// Set active pane's editor content
 const setActiveEditorContent = (content: string) => {
   setEditorContent(activePaneId.value, content);
 };
 
-// Cleanup on unmount
 onUnmounted(() => {
   if (isDragging.value) {
     stopDrag();
   }
 });
 
-// Expose methods for parent component
 defineExpose({
   getEditorContent,
   setEditorContent,

@@ -22,57 +22,46 @@ const emit = defineEmits<{
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
 const { isDragging, draggedTab, setDropZone, clearDropZone } = useTabDrag();
 
-// Check if pane is empty (no tabs)
 const isEmpty = computed(() => props.pane.tabs.length === 0);
 
-// Get the active tab for this pane
 const activeTab = computed(() => {
   return props.pane.tabs.find(t => t.id === props.pane.activeTabId);
 });
 
-// Content for the editor (from active tab)
 const editorContent = computed(() => activeTab.value?.content || '<p></p>');
 
-// Check if we're a valid drop target (not dragging from this pane)
 const isValidDropTarget = computed(() => {
   return isDragging.value && draggedTab.value?.paneId !== props.pane.id;
 });
 
-// Handle content updates from editor
 const handleContentUpdate = (content: string) => {
   if (activeTab.value) {
     emit('updateContent', activeTab.value.id, content);
   }
 };
 
-// Handle changes flag updates
 const handleChangesUpdate = (hasChanges: boolean) => {
   if (activeTab.value) {
     emit('updateChanges', activeTab.value.id, hasChanges);
   }
 };
 
-// Handle link clicks
 const handleLinkClick = (href: string) => {
   emit('linkClick', href);
 };
 
-// Handle tab switching
 const handleSwitchTab = (tabId: string) => {
   emit('switchTab', tabId);
 };
 
-// Handle tab closing
 const handleCloseTab = (tabId: string) => {
   emit('closeTab', tabId);
 };
 
-// Handle focus on the pane
 const handlePaneFocus = () => {
   emit('focus');
 };
 
-// Drop zone handling for empty pane or editor area
 const handlePaneMouseEnter = () => {
   if (isDragging.value && isValidDropTarget.value) {
     setDropZone(props.pane.id, props.pane.tabs.length);
@@ -85,7 +74,6 @@ const handlePaneMouseLeave = () => {
   }
 };
 
-// Watch for active tab changes to update editor content
 watch(() => props.pane.activeTabId, async () => {
   await nextTick();
   if (editorRef.value?.editor && activeTab.value) {
@@ -96,7 +84,6 @@ watch(() => props.pane.activeTabId, async () => {
   }
 });
 
-// Expose editor for external access
 defineExpose({
   editor: computed(() => editorRef.value?.editor),
   getEditorContent: () => editorRef.value?.editor?.getHTML() || '',
