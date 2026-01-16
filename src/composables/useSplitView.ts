@@ -89,6 +89,7 @@ export interface UseSplitViewReturn {
 
   // Cross-pane Actions
   moveTabBetweenPanes: (payload: TabMovePayload) => void;
+  reorderTabWithinPane: (paneId: string, tabId: string, newIndex: number) => void;
 
   // Utility
   getActiveTabForPane: (paneId: string) => Tab | undefined;
@@ -302,6 +303,23 @@ export function useSplitView(): UseSplitViewReturn {
     splitState.value.activePaneId = targetPaneId;
   };
 
+  const reorderTabWithinPane = (paneId: string, tabId: string, newIndex: number): void => {
+    const pane = findPane(paneId);
+    if (!pane) return;
+
+    const currentIndex = pane.tabs.findIndex(t => t.id === tabId);
+    if (currentIndex === -1 || currentIndex === newIndex) return;
+
+    // Remove tab from current position
+    const [tab] = pane.tabs.splice(currentIndex, 1);
+
+    // Adjust newIndex if needed (after removal)
+    const adjustedIndex = newIndex > currentIndex ? newIndex - 1 : newIndex;
+
+    // Insert at new position
+    pane.tabs.splice(adjustedIndex, 0, tab);
+  };
+
   // Utility
   const getActiveTabForPane = (paneId: string): Tab | undefined => {
     const pane = findPane(paneId);
@@ -345,6 +363,7 @@ export function useSplitView(): UseSplitViewReturn {
     findTabByFilePath,
 
     moveTabBetweenPanes,
+    reorderTabWithinPane,
 
     getActiveTabForPane,
     getAllUnsavedTabs,

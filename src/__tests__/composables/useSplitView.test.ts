@@ -18,7 +18,7 @@ const localStorageMock = (() => {
   };
 })();
 
-Object.defineProperty(global, 'localStorage', {
+Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageMock,
 });
 
@@ -245,7 +245,6 @@ describe('useSplitView', () => {
       enableSplit();
 
       const tabId = createTab('left', null, '<p>Movable</p>', 'Movable Tab');
-      const leftTabsCount = leftPane.value.tabs.length;
 
       moveTabBetweenPanes({
         tabId,
@@ -279,6 +278,26 @@ describe('useSplitView', () => {
       // Should have created a new tab in left pane
       expect(leftPane.value.tabs.length).toBe(1);
       expect(leftPane.value.tabs[0].id).not.toBe(lastTabId);
+    });
+
+    it('should reorder tabs within the same pane', () => {
+      const { createTab, leftPane, reorderTabWithinPane } = useSplitView();
+
+      const tab1 = createTab('left', null, '<p>Tab 1</p>', 'Tab 1');
+      const tab2 = createTab('left', null, '<p>Tab 2</p>', 'Tab 2');
+      const tab3 = createTab('left', null, '<p>Tab 3</p>', 'Tab 3');
+
+      // Initial order: ..., tab1, tab2, tab3
+      const initialTabs = leftPane.value.tabs.slice(-3);
+      expect(initialTabs.map(t => t.id)).toEqual([tab1, tab2, tab3]);
+
+      // Move tab3 to position of tab1
+      const tab1Index = leftPane.value.tabs.findIndex(t => t.id === tab1);
+      reorderTabWithinPane('left', tab3, tab1Index);
+
+      // New order should be: ..., tab3, tab1, tab2
+      const reorderedTabs = leftPane.value.tabs.slice(-3);
+      expect(reorderedTabs.map(t => t.id)).toEqual([tab3, tab1, tab2]);
     });
   });
 
