@@ -79,7 +79,8 @@ const handleMouseEnter = (index: number) => {
 const handleMouseLeave = () => {
   if (isDragging.value) {
     dropTargetIndex.value = null;
-    clearDropZone();
+    // Don't clear drop zone here - we might still be over the tab bar
+    // The drop zone will be updated by handleBarMouseEnter or cleared by handleBarMouseLeave
   }
 };
 
@@ -87,6 +88,16 @@ const handleBarMouseEnter = () => {
   if (isDragging.value) {
     // Drop at end when hovering over empty bar area
     setDropZone(props.paneId || 'left', props.tabs.length);
+  }
+};
+
+const handleBarMouseMove = (event: MouseEvent) => {
+  if (isDragging.value && dropTargetIndex.value === null) {
+    // Mouse moved from a tab to empty bar space - set drop zone to end
+    const target = event.target as HTMLElement;
+    if (target.classList.contains('tab-bar')) {
+      setDropZone(props.paneId || 'left', props.tabs.length);
+    }
   }
 };
 
@@ -103,6 +114,7 @@ const handleBarMouseLeave = () => {
     class="tab-bar"
     :class="{ 'drag-active': isDragging, 'drag-target': isDraggingOverThisPane }"
     @mouseenter="handleBarMouseEnter"
+    @mousemove="handleBarMouseMove"
     @mouseleave="handleBarMouseLeave"
   >
     <div
