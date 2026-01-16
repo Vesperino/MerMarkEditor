@@ -26,7 +26,14 @@ const {
 } = useSplitView();
 
 const { setOnDrop, setOnDropOutside } = useTabDrag();
-const { createNewWindow, closeCurrentWindow, unregisterOpenFile } = useWindowManager();
+const {
+  createNewWindow,
+  closeCurrentWindow,
+  unregisterOpenFile,
+  getAllWindows,
+  getCurrentWindowLabel,
+  transferTabToWindow,
+} = useWindowManager();
 
 const emit = defineEmits<{
   linkClick: [href: string];
@@ -63,16 +70,35 @@ onMounted(() => {
       const pane = splitState.value.panes.find(p => p.id === paneId);
       const tab = pane?.tabs.find(t => t.id === tabId);
 
+      // Save file content before transfer
       if (tab && tab.content) {
         const markdownContent = htmlToMarkdown(tab.content);
         await writeTextFile(filePath, markdownContent);
       }
 
-      // Unregister the file from this window BEFORE creating new window
-      // so the new window can properly register and open it
+      // Get current window label and all windows
+      const currentWindow = await getCurrentWindowLabel();
+      const allWindows = await getAllWindows();
+
+      // Find other windows (excluding current one)
+      const otherWindows = allWindows.filter(w => w !== currentWindow);
+
+      console.log('[SplitContainer] Current window:', currentWindow);
+      console.log('[SplitContainer] Other windows:', otherWindows);
+
+      // Unregister the file from this window before transfer
       await unregisterOpenFile(filePath);
 
-      await createNewWindow(filePath);
+      if (otherWindows.length > 0) {
+        // Transfer to an existing window (prefer 'main' if available, otherwise first other window)
+        const targetWindow = otherWindows.includes('main') ? 'main' : otherWindows[0];
+        console.log('[SplitContainer] Transferring to existing window:', targetWindow);
+        await transferTabToWindow(filePath, currentWindow, targetWindow);
+      } else {
+        // No other windows exist, create a new one
+        console.log('[SplitContainer] Creating new window');
+        await createNewWindow(filePath);
+      }
 
       if (tab) {
         tab.hasChanges = false;

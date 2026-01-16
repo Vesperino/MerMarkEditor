@@ -13,8 +13,11 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
-import { watch, ref } from "vue";
+import { watch, ref, nextTick } from "vue";
 import { Extension, Node, mergeAttributes } from "@tiptap/core";
+
+// Flag to prevent hasChanges emission during programmatic content updates
+let isSettingContent = false;
 import { MermaidExtension } from "../extensions/MermaidExtension";
 import { useI18n } from "../i18n";
 
@@ -264,7 +267,10 @@ const editor = useEditor({
   ],
   onUpdate: ({ editor }) => {
     emit("update:modelValue", editor.getHTML());
-    emit("update:hasChanges", true);
+    // Only emit hasChanges when user is editing, not during programmatic content updates
+    if (!isSettingContent) {
+      emit("update:hasChanges", true);
+    }
   },
   editorProps: {
     // Disable spell-check, autocomplete, and autocorrect to prevent interference with code blocks
@@ -307,9 +313,14 @@ const editor = useEditor({
 
 watch(
   () => props.modelValue,
-  (newValue) => {
+  async (newValue) => {
     if (editor.value && newValue !== editor.value.getHTML()) {
+      // Set flag to prevent hasChanges emission during programmatic update
+      isSettingContent = true;
       editor.value.commands.setContent(newValue || "");
+      // Wait for update cycle to complete, then clear flag
+      await nextTick();
+      isSettingContent = false;
     }
   }
 );
