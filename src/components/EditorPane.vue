@@ -76,9 +76,18 @@ const handleDropTab = (tabId: string, sourcePaneId: string, targetIndex: number)
   emit('dropTab', tabId, sourcePaneId, props.pane.id, targetIndex);
 };
 
+// Handle dragenter on overlay
+const handlePaneDragEnter = (event: DragEvent) => {
+  console.log('[EditorPane] dragenter on pane:', props.pane.id);
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+  isDragOver.value = true;
+};
+
 // Handle dragover on entire pane (allows dropping anywhere)
 const handlePaneDragOver = (event: DragEvent) => {
-  event.preventDefault();
+  console.log('[EditorPane] dragover on pane:', props.pane.id);
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move';
   }
@@ -160,16 +169,16 @@ defineExpose({
         @update:has-changes="handleChangesUpdate"
         @link-click="handleLinkClick"
       />
-      <!-- Drop overlay - catches drag events above the editor -->
+      <!-- Drop overlay - always present but only visible/interactive during drag -->
       <div
-        v-if="showDropOverlay"
         class="drop-overlay"
-        :class="{ 'drag-over': isDragOver }"
-        @dragover="handlePaneDragOver"
+        :class="{ 'visible': showDropOverlay, 'drag-over': isDragOver }"
+        @dragenter.prevent="handlePaneDragEnter"
+        @dragover.prevent="handlePaneDragOver"
         @dragleave="handlePaneDragLeave"
-        @drop="handlePaneDrop"
+        @drop.prevent="handlePaneDrop"
       >
-        <div class="drop-message">Upuść kartę tutaj</div>
+        <div v-if="showDropOverlay" class="drop-message">Upuść kartę tutaj</div>
       </div>
     </div>
   </div>
@@ -213,17 +222,24 @@ defineExpose({
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(16, 185, 129, 0.1);
-  border: 3px dashed #10b981;
+  background: transparent;
+  border: 3px dashed transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  pointer-events: auto;
+  pointer-events: none;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-.drop-overlay.drag-over {
-  background: rgba(16, 185, 129, 0.2);
+.drop-overlay.visible {
+  pointer-events: auto;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: #10b981;
+}
+
+.drop-overlay.visible.drag-over {
+  background: rgba(16, 185, 129, 0.25);
   border-color: #059669;
 }
 
