@@ -23,6 +23,7 @@ import { useSplitView } from './composables/useSplitView';
 import { useFileOperations } from './composables/useFileOperations';
 import { useCloseConfirmation } from './composables/useCloseConfirmation';
 import { useWindowManager } from './composables/useWindowManager';
+import { useTabDrag } from './composables/useTabDrag';
 
 // ============ Split View & Tab Management ============
 const {
@@ -491,10 +492,19 @@ let unlistenTabTransfer: UnlistenFn | null = null;
 let unlistenFocusFile: UnlistenFn | null = null;
 let currentWindowLabel = '';
 
-// Wrapper that checks if file is open in another window first
+// Wrapper that checks if file is open locally or in another window first
 const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => {
   try {
-    // First check if file is open in another window
+    // First check if file is already open locally in this window
+    const localResult = findTabByFilePathSplit(filePath);
+    if (localResult) {
+      console.log(`[App] File already open locally, switching to tab:`, filePath);
+      splitState.value.activePaneId = localResult.pane.id;
+      switchTab(localResult.pane.id, localResult.tab.id);
+      return;
+    }
+
+    // Check if file is open in another window
     const windowWithFile = await checkFileOpen(filePath);
     if (windowWithFile && windowWithFile !== currentWindowLabel) {
       // File is open in another window - focus that window
@@ -503,7 +513,7 @@ const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => 
       return;
     }
 
-    // File not open elsewhere - open it normally
+    // File not open anywhere - open it normally
     await openFileFromPath(filePath);
 
     // Register the file after successful open
@@ -569,8 +579,18 @@ onMounted(async () => {
   // Listen for tab transfer events (from other windows)
   try {
     const { onTabTransfer } = useWindowManager();
+    const { isRecentlyTransferred, markAsTransferred } = useTabDrag();
     unlistenTabTransfer = await onTabTransfer((payload) => {
       console.log('[App] Received tab transfer:', payload);
+
+      // Check debounce to prevent transfer loops
+      if (isRecentlyTransferred(payload.file_path)) {
+        console.log('[App] Skipping transfer - file was recently transferred:', payload.file_path);
+        return;
+      }
+
+      // Mark as transferred to prevent loops
+      markAsTransferred(payload.file_path);
       openFileWithCrossWindowCheck(payload.file_path);
     });
   } catch (error) {

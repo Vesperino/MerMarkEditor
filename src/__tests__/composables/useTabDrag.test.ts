@@ -7,10 +7,12 @@ describe('useTabDrag', () => {
   beforeEach(() => {
     tabDrag = useTabDrag();
     tabDrag.cancelDrag();
+    tabDrag.clearRecentlyTransferred();
   });
 
   afterEach(() => {
     tabDrag.cancelDrag();
+    tabDrag.clearRecentlyTransferred();
     vi.restoreAllMocks();
   });
 
@@ -242,6 +244,117 @@ describe('useTabDrag', () => {
         paneId: 'left',
         index: 5,
       });
+    });
+  });
+
+  describe('transfer debouncing', () => {
+    it('should mark file as recently transferred', () => {
+      const filePath = '/path/to/test.md';
+
+      expect(tabDrag.isRecentlyTransferred(filePath)).toBe(false);
+
+      tabDrag.markAsTransferred(filePath);
+
+      expect(tabDrag.isRecentlyTransferred(filePath)).toBe(true);
+    });
+
+    it('should clear recently transferred status after timeout', async () => {
+      vi.useFakeTimers();
+      const filePath = '/path/to/test.md';
+
+      tabDrag.markAsTransferred(filePath);
+      expect(tabDrag.isRecentlyTransferred(filePath)).toBe(true);
+
+      // Advance past the debounce time (1000ms)
+      vi.advanceTimersByTime(1100);
+
+      expect(tabDrag.isRecentlyTransferred(filePath)).toBe(false);
+
+      vi.useRealTimers();
+    });
+
+    it('should not call onDropOutside for recently transferred files', () => {
+      const onDropOutsideCallback = vi.fn();
+      tabDrag.setOnDropOutside(onDropOutsideCallback);
+
+      const tab: DraggedTab = {
+        tabId: 'tab-1',
+        paneId: 'left',
+        fileName: 'test.md',
+        filePath: '/path/to/test.md',
+        element: null,
+      };
+
+      // Mark file as recently transferred
+      tabDrag.markAsTransferred('/path/to/test.md');
+
+      const startEvent = new MouseEvent('mousedown', { clientX: 100, clientY: 100 });
+      tabDrag.startDrag(tab, startEvent);
+
+      // Drop outside window
+      const mouseUpEvent = new MouseEvent('mouseup', { clientX: -50, clientY: 100 });
+      document.dispatchEvent(mouseUpEvent);
+
+      // Callback should NOT be called because file was recently transferred
+      expect(onDropOutsideCallback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('split view drop zone tracking', () => {
+    it('should not trigger outside callback if drop zone was set during drag', () => {
+      const onDropOutsideCallback = vi.fn();
+      const onDropCallback = vi.fn();
+      tabDrag.setOnDropOutside(onDropOutsideCallback);
+      tabDrag.setOnDrop(onDropCallback);
+
+      const tab: DraggedTab = {
+        tabId: 'tab-1',
+        paneId: 'left',
+        fileName: 'test.md',
+        filePath: '/path/to/test.md',
+        element: null,
+      };
+
+      const startEvent = new MouseEvent('mousedown', { clientX: 100, clientY: 100 });
+      tabDrag.startDrag(tab, startEvent);
+
+      // Set a drop zone (simulating hovering over tab bar)
+      tabDrag.setDropZone('right', 0);
+
+      // Clear it (simulating moving away)
+      tabDrag.clearDropZone();
+
+      // Drop at edge of window (but not really outside, just at boundary)
+      // Since we had a drop zone at some point, this should NOT trigger outside callback
+      const mouseUpEvent = new MouseEvent('mouseup', { clientX: -5, clientY: 100 });
+      document.dispatchEvent(mouseUpEvent);
+
+      // Because we had a drop zone during the drag, outside callback should NOT be called
+      // (this prevents false transfers when user is dragging between split panes)
+      expect(onDropOutsideCallback).not.toHaveBeenCalled();
+    });
+
+    it('should trigger outside callback if no drop zone was ever set', () => {
+      const onDropOutsideCallback = vi.fn();
+      tabDrag.setOnDropOutside(onDropOutsideCallback);
+
+      const tab: DraggedTab = {
+        tabId: 'tab-1',
+        paneId: 'left',
+        fileName: 'test.md',
+        filePath: '/path/to/test.md',
+        element: null,
+      };
+
+      const startEvent = new MouseEvent('mousedown', { clientX: 100, clientY: 100 });
+      tabDrag.startDrag(tab, startEvent);
+
+      // Don't set any drop zone - just drop outside window
+      const mouseUpEvent = new MouseEvent('mouseup', { clientX: -50, clientY: 100 });
+      document.dispatchEvent(mouseUpEvent);
+
+      // Outside callback should be called since we never had a drop zone
+      expect(onDropOutsideCallback).toHaveBeenCalledWith('tab-1', 'left', '/path/to/test.md');
     });
   });
 });
