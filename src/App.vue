@@ -7,61 +7,72 @@ import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import { htmlToMarkdown } from './utils/markdown-converter';
 
 // Components
-import Editor from './components/Editor.vue';
 import Toolbar from './components/Toolbar.vue';
-import TabBar from './components/TabBar.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
 import ExternalLinkDialog from './components/ExternalLinkDialog.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
+import SplitContainer from './components/SplitContainer.vue';
 
 // Composables
-import { useTabs } from './composables/useTabs';
 import { useAutoUpdate } from './composables/useAutoUpdate';
-import { useFileOperations } from './composables/useFileOperations';
 import { useCodeView } from './composables/useCodeView';
-import { useCloseConfirmation } from './composables/useCloseConfirmation';
 import { useSettings } from './composables/useSettings';
+import { useSplitView } from './composables/useSplitView';
+import { useFileOperations } from './composables/useFileOperations';
+import { useCloseConfirmation } from './composables/useCloseConfirmation';
 
-
-// ============ Tab Management ============
+// ============ Split View & Tab Management ============
 const {
-  tabs,
-  activeTabId,
-  activeTab,
-  createNewTab,
-  switchToTab: switchToTabBase,
-  closeTab: closeTabBase,
-  findTabByFilePath,
-  updateTabContent,
-  updateTabChanges,
-  saveScrollPosition,
-} = useTabs();
+  splitState,
+  activePaneId,
+  activePane,
+  isSplitActive,
+  toggleSplit,
+  createTab,
+  closeTab: closeTabFromSplit,
+  switchTab,
+  findTabByFilePath: findTabByFilePathSplit,
+  getActiveTabForPane,
+  getAllUnsavedTabs,
+} = useSplitView();
+
+// Compatibility layer for legacy code
+const tabs = computed(() => activePane.value?.tabs || []);
+const activeTabId = computed(() => activePane.value?.activeTabId || '');
+const activeTab = computed(() => {
+  const tab = getActiveTabForPane(activePaneId.value);
+  // Return a default tab if none exists (should never happen in practice)
+  return tab || { id: '', filePath: null, fileName: 'Nowy dokument', content: '<p></p>', hasChanges: false, scrollTop: 0 };
+});
 
 // ============ Editor References ============
-const editorRef = ref<InstanceType<typeof Editor> | null>(null);
+const splitContainerRef = ref<InstanceType<typeof SplitContainer> | null>(null);
 const editorInstance = ref<TiptapEditor | null>(null);
 // Start as true to prevent initial change detection from marking document as changed
 const isLoadingContent = ref(true);
 
-// Provide editor to child components
-watch(
-  () => editorRef.value?.editor,
-  (newEditor) => {
-    if (newEditor) {
-      editorInstance.value = newEditor as unknown as TiptapEditor;
+// Provide editor to child components (get from active pane)
+const updateEditorInstance = () => {
+  if (splitContainerRef.value) {
+    const paneRef = activePaneId.value === 'left'
+      ? splitContainerRef.value.leftPaneRef
+      : splitContainerRef.value.rightPaneRef;
+    // The editor is exposed as a computed, but ref unwrapping happens automatically
+    if (paneRef?.editor) {
+      editorInstance.value = paneRef.editor as unknown as TiptapEditor;
     }
-  },
-  { immediate: true }
-);
+  }
+};
+
+watch(activePaneId, updateEditorInstance, { immediate: true });
 
 provide('editor', editorInstance);
 
 // ============ Computed Properties ============
 const currentFile = computed(() => activeTab.value?.filePath || null);
 const hasChanges = computed(() => activeTab.value?.hasChanges || false);
-const content = computed(() => activeTab.value?.content || '<p></p>');
 
 provide('currentFile', currentFile);
 provide('hasChanges', hasChanges);
@@ -78,67 +89,92 @@ watchEffect(() => {
 });
 
 // ============ Tab Operations (with editor integration) ============
-const getEditorContent = () => editorRef.value?.editor?.getHTML() || '<p></p>';
+const getEditorContent = () => {
+  if (splitContainerRef.value) {
+    return splitContainerRef.value.getActiveEditorContent();
+  }
+  return '<p></p>';
+};
+
 const setEditorContent = (content: string) => {
-  if (editorRef.value?.editor) {
+  if (splitContainerRef.value) {
     isLoadingContent.value = true;
-    editorRef.value.editor.commands.setContent(content);
+    splitContainerRef.value.setActiveEditorContent(content);
     nextTick(() => {
       isLoadingContent.value = false;
     });
   }
 };
 
-const switchToTab = async (tabId: string, preserveHasChanges = true) => {
-  // Save current scroll position
-  const editorContainer = document.querySelector('.editor-container');
-  if (editorContainer) {
-    saveScrollPosition(editorContainer.scrollTop);
+const switchToTab = async (tabId: string) => {
+  // Save current scroll position for active pane
+  const editorContainer = document.querySelector('.editor-pane.active .editor-container');
+  if (editorContainer && activePane.value) {
+    activePane.value.scrollTop = editorContainer.scrollTop;
   }
 
   const targetTab = tabs.value.find(t => t.id === tabId);
   const targetScrollTop = targetTab?.scrollTop || 0;
 
-  await switchToTabBase(tabId, preserveHasChanges, getEditorContent, setEditorContent);
+  // Switch tab in the active pane
+  switchTab(activePaneId.value, tabId);
 
   // Restore scroll position after content is loaded
   await nextTick();
-  if (editorContainer) {
-    editorContainer.scrollTop = targetScrollTop;
+  const newContainer = document.querySelector('.editor-pane.active .editor-container');
+  if (newContainer) {
+    newContainer.scrollTop = targetScrollTop;
   }
+};
+
+// Create new tab in active pane
+const createNewTab = (filePath?: string | null, content?: string, fileName?: string): string => {
+  return createTab(activePaneId.value, filePath, content, fileName);
+};
+
+// Find tab by file path across all panes
+const findTabByFilePath = (filePath: string) => {
+  const result = findTabByFilePathSplit(filePath);
+  return result?.tab;
 };
 
 // ============ Tab Close Confirmation ============
 const showTabCloseDialog = ref(false);
-const tabToClose = ref<{ id: string; fileName: string } | null>(null);
+const tabToClose = ref<{ id: string; paneId: string; fileName: string } | null>(null);
 
-const closeTab = async (tabId: string) => {
-  // Check if tab has unsaved changes
-  const tab = tabs.value.find(t => t.id === tabId);
+// Handle close tab request from SplitContainer
+const handleCloseTabRequest = (paneId: string, tabId: string) => {
+  // Find the tab in the specified pane
+  const pane = splitState.value.panes.find(p => p.id === paneId);
+  const tab = pane?.tabs.find(t => t.id === tabId);
+
   if (tab?.hasChanges) {
     // Show confirmation dialog
-    tabToClose.value = { id: tabId, fileName: tab.fileName };
+    tabToClose.value = { id: tabId, paneId, fileName: tab.fileName };
     showTabCloseDialog.value = true;
     return;
   }
-  await closeTabBase(tabId, getEditorContent, setEditorContent);
+  closeTabFromSplit(paneId, tabId);
 };
 
 const handleTabCloseSave = async () => {
   if (!tabToClose.value) return;
 
-  const tab = tabs.value.find(t => t.id === tabToClose.value!.id);
+  const pane = splitState.value.panes.find(p => p.id === tabToClose.value!.paneId);
+  const tab = pane?.tabs.find(t => t.id === tabToClose.value!.id);
+
   if (tab) {
     // Switch to the tab first if not active
-    if (activeTabId.value !== tab.id) {
-      await switchToTab(tab.id, true);
+    if (activeTabId.value !== tab.id || activePaneId.value !== tabToClose.value.paneId) {
+      splitState.value.activePaneId = tabToClose.value.paneId;
+      await switchToTab(tab.id);
     }
     // Save the file
     await saveFile();
     // If save was successful (hasChanges becomes false), close the tab
     if (!tab.hasChanges) {
       showTabCloseDialog.value = false;
-      await closeTabBase(tabToClose.value.id, getEditorContent, setEditorContent);
+      closeTabFromSplit(tabToClose.value.paneId, tabToClose.value.id);
       tabToClose.value = null;
     }
   }
@@ -147,12 +183,14 @@ const handleTabCloseSave = async () => {
 const handleTabCloseDiscard = async () => {
   if (!tabToClose.value) return;
 
-  const tab = tabs.value.find(t => t.id === tabToClose.value!.id);
+  const pane = splitState.value.panes.find(p => p.id === tabToClose.value!.paneId);
+  const tab = pane?.tabs.find(t => t.id === tabToClose.value!.id);
+
   if (tab) {
     tab.hasChanges = false;
   }
   showTabCloseDialog.value = false;
-  await closeTabBase(tabToClose.value.id, getEditorContent, setEditorContent);
+  closeTabFromSplit(tabToClose.value.paneId, tabToClose.value.id);
   tabToClose.value = null;
 };
 
@@ -223,32 +261,33 @@ const toggleCodeView = async () => {
   const wasInCodeView = codeView.value;
 
   // Save scroll position before toggling
-  const editorContainer = document.querySelector('.editor-container');
+  const editorContainer = document.querySelector('.editor-pane.active .editor-container');
   const savedScrollTop = editorContainer?.scrollTop || 0;
 
-  await toggleCodeViewBase(editorRef.value?.editor);
+  // Cast to satisfy type checker - the types are compatible
+  await toggleCodeViewBase(editorInstance.value as Parameters<typeof toggleCodeViewBase>[0]);
 
   if (wasInCodeView && !codeView.value) {
     // Returning from code view - update editor content
     isLoadingContent.value = true;
-    if (editorRef.value?.editor && activeTab.value) {
-      editorRef.value.editor.commands.setContent(activeTab.value.content);
+    if (editorInstance.value && activeTab.value) {
+      editorInstance.value.commands.setContent(activeTab.value.content);
       await nextTick();
 
       // Restore scroll position that was set by toggleCodeViewBase
       // or use the saved position as fallback
       await nextTick();
-      const container = document.querySelector('.editor-container');
+      const container = document.querySelector('.editor-pane.active .editor-container');
       if (container) {
         // Allow a moment for DOM to settle after setContent
         requestAnimationFrame(() => {
-          const containerEl = document.querySelector('.editor-container');
+          const containerEl = document.querySelector('.editor-pane.active .editor-container');
           if (containerEl && containerEl.scrollTop === 0 && savedScrollTop > 0) {
             // If scroll was reset, try to restore
             containerEl.scrollTop = savedScrollTop;
           }
           // Focus after scroll is restored
-          editorRef.value?.editor?.commands.focus();
+          editorInstance.value?.commands.focus();
         });
       }
     }
@@ -306,14 +345,16 @@ const {
 // ============ Auto-save ============
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Save a specific tab (works for both active and inactive tabs)
-const saveTabById = async (tabId: string) => {
-  const tab = tabs.value.find(t => t.id === tabId);
+// Save a specific tab from any pane
+const saveTabFromPane = async (paneId: string, tabId: string) => {
+  const pane = splitState.value.panes.find(p => p.id === paneId);
+  const tab = pane?.tabs.find(t => t.id === tabId);
   if (!tab?.filePath || !tab?.hasChanges) return;
 
   try {
-    // For active tab, get fresh content from editor; for others, use stored content
-    const html = tabId === activeTabId.value ? getEditorContent() : tab.content;
+    // For active tab in active pane, get fresh content from editor; for others, use stored content
+    const isActiveTab = tabId === activeTabId.value && paneId === activePaneId.value;
+    const html = isActiveTab ? getEditorContent() : tab.content;
     const markdown = htmlToMarkdown(html);
     await writeTextFile(tab.filePath, markdown);
 
@@ -325,27 +366,27 @@ const saveTabById = async (tabId: string) => {
   }
 };
 
-// Save all tabs with unsaved changes
+// Save all tabs with unsaved changes across all panes
 const autoSaveAllTabs = async () => {
   if (!settings.value.autoSave) return;
 
   // Sync active tab content first
   syncActiveTabContent();
 
-  // Find all tabs with unsaved changes and a file path
-  const tabsToSave = tabs.value.filter(t => t.filePath && t.hasChanges);
+  // Find all tabs with unsaved changes across all panes
+  const unsavedTabs = getAllUnsavedTabs();
 
-  for (const tab of tabsToSave) {
-    await saveTabById(tab.id);
+  for (const { paneId, tab } of unsavedTabs) {
+    await saveTabFromPane(paneId, tab.id);
   }
 };
 
 const triggerAutoSave = () => {
   if (!settings.value.autoSave) return;
 
-  // Check if any tab has unsaved changes
-  const hasUnsavedTabs = tabs.value.some(t => t.filePath && t.hasChanges);
-  if (!hasUnsavedTabs) return;
+  // Check if any tab has unsaved changes across all panes
+  const unsavedTabs = getAllUnsavedTabs();
+  if (unsavedTabs.length === 0) return;
 
   // Clear existing timer
   if (autoSaveTimer) {
@@ -361,25 +402,12 @@ const triggerAutoSave = () => {
 // Watch for autosave setting changes - if turned on with unsaved changes, trigger save
 watch(() => settings.value.autoSave, (newValue) => {
   if (newValue) {
-    const hasUnsavedTabs = tabs.value.some(t => t.filePath && t.hasChanges);
-    if (hasUnsavedTabs) {
+    const unsavedTabs = getAllUnsavedTabs();
+    if (unsavedTabs.length > 0) {
       triggerAutoSave();
     }
   }
 });
-
-// ============ Content Updates ============
-const onContentUpdate = (newContent: string) => {
-  updateTabContent(newContent);
-};
-
-const onChangesUpdate = (changed: boolean) => {
-  if (isLoadingContent.value) return;
-  updateTabChanges(changed);
-  if (changed) {
-    triggerAutoSave();
-  }
-};
 
 // ============ Keyboard Shortcuts ============
 const handleKeyboard = (event: KeyboardEvent) => {
@@ -467,30 +495,21 @@ onUnmounted(() => {
   <div class="app">
     <Toolbar
       :code-view="codeView"
+      :is-split-active="isSplitActive"
       @open-file="openFile"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
       @toggle-code-view="toggleCodeView"
+      @toggle-split="toggleSplit"
     />
 
-    <!-- Tab Bar -->
-    <TabBar
-      v-if="tabs.length > 1"
-      :tabs="tabs"
-      :active-tab-id="activeTabId"
-      @switch-tab="switchToTab"
-      @close-tab="closeTab"
-    />
-
-    <!-- Visual Editor -->
-    <Editor
+    <!-- Split Container with Editor Panes -->
+    <SplitContainer
       v-if="!codeView"
-      ref="editorRef"
-      :model-value="content"
-      @update:model-value="onContentUpdate"
-      @update:has-changes="onChangesUpdate"
+      ref="splitContainerRef"
       @link-click="handleLinkClick"
+      @close-tab-request="handleCloseTabRequest"
     />
 
     <!-- Code View -->
