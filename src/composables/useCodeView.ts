@@ -92,11 +92,12 @@ const getHighlightRect = (element: HTMLElement) => {
   const content = element.closest('.editor-content') as HTMLElement | null;
   const contentRect = content ? content.getBoundingClientRect() : element.getBoundingClientRect();
   const targetRect = element.getBoundingClientRect();
+  const padding = 4; 
   return {
     left: contentRect.left,
-    top: targetRect.top,
+    top: targetRect.top - padding,
     width: contentRect.width,
-    height: Math.max(24, targetRect.height),
+    height: Math.max(24, targetRect.height) + (padding * 2),
   };
 };
 
@@ -342,6 +343,7 @@ const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
   // Create a temporary overlay element
   const lineHeight = 22.4; // Should match CSS
   const paddingTop = 16; // Padding from CodeEditor.vue
+  const padding = 4; // Vertical padding for better centering
 
   const highlight = document.createElement('div');
   highlight.className = 'cursor-highlight';
@@ -349,9 +351,9 @@ const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
   const textareaRect = textarea.getBoundingClientRect();
   highlight.style.position = 'absolute';
   highlight.style.left = `${textareaRect.left + 16}px`;
-  highlight.style.top = `${textareaRect.top + paddingTop + (lineNumber * lineHeight) - textarea.scrollTop}px`;
+  highlight.style.top = `${textareaRect.top + paddingTop + (lineNumber * lineHeight) - textarea.scrollTop - padding}px`;
   highlight.style.width = `${textareaRect.width - 32}px`;
-  highlight.style.height = `${lineHeight}px`;
+  highlight.style.height = `${lineHeight + (padding * 2)}px`;
 
   document.body.appendChild(highlight);
   setTimeout(() => highlight.remove(), 1000);
