@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { useSplitView } from '../composables/useSplitView';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useWindowManager } from '../composables/useWindowManager';
+import { htmlToMarkdown } from '../utils/markdown-converter';
 import EditorPane from './EditorPane.vue';
 
 const {
@@ -58,10 +60,19 @@ onMounted(() => {
     }
 
     try {
-      await createNewWindow(filePath);
-
       const pane = splitState.value.panes.find(p => p.id === paneId);
       const tab = pane?.tabs.find(t => t.id === tabId);
+
+      if (tab && tab.content) {
+        const markdownContent = htmlToMarkdown(tab.content);
+        await invoke('write_file', {
+          filePath,
+          content: markdownContent,
+        });
+      }
+
+      await createNewWindow(filePath);
+
       if (tab) {
         tab.hasChanges = false;
       }
