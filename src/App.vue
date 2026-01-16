@@ -446,6 +446,7 @@ const handleKeyboard = (event: KeyboardEvent) => {
 // ============ Lifecycle ============
 let unlistenOpenFile: UnlistenFn | null = null;
 let unlistenCloseRequest: (() => void) | null = null;
+let unlistenTabTransfer: UnlistenFn | null = null;
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
@@ -488,6 +489,17 @@ onMounted(async () => {
     console.error('Błąd nasłuchiwania zdarzeń:', error);
   }
 
+  // Listen for tab transfer events (from other windows)
+  try {
+    const { onTabTransfer } = useWindowManager();
+    unlistenTabTransfer = await onTabTransfer((payload) => {
+      console.log('[App] Received tab transfer:', payload);
+      openFileFromPath(payload.file_path);
+    });
+  } catch (error) {
+    console.error('Błąd nasłuchiwania transferu kart:', error);
+  }
+
   // Enable change detection after editor stabilizes
   setTimeout(() => {
     isLoadingContent.value = false;
@@ -504,6 +516,9 @@ onUnmounted(() => {
   }
   if (unlistenCloseRequest) {
     unlistenCloseRequest();
+  }
+  if (unlistenTabTransfer) {
+    unlistenTabTransfer();
   }
 });
 </script>
