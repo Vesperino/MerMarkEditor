@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import { StarterKit } from "@tiptap/starter-kit";
-import { Link } from "@tiptap/extension-link";
+import { Link as TiptapLink } from "@tiptap/extension-link";
+
+// Extend Link with a custom name to avoid TipTap v3 duplicate warning
+const Link = TiptapLink.extend({
+  name: 'customLink',
+});
 import { Image } from "@tiptap/extension-image";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
@@ -225,6 +230,7 @@ const editor = useEditor({
     StarterKit.configure({
       codeBlock: false,
       heading: false, // Disable default heading, use HeadingWithId instead
+      listKeymap: false, // Disable built-in, use custom ListKeymap below
     }),
     HeadingWithId.configure({
       levels: [1, 2, 3, 4, 5, 6],

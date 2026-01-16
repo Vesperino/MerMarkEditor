@@ -149,7 +149,7 @@ const deleteTable = () => {
 
 // Links and images
 const setLink = () => {
-  const previousUrl = editor?.value?.getAttributes("link").href;
+  const previousUrl = editor?.value?.getAttributes("customLink").href;
   const url = window.prompt(t.value.linkPrompt, previousUrl);
   if (url === null) return;
   if (url === "") {
@@ -432,7 +432,7 @@ const emit = defineEmits<{
       <div class="toolbar-group">
         <button
           @click="setLink"
-          :class="{ active: isActive('link') }"
+          :class="{ active: isActive('customLink') }"
           class="toolbar-btn icon-only"
           :title="t.link"
         >
