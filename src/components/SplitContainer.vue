@@ -24,6 +24,7 @@ const { setOnDrop } = useTabDrag();
 const emit = defineEmits<{
   linkClick: [href: string];
   closeTabRequest: [paneId: string, tabId: string];
+  changesUpdated: [paneId: string, tabId: string, hasChanges: boolean];
 }>();
 
 // Refs for pane components
@@ -111,6 +112,7 @@ const handleContentUpdate = (paneId: string, tabId: string, content: string) => 
 // Handle changes updates
 const handleChangesUpdate = (paneId: string, tabId: string, hasChanges: boolean) => {
   updateTabChanges(paneId, tabId, hasChanges);
+  emit('changesUpdated', paneId, tabId, hasChanges);
 };
 
 // Handle link clicks

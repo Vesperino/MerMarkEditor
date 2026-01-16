@@ -399,6 +399,13 @@ const triggerAutoSave = () => {
   }, 5000);
 };
 
+// Handle changes updated from SplitContainer
+const handleChangesUpdated = (_paneId: string, _tabId: string, hasChanges: boolean) => {
+  if (hasChanges) {
+    triggerAutoSave();
+  }
+};
+
 // Watch for autosave setting changes - if turned on with unsaved changes, trigger save
 watch(() => settings.value.autoSave, (newValue) => {
   if (newValue) {
@@ -510,6 +517,7 @@ onUnmounted(() => {
       ref="splitContainerRef"
       @link-click="handleLinkClick"
       @close-tab-request="handleCloseTabRequest"
+      @changes-updated="handleChangesUpdated"
     />
 
     <!-- Code View -->
