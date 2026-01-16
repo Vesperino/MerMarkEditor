@@ -54,6 +54,35 @@ export function useWindowManager() {
     await window.close();
   };
 
+  // File registry functions
+  const registerOpenFile = async (filePath: string, windowLabel: string): Promise<void> => {
+    return invoke('register_open_file', { filePath, windowLabel });
+  };
+
+  const unregisterOpenFile = async (filePath: string): Promise<void> => {
+    return invoke('unregister_open_file', { filePath });
+  };
+
+  const unregisterWindowFiles = async (windowLabel: string): Promise<void> => {
+    return invoke('unregister_window_files', { windowLabel });
+  };
+
+  const checkFileOpen = async (filePath: string): Promise<string | null> => {
+    return invoke<string | null>('check_file_open', { filePath });
+  };
+
+  const focusWindowWithFile = async (filePath: string): Promise<boolean> => {
+    return invoke<boolean>('focus_window_with_file', { filePath });
+  };
+
+  const onFocusFile = async (
+    callback: (filePath: string) => void
+  ): Promise<UnlistenFn> => {
+    return listen<string>('focus-file', (event) => {
+      callback(event.payload);
+    });
+  };
+
   return {
     createNewWindow,
     getFilePathFromUrl,
@@ -62,5 +91,12 @@ export function useWindowManager() {
     transferTabToWindow,
     onTabTransfer,
     closeCurrentWindow,
+    // File registry
+    registerOpenFile,
+    unregisterOpenFile,
+    unregisterWindowFiles,
+    checkFileOpen,
+    focusWindowWithFile,
+    onFocusFile,
   };
 }

@@ -41,7 +41,16 @@ const {
   disableSplit,
 } = useSplitView();
 
-const { closeCurrentWindow } = useWindowManager();
+const {
+  closeCurrentWindow,
+  registerOpenFile,
+  unregisterOpenFile,
+  unregisterWindowFiles,
+  checkFileOpen,
+  focusWindowWithFile,
+  onFocusFile,
+  getCurrentWindowLabel,
+} = useWindowManager();
 
 // Compatibility layer for legacy code
 const tabs = computed(() => activePane.value?.tabs || []);
@@ -148,7 +157,21 @@ const showTabCloseDialog = ref(false);
 const tabToClose = ref<{ id: string; paneId: string; fileName: string } | null>(null);
 
 const closeTabAndCheckWindow = async (paneId: string, tabId: string) => {
+  // Get the file path before closing to unregister it
+  const pane = splitState.value.panes.find(p => p.id === paneId);
+  const tab = pane?.tabs.find(t => t.id === tabId);
+  const filePath = tab?.filePath;
+
   closeTabFromSplit(paneId, tabId);
+
+  // Unregister the file from the global registry
+  if (filePath) {
+    try {
+      await unregisterOpenFile(filePath);
+    } catch (error) {
+      console.error('[App] Error unregistering file:', error);
+    }
+  }
 
   if (isWindowEmpty()) {
     await closeCurrentWindow();
@@ -156,8 +179,8 @@ const closeTabAndCheckWindow = async (paneId: string, tabId: string) => {
   }
 
   if (isSplitActive.value) {
-    const pane = splitState.value.panes.find(p => p.id === paneId);
-    if (pane && pane.tabs.length === 0) {
+    const paneAfter = splitState.value.panes.find(p => p.id === paneId);
+    if (paneAfter && paneAfter.tabs.length === 0) {
       disableSplit();
     }
   }
@@ -465,9 +488,45 @@ const handleKeyboard = (event: KeyboardEvent) => {
 let unlistenOpenFile: UnlistenFn | null = null;
 let unlistenCloseRequest: (() => void) | null = null;
 let unlistenTabTransfer: UnlistenFn | null = null;
+let unlistenFocusFile: UnlistenFn | null = null;
+let currentWindowLabel = '';
+
+// Wrapper that checks if file is open in another window first
+const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => {
+  try {
+    // First check if file is open in another window
+    const windowWithFile = await checkFileOpen(filePath);
+    if (windowWithFile && windowWithFile !== currentWindowLabel) {
+      // File is open in another window - focus that window
+      console.log(`[App] File already open in window ${windowWithFile}, focusing...`);
+      await focusWindowWithFile(filePath);
+      return;
+    }
+
+    // File not open elsewhere - open it normally
+    await openFileFromPath(filePath);
+
+    // Register the file after successful open
+    if (currentWindowLabel) {
+      await registerOpenFile(filePath, currentWindowLabel);
+    }
+  } catch (error) {
+    console.error('[App] Error in cross-window file check:', error);
+    // Fall back to normal open
+    await openFileFromPath(filePath);
+  }
+};
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
+
+  // Get current window label for file registry
+  try {
+    currentWindowLabel = await getCurrentWindowLabel();
+    console.log('[App] Current window label:', currentWindowLabel);
+  } catch (error) {
+    console.error('[App] Error getting window label:', error);
+  }
 
   // Set up close confirmation handler
   try {
@@ -484,14 +543,14 @@ onMounted(async () => {
   if (urlFilePath) {
     console.log('[App] Opening file from URL:', urlFilePath);
     await nextTick();
-    setTimeout(() => openFileFromPath(urlFilePath), 100);
+    setTimeout(() => openFileWithCrossWindowCheck(urlFilePath), 100);
   } else {
     // Check for file path from CLI arguments (for main window / file associations)
     try {
       const filePath = await invoke<string | null>('get_open_file_path');
       if (filePath) {
         await nextTick();
-        setTimeout(() => openFileFromPath(filePath), 100);
+        setTimeout(() => openFileWithCrossWindowCheck(filePath), 100);
       }
     } catch (error) {
       console.error('Błąd pobierania ścieżki pliku:', error);
@@ -501,7 +560,7 @@ onMounted(async () => {
   // Listen for open-file events
   try {
     unlistenOpenFile = await listen<string>('open-file', (event) => {
-      openFileFromPath(event.payload);
+      openFileWithCrossWindowCheck(event.payload);
     });
   } catch (error) {
     console.error('Błąd nasłuchiwania zdarzeń:', error);
@@ -512,10 +571,25 @@ onMounted(async () => {
     const { onTabTransfer } = useWindowManager();
     unlistenTabTransfer = await onTabTransfer((payload) => {
       console.log('[App] Received tab transfer:', payload);
-      openFileFromPath(payload.file_path);
+      openFileWithCrossWindowCheck(payload.file_path);
     });
   } catch (error) {
     console.error('Błąd nasłuchiwania transferu kart:', error);
+  }
+
+  // Listen for focus-file events (when another window asks us to focus a file)
+  try {
+    unlistenFocusFile = await onFocusFile((filePath) => {
+      console.log('[App] Received focus-file request:', filePath);
+      // Find and switch to the tab with this file
+      const result = findTabByFilePathSplit(filePath);
+      if (result) {
+        splitState.value.activePaneId = result.pane.id;
+        switchTab(result.pane.id, result.tab.id);
+      }
+    });
+  } catch (error) {
+    console.error('Błąd nasłuchiwania focus-file:', error);
   }
 
   // Enable change detection after editor stabilizes
@@ -527,7 +601,7 @@ onMounted(async () => {
   setTimeout(() => checkForUpdates(), 3000);
 });
 
-onUnmounted(() => {
+onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeyboard);
   if (unlistenOpenFile) {
     unlistenOpenFile();
@@ -537,6 +611,18 @@ onUnmounted(() => {
   }
   if (unlistenTabTransfer) {
     unlistenTabTransfer();
+  }
+  if (unlistenFocusFile) {
+    unlistenFocusFile();
+  }
+
+  // Unregister all files for this window
+  if (currentWindowLabel) {
+    try {
+      await unregisterWindowFiles(currentWindowLabel);
+    } catch (error) {
+      console.error('[App] Error unregistering window files:', error);
+    }
   }
 });
 </script>
