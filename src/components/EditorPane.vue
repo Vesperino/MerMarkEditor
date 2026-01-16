@@ -9,6 +9,9 @@ const props = defineProps<{
   isActive: boolean;
 }>();
 
+// Track if we're dragging over this pane
+const isDragOver = ref(false);
+
 const emit = defineEmits<{
   switchTab: [tabId: string];
   closeTab: [tabId: string];
@@ -63,9 +66,50 @@ const handlePaneFocus = () => {
   emit('focus');
 };
 
-// Handle tab drop
+// Handle tab drop from TabBar
 const handleDropTab = (tabId: string, sourcePaneId: string, targetIndex: number) => {
+  console.log('[EditorPane] handleDropTab from TabBar:', { tabId, sourcePaneId, targetPaneId: props.pane.id, targetIndex });
   emit('dropTab', tabId, sourcePaneId, props.pane.id, targetIndex);
+};
+
+// Handle dragover on entire pane (allows dropping anywhere)
+const handlePaneDragOver = (event: DragEvent) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+  isDragOver.value = true;
+};
+
+// Handle dragleave on pane
+const handlePaneDragLeave = (event: DragEvent) => {
+  // Only reset if we're leaving the pane entirely (not just moving to a child)
+  const relatedTarget = event.relatedTarget as HTMLElement;
+  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
+    isDragOver.value = false;
+  }
+};
+
+// Handle drop on the editor area (not on TabBar)
+const handlePaneDrop = (event: DragEvent) => {
+  event.preventDefault();
+  isDragOver.value = false;
+  console.log('[EditorPane] drop on pane:', props.pane.id);
+
+  if (!event.dataTransfer) {
+    console.log('[EditorPane] No dataTransfer on pane drop');
+    return;
+  }
+
+  try {
+    const rawData = event.dataTransfer.getData('text/plain');
+    console.log('[EditorPane] Pane drop raw data:', rawData);
+    const data = JSON.parse(rawData);
+    // Drop at the end of tabs
+    emit('dropTab', data.tabId, data.paneId, props.pane.id, props.pane.tabs.length);
+  } catch (e) {
+    console.error('[EditorPane] Failed to parse pane drop data:', e);
+  }
 };
 
 // Watch for active tab changes to update editor content
@@ -92,9 +136,12 @@ defineExpose({
 <template>
   <div
     class="editor-pane"
-    :class="{ active: isActive }"
+    :class="{ active: isActive, 'drag-over': isDragOver }"
     @mousedown="handlePaneFocus"
     @focusin="handlePaneFocus"
+    @dragover="handlePaneDragOver"
+    @dragleave="handlePaneDragLeave"
+    @drop="handlePaneDrop"
   >
     <TabBar
       :tabs="pane.tabs"
@@ -131,6 +178,11 @@ defineExpose({
 
 .editor-pane:not(.active) {
   opacity: 0.95;
+}
+
+.editor-pane.drag-over {
+  border-color: #10b981;
+  background: #ecfdf5;
 }
 
 @media print {
