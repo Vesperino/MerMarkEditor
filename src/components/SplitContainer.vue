@@ -29,6 +29,21 @@ const rightPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
 
 // Divider dragging state
 const isDragging = ref(false);
+
+// Tab dragging state (for showing drop overlays)
+const isTabDragging = ref(false);
+
+// Handle tab drag start
+const handleTabDragStart = () => {
+  console.log('[SplitContainer] Tab drag started');
+  isTabDragging.value = true;
+};
+
+// Handle tab drag end
+const handleTabDragEnd = () => {
+  console.log('[SplitContainer] Tab drag ended');
+  isTabDragging.value = false;
+};
 const containerRef = ref<HTMLDivElement | null>(null);
 
 // Computed styles for panes
@@ -104,6 +119,9 @@ const handlePaneFocus = (paneId: string) => {
 const handleDropTab = (tabId: string, sourcePaneId: string, targetPaneId: string, targetIndex: number) => {
   console.log('[SplitContainer] handleDropTab:', { tabId, sourcePaneId, targetPaneId, targetIndex });
 
+  // Reset dragging state
+  isTabDragging.value = false;
+
   if (sourcePaneId === targetPaneId) {
     // Reorder within the same pane
     console.log('[SplitContainer] Reordering within pane:', targetPaneId);
@@ -173,13 +191,16 @@ defineExpose({
   <div
     ref="containerRef"
     class="split-container"
-    :class="{ dragging: isDragging, 'split-active': isSplitActive }"
+    :class="{ dragging: isDragging, 'split-active': isSplitActive, 'tab-dragging': isTabDragging }"
+    @dragstart="handleTabDragStart"
+    @dragend="handleTabDragEnd"
   >
     <!-- Left Pane (always visible) -->
     <EditorPane
       ref="leftPaneRef"
       :pane="leftPane"
       :is-active="activePaneId === 'left'"
+      :is-tab-dragging="isTabDragging"
       :style="leftPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('left', tabId)"
       @close-tab="(tabId) => handleCloseTab('left', tabId)"
@@ -206,6 +227,7 @@ defineExpose({
       ref="rightPaneRef"
       :pane="rightPane"
       :is-active="activePaneId === 'right'"
+      :is-tab-dragging="isTabDragging"
       :style="rightPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('right', tabId)"
       @close-tab="(tabId) => handleCloseTab('right', tabId)"
