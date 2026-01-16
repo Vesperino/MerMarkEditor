@@ -3,6 +3,7 @@ import { ref, provide, computed, watchEffect, watch, onMounted, onUnmounted, nex
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { open } from '@tauri-apps/plugin-dialog';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import { htmlToMarkdown } from './utils/markdown-converter';
 
@@ -475,7 +476,7 @@ const handleKeyboard = (event: KeyboardEvent) => {
         break;
       case 'o':
         event.preventDefault();
-        openFile();
+        openFileWithCrossWindowDialog();
         break;
       case 'p':
         event.preventDefault();
@@ -524,6 +525,26 @@ const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => 
     console.error('[App] Error in cross-window file check:', error);
     // Fall back to normal open
     await openFileFromPath(filePath);
+  }
+};
+
+// Open file dialog with cross-window check
+const openFileWithCrossWindowDialog = async (): Promise<void> => {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        { name: 'Markdown', extensions: ['md', 'markdown'] },
+        { name: 'Wszystkie pliki', extensions: ['*'] },
+      ],
+    });
+
+    if (selected) {
+      const filePath = selected as string;
+      await openFileWithCrossWindowCheck(filePath);
+    }
+  } catch (error) {
+    console.error('[App] Error opening file dialog:', error);
   }
 };
 
@@ -652,7 +673,7 @@ onUnmounted(async () => {
     <Toolbar
       :code-view="codeView"
       :is-split-active="isSplitActive"
-      @open-file="openFile"
+      @open-file="openFileWithCrossWindowDialog"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"

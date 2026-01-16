@@ -105,12 +105,20 @@ function handleMouseUp(event: MouseEvent): void {
     const y = event.clientY;
 
     // Only consider "outside" if cursor is actually outside window bounds
-    // AND we didn't lose the drop zone due to split view edge cases
     const isOutsideWindow = x < 0 || x > windowWidth || y < 0 || y > windowHeight;
 
-    // Additional safety: if we ever had a drop zone during this drag,
-    // don't trigger outside transfer (user was interacting with split view)
-    const shouldTransferOutside = isOutsideWindow && !hadDropZoneDuringDrag.value;
+    // Check if cursor is CLEARLY outside (more than 30px outside window bounds)
+    // vs just at the boundary (where split view edge cases could occur)
+    const CLEAR_OUTSIDE_MARGIN = 30;
+    const isClearlyOutside = x < -CLEAR_OUTSIDE_MARGIN ||
+                              x > windowWidth + CLEAR_OUTSIDE_MARGIN ||
+                              y < -CLEAR_OUTSIDE_MARGIN ||
+                              y > windowHeight + CLEAR_OUTSIDE_MARGIN;
+
+    // Only use hadDropZoneDuringDrag safety check at boundary, not when clearly outside
+    // This prevents accidental transfers in split view while allowing intentional outside drops
+    const shouldTransferOutside = isClearlyOutside ||
+                                   (isOutsideWindow && !hadDropZoneDuringDrag.value);
 
     if (shouldTransferOutside && onDropOutsideCallback && tab.filePath) {
       // Check debounce - prevent rapid repeated transfers of the same file
