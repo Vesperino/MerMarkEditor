@@ -6,6 +6,7 @@ import {
   type TabMovePayload,
   createDefaultSplitViewState,
 } from '../types/pane';
+import { t } from '../i18n';
 
 const STORAGE_KEY = 'mermark-split-view';
 const MIN_SPLIT_RATIO = 0.2;
@@ -159,8 +160,7 @@ export function useSplitView(): UseSplitViewReturn {
   };
 
   const getDefaultFileName = (): string => {
-    const lang = navigator.language || 'pl';
-    return lang.startsWith('pl') ? 'Nowy dokument' : 'New Document';
+    return t.value.newDocument;
   };
 
   const createTab = (
