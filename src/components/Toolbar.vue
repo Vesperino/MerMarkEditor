@@ -123,6 +123,7 @@ const closeDropdowns = () => {
 
 const props = defineProps<{
   codeView?: boolean;
+  isSplitActive?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -131,6 +132,7 @@ const emit = defineEmits<{
   saveFileAs: [];
   exportPdf: [];
   toggleCodeView: [];
+  toggleSplit: [];
 }>();
 </script>
 
@@ -466,6 +468,21 @@ const emit = defineEmits<{
         <span>{{ props.codeView ? t.visualView : t.codeView }}</span>
       </button>
 
+      <!-- Split View Toggle -->
+      <button
+        @click="emit('toggleSplit')"
+        :class="{ active: props.isSplitActive }"
+        class="toolbar-btn split-toggle-btn"
+        :title="props.isSplitActive ? t.singleView : t.splitView"
+        :disabled="props.codeView"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="12" y1="3" x2="12" y2="21"/>
+        </svg>
+        <span>{{ props.isSplitActive ? t.singleView : t.splitView }}</span>
+      </button>
+
       <div class="toolbar-separator"></div>
 
       <!-- Auto-save Toggle -->
@@ -619,6 +636,28 @@ const emit = defineEmits<{
   background: #0ea5e9;
   border-color: #0284c7;
   color: white;
+}
+
+.split-toggle-btn {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+
+.split-toggle-btn:hover:not(:disabled) {
+  background: #fde68a;
+  border-color: #fbbf24;
+}
+
+.split-toggle-btn.active {
+  background: #f59e0b;
+  border-color: #d97706;
+  color: white;
+}
+
+.split-toggle-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .heading-select {
