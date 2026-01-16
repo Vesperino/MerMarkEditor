@@ -46,9 +46,14 @@ const injectHighlightStyles = () => {
       z-index: 10;
     }
     .cursor-highlight-line {
-      animation: cursor-pulse 1s ease-out forwards;
+      animation: cursor-pulse 1s ease-out forwards !important;
       position: relative;
       border-radius: 3px;
+    }
+    .ProseMirror .cursor-highlight-line {
+      background-color: rgba(59, 130, 246, 0.5) !important;
+      box-shadow: 0 0 15px 5px rgba(59, 130, 246, 0.3) !important;
+      animation: cursor-pulse 1s ease-out forwards !important;
     }
   `;
   document.head.appendChild(style);
