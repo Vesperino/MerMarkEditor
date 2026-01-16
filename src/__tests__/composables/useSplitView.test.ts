@@ -182,7 +182,23 @@ describe('useSplitView', () => {
       expect(leftPane.value.activeTabId).toBe(tab1);
     });
 
-    it('should create a new tab when closing the last tab', () => {
+    it('should create a new tab when closing the last tab with autoCreateNew=true', () => {
+      const { leftPane, closeTab } = useSplitView();
+
+      // Close all tabs one by one until only one remains
+      while (leftPane.value.tabs.length > 1) {
+        closeTab('left', leftPane.value.tabs[0].id);
+      }
+
+      const lastTabId = leftPane.value.tabs[0].id;
+      closeTab('left', lastTabId, true);
+
+      // Should have created a new tab
+      expect(leftPane.value.tabs.length).toBe(1);
+      expect(leftPane.value.tabs[0].id).not.toBe(lastTabId);
+    });
+
+    it('should leave pane empty when closing the last tab without autoCreateNew', () => {
       const { leftPane, closeTab } = useSplitView();
 
       // Close all tabs one by one until only one remains
@@ -193,9 +209,8 @@ describe('useSplitView', () => {
       const lastTabId = leftPane.value.tabs[0].id;
       closeTab('left', lastTabId);
 
-      // Should have created a new tab
-      expect(leftPane.value.tabs.length).toBe(1);
-      expect(leftPane.value.tabs[0].id).not.toBe(lastTabId);
+      // Pane should be empty
+      expect(leftPane.value.tabs.length).toBe(0);
     });
 
     it('should switch to a specific tab', () => {

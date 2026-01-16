@@ -70,7 +70,7 @@ export interface UseSplitViewReturn {
 
   // Tab Actions (within pane)
   createTab: (paneId: string, filePath?: string | null, content?: string, fileName?: string) => string;
-  closeTab: (paneId: string, tabId: string) => void;
+  closeTab: (paneId: string, tabId: string, autoCreateNew?: boolean) => void;
   removeTabWithoutCreate: (paneId: string, tabId: string) => void;
   isWindowEmpty: () => boolean;
   switchTab: (paneId: string, tabId: string) => void;
@@ -158,12 +158,18 @@ export function useSplitView(): UseSplitViewReturn {
     splitState.value.splitRatio = Math.max(MIN_SPLIT_RATIO, Math.min(MAX_SPLIT_RATIO, ratio));
   };
 
+  const getDefaultFileName = (): string => {
+    const lang = navigator.language || 'pl';
+    return lang.startsWith('pl') ? 'Nowy dokument' : 'New Document';
+  };
+
   const createTab = (
     paneId: string,
     filePath: string | null = null,
     content: string = '<p></p>',
-    fileName: string = 'Nowy dokument'
+    fileName?: string
   ): string => {
+    const actualFileName = fileName ?? getDefaultFileName();
     const pane = findPane(paneId);
     if (!pane) return '';
 
@@ -171,7 +177,7 @@ export function useSplitView(): UseSplitViewReturn {
     const newTab: Tab = {
       id: tabId,
       filePath,
-      fileName,
+      fileName: actualFileName,
       content,
       hasChanges: false,
       scrollTop: 0,
@@ -183,7 +189,7 @@ export function useSplitView(): UseSplitViewReturn {
     return tabId;
   };
 
-  const closeTab = (paneId: string, tabId: string): void => {
+  const closeTab = (paneId: string, tabId: string, autoCreateNew: boolean = false): void => {
     const pane = findPane(paneId);
     if (!pane) return;
 
@@ -196,7 +202,7 @@ export function useSplitView(): UseSplitViewReturn {
       if (pane.tabs.length > 0) {
         const newIndex = Math.max(0, tabIndex - 1);
         pane.activeTabId = pane.tabs[newIndex].id;
-      } else {
+      } else if (autoCreateNew) {
         createTab(paneId);
       }
     }
