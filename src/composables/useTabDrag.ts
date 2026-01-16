@@ -13,20 +13,14 @@ export interface DropZone {
   index: number;
 }
 
-// Singleton state for drag operations
 const isDragging = ref(false);
 const draggedTab = ref<DraggedTab | null>(null);
 const dragGhost = ref<HTMLElement | null>(null);
 const currentDropZone = ref<DropZone | null>(null);
-
-// Mouse position
 const mouseX = ref(0);
 const mouseY = ref(0);
 
-// Callback for when tab is dropped
 let onDropCallback: ((tabId: string, sourcePaneId: string, targetPaneId: string, targetIndex: number) => void) | null = null;
-
-// Callback for when tab is dropped outside window
 let onDropOutsideCallback: ((tabId: string, paneId: string, filePath: string | null) => void) | null = null;
 
 function createGhostElement(tab: DraggedTab): HTMLElement {
@@ -88,7 +82,6 @@ function handleMouseUp(event: MouseEvent): void {
 
   const tab = draggedTab.value;
 
-  // Check if dropped on a valid drop zone
   if (currentDropZone.value && onDropCallback) {
     onDropCallback(
       tab.tabId,
@@ -97,17 +90,14 @@ function handleMouseUp(event: MouseEvent): void {
       currentDropZone.value.index
     );
   } else {
-    // Check if dropped outside window bounds
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     const x = event.clientX;
     const y = event.clientY;
 
-    if (x < 0 || x > windowWidth || y < 0 || y > windowHeight) {
-      // Dropped outside window - open in new window
-      if (onDropOutsideCallback) {
-        onDropOutsideCallback(tab.tabId, tab.paneId, tab.filePath);
-      }
+    const isOutsideWindow = x < 0 || x > windowWidth || y < 0 || y > windowHeight;
+    if (isOutsideWindow && onDropOutsideCallback) {
+      onDropOutsideCallback(tab.tabId, tab.paneId, tab.filePath);
     }
   }
 
@@ -128,7 +118,6 @@ function cleanup(): void {
 
 export function useTabDrag() {
   const startDrag = (tab: DraggedTab, event: MouseEvent): void => {
-    // Prevent starting if already dragging
     if (isDragging.value) return;
 
     isDragging.value = true;
@@ -136,15 +125,11 @@ export function useTabDrag() {
     mouseX.value = event.clientX;
     mouseY.value = event.clientY;
 
-    // Create ghost element
     dragGhost.value = createGhostElement(tab);
     updateGhostPosition(event.clientX, event.clientY);
 
-    // Add listeners
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-
-    // Set cursor
     document.body.style.cursor = 'grabbing';
     document.body.style.userSelect = 'none';
   };

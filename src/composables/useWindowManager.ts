@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export interface TabTransferPayload {
   file_path: string;
@@ -48,6 +49,11 @@ export function useWindowManager() {
     });
   };
 
+  const closeCurrentWindow = async (): Promise<void> => {
+    const window = getCurrentWindow();
+    await window.close();
+  };
+
   return {
     createNewWindow,
     getFilePathFromUrl,
@@ -55,5 +61,6 @@ export function useWindowManager() {
     getCurrentWindowLabel,
     transferTabToWindow,
     onTabTransfer,
+    closeCurrentWindow,
   };
 }
