@@ -16,6 +16,7 @@ const {
   switchTab,
   removeTabWithoutCreate,
   isWindowEmpty,
+  disableSplit,
   updateTabContent,
   updateTabChanges,
   moveTabBetweenPanes,
@@ -23,7 +24,7 @@ const {
 } = useSplitView();
 
 const { setOnDrop, setOnDropOutside } = useTabDrag();
-const { createNewWindow, getAllWindows, getCurrentWindowLabel, transferTabToWindow, closeCurrentWindow } = useWindowManager();
+const { createNewWindow, closeCurrentWindow } = useWindowManager();
 
 const emit = defineEmits<{
   linkClick: [href: string];
@@ -57,15 +58,7 @@ onMounted(() => {
     }
 
     try {
-      const currentWindow = await getCurrentWindowLabel();
-      const allWindows = await getAllWindows();
-      const otherWindows = allWindows.filter(w => w !== currentWindow);
-
-      if (otherWindows.length > 0) {
-        await transferTabToWindow(filePath, currentWindow, otherWindows[0]);
-      } else {
-        await createNewWindow(filePath);
-      }
+      await createNewWindow(filePath);
 
       const pane = splitState.value.panes.find(p => p.id === paneId);
       const tab = pane?.tabs.find(t => t.id === tabId);
@@ -76,6 +69,14 @@ onMounted(() => {
 
       if (isWindowEmpty()) {
         await closeCurrentWindow();
+        return;
+      }
+
+      if (isSplitActive.value) {
+        const sourcePaneAfter = splitState.value.panes.find(p => p.id === paneId);
+        if (sourcePaneAfter && sourcePaneAfter.tabs.length === 0) {
+          disableSplit();
+        }
       }
     } catch (error) {
       console.error('[SplitContainer] Error transferring tab:', error);

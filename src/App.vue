@@ -37,7 +37,11 @@ const {
   findTabByFilePath: findTabByFilePathSplit,
   getActiveTabForPane,
   getAllUnsavedTabs,
+  isWindowEmpty,
+  disableSplit,
 } = useSplitView();
+
+const { closeCurrentWindow } = useWindowManager();
 
 // Compatibility layer for legacy code
 const tabs = computed(() => activePane.value?.tabs || []);
@@ -143,19 +147,32 @@ const findTabByFilePath = (filePath: string) => {
 const showTabCloseDialog = ref(false);
 const tabToClose = ref<{ id: string; paneId: string; fileName: string } | null>(null);
 
-// Handle close tab request from SplitContainer
+const closeTabAndCheckWindow = async (paneId: string, tabId: string) => {
+  closeTabFromSplit(paneId, tabId);
+
+  if (isWindowEmpty()) {
+    await closeCurrentWindow();
+    return;
+  }
+
+  if (isSplitActive.value) {
+    const pane = splitState.value.panes.find(p => p.id === paneId);
+    if (pane && pane.tabs.length === 0) {
+      disableSplit();
+    }
+  }
+};
+
 const handleCloseTabRequest = (paneId: string, tabId: string) => {
-  // Find the tab in the specified pane
   const pane = splitState.value.panes.find(p => p.id === paneId);
   const tab = pane?.tabs.find(t => t.id === tabId);
 
   if (tab?.hasChanges) {
-    // Show confirmation dialog
     tabToClose.value = { id: tabId, paneId, fileName: tab.fileName };
     showTabCloseDialog.value = true;
     return;
   }
-  closeTabFromSplit(paneId, tabId);
+  closeTabAndCheckWindow(paneId, tabId);
 };
 
 const handleTabCloseSave = async () => {
@@ -165,18 +182,17 @@ const handleTabCloseSave = async () => {
   const tab = pane?.tabs.find(t => t.id === tabToClose.value!.id);
 
   if (tab) {
-    // Switch to the tab first if not active
     if (activeTabId.value !== tab.id || activePaneId.value !== tabToClose.value.paneId) {
       splitState.value.activePaneId = tabToClose.value.paneId;
       await switchToTab(tab.id);
     }
-    // Save the file
     await saveFile();
-    // If save was successful (hasChanges becomes false), close the tab
     if (!tab.hasChanges) {
       showTabCloseDialog.value = false;
-      closeTabFromSplit(tabToClose.value.paneId, tabToClose.value.id);
+      const closePaneId = tabToClose.value.paneId;
+      const closeTabId = tabToClose.value.id;
       tabToClose.value = null;
+      await closeTabAndCheckWindow(closePaneId, closeTabId);
     }
   }
 };
@@ -191,8 +207,10 @@ const handleTabCloseDiscard = async () => {
     tab.hasChanges = false;
   }
   showTabCloseDialog.value = false;
-  closeTabFromSplit(tabToClose.value.paneId, tabToClose.value.id);
+  const closePaneId = tabToClose.value.paneId;
+  const closeTabId = tabToClose.value.id;
   tabToClose.value = null;
+  await closeTabAndCheckWindow(closePaneId, closeTabId);
 };
 
 const handleTabCloseCancel = () => {
