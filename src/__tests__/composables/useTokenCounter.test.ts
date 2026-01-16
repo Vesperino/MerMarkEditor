@@ -36,18 +36,18 @@ describe('useTokenCounter', () => {
       expect(isVisible.value).toBe(true);
     });
 
-    it('should have GPT-4 as default model', () => {
+    it('should have GPT as default model', () => {
       const { currentModel, modelName } = useTokenCounter();
-      expect(currentModel.value).toBe('gpt4');
-      expect(modelName.value).toBe('GPT-4 / GPT-4o');
+      expect(currentModel.value).toBe('gpt');
+      expect(modelName.value).toBe('GPT (OpenAI)');
     });
 
     it('should provide list of available models', () => {
       const { availableModels } = useTokenCounter();
       expect(availableModels.length).toBe(3);
-      expect(availableModels.map((m) => m.id)).toContain('gpt4');
+      expect(availableModels.map((m) => m.id)).toContain('gpt');
       expect(availableModels.map((m) => m.id)).toContain('claude');
-      expect(availableModels.map((m) => m.id)).toContain('gpt3');
+      expect(availableModels.map((m) => m.id)).toContain('gemini');
     });
   });
 
@@ -86,8 +86,8 @@ describe('useTokenCounter', () => {
     it('should change the current model', () => {
       const { currentModel, changeModel } = useTokenCounter();
 
-      changeModel('gpt4'); // Reset to known state
-      expect(currentModel.value).toBe('gpt4');
+      changeModel('gpt'); // Reset to known state
+      expect(currentModel.value).toBe('gpt');
 
       changeModel('claude');
       expect(currentModel.value).toBe('claude');
@@ -97,13 +97,13 @@ describe('useTokenCounter', () => {
       const { modelName, changeModel } = useTokenCounter();
 
       changeModel('claude');
-      expect(modelName.value).toBe('Claude');
+      expect(modelName.value).toBe('Claude (Anthropic)');
 
-      changeModel('gpt3');
-      expect(modelName.value).toBe('GPT-3.5');
+      changeModel('gemini');
+      expect(modelName.value).toBe('Gemini (Google)');
 
-      changeModel('gpt4');
-      expect(modelName.value).toBe('GPT-4 / GPT-4o');
+      changeModel('gpt');
+      expect(modelName.value).toBe('GPT (OpenAI)');
     });
 
     it('should recalculate tokens when model changes', () => {
@@ -111,15 +111,15 @@ describe('useTokenCounter', () => {
 
       updateText('This is a test sentence for comparing different AI model tokenizers.');
 
-      changeModel('gpt4');
-      const gpt4Count = tokenCount.value;
+      changeModel('gpt');
+      const gptCount = tokenCount.value;
 
       changeModel('claude');
       const claudeCount = tokenCount.value;
 
       // Counts should be similar but may differ slightly
       // The important thing is that recalculation happens
-      expect(gpt4Count).toBeGreaterThan(0);
+      expect(gptCount).toBeGreaterThan(0);
       expect(claudeCount).toBeGreaterThan(0);
     });
   });

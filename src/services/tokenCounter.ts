@@ -6,7 +6,7 @@
  * without requiring external tokenizer libraries.
  */
 
-export type TokenModelId = 'gpt4' | 'claude' | 'gpt3';
+export type TokenModelId = 'gpt' | 'claude' | 'gemini';
 
 export interface TokenModel {
   id: TokenModelId;
@@ -24,26 +24,35 @@ export interface TokenCountResult {
 
 /**
  * Predefined token models with their characteristics.
- * Values are based on empirical observations of each model's tokenizer.
+ * Values based on official documentation and empirical observations.
+ *
+ * OpenAI models use o200k_base tokenizer (~4 chars/token EN)
+ * Claude models use similar BPE (~3.8 chars/token EN)
+ * Gemini models use ~4 chars/token
  */
 export const TOKEN_MODELS: Record<TokenModelId, TokenModel> = {
-  gpt4: {
-    id: 'gpt4',
-    name: 'GPT-4 / GPT-4o',
+  // OpenAI GPT Models (o200k_base encoding)
+  'gpt': {
+    id: 'gpt',
+    name: 'GPT (OpenAI)',
     charsPerTokenEn: 4.0,
     charsPerTokenOther: 2.8,
   },
-  claude: {
+
+  // Anthropic Claude Models
+  'claude': {
     id: 'claude',
-    name: 'Claude',
+    name: 'Claude (Anthropic)',
     charsPerTokenEn: 3.8,
     charsPerTokenOther: 2.6,
   },
-  gpt3: {
-    id: 'gpt3',
-    name: 'GPT-3.5',
-    charsPerTokenEn: 4.2,
-    charsPerTokenOther: 3.0,
+
+  // Google Gemini Models
+  'gemini': {
+    id: 'gemini',
+    name: 'Gemini (Google)',
+    charsPerTokenEn: 4.0,
+    charsPerTokenOther: 2.8,
   },
 };
 
@@ -85,7 +94,7 @@ function countWords(text: string): number {
 export class TokenCounter {
   private model: TokenModel;
 
-  constructor(modelId: TokenModelId = 'gpt4') {
+  constructor(modelId: TokenModelId = 'gpt') {
     this.model = TOKEN_MODELS[modelId];
   }
 

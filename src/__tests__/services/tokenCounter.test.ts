@@ -14,9 +14,9 @@ describe('TokenCounter', () => {
   });
 
   describe('constructor', () => {
-    it('should default to GPT-4 model', () => {
+    it('should default to GPT model', () => {
       const result = counter.count('test');
-      expect(result.model.id).toBe('gpt4');
+      expect(result.model.id).toBe('gpt');
     });
 
     it('should accept a model ID parameter', () => {
@@ -69,8 +69,8 @@ describe('TokenCounter', () => {
     it('should include model info in result', () => {
       const result = counter.count('test');
       expect(result.model).toBeDefined();
-      expect(result.model.id).toBe('gpt4');
-      expect(result.model.name).toBe('GPT-4 / GPT-4o');
+      expect(result.model.id).toBe('gpt');
+      expect(result.model.name).toBe('GPT (OpenAI)');
     });
 
     it('should handle whitespace-only text', () => {
@@ -103,47 +103,45 @@ describe('TokenCounter', () => {
     it('should affect token count', () => {
       const text = 'This is a test sentence for comparing models.';
 
-      counter.setModel('gpt4');
-      const gpt4Result = counter.count(text);
+      counter.setModel('gpt');
+      const gptResult = counter.count(text);
 
       counter.setModel('claude');
       const claudeResult = counter.count(text);
 
       // Results should be similar but not necessarily identical
-      expect(Math.abs(gpt4Result.tokens - claudeResult.tokens)).toBeLessThan(10);
+      expect(Math.abs(gptResult.tokens - claudeResult.tokens)).toBeLessThan(10);
     });
   });
 
   describe('getModel', () => {
     it('should return current model', () => {
       const model = counter.getModel();
-      expect(model.id).toBe('gpt4');
+      expect(model.id).toBe('gpt');
       expect(model.name).toBeDefined();
       expect(model.charsPerTokenEn).toBeDefined();
       expect(model.charsPerTokenOther).toBeDefined();
     });
 
     it('should reflect model changes', () => {
-      counter.setModel('gpt3');
+      counter.setModel('gemini');
       const model = counter.getModel();
-      expect(model.id).toBe('gpt3');
+      expect(model.id).toBe('gemini');
     });
   });
 
   describe('TOKEN_MODELS', () => {
-    it('should have gpt4 model', () => {
-      expect(TOKEN_MODELS.gpt4).toBeDefined();
-      expect(TOKEN_MODELS.gpt4.id).toBe('gpt4');
+    it('should have gpt model', () => {
+      expect(TOKEN_MODELS['gpt']).toBeDefined();
+      expect(TOKEN_MODELS['gpt'].id).toBe('gpt');
     });
 
     it('should have claude model', () => {
-      expect(TOKEN_MODELS.claude).toBeDefined();
-      expect(TOKEN_MODELS.claude.id).toBe('claude');
+      expect(TOKEN_MODELS['claude']).toBeDefined();
     });
 
-    it('should have gpt3 model', () => {
-      expect(TOKEN_MODELS.gpt3).toBeDefined();
-      expect(TOKEN_MODELS.gpt3.id).toBe('gpt3');
+    it('should have gemini model', () => {
+      expect(TOKEN_MODELS['gemini']).toBeDefined();
     });
 
     it('should have valid character ratios for all models', () => {
@@ -163,19 +161,19 @@ describe('TokenCounter', () => {
       expect(models.length).toBe(3);
     });
 
-    it('should include all defined models', () => {
+    it('should include key models', () => {
       const models = getAvailableModels();
       const modelIds = models.map((m) => m.id);
-      expect(modelIds).toContain('gpt4');
+      expect(modelIds).toContain('gpt');
       expect(modelIds).toContain('claude');
-      expect(modelIds).toContain('gpt3');
+      expect(modelIds).toContain('gemini');
     });
   });
 
   describe('createTokenCounter', () => {
     it('should create counter with default model', () => {
       const counter = createTokenCounter();
-      expect(counter.getModel().id).toBe('gpt4');
+      expect(counter.getModel().id).toBe('gpt');
     });
 
     it('should create counter with specified model', () => {

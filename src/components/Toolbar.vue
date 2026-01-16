@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, ref, computed, watch, type Ref } from "vue";
+import { inject, ref, computed, watch, onUnmounted, type Ref } from "vue";
 import type { Editor } from "@tiptap/vue-3";
 import { useI18n } from "../i18n";
 import { useSettings } from "../composables/useSettings";
@@ -20,6 +20,9 @@ const editor = inject<Ref<Editor | null>>("editor");
 
 const showTableMenu = ref(false);
 
+// Reactive counter for triggering recomputation when editor updates
+const editorUpdateCounter = ref(0);
+
 const isActive = (name: string | Record<string, unknown>, attrs?: Record<string, unknown>) => {
   if (typeof name === 'object') {
     return editor?.value?.isActive(name) ?? false;
@@ -34,32 +37,56 @@ const runCommand = (callback: (e: Editor) => void) => {
   }
 };
 
-// Character count
+// Character count - depends on editorUpdateCounter for reactivity
 const characterCount = computed(() => {
+  // Access update counter to make computed reactive to editor changes
+  void editorUpdateCounter.value;
   return editor?.value?.storage.characterCount?.characters() ?? 0;
 });
 
 const wordCount = computed(() => {
+  // Access update counter to make computed reactive to editor changes
+  void editorUpdateCounter.value;
   return editor?.value?.storage.characterCount?.words() ?? 0;
 });
 
 // Token counter menu
 const showTokenMenu = ref(false);
 
-// Update token count when editor content changes
+// Editor update handler
+const onEditorUpdate = () => {
+  editorUpdateCounter.value++;
+  const ed = editor?.value;
+  if (ed && typeof ed.getText === 'function') {
+    updateText(ed.getText());
+  }
+};
+
+// Watch for editor instance changes
 watch(
-  () => {
-    const ed = editor?.value;
-    if (ed && typeof ed.getText === 'function') {
-      return ed.getText();
+  () => editor?.value,
+  (newEditor, oldEditor) => {
+    // Remove listener from old editor
+    if (oldEditor) {
+      oldEditor.off('update', onEditorUpdate);
     }
-    return '';
-  },
-  (text) => {
-    updateText(text);
+    // Add listener to new editor
+    if (newEditor) {
+      newEditor.on('update', onEditorUpdate);
+      // Trigger initial update
+      editorUpdateCounter.value++;
+      updateText(newEditor.getText());
+    }
   },
   { immediate: true }
 );
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (editor?.value) {
+    editor.value.off('update', onEditorUpdate);
+  }
+});
 
 // Heading control
 const currentHeadingLevel = computed(() => {
@@ -156,6 +183,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  newFile: [];
   openFile: [];
   saveFile: [];
   saveFileAs: [];
@@ -170,6 +198,15 @@ const emit = defineEmits<{
     <div class="toolbar-row">
       <!-- File operations -->
       <div class="toolbar-group">
+        <button @click="emit('newFile')" class="toolbar-btn" :title="`${t.new} (Ctrl+N)`">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+          <span>{{ t.new }}</span>
+        </button>
         <button @click="emit('openFile')" class="toolbar-btn" :title="`${t.open} (Ctrl+O)`">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>

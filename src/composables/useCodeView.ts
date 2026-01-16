@@ -16,12 +16,81 @@ export interface UseCodeViewReturn {
   onCodeContentUpdate: (value: string) => void;
 }
 
+// Inject CSS for cursor highlight animation
+const injectHighlightStyles = () => {
+  const styleId = 'cursor-highlight-styles';
+  if (document.getElementById(styleId)) return;
+
+  const style = document.createElement('style');
+  style.id = styleId;
+  style.textContent = `
+    @keyframes cursor-pulse {
+      0% {
+        background-color: rgba(59, 130, 246, 0.5);
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+      }
+      50% {
+        background-color: rgba(59, 130, 246, 0.3);
+        box-shadow: 0 0 15px 5px rgba(59, 130, 246, 0.3);
+      }
+      100% {
+        background-color: transparent;
+        box-shadow: 0 0 0 0 transparent;
+      }
+    }
+    .cursor-highlight {
+      animation: cursor-pulse 1s ease-out forwards;
+      border-radius: 3px;
+      pointer-events: none;
+      position: absolute;
+      z-index: 10;
+    }
+    .cursor-highlight-line {
+      animation: cursor-pulse 1s ease-out forwards;
+      position: relative;
+      border-radius: 3px;
+    }
+  `;
+  document.head.appendChild(style);
+};
+
+
+// Highlight cursor position in code editor
+const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
+  const cursorPos = textarea.selectionStart;
+  const content = textarea.value;
+
+  // Find the line containing the cursor
+  const textBefore = content.slice(0, cursorPos);
+  const lineNumber = textBefore.split('\n').length - 1;
+
+  // Create a temporary overlay element
+  const lineHeight = 22.4; // Should match CSS
+  const paddingTop = 16; // Padding from CodeEditor.vue
+
+  const highlight = document.createElement('div');
+  highlight.className = 'cursor-highlight';
+
+  const textareaRect = textarea.getBoundingClientRect();
+  highlight.style.position = 'absolute';
+  highlight.style.left = `${textareaRect.left + 16}px`;
+  highlight.style.top = `${textareaRect.top + paddingTop + (lineNumber * lineHeight) - textarea.scrollTop}px`;
+  highlight.style.width = `${textareaRect.width - 32}px`;
+  highlight.style.height = `${lineHeight}px`;
+
+  document.body.appendChild(highlight);
+  setTimeout(() => highlight.remove(), 1000);
+};
+
 export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const codeView = ref(false);
   const codeContent = ref('');
   const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
   const savedScrollRatio = ref(0);
   const savedCursorText = ref('');
+
+  // Inject styles on module load
+  injectHighlightStyles();
 
   const { getActiveContent, setActiveContent, markAsChanged } = options;
 
@@ -58,8 +127,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         }
       }
 
-      // Save current scroll ratio as fallback
-      const editorContainer = document.querySelector('.editor-container');
+      // Save current scroll ratio as fallback (use active pane selector for split view)
+      const editorContainer = document.querySelector('.editor-pane.active .editor-container');
       if (editorContainer) {
         const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
         savedScrollRatio.value = maxScroll > 0 ? editorContainer.scrollTop / maxScroll : 0;
@@ -96,6 +165,13 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           codeEditorRef.value.scrollTop = targetScroll;
           codeEditorRef.value.focus();
         }
+
+        // Highlight cursor position after a brief delay for DOM to settle
+        setTimeout(() => {
+          if (codeEditorRef.value) {
+            highlightCodeCursor(codeEditorRef.value);
+          }
+        }, 100);
       }
     } else {
       // Switching back to visual view
@@ -125,57 +201,61 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       markAsChanged();
       codeView.value = false;
 
-      // Find and scroll to the matching content in visual editor
+      // After switching back to visual, the editor component remounts and creates a new editor instance.
+      // The editor passed to this function is the old instance that gets destroyed.
+      // We need to wait for the new editor to be ready and use DOM-based scrolling instead.
+      // Content is already set via setActiveContent() which updates the tab content.
+
+      // Wait for DOM to settle and use scroll ratio to restore position
       await nextTick();
       await nextTick();
-      await nextTick();
 
-      let scrollDone = false;
-      if (savedCursorText.value && editor) {
-        const searchText = savedCursorText.value;
-
-        let foundPos = -1;
-        editor.state.doc.descendants((node, pos) => {
-          if (foundPos !== -1) return false;
-
-          if (node.isBlock && node.textContent) {
-            const nodeText = node.textContent.trim();
-            if (nodeText.includes(searchText) || searchText.includes(nodeText.slice(0, 30))) {
-              foundPos = pos;
-              return false;
-            }
-          }
-          return true;
-        });
-
-        if (foundPos !== -1) {
-          editor.commands.setTextSelection(foundPos + 1);
-
-          await nextTick();
-          const editorContainer = document.querySelector('.editor-container');
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0 && editorContainer) {
-            const range = selection.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            const containerRect = editorContainer.getBoundingClientRect();
-
-            if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) {
-              const scrollOffset = rect.top - containerRect.top + editorContainer.scrollTop - 100;
-              editorContainer.scrollTop = Math.max(0, scrollOffset);
-            }
-          }
-          scrollDone = true;
-        }
-      }
-
-      if (!scrollDone) {
-        const editorContainer = document.querySelector('.editor-container');
+      // Use setTimeout to ensure the new editor has fully mounted
+      setTimeout(() => {
+        const editorContainer = document.querySelector('.editor-pane.active .editor-container');
         if (editorContainer) {
           const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
+
+          if (savedCursorText.value) {
+            // Try to find the text in the DOM and scroll to it
+            const proseMirror = editorContainer.querySelector('.ProseMirror');
+            if (proseMirror) {
+              const walker = document.createTreeWalker(
+                proseMirror,
+                NodeFilter.SHOW_TEXT,
+                null
+              );
+
+              let foundNode: Node | null = null;
+              let node: Node | null;
+              while ((node = walker.nextNode())) {
+                if (node.textContent?.includes(savedCursorText.value)) {
+                  foundNode = node;
+                  break;
+                }
+              }
+
+              if (foundNode && foundNode.parentElement) {
+                const rect = foundNode.parentElement.getBoundingClientRect();
+                const containerRect = editorContainer.getBoundingClientRect();
+                const scrollOffset = rect.top - containerRect.top + editorContainer.scrollTop - 100;
+                editorContainer.scrollTop = Math.max(0, scrollOffset);
+
+                // Highlight the found element
+                foundNode.parentElement.classList.add('cursor-highlight-line');
+                setTimeout(() => {
+                  foundNode?.parentElement?.classList.remove('cursor-highlight-line');
+                }, 1000);
+                return;
+              }
+            }
+          }
+
+          // Fallback: use scroll ratio
           const targetScroll = Math.round(savedScrollRatio.value * maxScroll);
           editorContainer.scrollTop = targetScroll;
         }
-      }
+      }, 150);
     }
   };
 
