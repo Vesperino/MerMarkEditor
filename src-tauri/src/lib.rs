@@ -1,10 +1,14 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::collections::HashMap;
 use tauri::{Manager, Emitter, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
 use serde::{Deserialize, Serialize};
 
 // Store the file path to be opened (from CLI args or file association)
 pub struct OpenFileState(pub Mutex<Option<String>>);
+
+// Global registry of open files: file_path -> window_label
+pub struct OpenFilesRegistry(pub Mutex<HashMap<String, String>>);
 
 // Counter for unique window IDs
 static WINDOW_COUNTER: AtomicU32 = AtomicU32::new(1);
@@ -21,6 +25,70 @@ pub struct TabTransferPayload {
 fn get_open_file_path(state: tauri::State<'_, OpenFileState>) -> Option<String> {
     let mut path = state.0.lock().unwrap();
     path.take()
+}
+
+// Register a file as open in a specific window
+#[tauri::command]
+fn register_open_file(
+    registry: tauri::State<'_, OpenFilesRegistry>,
+    file_path: String,
+    window_label: String,
+) {
+    let mut files = registry.0.lock().unwrap();
+    files.insert(file_path, window_label);
+}
+
+// Unregister a file when it's closed
+#[tauri::command]
+fn unregister_open_file(
+    registry: tauri::State<'_, OpenFilesRegistry>,
+    file_path: String,
+) {
+    let mut files = registry.0.lock().unwrap();
+    files.remove(&file_path);
+}
+
+// Unregister all files for a specific window (when window closes)
+#[tauri::command]
+fn unregister_window_files(
+    registry: tauri::State<'_, OpenFilesRegistry>,
+    window_label: String,
+) {
+    let mut files = registry.0.lock().unwrap();
+    files.retain(|_, label| label != &window_label);
+}
+
+// Check if a file is already open and return the window label if so
+#[tauri::command]
+fn check_file_open(
+    registry: tauri::State<'_, OpenFilesRegistry>,
+    file_path: String,
+) -> Option<String> {
+    let files = registry.0.lock().unwrap();
+    files.get(&file_path).cloned()
+}
+
+// Focus the window that has a specific file open
+#[tauri::command]
+async fn focus_window_with_file(
+    app: tauri::AppHandle,
+    registry: tauri::State<'_, OpenFilesRegistry>,
+    file_path: String,
+) -> Result<bool, String> {
+    let window_label = {
+        let files = registry.0.lock().unwrap();
+        files.get(&file_path).cloned()
+    };
+
+    if let Some(label) = window_label {
+        if let Some(window) = app.get_webview_window(&label) {
+            window.set_focus().map_err(|e| e.to_string())?;
+            // Emit event to switch to the tab with this file
+            window.emit("focus-file", file_path).map_err(|e| e.to_string())?;
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 #[tauri::command]
@@ -117,12 +185,18 @@ pub fn run() {
             }
         }))
         .manage(OpenFileState(Mutex::new(None)))
+        .manage(OpenFilesRegistry(Mutex::new(HashMap::new())))
         .invoke_handler(tauri::generate_handler![
             get_open_file_path,
             create_new_window,
             get_all_windows,
             get_current_window_label,
-            transfer_tab_to_window
+            transfer_tab_to_window,
+            register_open_file,
+            unregister_open_file,
+            unregister_window_files,
+            check_file_open,
+            focus_window_with_file
         ])
         .setup(|app| {
             // Check for CLI arguments (file association on first launch)
