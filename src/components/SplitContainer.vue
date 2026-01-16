@@ -26,7 +26,7 @@ const {
 } = useSplitView();
 
 const { setOnDrop, setOnDropOutside } = useTabDrag();
-const { createNewWindow, closeCurrentWindow } = useWindowManager();
+const { createNewWindow, closeCurrentWindow, unregisterOpenFile } = useWindowManager();
 
 const emit = defineEmits<{
   linkClick: [href: string];
@@ -67,6 +67,10 @@ onMounted(() => {
         const markdownContent = htmlToMarkdown(tab.content);
         await writeTextFile(filePath, markdownContent);
       }
+
+      // Unregister the file from this window BEFORE creating new window
+      // so the new window can properly register and open it
+      await unregisterOpenFile(filePath);
 
       await createNewWindow(filePath);
 
