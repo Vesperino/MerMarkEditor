@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { inject, ref, computed, type Ref } from "vue";
+import { inject, ref, computed, watch, type Ref } from "vue";
 import type { Editor } from "@tiptap/vue-3";
 import { useI18n } from "../i18n";
 import { useSettings } from "../composables/useSettings";
+import { useTokenCounter } from "../composables/useTokenCounter";
 
 const { t, locale, toggleLocale } = useI18n();
 const { settings, toggleAutoSave } = useSettings();
+const {
+  tokenCount,
+  modelName,
+  isVisible: showTokens,
+  currentModel,
+  availableModels,
+  updateText,
+  changeModel,
+} = useTokenCounter();
 const editor = inject<Ref<Editor | null>>("editor");
 
 const showTableMenu = ref(false);
@@ -32,6 +42,24 @@ const characterCount = computed(() => {
 const wordCount = computed(() => {
   return editor?.value?.storage.characterCount?.words() ?? 0;
 });
+
+// Token counter menu
+const showTokenMenu = ref(false);
+
+// Update token count when editor content changes
+watch(
+  () => {
+    const ed = editor?.value;
+    if (ed && typeof ed.getText === 'function') {
+      return ed.getText();
+    }
+    return '';
+  },
+  (text) => {
+    updateText(text);
+  },
+  { immediate: true }
+);
 
 // Heading control
 const currentHeadingLevel = computed(() => {
@@ -119,6 +147,7 @@ const insertMermaid = () => {
 // Close dropdowns when clicking outside
 const closeDropdowns = () => {
   showTableMenu.value = false;
+  showTokenMenu.value = false;
 };
 
 const props = defineProps<{
@@ -445,6 +474,38 @@ const emit = defineEmits<{
         <span>{{ characterCount }} {{ t.characters }}</span>
         <span class="separator">|</span>
         <span>{{ wordCount }} {{ t.words }}</span>
+        <template v-if="showTokens">
+          <span class="separator">|</span>
+          <div class="token-counter dropdown-container">
+            <button
+              class="token-btn"
+              @click.stop="showTokenMenu = !showTokenMenu"
+              :title="t.tokensTooltip"
+            >
+              <span class="token-count">~{{ tokenCount }}</span>
+              <span class="token-label">{{ t.tokens }}</span>
+              <span class="token-model">({{ modelName }})</span>
+              <svg class="token-chevron" :class="{ open: showTokenMenu }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div v-if="showTokenMenu" class="dropdown-menu token-menu">
+              <button
+                v-for="model in availableModels"
+                :key="model.id"
+                @click="changeModel(model.id); showTokenMenu = false"
+                class="dropdown-item"
+                :class="{ active: currentModel === model.id }"
+              >
+                <svg v-if="currentModel === model.id" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span v-else style="width: 16px; display: inline-block;"></span>
+                {{ model.name }}
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
 
       <div class="toolbar-separator"></div>
@@ -819,5 +880,69 @@ const emit = defineEmits<{
   color: #1e293b;
   font-weight: 500;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Token Counter */
+.token-counter {
+  display: inline-flex;
+  position: relative;
+}
+
+.token-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #94a3b8;
+  transition: all 0.15s;
+}
+
+.token-btn:hover {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.token-count {
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+.token-label {
+  color: inherit;
+}
+
+.token-model {
+  color: #a1a1aa;
+  font-size: 11px;
+}
+
+.token-chevron {
+  transition: transform 0.2s;
+  margin-left: 2px;
+}
+
+.token-chevron.open {
+  transform: rotate(180deg);
+}
+
+.token-menu {
+  right: 0;
+  left: auto;
+  min-width: 140px;
+}
+
+.token-menu .dropdown-item {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.token-menu .dropdown-item.active {
+  background: #f0fdf4;
+  color: #16a34a;
 }
 </style>
