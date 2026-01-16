@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { useSplitView } from '../composables/useSplitView';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useWindowManager } from '../composables/useWindowManager';
@@ -65,10 +65,7 @@ onMounted(() => {
 
       if (tab && tab.content) {
         const markdownContent = htmlToMarkdown(tab.content);
-        await invoke('write_file', {
-          filePath,
-          content: markdownContent,
-        });
+        await writeTextFile(filePath, markdownContent);
       }
 
       await createNewWindow(filePath);
