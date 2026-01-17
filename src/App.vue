@@ -72,30 +72,20 @@ const isLoadingContent = ref(true);
 const editorInstance = ref<TiptapEditor | null>(null);
 
 // Provide editor to child components (get from active pane)
-const updateEditorInstance = () => {
+// Use watchEffect to automatically re-run when any reactive dependency changes
+// This handles async editor initialization properly
+watchEffect(() => {
   if (splitContainerRef.value) {
     const paneRef = activePaneId.value === 'left'
       ? splitContainerRef.value.leftPaneRef
       : splitContainerRef.value.rightPaneRef;
     // Vue automatically unwraps ComputedRef from defineExpose, so paneRef.editor is already Editor | undefined
-    if (paneRef?.editor) {
-      editorInstance.value = paneRef.editor;
+    const editor = paneRef?.editor;
+    if (editor) {
+      editorInstance.value = editor;
     }
   }
-};
-
-// Update editor instance when active pane changes
-watch(activePaneId, updateEditorInstance, { immediate: true });
-
-// Also watch for when the split container becomes available (after mount)
-watch(
-  () => splitContainerRef.value,
-  () => {
-    // Small delay to ensure child components have mounted
-    setTimeout(updateEditorInstance, 50);
-  },
-  { immediate: true }
-);
+});
 
 provide('editor', editorInstance);
 
