@@ -104,7 +104,6 @@ const setHeading = (level: number) => {
   if (level === 0) {
     runCommand((e) => e.chain().focus().setParagraph().run());
   } else {
-    // Use setHeading (not toggle) to properly convert selected text to heading
     runCommand((e) => e.chain().focus().setHeading({ level: level as 1|2|3|4|5|6 }).run());
   }
 };
