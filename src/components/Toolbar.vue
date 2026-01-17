@@ -34,6 +34,7 @@ const isActive = (name: string | Record<string, unknown>, attrs?: Record<string,
 const runCommand = (callback: (e: Editor) => void) => {
   if (editor?.value) {
     callback(editor.value);
+    editor.value.commands.focus();
   }
 };
 
