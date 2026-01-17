@@ -67,6 +67,14 @@
 - **Jasny/Ciemny motyw** - Komfort dla oczu
 - **Licznik znaków i słów** - Śledź postępy
 - **Automatyczny zapis** - Nigdy nie stracisz pracy
+- **Dwujęzyczny interfejs** - Polski i angielski
+
+### Zaawansowane funkcje
+- **Widok podzielony** - Edycja dwóch dokumentów obok siebie z regulowaną proporcją
+- **Widok kodu** - Przełączanie między edytorem wizualnym a kodem Markdown ze śledzeniem kursora
+- **Licznik tokenów AI** - Szacowanie tokenów dla GPT (OpenAI), Claude (Anthropic) i Gemini (Google)
+- **Obsługa wielu okien** - Otwieranie wielu niezależnych okien edytora
+- **Zarządzanie kartami między oknami** - Przeciąganie kart między panelami i oknami
 
 ---
 
@@ -100,6 +108,30 @@
   <img src="assets/screenshots/code-and-documentation.png" alt="MerMark Editor - Kod i dokumentacja" width="800">
   <br>
   <em>Dokumentacja techniczna z blokami kodu i osadzonymi diagramami</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/split-view.png" alt="MerMark Editor - Widok podzielony" width="800">
+  <br>
+  <em>Widok podzielony do edycji dwóch dokumentów jednocześnie</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/code-view.png" alt="MerMark Editor - Widok kodu" width="800">
+  <br>
+  <em>Przełączanie między widokiem wizualnym a kodem Markdown ze śledzeniem kursora</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/token-counter.png" alt="MerMark Editor - Licznik tokenów" width="800">
+  <br>
+  <em>Licznik tokenów AI z wyborem modelu (GPT, Claude, Gemini)</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/multi-window.png" alt="MerMark Editor - Wiele okien" width="800">
+  <br>
+  <em>Wiele okien z przeciąganiem kart między oknami</em>
 </p>
 
 ---
