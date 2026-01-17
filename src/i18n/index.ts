@@ -66,6 +66,10 @@ export interface Translations {
   codeView: string;
   visualView: string;
 
+  // Toolbar - Split View
+  splitView: string;
+  singleView: string;
+
   // Stats
   characters: string;
   words: string;
@@ -186,6 +190,10 @@ const translations: Record<Locale, Translations> = {
     codeView: 'Code',
     visualView: 'Visual',
 
+    // Toolbar - Split View
+    splitView: 'Split',
+    singleView: 'Single',
+
     // Stats
     characters: 'characters',
     words: 'words',
@@ -304,6 +312,10 @@ const translations: Record<Locale, Translations> = {
     // Toolbar - Code View
     codeView: 'Kod',
     visualView: 'Wizualny',
+
+    // Toolbar - Split View
+    splitView: 'Podziel',
+    singleView: 'Pojedynczy',
 
     // Stats
     characters: 'znaków',
