@@ -4,6 +4,7 @@ import type { Editor } from "@tiptap/vue-3";
 import { useI18n } from "../i18n";
 import { useSettings } from "../composables/useSettings";
 import { useTokenCounter } from "../composables/useTokenCounter";
+import { htmlToMarkdown } from "../utils/markdown-converter";
 
 const { t, locale, toggleLocale } = useI18n();
 const { settings, toggleAutoSave } = useSettings();
@@ -33,7 +34,6 @@ const isActive = (name: string | Record<string, unknown>, attrs?: Record<string,
 const runCommand = (callback: (e: Editor) => void) => {
   if (editor?.value) {
     callback(editor.value);
-    editor.value.commands.focus();
   }
 };
 
@@ -57,8 +57,10 @@ const showTokenMenu = ref(false);
 const onEditorUpdate = () => {
   editorUpdateCounter.value++;
   const ed = editor?.value;
-  if (ed && typeof ed.getText === 'function') {
-    updateText(ed.getText());
+  if (ed && typeof ed.getHTML === 'function') {
+    // Convert HTML to Markdown for accurate token counting
+    const markdown = htmlToMarkdown(ed.getHTML());
+    updateText(markdown);
   }
 };
 
@@ -75,7 +77,8 @@ watch(
       newEditor.on('update', onEditorUpdate);
       // Trigger initial update
       editorUpdateCounter.value++;
-      updateText(newEditor.getText());
+      const markdown = htmlToMarkdown(newEditor.getHTML());
+      updateText(markdown);
     }
   },
   { immediate: true }

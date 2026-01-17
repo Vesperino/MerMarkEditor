@@ -3,6 +3,11 @@ import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import Toolbar from '../../components/Toolbar.vue';
 
+// Mock markdown converter
+vi.mock('../../utils/markdown-converter', () => ({
+  htmlToMarkdown: vi.fn(() => 'mock markdown content'),
+}));
+
 // Mock editor for injection
 const createMockEditor = (options: {
   isActive?: (name: string, attrs?: Record<string, unknown>) => boolean;
@@ -70,6 +75,7 @@ const createMockEditor = (options: {
     on: vi.fn(),
     off: vi.fn(),
     getText: () => 'mock text content',
+    getHTML: () => '<p>mock html content</p>',
   });
 };
 
@@ -444,12 +450,12 @@ describe('Toolbar Component', () => {
       expect(mockEditor.value.on).toHaveBeenCalledWith('update', expect.any(Function));
     });
 
-    it('should call getText when editor emits update', async () => {
+    it('should call getHTML when editor emits update (for token counting)', async () => {
       const mockEditor = createMockEditor();
       let updateCallback: (() => void) | undefined;
 
-      // Make getText a spy
-      mockEditor.value.getText = vi.fn().mockReturnValue('mock text content');
+      // Make getHTML a spy
+      mockEditor.value.getHTML = vi.fn().mockReturnValue('<p>mock html content</p>');
 
       // Capture the update callback when it's registered
       mockEditor.value.on = vi.fn((event: string, callback: () => void) => {
@@ -471,7 +477,7 @@ describe('Toolbar Component', () => {
         updateCallback();
       }
 
-      expect(mockEditor.value.getText).toHaveBeenCalled();
+      expect(mockEditor.value.getHTML).toHaveBeenCalled();
     });
   });
 
