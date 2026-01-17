@@ -416,6 +416,135 @@ describe('Toolbar Component', () => {
       const select = wrapper.find('.heading-select');
       expect((select.element as HTMLSelectElement).value).toBe('2');
     });
+
+    it('calls setHeading when heading level is changed', async () => {
+      const setHeadingRun = vi.fn();
+      const mockEditor = ref({
+        isActive: () => false,
+        can: () => ({ undo: () => true, redo: () => true }),
+        chain: () => ({
+          focus: () => ({
+            setHeading: () => ({ run: setHeadingRun }),
+            setParagraph: () => ({ run: vi.fn() }),
+            undo: () => ({ run: vi.fn() }),
+            redo: () => ({ run: vi.fn() }),
+            toggleBold: () => ({ run: vi.fn() }),
+            toggleItalic: () => ({ run: vi.fn() }),
+            toggleStrike: () => ({ run: vi.fn() }),
+            toggleCode: () => ({ run: vi.fn() }),
+            toggleBulletList: () => ({ run: vi.fn() }),
+            toggleOrderedList: () => ({ run: vi.fn() }),
+            toggleTaskList: () => ({ run: vi.fn() }),
+            toggleBlockquote: () => ({ run: vi.fn() }),
+            toggleCodeBlock: () => ({ run: vi.fn() }),
+            setHorizontalRule: () => ({ run: vi.fn() }),
+            insertTable: () => ({ run: vi.fn() }),
+            addRowBefore: () => ({ run: vi.fn() }),
+            addRowAfter: () => ({ run: vi.fn() }),
+            addColumnBefore: () => ({ run: vi.fn() }),
+            addColumnAfter: () => ({ run: vi.fn() }),
+            deleteRow: () => ({ run: vi.fn() }),
+            deleteColumn: () => ({ run: vi.fn() }),
+            deleteTable: () => ({ run: vi.fn() }),
+            setLink: () => ({ run: vi.fn() }),
+            unsetLink: () => ({ run: vi.fn() }),
+            setImage: () => ({ run: vi.fn() }),
+            run: vi.fn(),
+          }),
+        }),
+        commands: { focus: vi.fn(), insertMermaid: vi.fn() },
+        getAttributes: () => ({ href: '' }),
+        storage: { characterCount: { characters: () => 0, words: () => 0 } },
+        on: vi.fn(),
+        off: vi.fn(),
+        getText: () => '',
+        getHTML: () => '<p></p>',
+      });
+
+      const wrapper = mount(Toolbar, {
+        global: {
+          provide: { editor: mockEditor },
+        },
+      });
+
+      const select = wrapper.find('.heading-select');
+      await select.setValue('2');
+
+      expect(setHeadingRun).toHaveBeenCalled();
+    });
+
+    it('calls setParagraph when paragraph option is selected', async () => {
+      const setParagraphRun = vi.fn();
+      const mockEditor = ref({
+        isActive: (name: string, attrs?: Record<string, unknown>) =>
+          name === 'heading' && attrs?.level === 2,
+        can: () => ({ undo: () => true, redo: () => true }),
+        chain: () => ({
+          focus: () => ({
+            setHeading: () => ({ run: vi.fn() }),
+            setParagraph: () => ({ run: setParagraphRun }),
+            undo: () => ({ run: vi.fn() }),
+            redo: () => ({ run: vi.fn() }),
+            toggleBold: () => ({ run: vi.fn() }),
+            toggleItalic: () => ({ run: vi.fn() }),
+            toggleStrike: () => ({ run: vi.fn() }),
+            toggleCode: () => ({ run: vi.fn() }),
+            toggleBulletList: () => ({ run: vi.fn() }),
+            toggleOrderedList: () => ({ run: vi.fn() }),
+            toggleTaskList: () => ({ run: vi.fn() }),
+            toggleBlockquote: () => ({ run: vi.fn() }),
+            toggleCodeBlock: () => ({ run: vi.fn() }),
+            setHorizontalRule: () => ({ run: vi.fn() }),
+            insertTable: () => ({ run: vi.fn() }),
+            addRowBefore: () => ({ run: vi.fn() }),
+            addRowAfter: () => ({ run: vi.fn() }),
+            addColumnBefore: () => ({ run: vi.fn() }),
+            addColumnAfter: () => ({ run: vi.fn() }),
+            deleteRow: () => ({ run: vi.fn() }),
+            deleteColumn: () => ({ run: vi.fn() }),
+            deleteTable: () => ({ run: vi.fn() }),
+            setLink: () => ({ run: vi.fn() }),
+            unsetLink: () => ({ run: vi.fn() }),
+            setImage: () => ({ run: vi.fn() }),
+            run: vi.fn(),
+          }),
+        }),
+        commands: { focus: vi.fn(), insertMermaid: vi.fn() },
+        getAttributes: () => ({ href: '' }),
+        storage: { characterCount: { characters: () => 0, words: () => 0 } },
+        on: vi.fn(),
+        off: vi.fn(),
+        getText: () => '',
+        getHTML: () => '<p></p>',
+      });
+
+      const wrapper = mount(Toolbar, {
+        global: {
+          provide: { editor: mockEditor },
+        },
+      });
+
+      const select = wrapper.find('.heading-select');
+      // Select is currently at heading 2 (due to isActive mock), change to paragraph
+      await select.setValue('0');
+
+      expect(setParagraphRun).toHaveBeenCalled();
+    });
+
+    it('does not call editor commands when editor is null', async () => {
+      const wrapper = mount(Toolbar, {
+        global: {
+          provide: { editor: ref(null) },
+        },
+      });
+
+      const select = wrapper.find('.heading-select');
+      // This should not throw, just silently do nothing
+      await select.setValue('2');
+
+      // Test passes if no error is thrown
+      expect(true).toBe(true);
+    });
   });
 
   describe('Mermaid button', () => {
