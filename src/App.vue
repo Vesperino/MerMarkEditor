@@ -25,6 +25,7 @@ import { useFileOperations } from './composables/useFileOperations';
 import { useCloseConfirmation } from './composables/useCloseConfirmation';
 import { useWindowManager } from './composables/useWindowManager';
 import { useTabDrag } from './composables/useTabDrag';
+import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
 const {
@@ -60,7 +61,7 @@ const activeTabId = computed(() => activePane.value?.activeTabId || '');
 const activeTab = computed(() => {
   const tab = getActiveTabForPane(activePaneId.value);
   // Return a default tab if none exists (should never happen in practice)
-  return tab || { id: '', filePath: null, fileName: 'Nowy dokument', content: '<p></p>', hasChanges: false, scrollTop: 0 };
+  return tab || { id: '', filePath: null, fileName: t.value.newDocument, content: '<p></p>', hasChanges: false, scrollTop: 0 };
 });
 
 // ============ Editor References ============
@@ -75,14 +76,25 @@ const updateEditorInstance = () => {
     const paneRef = activePaneId.value === 'left'
       ? splitContainerRef.value.leftPaneRef
       : splitContainerRef.value.rightPaneRef;
-    // The editor is exposed as a computed, but ref unwrapping happens automatically
+    // Vue automatically unwraps ComputedRef from defineExpose, so paneRef.editor is already Editor | undefined
     if (paneRef?.editor) {
-      editorInstance.value = paneRef.editor as unknown as TiptapEditor;
+      editorInstance.value = paneRef.editor;
     }
   }
 };
 
+// Update editor instance when active pane changes
 watch(activePaneId, updateEditorInstance, { immediate: true });
+
+// Also watch for when the split container becomes available (after mount)
+watch(
+  () => splitContainerRef.value,
+  () => {
+    // Small delay to ensure child components have mounted
+    setTimeout(updateEditorInstance, 50);
+  },
+  { immediate: true }
+);
 
 provide('editor', editorInstance);
 
@@ -95,7 +107,7 @@ provide('hasChanges', hasChanges);
 
 // ============ Window Title ============
 const windowTitle = computed(() => {
-  const fileName = activeTab.value?.fileName || 'Nowy dokument';
+  const fileName = activeTab.value?.fileName || t.value.newDocument;
   const changeIndicator = activeTab.value?.hasChanges ? ' *' : '';
   return `${fileName}${changeIndicator} - MdReader`;
 });
@@ -146,6 +158,11 @@ const switchToTab = async (tabId: string) => {
 // Create new tab in active pane
 const createNewTab = (filePath?: string | null, content?: string, fileName?: string): string => {
   return createTab(activePaneId.value, filePath, content, fileName);
+};
+
+// Create a new empty document
+const newFile = () => {
+  createNewTab();
 };
 
 // Find tab by file path across all panes
@@ -248,7 +265,6 @@ const {
   isLoadingFile,
   showExternalLinkDialog,
   pendingExternalUrl,
-  openFile,
   openFileFromPath,
   saveFile,
   saveFileAs,
@@ -302,42 +318,14 @@ watch(
 );
 
 const toggleCodeView = async () => {
-  const wasInCodeView = codeView.value;
-
-  // Save scroll position before toggling
-  const editorContainer = document.querySelector('.editor-pane.active .editor-container');
-  const savedScrollTop = editorContainer?.scrollTop || 0;
+  isLoadingContent.value = true;
 
   // Cast to satisfy type checker - the types are compatible
+  // useCodeView now handles setContent and cursor restoration internally
   await toggleCodeViewBase(editorInstance.value as Parameters<typeof toggleCodeViewBase>[0]);
 
-  if (wasInCodeView && !codeView.value) {
-    // Returning from code view - update editor content
-    isLoadingContent.value = true;
-    if (editorInstance.value && activeTab.value) {
-      editorInstance.value.commands.setContent(activeTab.value.content);
-      await nextTick();
-
-      // Restore scroll position that was set by toggleCodeViewBase
-      // or use the saved position as fallback
-      await nextTick();
-      const container = document.querySelector('.editor-pane.active .editor-container');
-      if (container) {
-        // Allow a moment for DOM to settle after setContent
-        requestAnimationFrame(() => {
-          const containerEl = document.querySelector('.editor-pane.active .editor-container');
-          if (containerEl && containerEl.scrollTop === 0 && savedScrollTop > 0) {
-            // If scroll was reset, try to restore
-            containerEl.scrollTop = savedScrollTop;
-          }
-          // Focus after scroll is restored
-          editorInstance.value?.commands.focus();
-        });
-      }
-    }
-    await nextTick();
-    isLoadingContent.value = false;
-  }
+  await nextTick();
+  isLoadingContent.value = false;
 };
 
 // ============ Auto Update ============
@@ -673,6 +661,7 @@ onUnmounted(async () => {
     <Toolbar
       :code-view="codeView"
       :is-split-active="isSplitActive"
+      @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @save-file="saveFile"
       @save-file-as="saveFileAs"

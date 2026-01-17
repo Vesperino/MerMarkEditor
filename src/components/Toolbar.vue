@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { inject, ref, computed, type Ref } from "vue";
+import { inject, ref, computed, watch, onUnmounted, type Ref } from "vue";
 import type { Editor } from "@tiptap/vue-3";
 import { useI18n } from "../i18n";
 import { useSettings } from "../composables/useSettings";
+import { useTokenCounter } from "../composables/useTokenCounter";
 
 const { t, locale, toggleLocale } = useI18n();
 const { settings, toggleAutoSave } = useSettings();
+const {
+  tokenCount,
+  modelName,
+  isVisible: showTokens,
+  currentModel,
+  availableModels,
+  updateText,
+  changeModel,
+} = useTokenCounter();
 const editor = inject<Ref<Editor | null>>("editor");
 
 const showTableMenu = ref(false);
+
+// Reactive counter for triggering recomputation when editor updates
+const editorUpdateCounter = ref(0);
 
 const isActive = (name: string | Record<string, unknown>, attrs?: Record<string, unknown>) => {
   if (typeof name === 'object') {
@@ -24,13 +37,55 @@ const runCommand = (callback: (e: Editor) => void) => {
   }
 };
 
-// Character count
+// Character count - depends on editorUpdateCounter for reactivity
 const characterCount = computed(() => {
+  // Access update counter to make computed reactive to editor changes
+  void editorUpdateCounter.value;
   return editor?.value?.storage.characterCount?.characters() ?? 0;
 });
 
 const wordCount = computed(() => {
+  // Access update counter to make computed reactive to editor changes
+  void editorUpdateCounter.value;
   return editor?.value?.storage.characterCount?.words() ?? 0;
+});
+
+// Token counter menu
+const showTokenMenu = ref(false);
+
+// Editor update handler
+const onEditorUpdate = () => {
+  editorUpdateCounter.value++;
+  const ed = editor?.value;
+  if (ed && typeof ed.getText === 'function') {
+    updateText(ed.getText());
+  }
+};
+
+// Watch for editor instance changes
+watch(
+  () => editor?.value,
+  (newEditor, oldEditor) => {
+    // Remove listener from old editor
+    if (oldEditor) {
+      oldEditor.off('update', onEditorUpdate);
+    }
+    // Add listener to new editor
+    if (newEditor) {
+      newEditor.on('update', onEditorUpdate);
+      // Trigger initial update
+      editorUpdateCounter.value++;
+      updateText(newEditor.getText());
+    }
+  },
+  { immediate: true }
+);
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (editor?.value) {
+    editor.value.off('update', onEditorUpdate);
+  }
 });
 
 // Heading control
@@ -94,7 +149,7 @@ const deleteTable = () => {
 
 // Links and images
 const setLink = () => {
-  const previousUrl = editor?.value?.getAttributes("link").href;
+  const previousUrl = editor?.value?.getAttributes("customLink").href;
   const url = window.prompt(t.value.linkPrompt, previousUrl);
   if (url === null) return;
   if (url === "") {
@@ -119,6 +174,7 @@ const insertMermaid = () => {
 // Close dropdowns when clicking outside
 const closeDropdowns = () => {
   showTableMenu.value = false;
+  showTokenMenu.value = false;
 };
 
 const props = defineProps<{
@@ -127,6 +183,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  newFile: [];
   openFile: [];
   saveFile: [];
   saveFileAs: [];
@@ -141,6 +198,15 @@ const emit = defineEmits<{
     <div class="toolbar-row">
       <!-- File operations -->
       <div class="toolbar-group">
+        <button @click="emit('newFile')" class="toolbar-btn" :title="`${t.new} (Ctrl+N)`">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+          <span>{{ t.new }}</span>
+        </button>
         <button @click="emit('openFile')" class="toolbar-btn" :title="`${t.open} (Ctrl+O)`">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
@@ -213,6 +279,7 @@ const emit = defineEmits<{
       <!-- Headings -->
       <div class="toolbar-group">
         <select
+          id="heading-level-select"
           :value="currentHeadingLevel"
           @change="(e: Event) => setHeading(parseInt((e.target as HTMLSelectElement).value))"
           class="heading-select"
@@ -366,7 +433,7 @@ const emit = defineEmits<{
       <div class="toolbar-group">
         <button
           @click="setLink"
-          :class="{ active: isActive('link') }"
+          :class="{ active: isActive('customLink') }"
           class="toolbar-btn icon-only"
           :title="t.link"
         >
@@ -445,6 +512,38 @@ const emit = defineEmits<{
         <span>{{ characterCount }} {{ t.characters }}</span>
         <span class="separator">|</span>
         <span>{{ wordCount }} {{ t.words }}</span>
+        <template v-if="showTokens">
+          <span class="separator">|</span>
+          <div class="token-counter dropdown-container">
+            <button
+              class="token-btn"
+              @click.stop="showTokenMenu = !showTokenMenu"
+              :title="t.tokensTooltip"
+            >
+              <span class="token-count">~{{ tokenCount }}</span>
+              <span class="token-label">{{ t.tokens }}</span>
+              <span class="token-model">({{ modelName }})</span>
+              <svg class="token-chevron" :class="{ open: showTokenMenu }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div v-if="showTokenMenu" class="dropdown-menu token-menu">
+              <button
+                v-for="model in availableModels"
+                :key="model.id"
+                @click="changeModel(model.id); showTokenMenu = false"
+                class="dropdown-item"
+                :class="{ active: currentModel === model.id }"
+              >
+                <svg v-if="currentModel === model.id" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span v-else style="width: 16px; display: inline-block;"></span>
+                {{ model.name }}
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
 
       <div class="toolbar-separator"></div>
@@ -819,5 +918,69 @@ const emit = defineEmits<{
   color: #1e293b;
   font-weight: 500;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Token Counter */
+.token-counter {
+  display: inline-flex;
+  position: relative;
+}
+
+.token-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #94a3b8;
+  transition: all 0.15s;
+}
+
+.token-btn:hover {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.token-count {
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+.token-label {
+  color: inherit;
+}
+
+.token-model {
+  color: #a1a1aa;
+  font-size: 11px;
+}
+
+.token-chevron {
+  transition: transform 0.2s;
+  margin-left: 2px;
+}
+
+.token-chevron.open {
+  transform: rotate(180deg);
+}
+
+.token-menu {
+  right: 0;
+  left: auto;
+  min-width: 140px;
+}
+
+.token-menu .dropdown-item {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.token-menu .dropdown-item.active {
+  background: #f0fdf4;
+  color: #16a34a;
 }
 </style>

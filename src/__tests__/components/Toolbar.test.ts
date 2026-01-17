@@ -66,6 +66,10 @@ const createMockEditor = (options: {
         words: () => wordCount,
       },
     },
+    // Event emitter methods for editor updates
+    on: vi.fn(),
+    off: vi.fn(),
+    getText: () => 'mock text content',
   });
 };
 
@@ -421,6 +425,115 @@ describe('Toolbar Component', () => {
       const mermaidButton = wrapper.find('.mermaid-btn');
       expect(mermaidButton.exists()).toBe(true);
       expect(mermaidButton.text()).toContain('Mermaid');
+    });
+  });
+
+  describe('Editor event listeners', () => {
+    it('should register update listener when editor is available', () => {
+      const mockEditor = createMockEditor();
+
+      mount(Toolbar, {
+        global: {
+          provide: {
+            editor: mockEditor,
+          },
+        },
+      });
+
+      // Verify that 'on' was called with 'update' event
+      expect(mockEditor.value.on).toHaveBeenCalledWith('update', expect.any(Function));
+    });
+
+    it('should call getText when editor emits update', async () => {
+      const mockEditor = createMockEditor();
+      let updateCallback: (() => void) | undefined;
+
+      // Make getText a spy
+      mockEditor.value.getText = vi.fn().mockReturnValue('mock text content');
+
+      // Capture the update callback when it's registered
+      mockEditor.value.on = vi.fn((event: string, callback: () => void) => {
+        if (event === 'update') {
+          updateCallback = callback;
+        }
+      });
+
+      mount(Toolbar, {
+        global: {
+          provide: {
+            editor: mockEditor,
+          },
+        },
+      });
+
+      // Simulate editor update
+      if (updateCallback) {
+        updateCallback();
+      }
+
+      expect(mockEditor.value.getText).toHaveBeenCalled();
+    });
+  });
+
+  describe('Token counter display', () => {
+    it('should display token count section', () => {
+      const wrapper = mount(Toolbar, {
+        global: {
+          provide: {
+            editor: createMockEditor(),
+          },
+        },
+      });
+
+      // Token counter should be visible by default
+      expect(wrapper.text()).toContain('tokens');
+    });
+
+    it('should show model name in token counter', () => {
+      const wrapper = mount(Toolbar, {
+        global: {
+          provide: {
+            editor: createMockEditor(),
+          },
+        },
+      });
+
+      // Should show the default model name (GPT-5)
+      expect(wrapper.text()).toMatch(/GPT|Claude|Gemini|Llama/);
+    });
+
+    it('should have token model selector button', () => {
+      const wrapper = mount(Toolbar, {
+        global: {
+          provide: {
+            editor: createMockEditor(),
+          },
+        },
+      });
+
+      const tokenBtn = wrapper.find('.token-btn');
+      expect(tokenBtn.exists()).toBe(true);
+    });
+
+    it('should toggle token menu when button clicked', async () => {
+      const wrapper = mount(Toolbar, {
+        global: {
+          provide: {
+            editor: createMockEditor(),
+          },
+        },
+      });
+
+      const tokenBtn = wrapper.find('.token-btn');
+      await tokenBtn.trigger('click');
+
+      // Menu should appear
+      expect(wrapper.find('.token-menu').exists()).toBe(true);
+
+      await tokenBtn.trigger('click');
+
+      // Menu should disappear
+      expect(wrapper.find('.token-menu').exists()).toBe(false);
     });
   });
 });

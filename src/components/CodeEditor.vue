@@ -25,6 +25,7 @@ const handleInput = (event: Event) => {
 <template>
   <div class="code-editor-container">
     <textarea
+      id="code-editor-textarea"
       ref="textareaRef"
       class="code-editor"
       :value="modelValue"
@@ -60,6 +61,8 @@ const handleInput = (event: Event) => {
   resize: none;
   outline: none;
   tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
 }
 
 .code-editor:focus {
