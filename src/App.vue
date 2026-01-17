@@ -69,57 +69,33 @@ const splitContainerRef = ref<InstanceType<typeof SplitContainer> | null>(null);
 // Start as true to prevent initial change detection from marking document as changed
 const isLoadingContent = ref(true);
 
-// Editor instance ref - updated via watch to ensure reactivity
 const editorInstance = ref<TiptapEditor | null>(null);
 
-// Update editor instance when active pane changes or when editor becomes available
-// Uses polling initially because EditorPane's editor computed isn't reactive across component boundaries
+// Provide editor to child components (get from active pane)
 const updateEditorInstance = () => {
-  if (!splitContainerRef.value) {
-    editorInstance.value = null;
-    return;
-  }
-
-  const paneRef = activePaneId.value === 'left'
-    ? splitContainerRef.value.leftPaneRef
-    : splitContainerRef.value.rightPaneRef;
-
-  const editor = paneRef?.editor;
-  if (editor !== editorInstance.value) {
-    editorInstance.value = editor || null;
+  if (splitContainerRef.value) {
+    const paneRef = activePaneId.value === 'left'
+      ? splitContainerRef.value.leftPaneRef
+      : splitContainerRef.value.rightPaneRef;
+    // Vue automatically unwraps ComputedRef from defineExpose, so paneRef.editor is already Editor | undefined
+    if (paneRef?.editor) {
+      editorInstance.value = paneRef.editor;
+    }
   }
 };
 
-// Watch for active pane changes
-watch(activePaneId, () => {
-  updateEditorInstance();
-}, { immediate: true });
+// Update editor instance when active pane changes
+watch(activePaneId, updateEditorInstance, { immediate: true });
 
-// Poll for editor availability after mount (editor is created async in TipTap)
-// This handles the case where the editor isn't ready when the computed first evaluates
-let editorPollInterval: ReturnType<typeof setInterval> | null = null;
-watch(splitContainerRef, (container) => {
-  if (container) {
-    // Poll until we have an editor, then stop
-    editorPollInterval = setInterval(() => {
-      updateEditorInstance();
-      if (editorInstance.value) {
-        if (editorPollInterval) {
-          clearInterval(editorPollInterval);
-          editorPollInterval = null;
-        }
-      }
-    }, 50);
-
-    // Safety: stop polling after 2 seconds regardless
-    setTimeout(() => {
-      if (editorPollInterval) {
-        clearInterval(editorPollInterval);
-        editorPollInterval = null;
-      }
-    }, 2000);
-  }
-}, { immediate: true });
+// Also watch for when the split container becomes available (after mount)
+watch(
+  () => splitContainerRef.value,
+  () => {
+    // Small delay to ensure child components have mounted
+    setTimeout(updateEditorInstance, 50);
+  },
+  { immediate: true }
+);
 
 provide('editor', editorInstance);
 
@@ -657,11 +633,6 @@ onMounted(async () => {
 
 onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeyboard);
-  // Clear editor poll interval
-  if (editorPollInterval) {
-    clearInterval(editorPollInterval);
-    editorPollInterval = null;
-  }
   if (unlistenOpenFile) {
     unlistenOpenFile();
   }
