@@ -127,6 +127,29 @@ export interface Translations {
   autoSave: string;
   autoSaveOn: string;
   autoSaveOff: string;
+
+  // Update dialog
+  updateAvailable: string;
+  newVersionAvailable: string;
+  downloadingUpdate: string;
+  later: string;
+  updating: string;
+  updateNow: string;
+
+  // Split view / Panes
+  dragTabHere: string;
+  orOpenFileInPane: string;
+  dropTabHere: string;
+
+  // Save confirm dialog
+  fileHasUnsavedChanges: (fileName: string) => string;
+  saveBeforeClosing: string;
+  discard: string;
+
+  // External link dialog
+  openExternalLink: string;
+  confirmNavigateTo: string;
+  openLink: string;
 }
 
 const translations: Record<Locale, Translations> = {
@@ -254,6 +277,29 @@ const translations: Record<Locale, Translations> = {
     autoSave: 'Auto-save',
     autoSaveOn: 'On',
     autoSaveOff: 'Off',
+
+    // Update dialog
+    updateAvailable: 'Update Available',
+    newVersionAvailable: 'A new version is available:',
+    downloadingUpdate: 'Downloading update...',
+    later: 'Later',
+    updating: 'Updating...',
+    updateNow: 'Update Now',
+
+    // Split view / Panes
+    dragTabHere: 'Drag tab here',
+    orOpenFileInPane: 'or open a file in this pane',
+    dropTabHere: 'Drop tab here',
+
+    // Save confirm dialog
+    fileHasUnsavedChanges: (fileName: string) => `File "${fileName}" has unsaved changes.`,
+    saveBeforeClosing: 'Do you want to save before closing?',
+    discard: 'Discard',
+
+    // External link dialog
+    openExternalLink: 'Open External Link',
+    confirmNavigateTo: 'Are you sure you want to navigate to:',
+    openLink: 'Open',
   },
 
   pl: {
@@ -380,6 +426,29 @@ const translations: Record<Locale, Translations> = {
     autoSave: 'Autozapis',
     autoSaveOn: 'Wł.',
     autoSaveOff: 'Wył.',
+
+    // Update dialog
+    updateAvailable: 'Dostępna aktualizacja',
+    newVersionAvailable: 'Dostępna jest nowa wersja:',
+    downloadingUpdate: 'Pobieranie aktualizacji...',
+    later: 'Później',
+    updating: 'Aktualizowanie...',
+    updateNow: 'Aktualizuj teraz',
+
+    // Split view / Panes
+    dragTabHere: 'Przeciągnij kartę tutaj',
+    orOpenFileInPane: 'lub otwórz plik w tym panelu',
+    dropTabHere: 'Upuść kartę tutaj',
+
+    // Save confirm dialog
+    fileHasUnsavedChanges: (fileName: string) => `Plik "${fileName}" zawiera niezapisane zmiany.`,
+    saveBeforeClosing: 'Czy chcesz zapisać przed zamknięciem?',
+    discard: 'Odrzuć',
+
+    // External link dialog
+    openExternalLink: 'Otwórz link zewnętrzny',
+    confirmNavigateTo: 'Czy na pewno chcesz przejść do:',
+    openLink: 'Otwórz',
   },
 };
 

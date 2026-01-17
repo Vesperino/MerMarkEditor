@@ -2,6 +2,9 @@
 import { ref, computed } from 'vue';
 import type { Tab } from '../composables/useTabs';
 import { useTabDrag } from '../composables/useTabDrag';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   tabs: Tab[];
@@ -134,7 +137,7 @@ const handleBarMouseLeave = () => {
       <button
         class="tab-close"
         @click.stop="emit('closeTab', tab.id)"
-        title="Zamknij"
+        :title="t.closeTab"
       >&times;</button>
     </div>
   </div>

@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
+
 defineProps<{
   url: string;
 }>();
@@ -13,15 +17,15 @@ const emit = defineEmits<{
   <div class="dialog-overlay" @click.self="emit('cancel')">
     <div class="dialog">
       <div class="dialog-header">
-        <h3>Otwórz link zewnętrzny</h3>
+        <h3>{{ t.openExternalLink }}</h3>
       </div>
       <div class="dialog-content">
-        <p>Czy na pewno chcesz przejść do:</p>
+        <p>{{ t.confirmNavigateTo }}</p>
         <p class="dialog-url">{{ url }}</p>
       </div>
       <div class="dialog-actions">
-        <button @click="emit('cancel')" class="btn-cancel">Anuluj</button>
-        <button @click="emit('confirm')" class="btn-confirm">Otwórz</button>
+        <button @click="emit('cancel')" class="btn-cancel">{{ t.cancel }}</button>
+        <button @click="emit('confirm')" class="btn-confirm">{{ t.openLink }}</button>
       </div>
     </div>
   </div>

@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
+
 defineProps<{
   fileName: string;
   currentIndex: number;
@@ -16,17 +20,17 @@ const emit = defineEmits<{
   <div class="dialog-overlay">
     <div class="dialog">
       <div class="dialog-header">
-        <h3>Niezapisane zmiany</h3>
+        <h3>{{ t.unsavedChanges }}</h3>
         <span v-if="totalCount > 1" class="counter">({{ currentIndex }}/{{ totalCount }})</span>
       </div>
       <div class="dialog-content">
-        <p>Plik <strong>{{ fileName }}</strong> zawiera niezapisane zmiany.</p>
-        <p>Czy chcesz zapisać przed zamknięciem?</p>
+        <p>{{ t.fileHasUnsavedChanges(fileName) }}</p>
+        <p>{{ t.saveBeforeClosing }}</p>
       </div>
       <div class="dialog-actions">
-        <button @click="emit('discard')" class="btn-discard">Odrzuć</button>
-        <button @click="emit('cancel')" class="btn-cancel">Anuluj</button>
-        <button @click="emit('save')" class="btn-save">Zapisz</button>
+        <button @click="emit('discard')" class="btn-discard">{{ t.discard }}</button>
+        <button @click="emit('cancel')" class="btn-cancel">{{ t.cancel }}</button>
+        <button @click="emit('save')" class="btn-save">{{ t.save }}</button>
       </div>
     </div>
   </div>
