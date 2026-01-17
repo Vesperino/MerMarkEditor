@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
+
 withDefaults(defineProps<{
   version: string;
   notes: string;
@@ -21,15 +25,15 @@ const emit = defineEmits<{
   <div class="dialog-overlay" @click.self="!isUpdating && emit('close')">
     <div class="dialog">
       <div class="dialog-header">
-        <h3>Dostępna aktualizacja</h3>
+        <h3>{{ t.updateAvailable }}</h3>
       </div>
       <div class="dialog-content">
-        <p>Dostępna jest nowa wersja: <strong>{{ version }}</strong></p>
+        <p>{{ t.newVersionAvailable }} <strong>{{ version }}</strong></p>
         <div v-if="notes" class="update-notes">
           <p>{{ notes }}</p>
         </div>
         <div v-if="isUpdating" class="update-progress">
-          <p>Pobieranie aktualizacji...</p>
+          <p>{{ t.downloadingUpdate }}</p>
           <div class="progress-bar">
             <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
           </div>
@@ -37,9 +41,9 @@ const emit = defineEmits<{
         <p v-if="error" class="update-error">{{ error }}</p>
       </div>
       <div class="dialog-actions">
-        <button @click="emit('close')" class="btn-cancel" :disabled="isUpdating">Później</button>
+        <button @click="emit('close')" class="btn-cancel" :disabled="isUpdating">{{ t.later }}</button>
         <button @click="emit('update')" class="btn-confirm" :disabled="isUpdating">
-          {{ isUpdating ? 'Aktualizowanie...' : 'Aktualizuj teraz' }}
+          {{ isUpdating ? t.updating : t.updateNow }}
         </button>
       </div>
     </div>

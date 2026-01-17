@@ -4,6 +4,9 @@ import type { Pane } from '../types/pane';
 import TabBar from './TabBar.vue';
 import Editor from './Editor.vue';
 import { useTabDrag } from '../composables/useTabDrag';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   pane: Pane;
@@ -133,8 +136,8 @@ defineExpose({
       <!-- Empty state - shown when no tabs -->
       <div v-else class="empty-pane">
         <div class="empty-icon">📄</div>
-        <div class="empty-title">Przeciągnij kartę tutaj</div>
-        <div class="empty-subtitle">lub otwórz plik w tym panelu</div>
+        <div class="empty-title">{{ t.dragTabHere }}</div>
+        <div class="empty-subtitle">{{ t.orOpenFileInPane }}</div>
       </div>
 
       <!-- Drop overlay during drag -->
@@ -142,7 +145,7 @@ defineExpose({
         v-if="isValidDropTarget && !isEmpty"
         class="drop-overlay"
       >
-        <div class="drop-message">Upuść kartę tutaj</div>
+        <div class="drop-message">{{ t.dropTabHere }}</div>
       </div>
     </div>
   </div>
