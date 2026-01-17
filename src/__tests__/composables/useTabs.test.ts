@@ -14,7 +14,7 @@ describe('useTabs', () => {
 
       expect(defaultTab.id).toBe('tab-1');
       expect(defaultTab.filePath).toBe(null);
-      expect(defaultTab.fileName).toBe('Nowy dokument');
+      expect(defaultTab.fileName).toBe('New Document');
       expect(defaultTab.content).toBe('<p></p>');
       expect(defaultTab.hasChanges).toBe(false);
       expect(defaultTab.scrollTop).toBe(0);
