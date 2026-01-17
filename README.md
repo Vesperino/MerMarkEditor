@@ -67,6 +67,14 @@
 - **Dark/Light themes** - Easy on the eyes
 - **Character & word count** - Track your progress
 - **Auto-save** - Never lose your work
+- **Bilingual UI** - English and Polish interface
+
+### Advanced Features
+- **Split View** - Edit two documents side by side with adjustable split ratio
+- **Code View** - Switch between visual WYSIWYG and raw Markdown with cursor position tracking
+- **AI Token Counter** - Estimate tokens for GPT (OpenAI), Claude (Anthropic), and Gemini (Google)
+- **Multi-window support** - Open multiple independent editor windows
+- **Cross-window tab management** - Drag and drop tabs between panes and windows
 
 ---
 
@@ -100,6 +108,30 @@
   <img src="assets/screenshots/code-and-documentation.png" alt="MerMark Editor - Code and Documentation" width="800">
   <br>
   <em>Technical documentation with code blocks and embedded diagrams</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/split-view.png" alt="MerMark Editor - Split View" width="800">
+  <br>
+  <em>Split view for editing two documents simultaneously</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/code-view.png" alt="MerMark Editor - Code View" width="800">
+  <br>
+  <em>Toggle between visual and Markdown code view with cursor tracking</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/token-counter.png" alt="MerMark Editor - Token Counter" width="800">
+  <br>
+  <em>AI token counter with model selection (GPT, Claude, Gemini)</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/multi-window.png" alt="MerMark Editor - Multi Window" width="800">
+  <br>
+  <em>Multiple windows with cross-window tab drag and drop</em>
 </p>
 
 ---
