@@ -19,7 +19,7 @@ import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
 import { watch, ref, nextTick } from "vue";
-import { Extension, Node, mergeAttributes } from "@tiptap/core";
+import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 
 // Flag to prevent hasChanges emission during programmatic content updates
 let isSettingContent = false;
@@ -28,12 +28,14 @@ import { useI18n } from "../i18n";
 
 const { t } = useI18n();
 
+type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+
 // Custom Heading extension that preserves id attributes for anchor navigation
 const HeadingWithId = Node.create({
   name: 'heading',
   addOptions() {
     return {
-      levels: [1, 2, 3, 4, 5, 6],
+      levels: [1, 2, 3, 4, 5, 6] as HeadingLevel[],
       HTMLAttributes: {},
     };
   },
@@ -69,14 +71,46 @@ const HeadingWithId = Node.create({
     const level = hasLevel ? node.attrs.level : this.options.levels[0];
     return [`h${level}`, mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
   },
+  addCommands() {
+    return {
+      setHeading:
+        (attributes: { level: HeadingLevel }) =>
+        ({ commands }) => {
+          if (!this.options.levels.includes(attributes.level)) {
+            return false;
+          }
+          return commands.setNode(this.name, attributes);
+        },
+      toggleHeading:
+        (attributes: { level: HeadingLevel }) =>
+        ({ commands }) => {
+          if (!this.options.levels.includes(attributes.level)) {
+            return false;
+          }
+          return commands.toggleNode(this.name, "paragraph", attributes);
+        },
+    };
+  },
   addKeyboardShortcuts() {
     return this.options.levels.reduce(
-      (items: Record<string, () => boolean>, level: number) => ({
+      (items: Record<string, () => boolean>, level: HeadingLevel) => ({
         ...items,
-        [`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }),
+        [`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),
       }),
       {}
     );
+  },
+  addInputRules() {
+    const minLevel = Math.min(...this.options.levels);
+    return this.options.levels.map((level: HeadingLevel) => {
+      return textblockTypeInputRule({
+        find: new RegExp(`^(#{${minLevel},${level}})\\s$`),
+        type: this.type,
+        getAttributes: {
+          level,
+        },
+      });
+    });
   },
 });
 
