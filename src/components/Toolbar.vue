@@ -279,6 +279,7 @@ const emit = defineEmits<{
       <!-- Headings -->
       <div class="toolbar-group">
         <select
+          id="heading-level-select"
           :value="currentHeadingLevel"
           @change="(e: Event) => setHeading(parseInt((e.target as HTMLSelectElement).value))"
           class="heading-select"
