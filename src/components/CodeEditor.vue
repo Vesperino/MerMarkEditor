@@ -60,6 +60,8 @@ const handleInput = (event: Event) => {
   resize: none;
   outline: none;
   tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
 }
 
 .code-editor:focus {
