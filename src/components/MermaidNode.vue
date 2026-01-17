@@ -147,6 +147,7 @@ const handleTemplateSelect = (code: string) => {
         </button>
       </div>
       <textarea
+        id="mermaid-editor-textarea"
         v-model="editCode"
         class="mermaid-textarea"
         :placeholder="t.enterMermaidCode"

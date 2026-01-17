@@ -25,6 +25,7 @@ const handleInput = (event: Event) => {
 <template>
   <div class="code-editor-container">
     <textarea
+      id="code-editor-textarea"
       ref="textareaRef"
       class="code-editor"
       :value="modelValue"
