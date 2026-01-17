@@ -20,6 +20,15 @@ const getLineFromPosition = (text: string, pos: number): number => {
   return text.slice(0, pos).split('\n').length - 1;
 };
 
+// Check if cursor position is inside a code block (``` ... ```)
+const isInsideCodeBlock = (text: string, cursorPos: number): boolean => {
+  const textBefore = text.slice(0, cursorPos);
+  const codeBlockPattern = /^```/gm;
+  const matches = textBefore.match(codeBlockPattern);
+  if (!matches) return false;
+  return matches.length % 2 === 1;
+};
+
 // Mock the markdown converter
 vi.mock('../../utils/markdown-converter', () => ({
   htmlToMarkdown: (html: string) => {
@@ -367,6 +376,63 @@ describe('useCodeView', () => {
 
       const lineNumber = getLineFromPosition(markdown, extracted.position);
       expect(lineNumber).toBe(1);
+    });
+  });
+
+  describe('code block detection', () => {
+    it('should detect cursor inside a code block', () => {
+      const markdown = '# Heading\n\n```mermaid\nflowchart TD\n  A --> B\n```\n\nParagraph';
+
+      // Cursor inside the code block (after "flowchart")
+      const insidePos = 30;
+      expect(isInsideCodeBlock(markdown, insidePos)).toBe(true);
+    });
+
+    it('should detect cursor outside code block (before)', () => {
+      const markdown = '# Heading\n\n```mermaid\nflowchart TD\n```\n\nParagraph';
+
+      // Cursor before the code block
+      const beforePos = 5;
+      expect(isInsideCodeBlock(markdown, beforePos)).toBe(false);
+    });
+
+    it('should detect cursor outside code block (after)', () => {
+      const markdown = '# Heading\n\n```mermaid\nflowchart TD\n```\n\nParagraph';
+
+      // Cursor after the code block (in "Paragraph")
+      const afterPos = markdown.length - 3;
+      expect(isInsideCodeBlock(markdown, afterPos)).toBe(false);
+    });
+
+    it('should handle multiple code blocks', () => {
+      const markdown = '```js\ncode1\n```\n\nText\n\n```python\ncode2\n```';
+
+      // Inside first code block
+      expect(isInsideCodeBlock(markdown, 8)).toBe(true);
+
+      // Between code blocks (in "Text")
+      expect(isInsideCodeBlock(markdown, 20)).toBe(false);
+
+      // Inside second code block
+      expect(isInsideCodeBlock(markdown, 35)).toBe(true);
+    });
+
+    it('should return false when no code blocks exist', () => {
+      const markdown = '# Heading\n\nJust some text\n\n- List item';
+
+      expect(isInsideCodeBlock(markdown, 0)).toBe(false);
+      expect(isInsideCodeBlock(markdown, 15)).toBe(false);
+      expect(isInsideCodeBlock(markdown, markdown.length)).toBe(false);
+    });
+
+    it('should handle cursor at code block boundary', () => {
+      const markdown = '```\ncode\n```';
+
+      // Right after opening ```
+      expect(isInsideCodeBlock(markdown, 4)).toBe(true);
+
+      // Right before closing ```
+      expect(isInsideCodeBlock(markdown, 8)).toBe(true);
     });
   });
 });

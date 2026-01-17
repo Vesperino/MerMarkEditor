@@ -40,6 +40,28 @@ const getLineFromPosition = (text: string, pos: number): number => {
   return text.slice(0, pos).split('\n').length - 1;
 };
 
+// Check if cursor position is inside a code block (``` ... ```)
+// Returns { inside: boolean, blockIndex: number } - blockIndex is 0-based index of which code block
+const getCodeBlockInfo = (text: string, cursorPos: number): { inside: boolean; blockIndex: number } => {
+  const textBefore = text.slice(0, cursorPos);
+
+  // Count code block delimiters before cursor
+  const codeBlockPattern = /^```/gm;
+  const matches = textBefore.match(codeBlockPattern);
+
+  if (!matches) return { inside: false, blockIndex: -1 };
+
+  // If odd number of ```, we're inside a code block
+  const inside = matches.length % 2 === 1;
+
+  // Calculate which code block we're in (0-based)
+  // Each pair of ``` is one code block, so blockIndex = floor(count / 2)
+  // If inside, we're in block at index floor((count-1) / 2) = floor(count/2) when count is odd
+  const blockIndex = inside ? Math.floor((matches.length - 1) / 2) : -1;
+
+  return { inside, blockIndex };
+};
+
 // Inject CSS for cursor highlight animation
 const injectHighlightStyles = () => {
   const styleId = 'cursor-highlight-styles';
@@ -215,6 +237,42 @@ const findElementAtLine = (root: HTMLElement, targetLine: number, totalLines: nu
   return blocks[Math.max(0, targetIndex)] || blocks[0];
 };
 
+// Find code block element by index (for when cursor is inside a specific code block)
+const findCodeBlockElement = (root: HTMLElement, blockIndex: number): HTMLElement | null => {
+  // Look for mermaid diagrams, pre/code blocks, or custom code block components
+  // We need to find top-level code blocks, not nested ones
+  const codeSelector = 'pre, [data-type="mermaidDiagram"], .mermaid-diagram, .mermaid-wrapper, [data-node-view-wrapper]';
+
+  // Get all direct children and their code elements
+  const codeBlocks: HTMLElement[] = [];
+  const children = Array.from(root.children) as HTMLElement[];
+
+  for (const child of children) {
+    // Check if child itself is a code block
+    if (child.matches(codeSelector)) {
+      codeBlocks.push(child);
+    } else {
+      // Check if child contains a code block (but only direct descendant)
+      const codeChild = child.querySelector(codeSelector);
+      if (codeChild) {
+        codeBlocks.push(codeChild as HTMLElement);
+      }
+    }
+  }
+
+  if (codeBlocks.length === 0) {
+    return null;
+  }
+
+  // Return the code block at the specified index
+  if (blockIndex >= 0 && blockIndex < codeBlocks.length) {
+    return codeBlocks[blockIndex];
+  }
+
+  // Fallback to first code block if index is out of range
+  return codeBlocks[0];
+};
+
 // Highlight cursor position in code editor
 const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
   const cursorPos = textarea.selectionStart;
@@ -289,7 +347,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         const htmlWithMarker = editor.getHTML();
 
         // Remove marker from editor (restore original state)
-        editor.commands.undo();
+        editor.commands.deleteRange({ from, to: from + CURSOR_MARKER.length });
 
         // Convert to markdown - marker should pass through
         markdownWithMarker = htmlToMarkdown(htmlWithMarker);
@@ -350,6 +408,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       let cursorLine = 0;
       let totalLines = 1;
       let markdownWithMarker = codeContent.value;
+      let useMarker = false;
+      let codeBlockIndex = -1;
 
       if (codeEditorRef.value) {
         const cursorPos = codeEditorRef.value.selectionStart;
@@ -360,18 +420,27 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
         savedScrollRatio.value = codeMaxScroll > 0 ? codeEditorRef.value.scrollTop / codeMaxScroll : 0;
 
-        // Insert marker at cursor position
-        markdownWithMarker =
-          codeContent.value.slice(0, cursorPos) +
-          CURSOR_MARKER +
-          codeContent.value.slice(cursorPos);
+        // Check if cursor is inside a code block
+        const codeBlockInfo = getCodeBlockInfo(codeContent.value, cursorPos);
+
+        if (!codeBlockInfo.inside) {
+          // Not inside code block - use marker
+          useMarker = true;
+          markdownWithMarker =
+            codeContent.value.slice(0, cursorPos) +
+            CURSOR_MARKER +
+            codeContent.value.slice(cursorPos);
+        } else {
+          // Inside code block - remember which one
+          codeBlockIndex = codeBlockInfo.blockIndex;
+        }
       }
 
       savedCursorLine.value = cursorLine;
 
-      // Convert markdown with marker to HTML
-      const htmlWithMarker = markdownToHtml(markdownWithMarker);
-      setActiveContent(htmlWithMarker);
+      // Convert markdown (with or without marker) to HTML
+      const html = markdownToHtml(markdownWithMarker);
+      setActiveContent(html);
       markAsChanged();
       codeView.value = false;
 
@@ -404,26 +473,31 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             return;
           }
 
-          // Try to find marker in DOM
-          const markerInfo = findMarkerElement(proseMirror);
+          // Only try to find marker if we inserted one (not inside code block)
+          if (useMarker) {
+            const markerInfo = findMarkerElement(proseMirror);
 
-          if (markerInfo) {
-            // Found marker - scroll to element and highlight
-            scrollContainerToElement(editorContainer, markerInfo.element, 80);
+            if (markerInfo) {
+              // Found marker - scroll to element and highlight
+              scrollContainerToElement(editorContainer, markerInfo.element, 80);
 
-            // Remove marker from DOM
-            removeMarkerFromDOM(proseMirror);
+              // Remove marker from DOM
+              removeMarkerFromDOM(proseMirror);
 
-            // Also update the content without marker
-            const cleanHtml = proseMirror.innerHTML;
-            setActiveContent(cleanHtml);
+              // Also update the content without marker
+              const cleanHtml = proseMirror.innerHTML;
+              setActiveContent(cleanHtml);
 
-            requestAnimationFrame(() => highlightVisualElement(markerInfo.element));
-            return;
+              requestAnimationFrame(() => highlightVisualElement(markerInfo.element));
+              return;
+            }
           }
 
-          // Marker not found - use line-based fallback
-          const fallbackElement = findElementAtLine(proseMirror, savedCursorLine.value, totalLines);
+          // Marker not found or not used - use appropriate fallback
+          // If cursor was in code block, try to find the specific code block element by index
+          const fallbackElement = useMarker
+            ? findElementAtLine(proseMirror, savedCursorLine.value, totalLines)
+            : findCodeBlockElement(proseMirror, codeBlockIndex);
 
           if (fallbackElement) {
             scrollContainerToElement(editorContainer, fallbackElement, 80);
