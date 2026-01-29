@@ -2,6 +2,8 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import type { Tab } from './useTabs';
 
@@ -25,7 +27,7 @@ export interface UseFileOperationsReturn {
   openFileFromPath: (filePath: string) => Promise<void>;
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
-  exportPdf: () => void;
+  exportPdf: () => Promise<void>;
   handleLinkClick: (href: string) => void;
   confirmExternalLink: () => Promise<void>;
   cancelExternalLink: () => void;
@@ -188,9 +190,34 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
-  const exportPdf = (): void => {
+  const exportPdf = async (): Promise<void> => {
     document.body.classList.add('printing');
-    window.print();
+
+    try {
+      // Maximize window before printing to ensure dialog is fully visible
+      const appWindow = getCurrentWindow();
+      const wasMaximized = await appWindow.isMaximized();
+
+      if (!wasMaximized) {
+        await appWindow.maximize();
+        // Wait for window to finish maximizing
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      // Use Tauri webview print API
+      const webview = getCurrentWebview();
+      await webview.print();
+
+      // Restore window state if it wasn't maximized before
+      if (!wasMaximized) {
+        await appWindow.unmaximize();
+      }
+    } catch (error) {
+      console.error('Print error:', error);
+      // Fallback to window.print() if Tauri API fails
+      window.print();
+    }
+
     document.body.classList.remove('printing');
   };
 

@@ -49,6 +49,18 @@ export const MermaidExtension = Node.create<MermaidOptions>({
           };
         },
       },
+      printScale: {
+        default: 100,
+        parseHTML: (element) => {
+          const scale = element.getAttribute("data-print-scale");
+          return scale ? parseInt(scale, 10) : 100;
+        },
+        renderHTML: (attributes) => {
+          return {
+            "data-print-scale": attributes.printScale || 100,
+          };
+        },
+      },
     };
   },
 

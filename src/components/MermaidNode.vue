@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from "@tiptap/vue-3";
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 import mermaid from "mermaid";
 import { useI18n } from "../i18n";
 import { useZoomPan } from "../composables/useZoomPan";
@@ -14,12 +14,38 @@ const props = defineProps<{
   node: {
     attrs: {
       code: string;
+      printScale: number;
     };
   };
   updateAttributes: (attrs: Record<string, unknown>) => void;
   deleteNode: () => void;
   selected: boolean;
 }>();
+
+// Diagram size options (percentage of container width)
+const sizeOptions = [25, 50, 75, 100] as const;
+
+// Current diagram size
+const diagramSize = computed(() => props.node.attrs.printScale || 100);
+
+const setDiagramSize = (size: number) => {
+  props.updateAttributes({ printScale: size });
+  // Apply size to SVG after state update
+  requestAnimationFrame(() => applySvgSize());
+};
+
+// Apply size directly to SVG element
+const applySvgSize = () => {
+  if (!containerRef.value) return;
+  const svg = containerRef.value.querySelector('svg');
+  if (svg) {
+    const size = diagramSize.value;
+    svg.style.width = `${size}%`;
+    svg.style.maxWidth = `${size}%`;
+    svg.style.height = 'auto';
+    svg.removeAttribute('height');
+  }
+};
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
@@ -75,6 +101,8 @@ const renderMermaid = async () => {
     const codeForRender = props.node.attrs.code.replace(/__BR__/g, '<br/>');
     const { svg } = await mermaid.render(id, codeForRender);
     containerRef.value.innerHTML = svg;
+    // Apply current size to rendered SVG
+    applySvgSize();
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t.value.diagramError;
     containerRef.value.innerHTML = "";
@@ -89,6 +117,14 @@ watch(
   () => props.node.attrs.code,
   () => {
     renderMermaid();
+  }
+);
+
+// Watch for size changes
+watch(
+  () => props.node.attrs.printScale,
+  () => {
+    applySvgSize();
   }
 );
 
@@ -124,9 +160,24 @@ const handleTemplateSelect = (code: string) => {
   <NodeViewWrapper class="mermaid-wrapper" :class="{ selected: props.selected }">
     <div class="mermaid-header">
       <span class="mermaid-label">Mermaid Diagram</span>
-      <div class="mermaid-actions">
-        <button v-if="!isEditing" @click="startEdit" class="btn-edit">{{ t.editDiagram }}</button>
-        <button @click="props.deleteNode" class="btn-delete">{{ t.deleteDiagram }}</button>
+      <div class="mermaid-header-right">
+        <div class="size-control">
+          <span class="size-label">{{ t.diagramSize || 'Size' }}:</span>
+          <div class="size-buttons">
+            <button
+              v-for="size in sizeOptions"
+              :key="size"
+              @click="setDiagramSize(size)"
+              :class="['btn-size', { active: diagramSize === size }]"
+            >
+              {{ size }}%
+            </button>
+          </div>
+        </div>
+        <div class="mermaid-actions">
+          <button v-if="!isEditing" @click="startEdit" class="btn-edit">{{ t.editDiagram }}</button>
+          <button @click="props.deleteNode" class="btn-delete">{{ t.deleteDiagram }}</button>
+        </div>
       </div>
     </div>
 
@@ -247,6 +298,55 @@ const handleTemplateSelect = (code: string) => {
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mermaid-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.size-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.size-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.size-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.btn-size {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+
+.btn-size:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.btn-size.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
 }
 
 .mermaid-label {
@@ -449,8 +549,6 @@ const handleTemplateSelect = (code: string) => {
 .mermaid-viewport {
   position: relative;
   overflow: hidden;
-  min-height: 200px;
-  max-height: 600px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: white;
@@ -465,14 +563,13 @@ const handleTemplateSelect = (code: string) => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 200px;
   padding: 20px;
   transition: transform 0.1s ease-out;
 }
 
 .mermaid-content :deep(svg) {
-  max-width: none;
-  height: auto;
+  transition: width 0.2s ease, max-width 0.2s ease;
+  display: block;
 }
 
 .btn-fullscreen {
@@ -593,16 +690,19 @@ const handleTemplateSelect = (code: string) => {
   }
 
   .mermaid-header,
+  .mermaid-header-right,
   .mermaid-actions,
   .mermaid-editor,
   .mermaid-error,
-  .zoom-controls {
+  .zoom-controls,
+  .size-control {
     display: none !important;
   }
 
   .mermaid-viewport {
     overflow: visible !important;
     max-height: none !important;
+    min-height: auto !important;
     border: none !important;
     background: white !important;
   }
@@ -612,10 +712,11 @@ const handleTemplateSelect = (code: string) => {
     transform: none !important;
     justify-content: center !important;
     background: white !important;
+    padding: 10px 0 !important;
   }
 
+  /* SVG keeps its inline width set by JavaScript */
   .mermaid-content :deep(svg) {
-    max-width: 100% !important;
     height: auto !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

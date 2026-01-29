@@ -290,7 +290,7 @@ export function htmlToMarkdown(html: string): string {
     return placeholder;
   });
 
-  // Tables
+  // Tables - convert links inside cells before stripping other tags
   md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, tableContent) => {
     let result = '\n';
     const rows = tableContent.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
@@ -299,9 +299,16 @@ export function htmlToMarkdown(html: string): string {
     rows.forEach((row: string, index: number) => {
       const cells = row.match(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi) || [];
       const cellValues = cells.map((cell: string) => {
-        return cell
+        let cellContent = cell
           .replace(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/i, '$1')
-          .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1')
+          .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1');
+        // Convert links to markdown BEFORE stripping other tags
+        cellContent = cellContent.replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
+          const cleanText = text.replace(/<[^>]+>/g, '').trim();
+          return `[${cleanText}](${href})`;
+        });
+        // Now strip remaining HTML tags
+        return cellContent
           .replace(/<[^>]+>/g, '')
           .trim();
       });
