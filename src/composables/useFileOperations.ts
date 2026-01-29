@@ -2,7 +2,6 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
-import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import type { Tab } from './useTabs';
@@ -204,9 +203,8 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
         await new Promise(resolve => setTimeout(resolve, 200));
       }
 
-      // Use Tauri webview print API
-      const webview = getCurrentWebview();
-      await webview.print();
+      // Use standard browser print
+      window.print();
 
       // Restore window state if it wasn't maximized before
       if (!wasMaximized) {
