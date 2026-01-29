@@ -90,10 +90,16 @@ button:disabled {
     display: none !important;
   }
 
-  /* Editor container */
+  /* Editor container - ensure full content visibility for print */
+  .editor-pane,
+  .editor-wrapper,
   .editor-container {
-    background: white !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
     overflow: visible !important;
+    display: block !important;
+    background: white !important;
   }
 
   .editor-content {
@@ -102,6 +108,17 @@ button:disabled {
     margin: 0 !important;
     max-width: none !important;
     min-height: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .editor-content .tiptap,
+  .editor-content .ProseMirror {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   /* Typography */
@@ -299,5 +316,29 @@ button:disabled {
 
   .mermaid-content svg marker path {
     fill: #333 !important;
+  }
+
+  /* Split container and app layout - ensure full content visibility */
+  .app,
+  .split-container,
+  .split-pane {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Allow page breaks inside very large tables/diagrams when necessary */
+  table.allow-break,
+  .mermaid-wrapper.allow-break {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  /* Ensure nested content is visible */
+  .tiptap > *,
+  .ProseMirror > * {
+    overflow: visible !important;
   }
 }

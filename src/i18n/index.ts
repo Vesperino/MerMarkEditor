@@ -96,6 +96,8 @@ export interface Translations {
   saveDiagram: string;
   cancelEdit: string;
   diagramError: string;
+  printScale: string;
+  diagramSize: string;
   templates: string;
   basic: string;
   deleteDiagram: string;
@@ -246,6 +248,8 @@ const translations: Record<Locale, Translations> = {
     saveDiagram: 'Save',
     cancelEdit: 'Cancel',
     diagramError: 'Diagram rendering error',
+    printScale: 'PDF',
+    diagramSize: 'Size',
     templates: 'Templates',
     basic: 'Basic',
     deleteDiagram: 'Delete',
@@ -395,6 +399,8 @@ const translations: Record<Locale, Translations> = {
     saveDiagram: 'Zapisz',
     cancelEdit: 'Anuluj',
     diagramError: 'Błąd renderowania diagramu',
+    printScale: 'PDF',
+    diagramSize: 'Rozmiar',
     templates: 'Szablony',
     basic: 'Podstawowe',
     deleteDiagram: 'Usuń',
