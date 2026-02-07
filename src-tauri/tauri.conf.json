@@ -30,7 +30,8 @@
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.png",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "targets": "all",
     "windows": {
@@ -43,6 +44,19 @@
       "nsis": {
         "languages": ["English", "Polish"],
         "displayLanguageSelector": true
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null,
+      "exceptionDomain": null
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
       }
     },
     "category": "Productivity",
