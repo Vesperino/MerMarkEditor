@@ -34,7 +34,7 @@
 - **Natywna wydajność** - Zbudowany z Tauri dla szybkiego, lekkiego działania
 - **Edycja WYSIWYG** - Zobacz sformatowaną treść podczas pisania
 - **Integracja Mermaid** - Twórz diagramy bezpośrednio w dokumentach
-- **Wieloplatformowy** - Obecnie Windows, macOS i Linux wkrótce
+- **Wieloplatformowy** - Dostępny na Windows, macOS i Linux
 
 ---
 
@@ -144,13 +144,15 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 
 | Platforma | Pobierz |
 |-----------|---------|
-| Windows   | [MerMark Editor_x.x.x_x64-setup.exe](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
-
-> **Uwaga:** Wersje dla macOS i Linux już wkrótce!
+| Windows   | [.exe / .msi installer](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| macOS     | [.dmg (universal: Apple Silicon + Intel)](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| Linux     | [.deb / .AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 
 ### Wymagania systemowe
 
 - **Windows**: Windows 10 lub nowszy (64-bit)
+- **macOS**: macOS 10.15 (Catalina) lub nowszy
+- **Linux**: Ubuntu 22.04+ lub odpowiednik (wymagany WebKitGTK 4.1)
 
 ---
 
@@ -273,6 +275,7 @@ Ten projekt jest licencjonowany na warunkach **licencji MIT** - zobacz plik [LIC
 
 ## Podziękowania
 
+- [Codycody31](https://github.com/Codycody31) - Wielkie podziękowania za wsparcie macOS i Linux!
 - [TipTap](https://tiptap.dev/) - Framework edytora headless
 - [Mermaid](https://mermaid.js.org/) - Narzędzie do tworzenia diagramów
 - [Tauri](https://tauri.app/) - Framework aplikacji desktopowych

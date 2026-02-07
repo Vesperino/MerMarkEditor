@@ -34,7 +34,7 @@
 - **Native performance** - Built with Tauri for fast, lightweight operation
 - **WYSIWYG editing** - See your formatted content as you type
 - **Mermaid integration** - Create diagrams directly in your documents
-- **Cross-platform** - Windows now, macOS and Linux coming soon
+- **Cross-platform** - Available on Windows, macOS and Linux
 
 ---
 
@@ -144,13 +144,15 @@ Download the latest version from the [Releases page](https://github.com/Vesperin
 
 | Platform | Download |
 |----------|----------|
-| Windows  | [MerMark Editor_x.x.x_x64-setup.exe](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
-
-> **Note:** macOS and Linux builds coming soon!
+| Windows  | [.exe / .msi installer](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| macOS    | [.dmg (universal: Apple Silicon + Intel)](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| Linux    | [.deb / .AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 
 ### System Requirements
 
 - **Windows**: Windows 10 or later (64-bit)
+- **macOS**: macOS 10.15 (Catalina) or later
+- **Linux**: Ubuntu 22.04+ or equivalent (WebKitGTK 4.1 required)
 
 ---
 
@@ -273,6 +275,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## Acknowledgments
 
+- [Codycody31](https://github.com/Codycody31) - Huge thanks for macOS and Linux support!
 - [TipTap](https://tiptap.dev/) - Headless editor framework
 - [Mermaid](https://mermaid.js.org/) - Diagramming and charting tool
 - [Tauri](https://tauri.app/) - Desktop application framework
