@@ -397,6 +397,28 @@ describe('markdownToHtml', () => {
       expect(markdownToHtml('---')).toContain('<hr');
     });
   });
+
+  describe('paragraphs starting with inline formatting', () => {
+    it('wraps lines starting with bold in p tags', () => {
+      const md = '**Objective:** Provide a holistic view.';
+      const result = markdownToHtml(md);
+      expect(result).toContain('<p><strong>Objective:</strong> Provide a holistic view.</p>');
+    });
+
+    it('wraps lines starting with italic in p tags', () => {
+      const md = '*Note:* This is important.';
+      const result = markdownToHtml(md);
+      expect(result).toContain('<p><em>Note:</em> This is important.</p>');
+    });
+
+    it('preserves paragraph breaks between bold-starting lines', () => {
+      const md = 'First paragraph.\n\n**Second:** paragraph with bold start.\n\n**Third:** another bold start.';
+      const result = markdownToHtml(md);
+      expect(result).toContain('<p>First paragraph.</p>');
+      expect(result).toContain('<p><strong>Second:</strong> paragraph with bold start.</p>');
+      expect(result).toContain('<p><strong>Third:</strong> another bold start.</p>');
+    });
+  });
 });
 
 describe('round-trip conversion', () => {

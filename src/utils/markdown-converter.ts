@@ -610,8 +610,8 @@ export function markdownToHtml(md: string): string {
 
   html = parseMarkdownLists(html);
 
-  // Paragraphs
-  html = html.replace(/^(?!<[huplodtb]|<\/|<hr|<img|<a |<code|<strong|<em|<s>|__)(.+)$/gim, '<p>$1</p>');
+  // Paragraphs - exclude only block-level elements and placeholders, not inline elements
+  html = html.replace(/^(?!<[huplodtb]|<\/|<hr|<img|__)(.+)$/gim, '<p>$1</p>');
   html = html.replace(/<p>\s*<\/p>/g, '');
 
   // Restore code blocks
