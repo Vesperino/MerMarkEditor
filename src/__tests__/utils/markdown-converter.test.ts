@@ -372,6 +372,17 @@ describe('markdownToHtml', () => {
       expect(result).toContain('<th>');
       expect(result).toContain('<td>');
     });
+
+    it('renders blank cells as empty td elements', () => {
+      const md = '| Field | Col1 | Col2 | Col3 |\n| --- | --- | --- | --- |\n| Name |  |  |  |\n| Date | 2026-01-29 |  |  |';
+      const result = markdownToHtml(md);
+      // Row with "Name" should have 4 td elements (1 with content + 3 empty)
+      const nameRowMatch = result.match(/<tr><td><p>Name<\/p><\/td>(<td><\/td>){3}<\/tr>/);
+      expect(nameRowMatch).toBeTruthy();
+      // Row with "Date" should have 4 td elements (2 with content + 2 empty)
+      const dateRowMatch = result.match(/<tr><td><p>Date<\/p><\/td><td><p>2026-01-29<\/p><\/td>(<td><\/td>){2}<\/tr>/);
+      expect(dateRowMatch).toBeTruthy();
+    });
   });
 
   describe('blockquotes', () => {
@@ -434,5 +445,14 @@ describe('round-trip conversion', () => {
     const roundTrip = htmlToMarkdown(html);
     expect(roundTrip).toContain('- [ ] Todo');
     expect(roundTrip).toContain('- [x] Done');
+  });
+
+  it('preserves tables with blank cells', () => {
+    const original = '| Field | Col1 | Col2 |\n| --- | --- | --- |\n| Name |  |  |\n| Date | 2026-01-29 |  |';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('| Field | Col1 | Col2 |');
+    expect(roundTrip).toContain('| Name |  |  |');
+    expect(roundTrip).toContain('| Date | 2026-01-29 |  |');
   });
 });

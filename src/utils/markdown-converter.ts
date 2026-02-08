@@ -548,7 +548,7 @@ export function markdownToHtml(md: string): string {
 
     let result = '<table class="editor-table">';
 
-    const headerCells = lines[0].split('|').filter(c => c.trim());
+    const headerCells = lines[0].split('|').slice(1, -1);
     result += '<thead><tr>';
     headerCells.forEach(cell => {
       result += `<th><p>${cell.trim()}</p></th>`;
@@ -558,7 +558,7 @@ export function markdownToHtml(md: string): string {
     if (lines.length > 2) {
       result += '<tbody>';
       for (let i = 2; i < lines.length; i++) {
-        const cells = lines[i].split('|').filter(c => c.trim());
+        const cells = lines[i].split('|').slice(1, -1);
         if (cells.length > 0) {
           result += '<tr>';
           cells.forEach(cell => {
