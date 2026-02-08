@@ -157,31 +157,23 @@ defineExpose({
   flex-direction: column;
   height: 100%;
   min-width: 0;
-  background: #f8fafc;
+  background: var(--editor-container-bg);
   border: 2px solid transparent;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.editor-pane.active {
-  border-color: #3b82f6;
-}
-
-.editor-pane:not(.active) {
-  opacity: 0.95;
-}
-
 .editor-pane.drop-target {
-  border-color: #10b981;
-  background: #ecfdf5;
+  border-color: var(--success);
+  background: var(--success-bg);
 }
 
 .editor-pane.empty {
-  background: #f1f5f9;
+  background: var(--bg-tertiary);
 }
 
 .editor-pane.empty.drop-target {
-  background: #d1fae5;
-  border-color: #10b981;
+  background: var(--success-hover-bg);
+  border-color: var(--success);
 }
 
 .editor-wrapper {
@@ -199,7 +191,7 @@ defineExpose({
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   user-select: none;
 }
 
@@ -211,12 +203,12 @@ defineExpose({
 .empty-title {
   font-size: 18px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .empty-subtitle {
   font-size: 14px;
-  color: #94a3b8;
+  color: var(--text-faint);
 }
 
 .drop-overlay {
@@ -225,8 +217,8 @@ defineExpose({
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(16, 185, 129, 0.15);
-  border: 3px dashed #10b981;
+  background: var(--drop-overlay-bg);
+  border: 3px dashed var(--success);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -236,11 +228,11 @@ defineExpose({
 .drop-message {
   font-size: 18px;
   font-weight: 600;
-  color: #059669;
-  background: white;
+  color: var(--drop-message-color);
+  background: var(--drop-message-bg);
   padding: 12px 24px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px var(--shadow-sm);
 }
 
 @media print {

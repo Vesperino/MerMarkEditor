@@ -52,7 +52,7 @@ const selectTemplate = (code: string) => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -60,14 +60,14 @@ const selectTemplate = (code: string) => {
 }
 
 .template-modal {
-  background: white;
+  background: var(--dialog-bg);
   border-radius: 12px;
   width: 90%;
   max-width: 800px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-lg);
 }
 
 .modal-header {
@@ -75,13 +75,13 @@ const selectTemplate = (code: string) => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .btn-close {
@@ -92,16 +92,16 @@ const selectTemplate = (code: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
   border: none;
 }
 
 .btn-close:hover {
-  background: #e2e8f0;
-  color: #1e293b;
+  background: var(--border-primary);
+  color: var(--text-primary);
 }
 
 .modal-content {
@@ -120,12 +120,12 @@ const selectTemplate = (code: string) => {
 .template-category h4 {
   font-size: 14px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0 0 12px 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .category-templates {
@@ -139,16 +139,16 @@ const selectTemplate = (code: string) => {
   font-size: 13px;
   border-radius: 8px;
   cursor: pointer;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #475569;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
   text-align: center;
   transition: all 0.2s;
 }
 
 .btn-template-large:hover {
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-  color: #1e293b;
+  background: var(--hover-bg);
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
 }
 </style>

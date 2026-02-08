@@ -146,8 +146,8 @@ const handleBarMouseLeave = () => {
 <style scoped>
 .tab-bar {
   display: flex;
-  background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-primary);
   overflow-x: auto;
   min-height: 36px;
   padding: 0 8px;
@@ -158,7 +158,7 @@ const handleBarMouseLeave = () => {
 }
 
 .tab-bar.drag-target {
-  background: #ecfdf5;
+  background: var(--success-bg);
 }
 
 .tab {
@@ -166,7 +166,7 @@ const handleBarMouseLeave = () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #e2e8f0;
+  background: var(--tab-bg);
   border-radius: 6px 6px 0 0;
   margin-top: 4px;
   cursor: grab;
@@ -176,18 +176,18 @@ const handleBarMouseLeave = () => {
 }
 
 .tab:hover {
-  background: #cbd5e1;
+  background: var(--tab-hover-bg);
 }
 
 .tab.active {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--tab-active-bg);
+  border: 1px solid var(--border-primary);
   border-bottom: none;
   margin-bottom: -1px;
 }
 
 .tab.drop-before {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid var(--success);
   padding-left: 9px;
 }
 
@@ -197,7 +197,7 @@ const handleBarMouseLeave = () => {
 
 .tab-name {
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -205,7 +205,7 @@ const handleBarMouseLeave = () => {
 }
 
 .tab.active .tab-name {
-  color: #1e293b;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -214,7 +214,7 @@ const handleBarMouseLeave = () => {
   height: 18px;
   border: none;
   background: transparent;
-  color: #94a3b8;
+  color: var(--tab-close-color);
   font-size: 16px;
   cursor: pointer;
   display: flex;
@@ -227,7 +227,7 @@ const handleBarMouseLeave = () => {
 }
 
 .tab-close:hover {
-  background: #ef4444;
+  background: var(--danger-light);
   color: white;
 }
 

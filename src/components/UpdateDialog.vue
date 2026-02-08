@@ -57,7 +57,7 @@ const emit = defineEmits<{
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -65,23 +65,23 @@ const emit = defineEmits<{
 }
 
 .dialog {
-  background: white;
+  background: var(--dialog-bg);
   border-radius: 12px;
   width: 90%;
   max-width: 450px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-lg);
   overflow: hidden;
 }
 
 .dialog-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .dialog-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .dialog-content {
@@ -90,7 +90,7 @@ const emit = defineEmits<{
 
 .dialog-content p {
   margin: 0 0 8px 0;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .dialog-actions {
@@ -98,8 +98,8 @@ const emit = defineEmits<{
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border-top: 1px solid var(--border-primary);
+  background: var(--dialog-actions-bg);
 }
 
 .btn-cancel {
@@ -107,14 +107,14 @@ const emit = defineEmits<{
   font-size: 14px;
   border-radius: 6px;
   cursor: pointer;
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--border-primary);
+  color: var(--text-secondary);
   border: none;
   transition: all 0.2s;
 }
 
 .btn-cancel:hover:not(:disabled) {
-  background: #cbd5e1;
+  background: var(--border-secondary);
 }
 
 .btn-cancel:disabled,
@@ -128,23 +128,23 @@ const emit = defineEmits<{
   font-size: 14px;
   border-radius: 6px;
   cursor: pointer;
-  background: #2563eb;
+  background: var(--primary);
   color: white;
   border: none;
   transition: all 0.2s;
 }
 
 .btn-confirm:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .update-notes {
-  background: #f8fafc;
+  background: var(--dialog-actions-bg);
   padding: 12px;
   border-radius: 6px;
   margin-top: 12px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   max-height: 150px;
   overflow-y: auto;
 }
@@ -155,7 +155,7 @@ const emit = defineEmits<{
 
 .progress-bar {
   height: 8px;
-  background: #e2e8f0;
+  background: var(--progress-bg);
   border-radius: 4px;
   overflow: hidden;
   margin-top: 8px;
@@ -163,12 +163,12 @@ const emit = defineEmits<{
 
 .progress-fill {
   height: 100%;
-  background: #2563eb;
+  background: var(--progress-fill);
   transition: width 0.3s ease;
 }
 
 .update-error {
-  color: #dc2626;
+  color: var(--error-color);
   margin-top: 12px;
   font-size: 13px;
 }

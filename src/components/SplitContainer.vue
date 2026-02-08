@@ -288,7 +288,7 @@ defineExpose({
 
 .split-divider {
   width: 6px;
-  background: #e2e8f0;
+  background: var(--divider-bg);
   cursor: col-resize;
   display: flex;
   align-items: center;
@@ -299,20 +299,20 @@ defineExpose({
 
 .split-divider:hover,
 .split-divider.dragging {
-  background: #cbd5e1;
+  background: var(--divider-hover);
 }
 
 .divider-handle {
   width: 2px;
   height: 40px;
-  background: #94a3b8;
+  background: var(--divider-handle);
   border-radius: 1px;
   transition: background 0.15s ease;
 }
 
 .split-divider:hover .divider-handle,
 .split-divider.dragging .divider-handle {
-  background: #64748b;
+  background: var(--divider-handle-hover);
 }
 
 @media print {
