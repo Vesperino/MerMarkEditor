@@ -43,7 +43,7 @@ const emit = defineEmits<{
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -51,17 +51,17 @@ const emit = defineEmits<{
 }
 
 .dialog {
-  background: white;
+  background: var(--dialog-bg);
   border-radius: 12px;
   width: 90%;
   max-width: 420px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-lg);
   overflow: hidden;
 }
 
 .dialog-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-primary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -70,11 +70,11 @@ const emit = defineEmits<{
 .dialog-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .counter {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -84,7 +84,7 @@ const emit = defineEmits<{
 
 .dialog-content p {
   margin: 0 0 8px 0;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .dialog-content p:last-child {
@@ -96,8 +96,8 @@ const emit = defineEmits<{
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border-top: 1px solid var(--border-primary);
+  background: var(--dialog-actions-bg);
 }
 
 .btn-discard {
@@ -105,14 +105,14 @@ const emit = defineEmits<{
   font-size: 14px;
   border-radius: 6px;
   cursor: pointer;
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--danger-bg);
+  color: var(--danger);
   border: none;
   transition: all 0.2s;
 }
 
 .btn-discard:hover {
-  background: #fecaca;
+  background: var(--danger-hover-bg);
 }
 
 .btn-cancel {
@@ -120,14 +120,14 @@ const emit = defineEmits<{
   font-size: 14px;
   border-radius: 6px;
   cursor: pointer;
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--border-primary);
+  color: var(--text-secondary);
   border: none;
   transition: all 0.2s;
 }
 
 .btn-cancel:hover {
-  background: #cbd5e1;
+  background: var(--border-secondary);
 }
 
 .btn-save {
@@ -135,13 +135,13 @@ const emit = defineEmits<{
   font-size: 14px;
   border-radius: 6px;
   cursor: pointer;
-  background: #2563eb;
+  background: var(--primary);
   color: white;
   border: none;
   transition: all 0.2s;
 }
 
 .btn-save:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 </style>

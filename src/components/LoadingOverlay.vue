@@ -18,7 +18,7 @@ defineProps<{
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--loading-overlay-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -30,8 +30,8 @@ defineProps<{
 .loading-spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid #e2e8f0;
-  border-top-color: #2563eb;
+  border: 4px solid var(--border-primary);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -43,7 +43,7 @@ defineProps<{
 }
 
 .loading-overlay p {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 14px;
   margin: 0;
 }

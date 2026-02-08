@@ -152,6 +152,10 @@ export interface Translations {
   openExternalLink: string;
   confirmNavigateTo: string;
   openLink: string;
+
+  // Theme
+  darkMode: string;
+  lightMode: string;
 }
 
 const translations: Record<Locale, Translations> = {
@@ -304,6 +308,10 @@ const translations: Record<Locale, Translations> = {
     openExternalLink: 'Open External Link',
     confirmNavigateTo: 'Are you sure you want to navigate to:',
     openLink: 'Open',
+
+    // Theme
+    darkMode: 'Dark',
+    lightMode: 'Light',
   },
 
   pl: {
@@ -455,6 +463,10 @@ const translations: Record<Locale, Translations> = {
     openExternalLink: 'Otwórz link zewnętrzny',
     confirmNavigateTo: 'Czy na pewno chcesz przejść do:',
     openLink: 'Otwórz',
+
+    // Theme
+    darkMode: 'Ciemny',
+    lightMode: 'Jasny',
   },
 };
 

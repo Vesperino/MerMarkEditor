@@ -7,7 +7,7 @@ import { useTokenCounter } from "../composables/useTokenCounter";
 import { htmlToMarkdown } from "../utils/markdown-converter";
 
 const { t, locale, toggleLocale } = useI18n();
-const { settings, toggleAutoSave } = useSettings();
+const { settings, toggleAutoSave, toggleTheme } = useSettings();
 const {
   tokenCount,
   modelName,
@@ -198,6 +198,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="toolbar" @click.self="closeDropdowns">
+    <!-- Row 1: Editing tools -->
     <div class="toolbar-row">
       <!-- File operations -->
       <div class="toolbar-group">
@@ -616,6 +617,33 @@ const emit = defineEmits<{
 
       <div class="toolbar-separator"></div>
 
+      <!-- Dark Mode Toggle -->
+      <button
+        @click="toggleTheme"
+        class="toolbar-btn theme-toggle-btn"
+        :title="settings.theme === 'dark' ? t.lightMode : t.darkMode"
+      >
+        <!-- Sun icon for dark mode (click to go light) -->
+        <svg v-if="settings.theme === 'dark'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <!-- Moon icon for light mode (click to go dark) -->
+        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <span>{{ settings.theme === 'dark' ? t.lightMode : t.darkMode }}</span>
+      </button>
+
+      <div class="toolbar-separator"></div>
+
       <!-- Language Toggle -->
       <button
         @click="toggleLocale"
@@ -631,8 +659,8 @@ const emit = defineEmits<{
 
 <style scoped>
 .toolbar {
-  background: linear-gradient(to bottom, #ffffff, #f8fafc);
-  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(to bottom, var(--toolbar-gradient-from), var(--toolbar-gradient-to));
+  border-bottom: 1px solid var(--border-primary);
   padding: 8px 16px;
   user-select: none;
 }
@@ -644,6 +672,11 @@ const emit = defineEmits<{
   flex-wrap: wrap;
 }
 
+.toolbar-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
 .toolbar-group {
   display: flex;
   align-items: center;
@@ -653,12 +686,8 @@ const emit = defineEmits<{
 .toolbar-separator {
   width: 1px;
   height: 28px;
-  background: #e2e8f0;
+  background: var(--border-primary);
   margin: 0 8px;
-}
-
-.toolbar-spacer {
-  flex: 1;
 }
 
 .toolbar-btn {
@@ -670,7 +699,7 @@ const emit = defineEmits<{
   background: transparent;
   border-radius: 6px;
   cursor: pointer;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   transition: all 0.15s;
@@ -681,15 +710,15 @@ const emit = defineEmits<{
 }
 
 .toolbar-btn:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  color: #1e293b;
+  background: var(--hover-bg);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
 }
 
 .toolbar-btn.active {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: var(--active-bg);
+  border-color: var(--active-border);
+  color: var(--active-text);
 }
 
 .toolbar-btn:disabled {
@@ -713,47 +742,47 @@ const emit = defineEmits<{
 }
 
 .mermaid-btn {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
+  background: var(--mermaid-bg);
+  border-color: var(--mermaid-border);
+  color: var(--mermaid-color);
 }
 
 .mermaid-btn:hover {
-  background: #d1fae5;
-  border-color: #6ee7b7;
+  background: var(--mermaid-hover-bg);
+  border-color: var(--mermaid-hover-border);
 }
 
 .code-toggle-btn {
-  background: #f0f9ff;
-  border-color: #bae6fd;
-  color: #0369a1;
+  background: var(--code-toggle-bg);
+  border-color: var(--code-toggle-border);
+  color: var(--code-toggle-color);
 }
 
 .code-toggle-btn:hover {
-  background: #e0f2fe;
-  border-color: #7dd3fc;
+  background: var(--code-toggle-hover-bg);
+  border-color: var(--code-toggle-hover-border);
 }
 
 .code-toggle-btn.active {
-  background: #0ea5e9;
-  border-color: #0284c7;
+  background: var(--code-toggle-active-bg);
+  border-color: var(--code-toggle-active-border);
   color: white;
 }
 
 .split-toggle-btn {
-  background: #fef3c7;
-  border-color: #fcd34d;
-  color: #b45309;
+  background: var(--split-toggle-bg);
+  border-color: var(--split-toggle-border);
+  color: var(--split-toggle-color);
 }
 
 .split-toggle-btn:hover:not(:disabled) {
-  background: #fde68a;
-  border-color: #fbbf24;
+  background: var(--split-toggle-hover-bg);
+  border-color: var(--split-toggle-hover-border);
 }
 
 .split-toggle-btn.active {
-  background: #f59e0b;
-  border-color: #d97706;
+  background: var(--split-toggle-active-bg);
+  border-color: var(--split-toggle-active-border);
   color: white;
 }
 
@@ -762,25 +791,37 @@ const emit = defineEmits<{
   cursor: not-allowed;
 }
 
+.theme-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  min-width: 80px;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
 .heading-select {
   padding: 6px 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
-  background: white;
+  background: var(--bg-input);
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   min-width: 130px;
 }
 
 .heading-select:hover {
-  border-color: #cbd5e1;
+  border-color: var(--border-secondary);
 }
 
 .heading-select:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--focus-ring-alpha);
 }
 
 /* Dropdown */
@@ -793,10 +834,10 @@ const emit = defineEmits<{
   top: 100%;
   left: 0;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--dialog-bg);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-dropdown);
   z-index: 1000;
   min-width: 180px;
   padding: 4px;
@@ -812,14 +853,14 @@ const emit = defineEmits<{
   background: transparent;
   border-radius: 4px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   text-align: left;
 }
 
 .dropdown-item:hover:not(:disabled) {
-  background: #f1f5f9;
-  color: #1e293b;
+  background: var(--hover-bg);
+  color: var(--text-primary);
 }
 
 .dropdown-item:disabled {
@@ -828,16 +869,16 @@ const emit = defineEmits<{
 }
 
 .dropdown-item.danger {
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .dropdown-item.danger:hover:not(:disabled) {
-  background: #fef2f2;
+  background: var(--danger-text-bg);
 }
 
 .dropdown-divider {
   height: 1px;
-  background: #e2e8f0;
+  background: var(--border-primary);
   margin: 4px 0;
 }
 
@@ -847,12 +888,12 @@ const emit = defineEmits<{
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-faint);
   padding: 0 8px;
 }
 
 .stats-display .separator {
-  color: #cbd5e1;
+  color: var(--border-secondary);
 }
 
 /* Language Toggle */
@@ -869,11 +910,11 @@ const emit = defineEmits<{
 
 .lang-code {
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .lang-btn:hover .lang-code {
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 /* Auto-save Toggle */
@@ -885,13 +926,13 @@ const emit = defineEmits<{
 
 .autosave-label {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .radio-group {
   display: flex;
-  background: #f1f5f9;
+  background: var(--radio-group-bg);
   border-radius: 6px;
   padding: 2px;
   gap: 2px;
@@ -904,7 +945,7 @@ const emit = defineEmits<{
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   transition: all 0.15s;
 }
 
@@ -913,14 +954,14 @@ const emit = defineEmits<{
 }
 
 .radio-option:hover {
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .radio-option.active {
-  background: #ffffff;
-  color: #1e293b;
+  background: var(--radio-active-bg);
+  color: var(--text-primary);
   font-weight: 500;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--radio-active-shadow);
 }
 
 /* Token Counter */
@@ -939,17 +980,17 @@ const emit = defineEmits<{
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-faint);
   transition: all 0.15s;
 }
 
 .token-btn:hover {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--hover-bg);
+  color: var(--text-muted);
 }
 
 .token-count {
-  color: #8b5cf6;
+  color: var(--token-color);
   font-weight: 500;
 }
 
@@ -958,7 +999,7 @@ const emit = defineEmits<{
 }
 
 .token-model {
-  color: #a1a1aa;
+  color: var(--token-model-color);
   font-size: 11px;
 }
 
@@ -983,7 +1024,7 @@ const emit = defineEmits<{
 }
 
 .token-menu .dropdown-item.active {
-  background: #f0fdf4;
-  color: #16a34a;
+  background: var(--token-active-bg);
+  color: var(--token-active-color);
 }
 </style>

@@ -281,14 +281,14 @@ const handleTemplateSelect = (code: string) => {
 .mermaid-wrapper {
   margin: 1em 0;
   padding: 16px;
-  background: #f8fafc;
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border-primary);
   transition: border-color 0.2s;
 }
 
 .mermaid-wrapper.selected {
-  border-color: #2563eb;
+  border-color: var(--primary);
 }
 
 .mermaid-header {
@@ -297,7 +297,7 @@ const handleTemplateSelect = (code: string) => {
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-primary);
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -317,7 +317,7 @@ const handleTemplateSelect = (code: string) => {
 
 .size-label {
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -331,28 +331,28 @@ const handleTemplateSelect = (code: string) => {
   font-size: 11px;
   border-radius: 4px;
   cursor: pointer;
-  background: #f1f5f9;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-primary);
   transition: all 0.15s;
   font-weight: 500;
 }
 
 .btn-size:hover {
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .btn-size.active {
-  background: #2563eb;
+  background: var(--primary);
   color: white;
-  border-color: #2563eb;
+  border-color: var(--primary);
 }
 
 .mermaid-label {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -376,48 +376,48 @@ const handleTemplateSelect = (code: string) => {
 }
 
 .btn-edit {
-  background: #2563eb;
+  background: var(--primary);
   color: white;
 }
 
 .btn-edit:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .btn-delete {
-  background: #ef4444;
+  background: var(--danger-light);
   color: white;
 }
 
 .btn-delete:hover {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 .btn-save {
-  background: #10b981;
+  background: var(--success);
   color: white;
 }
 
 .btn-save:hover {
-  background: #059669;
+  background: var(--success-dark);
 }
 
 .btn-cancel {
-  background: #6b7280;
+  background: var(--text-muted);
   color: white;
 }
 
 .btn-cancel:hover {
-  background: #4b5563;
+  background: var(--text-secondary);
 }
 
 .btn-template {
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .btn-template:hover {
-  background: #cbd5e1;
+  background: var(--border-secondary);
 }
 
 .mermaid-editor {
@@ -443,7 +443,7 @@ const handleTemplateSelect = (code: string) => {
   font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
-  background: #2563eb;
+  background: var(--primary);
   color: white;
   white-space: nowrap;
   transition: all 0.2s;
@@ -451,7 +451,7 @@ const handleTemplateSelect = (code: string) => {
 }
 
 .btn-more-templates:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .mermaid-textarea {
@@ -459,15 +459,16 @@ const handleTemplateSelect = (code: string) => {
   padding: 12px;
   font-family: "Fira Code", "Consolas", monospace;
   font-size: 13px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   resize: vertical;
-  background: white;
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
 .mermaid-textarea:focus {
   outline: none;
-  border-color: #2563eb;
+  border-color: var(--primary);
 }
 
 .editor-actions {
@@ -478,10 +479,10 @@ const handleTemplateSelect = (code: string) => {
 
 .mermaid-error {
   padding: 12px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
   border-radius: 4px;
-  color: #dc2626;
+  color: var(--error-color);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -493,7 +494,7 @@ const handleTemplateSelect = (code: string) => {
   gap: 6px;
   margin-bottom: 8px;
   padding: 6px 8px;
-  background: #f1f5f9;
+  background: var(--bg-tertiary);
   border-radius: 6px;
   width: fit-content;
 }
@@ -506,18 +507,18 @@ const handleTemplateSelect = (code: string) => {
   font-weight: bold;
   border-radius: 4px;
   cursor: pointer;
-  background: white;
-  color: #475569;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
 }
 
 .btn-zoom:hover {
-  background: #e2e8f0;
-  color: #1e293b;
+  background: var(--border-primary);
+  color: var(--text-primary);
 }
 
 .btn-zoom-text {
@@ -525,21 +526,21 @@ const handleTemplateSelect = (code: string) => {
   font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
-  background: white;
-  color: #475569;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
   transition: all 0.2s;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
 }
 
 .btn-zoom-text:hover {
-  background: #e2e8f0;
-  color: #1e293b;
+  background: var(--border-primary);
+  color: var(--text-primary);
 }
 
 .zoom-level {
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
   min-width: 50px;
   text-align: center;
   padding: 0 4px;
@@ -549,9 +550,9 @@ const handleTemplateSelect = (code: string) => {
 .mermaid-viewport {
   position: relative;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
-  background: white;
+  background: var(--bg-primary);
   user-select: none;
 }
 
@@ -573,13 +574,13 @@ const handleTemplateSelect = (code: string) => {
 }
 
 .btn-fullscreen {
-  background: #2563eb !important;
+  background: var(--primary) !important;
   color: white !important;
-  border-color: #2563eb !important;
+  border-color: var(--primary) !important;
 }
 
 .btn-fullscreen:hover {
-  background: #1d4ed8 !important;
+  background: var(--primary-hover) !important;
 }
 
 /* Fullscreen Mode */
@@ -634,15 +635,15 @@ const handleTemplateSelect = (code: string) => {
   font-size: 13px;
   border-radius: 4px;
   cursor: pointer;
-  background: #ef4444;
+  background: var(--danger-light);
   color: white;
-  border: 1px solid #dc2626;
+  border: 1px solid var(--danger);
   margin-left: 16px;
   transition: all 0.2s;
 }
 
 .btn-close-fullscreen:hover {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 .fullscreen-viewport {
@@ -664,7 +665,7 @@ const handleTemplateSelect = (code: string) => {
 
 .fullscreen-content {
   transition: transform 0.1s ease-out;
-  background: white;
+  background: var(--bg-primary);
   padding: 40px;
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);

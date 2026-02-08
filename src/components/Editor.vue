@@ -20,6 +20,7 @@ import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
 import { watch, ref, nextTick } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
+import TableContextMenu from "./TableContextMenu.vue";
 
 // Flag to prevent hasChanges emission during programmatic content updates
 let isSettingContent = false;
@@ -115,6 +116,11 @@ const HeadingWithId = Node.create({
 });
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
+
+// Table context menu state
+const showContextMenu = ref(false);
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
 
 // Custom extension for list keyboard shortcuts (Tab/Shift+Tab indentation)
 const ListKeymap = Extension.create({
@@ -381,12 +387,45 @@ const handleEditorClick = (event: MouseEvent) => {
   }
 };
 
+// Handle right-click context menu on tables
+const handleContextMenu = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+  const tableCell = target.closest('td, th');
+  if (!tableCell || !editor.value) return;
+
+  event.preventDefault();
+  contextMenuX.value = event.clientX;
+  contextMenuY.value = event.clientY;
+  showContextMenu.value = true;
+};
+
+const handleContextMenuAction = (action: string) => {
+  if (!editor.value) return;
+  const commands: Record<string, () => void> = {
+    addRowBefore: () => editor.value!.chain().focus().addRowBefore().run(),
+    addRowAfter: () => editor.value!.chain().focus().addRowAfter().run(),
+    addColumnBefore: () => editor.value!.chain().focus().addColumnBefore().run(),
+    addColumnAfter: () => editor.value!.chain().focus().addColumnAfter().run(),
+    deleteRow: () => editor.value!.chain().focus().deleteRow().run(),
+    deleteColumn: () => editor.value!.chain().focus().deleteColumn().run(),
+    deleteTable: () => editor.value!.chain().focus().deleteTable().run(),
+  };
+  commands[action]?.();
+};
+
 defineExpose({ editor });
 </script>
 
 <template>
-  <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick">
+  <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick" @contextmenu="handleContextMenu">
     <EditorContent :editor="editor" class="editor-content" />
+    <TableContextMenu
+      v-if="showContextMenu"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      @close="showContextMenu = false"
+      @action="handleContextMenuAction"
+    />
   </div>
 </template>
 
@@ -394,16 +433,16 @@ defineExpose({ editor });
 .editor-container {
   flex: 1;
   overflow: auto;
-  background: #f8fafc;
+  background: var(--editor-container-bg);
 }
 
 .editor-content {
-  background: #fff;
+  background: var(--editor-content-bg);
   max-width: 900px;
   margin: 20px auto;
   padding: 60px 80px;
   min-height: calc(100vh - 180px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
   border-radius: 4px;
 }
 
@@ -449,7 +488,7 @@ defineExpose({ editor });
   font-size: 2em;
   font-weight: 700;
   margin: 1em 0 0.5em;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--heading-border);
   padding-bottom: 0.3em;
   text-align: left;
 }
@@ -458,7 +497,7 @@ defineExpose({ editor });
   font-size: 1.5em;
   font-weight: 600;
   margin: 0.8em 0 0.4em;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--heading-border);
   padding-bottom: 0.2em;
   text-align: left;
 }
@@ -491,7 +530,7 @@ defineExpose({ editor });
 }
 
 .editor-content .tiptap code {
-  background: #f1f5f9;
+  background: var(--code-inline-bg);
   padding: 0.2em 0.4em;
   border-radius: 4px;
   font-family: "Fira Code", "Consolas", monospace;
@@ -499,8 +538,8 @@ defineExpose({ editor });
 }
 
 .editor-content .tiptap pre {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: var(--code-block-bg);
+  color: var(--code-block-text);
   padding: 16px 20px;
   border-radius: 8px;
   overflow-x: auto;
@@ -514,10 +553,10 @@ defineExpose({ editor });
 }
 
 .editor-content .tiptap blockquote {
-  border-left: 4px solid #2563eb;
+  border-left: 4px solid var(--blockquote-border);
   padding-left: 16px;
   margin: 1em 0;
-  color: #64748b;
+  color: var(--blockquote-text);
   font-style: italic;
   text-align: left;
 }
@@ -567,18 +606,18 @@ defineExpose({ editor });
 
 .editor-content .tiptap hr {
   border: none;
-  border-top: 2px solid #e2e8f0;
+  border-top: 2px solid var(--hr-color);
   margin: 2em 0;
 }
 
 .editor-content .tiptap a.editor-link {
-  color: #2563eb;
+  color: var(--link-color);
   text-decoration: underline;
   cursor: pointer;
 }
 
 .editor-content .tiptap a.editor-link:hover {
-  color: #1d4ed8;
+  color: var(--link-hover);
 }
 
 .editor-content .tiptap img.editor-image {
@@ -598,7 +637,7 @@ defineExpose({ editor });
 
 .editor-content .tiptap table th,
 .editor-content .tiptap table td {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
   padding: 8px 12px;
   text-align: left;
   vertical-align: top;
@@ -612,18 +651,18 @@ defineExpose({ editor });
 }
 
 .editor-content .tiptap table th {
-  background: #f8fafc;
+  background: var(--table-header-bg);
   font-weight: 600;
 }
 
 .editor-content .tiptap table tr:hover td {
-  background: #f8fafc;
+  background: var(--table-hover-bg);
 }
 
 .editor-content .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: #94a3b8;
+  color: var(--placeholder-color);
   pointer-events: none;
   height: 0;
 }
@@ -642,9 +681,9 @@ defineExpose({ editor });
 .mermaid-wrapper {
   margin: 1em 0;
   padding: 16px;
-  background: #f8fafc;
+  background: var(--editor-container-bg);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-primary);
 }
 
 .mermaid-wrapper svg {
@@ -653,7 +692,7 @@ defineExpose({ editor });
 
 /* Table cell selection */
 .editor-content .tiptap table .selectedCell {
-  background: #dbeafe;
+  background: var(--table-selection-bg);
 }
 
 .editor-content .tiptap table .column-resize-handle {
@@ -662,7 +701,7 @@ defineExpose({ editor });
   top: 0;
   bottom: -2px;
   width: 4px;
-  background-color: #2563eb;
+  background-color: var(--table-resize-handle);
   pointer-events: none;
 }
 
@@ -713,7 +752,7 @@ defineExpose({ editor });
 
 .editor-content .tiptap dd {
   margin-left: 1.5em;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 /* Additional heading styles */
@@ -727,7 +766,7 @@ defineExpose({ editor });
 
 .editor-content .tiptap h6 {
   font-size: 0.9em;
-  color: #64748b;
+  color: var(--h6-color);
 }
 
 /* Remove focus ring - clean look */
@@ -743,10 +782,10 @@ defineExpose({ editor });
 /* Character counter styles */
 .character-count {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-faint);
   text-align: right;
   padding: 8px 16px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-primary);
 }
 
 .character-count.warning {
@@ -754,6 +793,6 @@ defineExpose({ editor });
 }
 
 .character-count.danger {
-  color: #ef4444;
+  color: var(--danger-light);
 }
 </style>

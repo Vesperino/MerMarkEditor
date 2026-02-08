@@ -42,7 +42,7 @@ const handleInput = (event: Event) => {
 .code-editor-container {
   flex: 1;
   overflow: auto;
-  background: #1e293b;
+  background: var(--code-editor-container-bg);
   padding: 20px;
 }
 
@@ -50,8 +50,8 @@ const handleInput = (event: Event) => {
   width: 100%;
   height: 100%;
   min-height: calc(100vh - 180px);
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--code-editor-bg);
+  color: var(--code-editor-text);
   border: none;
   border-radius: 8px;
   padding: 24px;
@@ -67,7 +67,7 @@ const handleInput = (event: Event) => {
 
 .code-editor:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 2px var(--focus-ring-alpha);
 }
 
 @media print {

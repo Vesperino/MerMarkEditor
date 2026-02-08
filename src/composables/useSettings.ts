@@ -2,10 +2,13 @@ import { ref, watch } from 'vue';
 import type { TokenModelId } from '../services/tokenCounter';
 import { TOKEN_MODELS } from '../services/tokenCounter';
 
+export type ThemeMode = 'light' | 'dark';
+
 export interface AppSettings {
   autoSave: boolean;
   showTokenCount: boolean;
   tokenModel: TokenModelId;
+  theme: ThemeMode;
 }
 
 const STORAGE_KEY = 'mermark-settings';
@@ -64,6 +67,7 @@ function getDefaultSettings(): AppSettings {
     autoSave: false,
     showTokenCount: true,
     tokenModel: 'gpt',
+    theme: 'light',
   };
 }
 
@@ -104,6 +108,16 @@ export function useSettings() {
     settings.value.tokenModel = model;
   };
 
+  const setTheme = (theme: ThemeMode) => {
+    settings.value.theme = theme;
+    applyTheme(theme);
+  };
+
+  const toggleTheme = () => {
+    const newTheme = settings.value.theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+  };
+
   return {
     settings,
     setAutoSave,
@@ -111,5 +125,19 @@ export function useSettings() {
     setShowTokenCount,
     toggleShowTokenCount,
     setTokenModel,
+    setTheme,
+    toggleTheme,
   };
 }
+
+// Apply theme class to HTML element
+function applyTheme(theme: ThemeMode) {
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
+
+// Apply theme on initial load
+applyTheme(settings.value.theme);
