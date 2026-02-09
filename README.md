@@ -79,7 +79,7 @@
 ---
 
 ## Screenshots
-p align="center">
+<p align="center">
 <img width="3834" height="2062" alt="{A58E1D94-68D2-4810-80DE-B704A3695685}" src="https://github.com/user-attachments/assets/1c06e6e4-3cdb-419d-a7e8-9ba2437d2c47" />
   <br>
   <em>Dark mode</em>
