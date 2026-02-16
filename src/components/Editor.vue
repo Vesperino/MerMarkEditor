@@ -25,6 +25,9 @@ import TableContextMenu from "./TableContextMenu.vue";
 // Guards against false hasChanges during programmatic content updates.
 // Starts at 1 to cover initial editor creation; released after 300ms.
 let settingContentCount = 1;
+
+// HTML snapshot from last file open/save — used to detect real changes (e.g. after undo).
+let lastSavedHtml = '';
 import { MermaidExtension } from "../extensions/MermaidExtension";
 import { useI18n } from "../i18n";
 
@@ -313,10 +316,10 @@ const editor = useEditor({
     }),
   ],
   onUpdate: ({ editor }) => {
-    emit("update:modelValue", editor.getHTML());
-    // Only emit hasChanges when user is editing, not during programmatic content updates
+    const html = editor.getHTML();
+    emit("update:modelValue", html);
     if (settingContentCount === 0) {
-      emit("update:hasChanges", true);
+      emit("update:hasChanges", html !== lastSavedHtml);
     }
   },
   editorProps: {
@@ -358,6 +361,8 @@ const editor = useEditor({
   },
 });
 
+lastSavedHtml = props.modelValue || `<p>${t.value.placeholder}</p>`;
+
 setTimeout(() => {
   settingContentCount = Math.max(0, settingContentCount - 1);
 }, 300);
@@ -368,6 +373,7 @@ watch(
     if (editor.value && newValue !== editor.value.getHTML()) {
       settingContentCount++;
       editor.value.commands.setContent(newValue || "");
+      lastSavedHtml = editor.value.getHTML();
       await nextTick();
       setTimeout(() => {
         settingContentCount = Math.max(0, settingContentCount - 1);

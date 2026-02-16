@@ -159,6 +159,23 @@
   /* Scrollbar */
   --scrollbar-thumb: #cbd5e1;
   --scrollbar-thumb-hover: #94a3b8;
+
+  /* Diff preview */
+  --diff-added-bg: #ecfdf5;
+  --diff-added-text: #065f46;
+  --diff-removed-bg: #fef2f2;
+  --diff-removed-text: #991b1b;
+  --diff-gutter-bg: #f8fafc;
+  --diff-gutter-border: #e2e8f0;
+
+  /* Special buttons - Changes toggle */
+  --changes-toggle-bg: #fdf4ff;
+  --changes-toggle-border: #e9d5ff;
+  --changes-toggle-color: #7c3aed;
+  --changes-toggle-hover-bg: #f3e8ff;
+  --changes-toggle-hover-border: #c084fc;
+  --changes-toggle-active-bg: #8b5cf6;
+  --changes-toggle-active-border: #7c3aed;
 }
 
 /* ========== Obsidian-style Dark Theme ========== */
@@ -288,6 +305,23 @@ html.dark {
 
   --scrollbar-thumb: #444444;
   --scrollbar-thumb-hover: #555555;
+
+  /* Diff preview */
+  --diff-added-bg: rgba(16, 185, 129, 0.12);
+  --diff-added-text: #34d399;
+  --diff-removed-bg: rgba(239, 68, 68, 0.12);
+  --diff-removed-text: #f87171;
+  --diff-gutter-bg: #252525;
+  --diff-gutter-border: #383838;
+
+  /* Special buttons - Changes toggle */
+  --changes-toggle-bg: rgba(139, 92, 246, 0.1);
+  --changes-toggle-border: rgba(139, 92, 246, 0.3);
+  --changes-toggle-color: #a78bfa;
+  --changes-toggle-hover-bg: rgba(139, 92, 246, 0.15);
+  --changes-toggle-hover-border: rgba(139, 92, 246, 0.5);
+  --changes-toggle-active-bg: #8b5cf6;
+  --changes-toggle-active-border: #7c3aed;
 }
 
 /* ========== Scrollbar styling ========== */

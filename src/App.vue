@@ -15,6 +15,7 @@ import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
+import DiffPreview from './components/DiffPreview.vue';
 
 // Composables
 import { useAutoUpdate } from './composables/useAutoUpdate';
@@ -319,6 +320,33 @@ const toggleCodeView = async () => {
   isLoadingContent.value = false;
 };
 
+// ============ Diff Preview ============
+import { useDiffPreview } from './composables/useDiffPreview';
+
+const {
+  showDiffPreview,
+  diffPreviewLines,
+  diffStats,
+  canShowDiff,
+  openDiffPreview,
+  closeDiffPreview,
+} = useDiffPreview({
+  originalMarkdown: computed(() => activeTab.value?.originalMarkdown ?? null),
+  getCurrentMarkdown: () => {
+    const html = getEditorContent();
+    return htmlToMarkdown(html);
+  },
+  hasChanges,
+});
+
+const toggleDiffPreview = () => {
+  if (showDiffPreview.value) {
+    closeDiffPreview();
+  } else {
+    openDiffPreview();
+  }
+};
+
 // ============ Auto Update ============
 const {
   showUpdateDialog,
@@ -468,6 +496,12 @@ const handleKeyboard = (event: KeyboardEvent) => {
       case 'p':
         event.preventDefault();
         exportPdf();
+        break;
+      case 'd':
+        if (event.shiftKey && canShowDiff.value) {
+          event.preventDefault();
+          toggleDiffPreview();
+        }
         break;
     }
   }
@@ -660,6 +694,8 @@ onUnmounted(async () => {
     <Toolbar
       :code-view="codeView"
       :is-split-active="isSplitActive"
+      :diff-active="showDiffPreview"
+      :can-show-diff="canShowDiff"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @save-file="saveFile"
@@ -667,6 +703,7 @@ onUnmounted(async () => {
       @export-pdf="exportPdf"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
+      @toggle-diff-preview="toggleDiffPreview"
     />
 
     <!-- Split Container with Editor Panes -->
@@ -729,6 +766,14 @@ onUnmounted(async () => {
       @save="handleTabCloseSave"
       @discard="handleTabCloseDiscard"
       @cancel="handleTabCloseCancel"
+    />
+
+    <!-- Diff Preview Overlay -->
+    <DiffPreview
+      v-if="showDiffPreview"
+      :lines="diffPreviewLines"
+      :stats="diffStats"
+      @close="closeDiffPreview"
     />
   </div>
 </template>

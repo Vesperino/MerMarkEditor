@@ -183,6 +183,8 @@ const closeDropdowns = () => {
 const props = defineProps<{
   codeView?: boolean;
   isSplitActive?: boolean;
+  diffActive?: boolean;
+  canShowDiff?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -193,6 +195,7 @@ const emit = defineEmits<{
   exportPdf: [];
   toggleCodeView: [];
   toggleSplit: [];
+  toggleDiffPreview: [];
 }>();
 </script>
 
@@ -586,6 +589,23 @@ const emit = defineEmits<{
         <span>{{ props.isSplitActive ? t.singleView : t.splitView }}</span>
       </button>
 
+      <!-- Changes (Diff Preview) Toggle -->
+      <button
+        @click="emit('toggleDiffPreview')"
+        :class="{ active: props.diffActive }"
+        class="toolbar-btn changes-toggle-btn"
+        :title="t.changes"
+        :disabled="!props.canShowDiff || props.codeView"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14,2 14,8 20,8"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+          <line x1="12" y1="12" x2="12" y2="18"/>
+        </svg>
+        <span>{{ t.changes }}</span>
+      </button>
+
       <div class="toolbar-separator"></div>
 
       <!-- Auto-save Toggle -->
@@ -787,6 +807,28 @@ const emit = defineEmits<{
 }
 
 .split-toggle-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.changes-toggle-btn {
+  background: var(--changes-toggle-bg);
+  border-color: var(--changes-toggle-border);
+  color: var(--changes-toggle-color);
+}
+
+.changes-toggle-btn:hover:not(:disabled) {
+  background: var(--changes-toggle-hover-bg);
+  border-color: var(--changes-toggle-hover-border);
+}
+
+.changes-toggle-btn.active {
+  background: var(--changes-toggle-active-bg);
+  border-color: var(--changes-toggle-active-border);
+  color: white;
+}
+
+.changes-toggle-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }

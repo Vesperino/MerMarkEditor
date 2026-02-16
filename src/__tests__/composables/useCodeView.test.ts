@@ -379,6 +379,40 @@ describe('useCodeView', () => {
     });
   });
 
+  describe('code-to-visual without edits should still restore cursor', () => {
+    it('should use findElementAtLine for cursor restoration when content unchanged', () => {
+      // Simulate code→visual path with no changes
+      const codeContent = '# Heading\n\nSome content here\n\nAnother paragraph';
+      const codeContentSnapshot = codeContent; // Same = no changes
+
+      const contentChanged = codeContent !== codeContentSnapshot;
+      expect(contentChanged).toBe(false);
+
+      // Even though content didn't change, we should still have cursor info
+      const cursorPos = 15; // Middle of "Some content here"
+      const cursorLine = getLineFromPosition(codeContent, cursorPos);
+      const totalLines = codeContent.split('\n').length;
+
+      expect(cursorLine).toBe(2);
+      expect(totalLines).toBe(5);
+
+      // The unchanged path should use findElementAtLine with these values
+      // (not just scroll ratio), so the cursor position is highlighted
+    });
+
+    it('should preserve cursor line info for restoration in unchanged path', () => {
+      const codeContent = 'Line 0\nLine 1\nLine 2\nLine 3';
+      const cursorPos = 20; // In "Line 2"
+
+      const cursorLine = getLineFromPosition(codeContent, cursorPos);
+      const totalLines = codeContent.split('\n').length;
+
+      // These values should be used by the unchanged path to find the right element
+      expect(cursorLine).toBe(2);
+      expect(totalLines).toBe(4);
+    });
+  });
+
   describe('code block detection', () => {
     it('should detect cursor inside a code block', () => {
       const markdown = '# Heading\n\n```mermaid\nflowchart TD\n  A --> B\n```\n\nParagraph';

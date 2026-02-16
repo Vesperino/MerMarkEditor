@@ -322,7 +322,6 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
   const savedCursorLine = ref(0);
   const savedScrollRatio = ref(0);
-  // Snapshot of markdown when entering code view, to detect real changes
   let codeContentSnapshot = '';
 
   // Inject styles on module load
@@ -445,31 +444,41 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       const contentChanged = codeContent.value !== codeContentSnapshot;
 
       if (!contentChanged) {
-        // No changes — just switch back to visual without re-setting content.
-        // This avoids the marker insertion/removal cycle that can falsely trigger hasChanges.
+        // No changes — skip re-conversion to avoid marker/DOM mutation race conditions.
         codeView.value = false;
 
         await nextTick();
         await nextTick();
 
-        // Restore scroll position using saved ratio
         setTimeout(() => {
           const editorContainer = getActiveEditorContainer() || getFallbackEditorContainer();
-          if (editorContainer) {
-            const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
-            if (maxScroll > 0) {
-              editorContainer.scrollTop = Math.round(savedScrollRatio.value * maxScroll);
+          if (!editorContainer) return;
+
+          const proseMirror = getProseMirrorRoot(editorContainer);
+          if (proseMirror && proseMirror.childElementCount > 0) {
+            const targetElement = useMarker
+              ? findElementAtLine(proseMirror, savedCursorLine.value, totalLines)
+              : findCodeBlockElement(proseMirror, codeBlockIndex);
+
+            if (targetElement) {
+              scrollContainerToElement(editorContainer, targetElement, 80);
+              requestAnimationFrame(() => highlightVisualElement(targetElement));
+              return;
             }
+          }
+
+          // Last resort: scroll ratio
+          const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
+          if (maxScroll > 0) {
+            editorContainer.scrollTop = Math.round(savedScrollRatio.value * maxScroll);
           }
         }, 150);
       } else {
-        // Content was modified — convert and set new content
         const html = markdownToHtml(markdownWithMarker);
         setActiveContent(html);
         markAsChanged();
         codeView.value = false;
 
-        // Wait for DOM and find/remove marker, scroll to position
         await nextTick();
         await nextTick();
 
