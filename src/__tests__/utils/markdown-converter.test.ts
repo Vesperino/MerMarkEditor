@@ -481,6 +481,76 @@ describe('round-trip conversion', () => {
   });
 });
 
+describe('nested list round-trip', () => {
+  it('preserves simple nested unordered list', () => {
+    const original = '- Parent\n  - Child 1\n  - Child 2';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('- Parent');
+    expect(roundTrip).toContain('  - Child 1');
+    expect(roundTrip).toContain('  - Child 2');
+  });
+
+  it('preserves deeply nested list (3 levels)', () => {
+    const original = '- Level 1\n  - Level 2\n    - Level 3';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('- Level 1');
+    expect(roundTrip).toContain('  - Level 2');
+    expect(roundTrip).toContain('    - Level 3');
+  });
+
+  it('preserves nested list with multiple parents', () => {
+    const original = '- Parent A\n  - Child A1\n  - Child A2\n- Parent B\n  - Child B1';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('- Parent A');
+    expect(roundTrip).toContain('  - Child A1');
+    expect(roundTrip).toContain('  - Child A2');
+    expect(roundTrip).toContain('- Parent B');
+    expect(roundTrip).toContain('  - Child B1');
+  });
+
+  it('preserves nested ordered list inside unordered', () => {
+    const original = '- Item\n  1. Sub one\n  2. Sub two';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('- Item');
+    expect(roundTrip).toContain('  1. Sub one');
+    expect(roundTrip).toContain('  2. Sub two');
+  });
+
+  it('preserves issue #13 example: space+space+dash nested items', () => {
+    const original = '- Main item\n  - Sub item with content\n  - Another sub item';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toBe(original);
+  });
+
+  it('markdownToHtml generates proper nested HTML', () => {
+    const md = '- Parent\n  - Child';
+    const html = markdownToHtml(md);
+    // Should produce nested <ul> structure
+    expect(html).toContain('<ul>');
+    expect(html).toContain('<li><p>Parent</p>');
+    expect(html).toContain('<li><p>Child</p>');
+    // The child should be in a nested <ul> inside parent's <li>
+    const parentLiStart = html.indexOf('<li><p>Parent</p>');
+    const nestedUlStart = html.indexOf('<ul>', parentLiStart);
+    const parentLiEnd = html.indexOf('</li>', nestedUlStart);
+    expect(nestedUlStart).toBeGreaterThan(parentLiStart);
+    expect(parentLiEnd).toBeGreaterThan(nestedUlStart);
+  });
+
+  it('htmlToMarkdown handles nested <ul> inside <li>', () => {
+    const html = '<ul><li><p>Parent</p><ul><li><p>Child 1</p></li><li><p>Child 2</p></li></ul></li></ul>';
+    const md = htmlToMarkdown(html);
+    expect(md).toContain('- Parent');
+    expect(md).toContain('  - Child 1');
+    expect(md).toContain('  - Child 2');
+  });
+});
+
 describe('detectLineEnding', () => {
   it('detects CRLF line endings', () => {
     expect(detectLineEnding('line1\r\nline2\r\nline3')).toBe('\r\n');

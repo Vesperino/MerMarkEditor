@@ -141,7 +141,12 @@ function parseHtmlList(html: string, indent = 0, isOrdered = false, startIndex =
         }
         depth++;
       } else {
-        liContent += remaining.slice(pos, nextLiClose);
+        if (depth > 1) {
+          // Include </li> for nested elements to preserve proper HTML structure
+          liContent += remaining.slice(pos, nextLiClose + 5);
+        } else {
+          liContent += remaining.slice(pos, nextLiClose);
+        }
         pos = nextLiClose + 5;
         depth--;
       }
@@ -159,10 +164,10 @@ function parseHtmlList(html: string, indent = 0, isOrdered = false, startIndex =
     const nestedOlMatch = liContent.match(/<ol[^>]*>([\s\S]*)<\/ol>\s*$/i);
 
     if (nestedUlMatch) {
-      textContent = liContent.slice(0, liContent.lastIndexOf('<ul'));
+      textContent = liContent.slice(0, liContent.indexOf('<ul'));
       nestedListHtml = nestedUlMatch[0];
     } else if (nestedOlMatch) {
-      textContent = liContent.slice(0, liContent.lastIndexOf('<ol'));
+      textContent = liContent.slice(0, liContent.indexOf('<ol'));
       nestedListHtml = nestedOlMatch[0];
     }
 
