@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
-import { htmlToMarkdown } from './utils/markdown-converter';
+import { htmlToMarkdown, detectLineEnding, applyLineEnding } from './utils/markdown-converter';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 // Components
@@ -378,12 +378,20 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
     // For active tab in active pane, get fresh content from editor; for others, use stored content
     const isActiveTab = tabId === activeTabId.value && paneId === activePaneId.value;
     const html = isActiveTab ? getEditorContent() : tab.content;
-    const markdown = htmlToMarkdown(html);
+    let markdown = htmlToMarkdown(html);
+
+    // Preserve original line endings
+    if (tab.originalMarkdown) {
+      const originalLineEnding = detectLineEnding(tab.originalMarkdown);
+      markdown = applyLineEnding(markdown, originalLineEnding);
+    }
+
     await writeTextFile(tab.filePath, markdown);
 
     // Update tab state
     tab.hasChanges = false;
     tab.content = html;
+    tab.originalMarkdown = markdown;
   } catch (error) {
     console.error('Błąd automatycznego zapisywania:', error);
   }

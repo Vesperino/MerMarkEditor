@@ -5,6 +5,8 @@ import {
   generateSlug,
   htmlToMarkdown,
   markdownToHtml,
+  detectLineEnding,
+  applyLineEnding,
 } from '../../utils/markdown-converter';
 
 describe('decodeHtmlEntities', () => {
@@ -476,5 +478,74 @@ describe('round-trip conversion', () => {
     expect(roundTrip).toContain('| Field | Col1 | Col2 |');
     expect(roundTrip).toContain('| Name |  |  |');
     expect(roundTrip).toContain('| Date | 2026-01-29 |  |');
+  });
+});
+
+describe('detectLineEnding', () => {
+  it('detects CRLF line endings', () => {
+    expect(detectLineEnding('line1\r\nline2\r\nline3')).toBe('\r\n');
+  });
+
+  it('detects LF line endings', () => {
+    expect(detectLineEnding('line1\nline2\nline3')).toBe('\n');
+  });
+
+  it('detects CR line endings', () => {
+    expect(detectLineEnding('line1\rline2\rline3')).toBe('\r');
+  });
+
+  it('defaults to LF for text without line endings', () => {
+    expect(detectLineEnding('single line')).toBe('\n');
+  });
+
+  it('detects majority line ending in mixed content', () => {
+    // 3 CRLF vs 1 LF
+    expect(detectLineEnding('a\r\nb\r\nc\r\nd\ne')).toBe('\r\n');
+  });
+});
+
+describe('applyLineEnding', () => {
+  it('converts LF to CRLF', () => {
+    expect(applyLineEnding('line1\nline2\nline3', '\r\n')).toBe('line1\r\nline2\r\nline3');
+  });
+
+  it('keeps LF when target is LF', () => {
+    expect(applyLineEnding('line1\nline2', '\n')).toBe('line1\nline2');
+  });
+
+  it('converts CRLF input to LF', () => {
+    expect(applyLineEnding('line1\r\nline2\r\n', '\n')).toBe('line1\nline2\n');
+  });
+
+  it('converts mixed input to CRLF', () => {
+    expect(applyLineEnding('a\r\nb\nc\rd', '\r\n')).toBe('a\r\nb\r\nc\r\nd');
+  });
+
+  it('converts to CR', () => {
+    expect(applyLineEnding('line1\nline2\nline3', '\r')).toBe('line1\rline2\rline3');
+  });
+});
+
+describe('line ending preservation through conversion', () => {
+  it('htmlToMarkdown output can be converted to CRLF', () => {
+    const html = '<h1>Title</h1><p>Content</p>';
+    const md = htmlToMarkdown(html);
+    const withCrlf = applyLineEnding(md, '\r\n');
+    expect(withCrlf).toContain('\r\n');
+    expect(withCrlf).not.toMatch(/(?<!\r)\n/);
+  });
+
+  it('round-trip with CRLF preservation produces CRLF output', () => {
+    const original = '# Title\r\n\r\nParagraph text.\r\n';
+    const lineEnding = detectLineEnding(original);
+    expect(lineEnding).toBe('\r\n');
+
+    const html = markdownToHtml(original);
+    const md = htmlToMarkdown(html);
+    const restored = applyLineEnding(md, lineEnding);
+
+    expect(restored).not.toMatch(/(?<!\r)\n/);
+    expect(restored).toContain('# Title');
+    expect(restored).toContain('Paragraph text.');
   });
 });

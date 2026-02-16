@@ -3,7 +3,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
+import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding } from '../utils/markdown-converter';
 import type { Tab } from './useTabs';
 
 export interface UseFileOperationsOptions {
@@ -90,10 +90,13 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
             tabs.value[tabIndex].fileName = fileName;
             tabs.value[tabIndex].content = htmlContent;
             tabs.value[tabIndex].hasChanges = false;
+            tabs.value[tabIndex].originalMarkdown = fileContent;
             setEditorContent(htmlContent);
           }
         } else {
           const newTabId = createNewTab(filePath, htmlContent, fileName);
+          const newTab = tabs.value.find(t => t.id === newTabId);
+          if (newTab) newTab.originalMarkdown = fileContent;
           await switchToTab(newTabId);
         }
       }
@@ -123,10 +126,15 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
           tabs.value[tabIndex].fileName = fileName;
           tabs.value[tabIndex].content = htmlContent;
           tabs.value[tabIndex].hasChanges = false;
+          tabs.value[tabIndex].originalMarkdown = fileContent;
           setEditorContent(htmlContent);
         }
       } else {
         const newTabId = createNewTab(filePath, htmlContent, fileName);
+        const newTab = tabs.value.find(t => t.id === newTabId);
+        if (newTab) {
+          newTab.originalMarkdown = fileContent;
+        }
         await switchToTab(newTabId);
       }
     } catch (error) {
@@ -137,6 +145,12 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
   const saveFile = async (): Promise<void> => {
     try {
       let filePath = currentFile.value;
+      const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+
+      // Skip save if file exists and has no changes
+      if (filePath && tabIndex !== -1 && !tabs.value[tabIndex].hasChanges) {
+        return;
+      }
 
       if (!filePath) {
         filePath = await save({
@@ -147,16 +161,23 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
 
       if (filePath) {
         const html = getEditorHtml();
-        const markdown = htmlToMarkdown(html);
+        let markdown = htmlToMarkdown(html);
+
+        // Preserve original line endings if we have the original content
+        if (tabIndex !== -1 && tabs.value[tabIndex].originalMarkdown) {
+          const originalLineEnding = detectLineEnding(tabs.value[tabIndex].originalMarkdown!);
+          markdown = applyLineEnding(markdown, originalLineEnding);
+        }
+
         await writeTextFile(filePath, markdown);
 
         // Update the active tab
-        const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
         if (tabIndex !== -1) {
           tabs.value[tabIndex].filePath = filePath;
           tabs.value[tabIndex].fileName = filePath.split(/[/\\]/).pop() || 'Dokument';
           tabs.value[tabIndex].hasChanges = false;
           tabs.value[tabIndex].content = html;
+          tabs.value[tabIndex].originalMarkdown = markdown;
         }
       }
     } catch (error) {
@@ -173,15 +194,24 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
 
       if (filePath) {
         const html = getEditorHtml();
-        const markdown = htmlToMarkdown(html);
-        await writeTextFile(filePath, markdown);
+        let markdown = htmlToMarkdown(html);
 
         const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+
+        // Preserve original line endings if we have the original content
+        if (tabIndex !== -1 && tabs.value[tabIndex].originalMarkdown) {
+          const originalLineEnding = detectLineEnding(tabs.value[tabIndex].originalMarkdown!);
+          markdown = applyLineEnding(markdown, originalLineEnding);
+        }
+
+        await writeTextFile(filePath, markdown);
+
         if (tabIndex !== -1) {
           tabs.value[tabIndex].filePath = filePath;
           tabs.value[tabIndex].fileName = filePath.split(/[/\\]/).pop() || 'Dokument';
           tabs.value[tabIndex].hasChanges = false;
           tabs.value[tabIndex].content = html;
+          tabs.value[tabIndex].originalMarkdown = markdown;
         }
       }
     } catch (error) {
@@ -269,6 +299,10 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
 
       // Create new tab and switch to it
       const newTabId = createNewTab(fullPath, htmlContent, fileName);
+      const newTab = tabs.value.find(t => t.id === newTabId);
+      if (newTab) {
+        newTab.originalMarkdown = fileContent;
+      }
       await switchToTab(newTabId);
       isLoadingFile.value = false;
     } catch (error) {

@@ -622,3 +622,21 @@ export function markdownToHtml(md: string): string {
 
   return html;
 }
+
+export function detectLineEnding(text: string): string {
+  const crlfCount = (text.match(/\r\n/g) || []).length;
+  const lfCount = (text.match(/(?<!\r)\n/g) || []).length;
+  const crCount = (text.match(/\r(?!\n)/g) || []).length;
+
+  if (crlfCount === 0 && lfCount === 0 && crCount === 0) return '\n';
+  if (crlfCount >= lfCount && crlfCount >= crCount) return '\r\n';
+  if (crCount > lfCount) return '\r';
+  return '\n';
+}
+
+export function applyLineEnding(text: string, lineEnding: string): string {
+  // Normalize to LF first, then apply desired line ending
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (lineEnding === '\n') return normalized;
+  return normalized.replace(/\n/g, lineEnding);
+}

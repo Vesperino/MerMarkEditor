@@ -8,6 +8,7 @@ export interface Tab {
   content: string;
   hasChanges: boolean;
   scrollTop: number;
+  originalMarkdown: string | null;
 }
 
 export interface UseTabsOptions {
@@ -35,6 +36,7 @@ export function useTabs(): UseTabsReturn {
     content: '<p></p>',
     hasChanges: false,
     scrollTop: 0,
+    originalMarkdown: null,
   }]);
 
   const activeTabId = ref('tab-1');
@@ -58,6 +60,7 @@ export function useTabs(): UseTabsReturn {
       content: fileContent,
       hasChanges: false,
       scrollTop: 0,
+      originalMarkdown: null,
     });
     return newTabId;
   };

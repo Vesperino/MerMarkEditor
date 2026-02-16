@@ -22,8 +22,9 @@ import { watch, ref, nextTick } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import TableContextMenu from "./TableContextMenu.vue";
 
-// Flag to prevent hasChanges emission during programmatic content updates
-let isSettingContent = false;
+// Guards against false hasChanges during programmatic content updates.
+// Starts at 1 to cover initial editor creation; released after 300ms.
+let settingContentCount = 1;
 import { MermaidExtension } from "../extensions/MermaidExtension";
 import { useI18n } from "../i18n";
 
@@ -314,7 +315,7 @@ const editor = useEditor({
   onUpdate: ({ editor }) => {
     emit("update:modelValue", editor.getHTML());
     // Only emit hasChanges when user is editing, not during programmatic content updates
-    if (!isSettingContent) {
+    if (settingContentCount === 0) {
       emit("update:hasChanges", true);
     }
   },
@@ -357,16 +358,21 @@ const editor = useEditor({
   },
 });
 
+setTimeout(() => {
+  settingContentCount = Math.max(0, settingContentCount - 1);
+}, 300);
+
 watch(
   () => props.modelValue,
   async (newValue) => {
     if (editor.value && newValue !== editor.value.getHTML()) {
-      // Set flag to prevent hasChanges emission during programmatic update
-      isSettingContent = true;
+      settingContentCount++;
       editor.value.commands.setContent(newValue || "");
-      // Wait for update cycle to complete, then clear flag
       await nextTick();
-      isSettingContent = false;
+      setTimeout(() => {
+        settingContentCount = Math.max(0, settingContentCount - 1);
+        emit("update:hasChanges", false);
+      }, 200);
     }
   }
 );
