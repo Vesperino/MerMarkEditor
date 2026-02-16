@@ -62,7 +62,7 @@ const activeTabId = computed(() => activePane.value?.activeTabId || '');
 const activeTab = computed(() => {
   const tab = getActiveTabForPane(activePaneId.value);
   // Return a default tab if none exists (should never happen in practice)
-  return tab || { id: '', filePath: null, fileName: t.value.newDocument, content: '<p></p>', hasChanges: false, scrollTop: 0 };
+  return tab || { id: '', filePath: null, fileName: t.value.newDocument, content: '<p></p>', hasChanges: false, scrollTop: 0, originalMarkdown: null };
 });
 
 // ============ Editor References ============

@@ -35,6 +35,7 @@ describe('useCloseConfirmation', () => {
     content: '<p>Test content</p>',
     hasChanges: false,
     scrollTop: 0,
+    originalMarkdown: null,
     ...overrides,
   });
 
