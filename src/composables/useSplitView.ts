@@ -181,6 +181,7 @@ export function useSplitView(): UseSplitViewReturn {
       content,
       hasChanges: false,
       scrollTop: 0,
+      originalMarkdown: null,
     };
 
     pane.tabs.push(newTab);
