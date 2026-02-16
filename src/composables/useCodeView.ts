@@ -322,6 +322,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
   const savedCursorLine = ref(0);
   const savedScrollRatio = ref(0);
+  // Snapshot of markdown when entering code view, to detect real changes
+  let codeContentSnapshot = '';
 
   // Inject styles on module load
   injectHighlightStyles();
@@ -360,6 +362,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         const html = getActiveContent();
         codeContent.value = htmlToMarkdown(html);
       }
+
+      codeContentSnapshot = codeContent.value;
 
       // Save scroll ratio as fallback
       const editorContainer = document.querySelector('.editor-pane.active .editor-container');
@@ -438,10 +442,14 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
       savedCursorLine.value = cursorLine;
 
+      const contentChanged = codeContent.value !== codeContentSnapshot;
+
       // Convert markdown (with or without marker) to HTML
       const html = markdownToHtml(markdownWithMarker);
       setActiveContent(html);
-      markAsChanged();
+      if (contentChanged) {
+        markAsChanged();
+      }
       codeView.value = false;
 
       // Wait for DOM and find/remove marker, scroll to position
