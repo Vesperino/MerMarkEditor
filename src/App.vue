@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
-import { htmlToMarkdown } from './utils/markdown-converter';
+import { htmlToMarkdown, detectLineEnding, applyLineEnding } from './utils/markdown-converter';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 // Components
@@ -15,6 +15,7 @@ import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
+import DiffPreview from './components/DiffPreview.vue';
 
 // Composables
 import { useAutoUpdate } from './composables/useAutoUpdate';
@@ -319,6 +320,33 @@ const toggleCodeView = async () => {
   isLoadingContent.value = false;
 };
 
+// ============ Diff Preview ============
+import { useDiffPreview } from './composables/useDiffPreview';
+
+const {
+  showDiffPreview,
+  diffPreviewLines,
+  diffStats,
+  canShowDiff,
+  openDiffPreview,
+  closeDiffPreview,
+} = useDiffPreview({
+  originalMarkdown: computed(() => activeTab.value?.originalMarkdown ?? null),
+  getCurrentMarkdown: () => {
+    const html = getEditorContent();
+    return htmlToMarkdown(html);
+  },
+  hasChanges,
+});
+
+const toggleDiffPreview = () => {
+  if (showDiffPreview.value) {
+    closeDiffPreview();
+  } else {
+    openDiffPreview();
+  }
+};
+
 // ============ Auto Update ============
 const {
   showUpdateDialog,
@@ -378,12 +406,20 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
     // For active tab in active pane, get fresh content from editor; for others, use stored content
     const isActiveTab = tabId === activeTabId.value && paneId === activePaneId.value;
     const html = isActiveTab ? getEditorContent() : tab.content;
-    const markdown = htmlToMarkdown(html);
+    let markdown = htmlToMarkdown(html);
+
+    // Preserve original line endings
+    if (tab.originalMarkdown) {
+      const originalLineEnding = detectLineEnding(tab.originalMarkdown);
+      markdown = applyLineEnding(markdown, originalLineEnding);
+    }
+
     await writeTextFile(tab.filePath, markdown);
 
     // Update tab state
     tab.hasChanges = false;
     tab.content = html;
+    tab.originalMarkdown = markdown;
   } catch (error) {
     console.error('Błąd automatycznego zapisywania:', error);
   }
@@ -460,6 +496,12 @@ const handleKeyboard = (event: KeyboardEvent) => {
       case 'p':
         event.preventDefault();
         exportPdf();
+        break;
+      case 'd':
+        if (event.shiftKey && canShowDiff.value) {
+          event.preventDefault();
+          toggleDiffPreview();
+        }
         break;
     }
   }
@@ -652,6 +694,8 @@ onUnmounted(async () => {
     <Toolbar
       :code-view="codeView"
       :is-split-active="isSplitActive"
+      :diff-active="showDiffPreview"
+      :can-show-diff="canShowDiff"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @save-file="saveFile"
@@ -659,6 +703,7 @@ onUnmounted(async () => {
       @export-pdf="exportPdf"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
+      @toggle-diff-preview="toggleDiffPreview"
     />
 
     <!-- Split Container with Editor Panes -->
@@ -721,6 +766,14 @@ onUnmounted(async () => {
       @save="handleTabCloseSave"
       @discard="handleTabCloseDiscard"
       @cancel="handleTabCloseCancel"
+    />
+
+    <!-- Diff Preview Overlay -->
+    <DiffPreview
+      v-if="showDiffPreview"
+      :lines="diffPreviewLines"
+      :stats="diffStats"
+      @close="closeDiffPreview"
     />
   </div>
 </template>

@@ -53,6 +53,7 @@ export function createDefaultPane(id: string): Pane {
       content: '<p></p>',
       hasChanges: false,
       scrollTop: 0,
+      originalMarkdown: null,
     }],
     activeTabId: `${id}-tab-1`,
     scrollTop: 0,

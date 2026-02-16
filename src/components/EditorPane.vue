@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed } from 'vue';
 import type { Pane } from '../types/pane';
 import TabBar from './TabBar.vue';
 import Editor from './Editor.vue';
@@ -77,25 +77,10 @@ const handlePaneMouseLeave = () => {
   }
 };
 
-watch(() => props.pane.activeTabId, async () => {
-  await nextTick();
-  // Vue automatically unwraps ShallowRef from defineExpose, so editor is already the Editor instance
-  const editor = editorRef.value?.editor;
-  if (editor && activeTab.value) {
-    const currentContent = editor.getHTML();
-    if (currentContent !== activeTab.value.content) {
-      editor.commands.setContent(activeTab.value.content);
-    }
-  }
-});
-
 defineExpose({
-  // Vue automatically unwraps ShallowRef from defineExpose, so this computed returns Editor directly
   editor: computed(() => editorRef.value?.editor),
   getEditorContent: () => editorRef.value?.editor?.getHTML() || '',
-  setEditorContent: (content: string) => {
-    editorRef.value?.editor?.commands.setContent(content);
-  },
+  setEditorContent: (_content: string) => { /* handled reactively via modelValue prop */ },
 });
 </script>
 

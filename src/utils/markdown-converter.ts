@@ -141,7 +141,12 @@ function parseHtmlList(html: string, indent = 0, isOrdered = false, startIndex =
         }
         depth++;
       } else {
-        liContent += remaining.slice(pos, nextLiClose);
+        if (depth > 1) {
+          // Include </li> for nested elements to preserve proper HTML structure
+          liContent += remaining.slice(pos, nextLiClose + 5);
+        } else {
+          liContent += remaining.slice(pos, nextLiClose);
+        }
         pos = nextLiClose + 5;
         depth--;
       }
@@ -159,10 +164,10 @@ function parseHtmlList(html: string, indent = 0, isOrdered = false, startIndex =
     const nestedOlMatch = liContent.match(/<ol[^>]*>([\s\S]*)<\/ol>\s*$/i);
 
     if (nestedUlMatch) {
-      textContent = liContent.slice(0, liContent.lastIndexOf('<ul'));
+      textContent = liContent.slice(0, liContent.indexOf('<ul'));
       nestedListHtml = nestedUlMatch[0];
     } else if (nestedOlMatch) {
-      textContent = liContent.slice(0, liContent.lastIndexOf('<ol'));
+      textContent = liContent.slice(0, liContent.indexOf('<ol'));
       nestedListHtml = nestedOlMatch[0];
     }
 
@@ -621,4 +626,22 @@ export function markdownToHtml(md: string): string {
   });
 
   return html;
+}
+
+export function detectLineEnding(text: string): string {
+  const crlfCount = (text.match(/\r\n/g) || []).length;
+  const lfCount = (text.match(/(?<!\r)\n/g) || []).length;
+  const crCount = (text.match(/\r(?!\n)/g) || []).length;
+
+  if (crlfCount === 0 && lfCount === 0 && crCount === 0) return '\n';
+  if (crlfCount >= lfCount && crlfCount >= crCount) return '\r\n';
+  if (crCount > lfCount) return '\r';
+  return '\n';
+}
+
+export function applyLineEnding(text: string, lineEnding: string): string {
+  // Normalize to LF first, then apply desired line ending
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (lineEnding === '\n') return normalized;
+  return normalized.replace(/\n/g, lineEnding);
 }

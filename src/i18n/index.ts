@@ -71,6 +71,11 @@ export interface Translations {
   splitView: string;
   singleView: string;
 
+  // Toolbar - Diff Preview
+  changes: string;
+  noChanges: string;
+  closeDiff: string;
+
   // Stats
   characters: string;
   words: string;
@@ -227,6 +232,11 @@ const translations: Record<Locale, Translations> = {
     splitView: 'Split',
     singleView: 'Single',
 
+    // Toolbar - Diff Preview
+    changes: 'Changes',
+    noChanges: 'No changes',
+    closeDiff: 'Close',
+
     // Stats
     characters: 'characters',
     words: 'words',
@@ -381,6 +391,11 @@ const translations: Record<Locale, Translations> = {
     // Toolbar - Split View
     splitView: 'Podziel',
     singleView: 'Pojedynczy',
+
+    // Toolbar - Diff Preview
+    changes: 'Zmiany',
+    noChanges: 'Brak zmian',
+    closeDiff: 'Zamknij',
 
     // Stats
     characters: 'znaków',
