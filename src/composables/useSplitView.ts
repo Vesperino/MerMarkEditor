@@ -7,6 +7,7 @@ import {
   createDefaultSplitViewState,
 } from '../types/pane';
 import { t } from '../i18n';
+import { EMPTY_TAB_CONTENT } from '../constants';
 
 const STORAGE_KEY = 'mermark-split-view';
 const MIN_SPLIT_RATIO = 0.2;
@@ -166,7 +167,7 @@ export function useSplitView(): UseSplitViewReturn {
   const createTab = (
     paneId: string,
     filePath: string | null = null,
-    content: string = '<p></p>',
+    content: string = EMPTY_TAB_CONTENT,
     fileName?: string
   ): string => {
     const actualFileName = fileName ?? getDefaultFileName();

@@ -5,6 +5,7 @@ import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding } from '../utils/markdown-converter';
 import type { Tab } from './useTabs';
+import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS, TIMING } from '../constants';
 
 export interface UseFileOperationsOptions {
   tabs: Ref<Tab[]>;
@@ -58,6 +59,46 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     return lastSlash > 0 ? filePath.substring(0, lastSlash) : '';
   };
 
+  const extractFileName = (filePath: string): string =>
+    filePath.split(/[/\\]/).pop() || DEFAULT_FILE_NAME;
+
+  const isActiveTabEmpty = (): boolean =>
+    !activeTab.value?.filePath && !activeTab.value?.hasChanges && activeTab.value?.content === EMPTY_TAB_CONTENT;
+
+  const findActiveTabIndex = (): number =>
+    tabs.value.findIndex(t => t.id === activeTabId.value);
+
+  const loadFileIntoTab = async (filePath: string): Promise<void> => {
+    // Check if file is already open
+    const existingTab = findTabByFilePath(filePath);
+    if (existingTab) {
+      await switchToTab(existingTab.id);
+      return;
+    }
+
+    const fileContent = await readTextFile(filePath);
+    const htmlContent = markdownToHtml(fileContent);
+    const fileName = extractFileName(filePath);
+
+    // If current tab is empty and has no changes, replace it
+    if (isActiveTabEmpty()) {
+      const tabIndex = findActiveTabIndex();
+      if (tabIndex !== -1) {
+        tabs.value[tabIndex].filePath = filePath;
+        tabs.value[tabIndex].fileName = fileName;
+        tabs.value[tabIndex].content = htmlContent;
+        tabs.value[tabIndex].hasChanges = false;
+        tabs.value[tabIndex].originalMarkdown = fileContent;
+        setEditorContent(htmlContent);
+      }
+    } else {
+      const newTabId = createNewTab(filePath, htmlContent, fileName);
+      const newTab = tabs.value.find(t => t.id === newTabId);
+      if (newTab) newTab.originalMarkdown = fileContent;
+      await switchToTab(newTabId);
+    }
+  };
+
   const openFile = async (): Promise<void> => {
     try {
       const selected = await open({
@@ -69,83 +110,48 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       });
 
       if (selected) {
-        const filePath = selected as string;
-
-        // Check if file is already open
-        const existingTab = findTabByFilePath(filePath);
-        if (existingTab) {
-          await switchToTab(existingTab.id);
-          return;
-        }
-
-        const fileContent = await readTextFile(filePath);
-        const htmlContent = markdownToHtml(fileContent);
-        const fileName = filePath.split(/[/\\]/).pop() || 'Dokument';
-
-        // If current tab is empty and has no changes, replace it
-        if (!activeTab.value?.filePath && !activeTab.value?.hasChanges && activeTab.value?.content === '<p></p>') {
-          const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
-          if (tabIndex !== -1) {
-            tabs.value[tabIndex].filePath = filePath;
-            tabs.value[tabIndex].fileName = fileName;
-            tabs.value[tabIndex].content = htmlContent;
-            tabs.value[tabIndex].hasChanges = false;
-            tabs.value[tabIndex].originalMarkdown = fileContent;
-            setEditorContent(htmlContent);
-          }
-        } else {
-          const newTabId = createNewTab(filePath, htmlContent, fileName);
-          const newTab = tabs.value.find(t => t.id === newTabId);
-          if (newTab) newTab.originalMarkdown = fileContent;
-          await switchToTab(newTabId);
-        }
+        await loadFileIntoTab(selected as string);
       }
     } catch (error) {
-      console.error('Błąd otwierania pliku:', error);
+      console.error('Error opening file:', error);
     }
   };
 
   const openFileFromPath = async (filePath: string): Promise<void> => {
     try {
-      // Check if file is already open
-      const existingTab = findTabByFilePath(filePath);
-      if (existingTab) {
-        await switchToTab(existingTab.id);
-        return;
-      }
-
-      const fileContent = await readTextFile(filePath);
-      const htmlContent = markdownToHtml(fileContent);
-      const fileName = filePath.split(/[/\\]/).pop() || 'Dokument';
-
-      // If current tab is empty and has no changes, replace it
-      if (!activeTab.value?.filePath && !activeTab.value?.hasChanges && activeTab.value?.content === '<p></p>') {
-        const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
-        if (tabIndex !== -1) {
-          tabs.value[tabIndex].filePath = filePath;
-          tabs.value[tabIndex].fileName = fileName;
-          tabs.value[tabIndex].content = htmlContent;
-          tabs.value[tabIndex].hasChanges = false;
-          tabs.value[tabIndex].originalMarkdown = fileContent;
-          setEditorContent(htmlContent);
-        }
-      } else {
-        const newTabId = createNewTab(filePath, htmlContent, fileName);
-        const newTab = tabs.value.find(t => t.id === newTabId);
-        if (newTab) {
-          newTab.originalMarkdown = fileContent;
-        }
-        await switchToTab(newTabId);
-      }
+      await loadFileIntoTab(filePath);
     } catch (error) {
-      console.error('Błąd otwierania pliku z argumentów:', error);
+      console.error('Error opening file from path:', error);
+    }
+  };
+
+  const writeAndUpdateTab = async (filePath: string): Promise<void> => {
+    const html = getEditorHtml();
+    let markdown = htmlToMarkdown(html);
+
+    const tabIndex = findActiveTabIndex();
+
+    // Preserve original line endings if we have the original content
+    if (tabIndex !== -1 && tabs.value[tabIndex].originalMarkdown) {
+      const originalLineEnding = detectLineEnding(tabs.value[tabIndex].originalMarkdown!);
+      markdown = applyLineEnding(markdown, originalLineEnding);
+    }
+
+    await writeTextFile(filePath, markdown);
+
+    if (tabIndex !== -1) {
+      tabs.value[tabIndex].filePath = filePath;
+      tabs.value[tabIndex].fileName = extractFileName(filePath);
+      tabs.value[tabIndex].hasChanges = false;
+      tabs.value[tabIndex].content = html;
+      tabs.value[tabIndex].originalMarkdown = markdown;
     }
   };
 
   const saveFile = async (): Promise<void> => {
     try {
       let filePath = currentFile.value;
-      const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+      const tabIndex = findActiveTabIndex();
 
       // Skip save if file exists and has no changes
       if (filePath && tabIndex !== -1 && !tabs.value[tabIndex].hasChanges) {
@@ -160,28 +166,10 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       }
 
       if (filePath) {
-        const html = getEditorHtml();
-        let markdown = htmlToMarkdown(html);
-
-        // Preserve original line endings if we have the original content
-        if (tabIndex !== -1 && tabs.value[tabIndex].originalMarkdown) {
-          const originalLineEnding = detectLineEnding(tabs.value[tabIndex].originalMarkdown!);
-          markdown = applyLineEnding(markdown, originalLineEnding);
-        }
-
-        await writeTextFile(filePath, markdown);
-
-        // Update the active tab
-        if (tabIndex !== -1) {
-          tabs.value[tabIndex].filePath = filePath;
-          tabs.value[tabIndex].fileName = filePath.split(/[/\\]/).pop() || 'Dokument';
-          tabs.value[tabIndex].hasChanges = false;
-          tabs.value[tabIndex].content = html;
-          tabs.value[tabIndex].originalMarkdown = markdown;
-        }
+        await writeAndUpdateTab(filePath);
       }
     } catch (error) {
-      console.error('Błąd zapisywania pliku:', error);
+      console.error('Error saving file:', error);
     }
   };
 
@@ -193,29 +181,10 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       });
 
       if (filePath) {
-        const html = getEditorHtml();
-        let markdown = htmlToMarkdown(html);
-
-        const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
-
-        // Preserve original line endings if we have the original content
-        if (tabIndex !== -1 && tabs.value[tabIndex].originalMarkdown) {
-          const originalLineEnding = detectLineEnding(tabs.value[tabIndex].originalMarkdown!);
-          markdown = applyLineEnding(markdown, originalLineEnding);
-        }
-
-        await writeTextFile(filePath, markdown);
-
-        if (tabIndex !== -1) {
-          tabs.value[tabIndex].filePath = filePath;
-          tabs.value[tabIndex].fileName = filePath.split(/[/\\]/).pop() || 'Dokument';
-          tabs.value[tabIndex].hasChanges = false;
-          tabs.value[tabIndex].content = html;
-          tabs.value[tabIndex].originalMarkdown = markdown;
-        }
+        await writeAndUpdateTab(filePath);
       }
     } catch (error) {
-      console.error('Błąd zapisywania pliku:', error);
+      console.error('Error saving file:', error);
     }
   };
 
@@ -230,7 +199,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       if (!wasMaximized) {
         await appWindow.maximize();
         // Wait for window to finish maximizing
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, TIMING.MAXIMIZE_ANIMATION_DELAY));
       }
 
       // Use standard browser print
@@ -252,9 +221,9 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
   const openFileInNewTab = async (relativePath: string): Promise<void> => {
     try {
       // Save current scroll position before navigating
-      const editorContainer = document.querySelector('.editor-container');
+      const editorContainer = document.querySelector(DOM_SELECTORS.EDITOR_CONTAINER);
       if (editorContainer && activeTab.value) {
-        const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+        const tabIndex = findActiveTabIndex();
         if (tabIndex !== -1) {
           tabs.value[tabIndex].scrollTop = editorContainer.scrollTop;
         }
@@ -295,7 +264,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       // Read the file
       const fileContent = await readTextFile(fullPath);
       const htmlContent = markdownToHtml(fileContent);
-      const fileName = fullPath.split(/[/\\]/).pop() || 'Dokument';
+      const fileName = extractFileName(fullPath);
 
       // Create new tab and switch to it
       const newTabId = createNewTab(fullPath, htmlContent, fileName);
@@ -306,7 +275,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       await switchToTab(newTabId);
       isLoadingFile.value = false;
     } catch (error) {
-      console.error('Błąd otwierania pliku:', error);
+      console.error('Error opening file in new tab:', error);
       isLoadingFile.value = false;
     }
   };
@@ -315,7 +284,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     // Anchor link (internal navigation)
     if (href.startsWith('#')) {
       const targetId = href.slice(1);
-      const editorContainer = document.querySelector('.editor-container');
+      const editorContainer = document.querySelector(DOM_SELECTORS.EDITOR_CONTAINER);
       const targetElement = editorContainer?.querySelector(`[id="${targetId}"]`) as HTMLElement | null;
       if (targetElement && editorContainer) {
         const containerRect = editorContainer.getBoundingClientRect();
@@ -344,7 +313,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       try {
         await openExternal(pendingExternalUrl.value);
       } catch (error) {
-        console.error('Błąd otwierania linku:', error);
+        console.error('Error opening external link:', error);
       }
     }
     showExternalLinkDialog.value = false;

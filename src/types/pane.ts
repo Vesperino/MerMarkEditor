@@ -1,5 +1,6 @@
 import type { Tab } from '../composables/useTabs';
 import { t } from '../i18n';
+import { EMPTY_TAB_CONTENT } from '../constants';
 
 /**
  * Represents a single editor pane that can contain multiple tabs
@@ -50,7 +51,7 @@ export function createDefaultPane(id: string): Pane {
       id: `${id}-tab-1`,
       filePath: null,
       fileName: t.value.newDocument,
-      content: '<p></p>',
+      content: EMPTY_TAB_CONTENT,
       hasChanges: false,
       scrollTop: 0,
       originalMarkdown: null,

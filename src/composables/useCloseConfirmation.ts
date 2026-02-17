@@ -99,7 +99,7 @@ export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseC
       // User cancelled save dialog
       return false;
     } catch (error) {
-      console.error('Błąd zapisywania pliku:', error);
+      console.error('Error saving file:', error);
       return false;
     }
   };
@@ -132,50 +132,37 @@ export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseC
   };
 
   const setupCloseHandler = async (): Promise<() => void> => {
-    console.log('[CloseHandler] Setting up close handler...');
     const appWindow = getCurrentWindow();
-    console.log('[CloseHandler] Got window:', appWindow);
 
     const unlisten = await appWindow.onCloseRequested(async (event) => {
-      console.log('[CloseHandler] Close requested!');
-
       try {
         // Sync active tab content before checking for unsaved changes
         if (syncActiveTabContent) {
           syncActiveTabContent();
         }
 
-        console.log('[CloseHandler] Tabs:', JSON.stringify(tabs.value.map(t => ({ id: t.id, hasChanges: t.hasChanges, fileName: t.fileName }))));
-
         const unsavedTabs = collectUnsavedTabs();
-        console.log('[CloseHandler] Unsaved tabs count:', unsavedTabs.length);
 
         if (unsavedTabs.length === 0) {
-          console.log('[CloseHandler] No unsaved tabs, allowing natural close...');
-          // No unsaved changes - don't prevent close, let it proceed naturally
-          // Do NOT call event.preventDefault() - this allows the window to close
+          // No unsaved changes - let the window close naturally
           return;
         }
 
-        console.log('[CloseHandler] Has unsaved tabs, preventing close and showing dialog...');
-        // Prevent default close - this is the ONLY case where we prevent close
+        // Prevent default close to show save confirmation
         event.preventDefault();
 
-        // Set up the confirmation process
         tabsToSave.value = [...unsavedTabs];
         tabsToSaveCount.value = unsavedTabs.length;
         currentTabIndex.value = 0;
 
-        // Start showing dialogs
         processNextTab();
         showSaveConfirmDialog.value = true;
       } catch (error) {
-        console.error('[CloseHandler] Error:', error);
+        console.error('Error in close handler:', error);
         // On error, don't prevent - let window close
       }
     });
 
-    console.log('[CloseHandler] Handler registered');
     return unlisten;
   };
 
