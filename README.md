@@ -84,8 +84,7 @@
 ## Screenshots
 
 <p align="center">
-  <!-- TODO: Screenshot - Dark mode overview -->
-  <code>[ SCREENSHOT: Dark mode overview ]</code>
+<img width="3835" height="2071" alt="{03A741AD-0E65-42CC-9506-0C0EC0C8CF77}" src="https://github.com/user-attachments/assets/6dae5f4b-28b0-4803-9f07-9ac8b71581bb" />
   <br>
   <em>Dark mode</em>
 </p>
