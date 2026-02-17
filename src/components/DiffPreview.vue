@@ -5,9 +5,10 @@ import type { DiffLine, DiffStats } from '../composables/useDiffPreview';
 
 const { t } = useI18n();
 
-defineProps<{
+const props = defineProps<{
   lines: DiffLine[];
   stats: DiffStats;
+  title?: string;
 }>();
 
 const emit = defineEmits<{
@@ -33,7 +34,7 @@ onUnmounted(() => {
   <div class="diff-overlay" @click.self="emit('close')">
     <div class="diff-panel">
       <div class="diff-header">
-        <h3>{{ t.changes }}</h3>
+        <h3>{{ props.title || t.changes }}</h3>
         <div class="diff-stats">
           <span class="diff-stat-added">+{{ stats.additions }}</span>
           <span class="diff-stat-removed">-{{ stats.deletions }}</span>

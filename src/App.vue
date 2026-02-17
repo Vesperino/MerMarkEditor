@@ -16,6 +16,7 @@ import CodeEditor from './components/CodeEditor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
 import DiffPreview from './components/DiffPreview.vue';
+import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 
 // Composables
 import { useAutoUpdate } from './composables/useAutoUpdate';
@@ -327,8 +328,10 @@ const {
   showDiffPreview,
   diffPreviewLines,
   diffStats,
+  diffTitle,
   canShowDiff,
   openDiffPreview,
+  openComparePreview,
   closeDiffPreview,
 } = useDiffPreview({
   originalMarkdown: computed(() => activeTab.value?.originalMarkdown ?? null),
@@ -346,6 +349,31 @@ const toggleDiffPreview = () => {
     openDiffPreview();
   }
 };
+
+// ============ Compare Tabs ============
+const canCompareTabs = computed(() => {
+  if (!isSplitActive.value) return false;
+  const leftTab = getActiveTabForPane('left');
+  const rightTab = getActiveTabForPane('right');
+  return !!(leftTab?.content && rightTab?.content);
+});
+
+const compareTabs = () => {
+  const leftTab = getActiveTabForPane('left');
+  const rightTab = getActiveTabForPane('right');
+  if (!leftTab || !rightTab) return;
+
+  const leftHtml = splitContainerRef.value?.getEditorContent?.('left') || leftTab.content;
+  const rightHtml = splitContainerRef.value?.getEditorContent?.('right') || rightTab.content;
+
+  const leftMd = htmlToMarkdown(leftHtml);
+  const rightMd = htmlToMarkdown(rightHtml);
+
+  openComparePreview(leftMd, rightMd, leftTab.fileName, rightTab.fileName);
+};
+
+// ============ Keyboard Shortcuts Modal ============
+const showShortcutsModal = ref(false);
 
 // ============ Auto Update ============
 const {
@@ -502,6 +530,16 @@ const handleKeyboard = (event: KeyboardEvent) => {
           event.preventDefault();
           toggleDiffPreview();
         }
+        break;
+      case 'c':
+        if (event.shiftKey && canCompareTabs.value) {
+          event.preventDefault();
+          compareTabs();
+        }
+        break;
+      case '/':
+        event.preventDefault();
+        showShortcutsModal.value = !showShortcutsModal.value;
         break;
     }
   }
@@ -696,6 +734,7 @@ onUnmounted(async () => {
       :is-split-active="isSplitActive"
       :diff-active="showDiffPreview"
       :can-show-diff="canShowDiff"
+      :can-compare-tabs="canCompareTabs"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @save-file="saveFile"
@@ -704,6 +743,8 @@ onUnmounted(async () => {
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
+      @compare-tabs="compareTabs"
+      @show-shortcuts="showShortcutsModal = true"
     />
 
     <!-- Split Container with Editor Panes -->
@@ -773,7 +814,14 @@ onUnmounted(async () => {
       v-if="showDiffPreview"
       :lines="diffPreviewLines"
       :stats="diffStats"
+      :title="diffTitle"
       @close="closeDiffPreview"
+    />
+
+    <!-- Keyboard Shortcuts Modal -->
+    <KeyboardShortcutsModal
+      v-if="showShortcutsModal"
+      @close="showShortcutsModal = false"
     />
   </div>
 </template>

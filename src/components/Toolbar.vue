@@ -185,6 +185,7 @@ const props = defineProps<{
   isSplitActive?: boolean;
   diffActive?: boolean;
   canShowDiff?: boolean;
+  canCompareTabs?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -196,6 +197,8 @@ const emit = defineEmits<{
   toggleCodeView: [];
   toggleSplit: [];
   toggleDiffPreview: [];
+  compareTabs: [];
+  showShortcuts: [];
 }>();
 </script>
 
@@ -246,6 +249,20 @@ const emit = defineEmits<{
             <path d="M9 15l3 3 3-3"/>
           </svg>
           <span>{{ t.exportPdf }}</span>
+        </button>
+        <button
+          @click="emit('showShortcuts')"
+          class="toolbar-btn icon-only shortcuts-btn"
+          :title="`${t.keyboardShortcuts} (Ctrl+/)`"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="6" width="20" height="12" rx="2"/>
+            <line x1="6" y1="10" x2="6" y2="10"/>
+            <line x1="10" y1="10" x2="10" y2="10"/>
+            <line x1="14" y1="10" x2="14" y2="10"/>
+            <line x1="18" y1="10" x2="18" y2="10"/>
+            <line x1="8" y1="14" x2="16" y2="14"/>
+          </svg>
         </button>
       </div>
 
@@ -606,6 +623,24 @@ const emit = defineEmits<{
         <span>{{ t.changes }}</span>
       </button>
 
+      <!-- Compare Tabs -->
+      <button
+        @click="emit('compareTabs')"
+        class="toolbar-btn compare-tabs-btn"
+        :title="t.compareTabsTooltip"
+        :disabled="!props.canCompareTabs || props.codeView"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h4"/>
+          <polyline points="14,2 14,8 20,8"/>
+          <path d="M14 14H24a2 2 0 00-2-2h-4"/>
+          <rect x="13" y="12" width="9" height="10" rx="2"/>
+          <path d="M8 12h2"/>
+          <path d="M8 16h1"/>
+        </svg>
+        <span>{{ t.compareTabs }}</span>
+      </button>
+
       <div class="toolbar-separator"></div>
 
       <!-- Auto-save Toggle -->
@@ -831,6 +866,30 @@ const emit = defineEmits<{
 .changes-toggle-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.compare-tabs-btn {
+  background: var(--changes-toggle-bg);
+  border-color: var(--changes-toggle-border);
+  color: var(--changes-toggle-color);
+}
+
+.compare-tabs-btn:hover:not(:disabled) {
+  background: var(--changes-toggle-hover-bg);
+  border-color: var(--changes-toggle-hover-border);
+}
+
+.compare-tabs-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.shortcuts-btn {
+  color: var(--text-muted);
+}
+
+.shortcuts-btn:hover {
+  color: var(--text-primary);
 }
 
 .theme-toggle-btn {

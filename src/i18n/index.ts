@@ -75,6 +75,13 @@ export interface Translations {
   changes: string;
   noChanges: string;
   closeDiff: string;
+  compareTabs: string;
+  compareTabsTooltip: string;
+
+  // Keyboard Shortcuts
+  keyboardShortcuts: string;
+  shortcutAction: string;
+  shortcutKey: string;
 
   // Stats
   characters: string;
@@ -236,6 +243,13 @@ const translations: Record<Locale, Translations> = {
     changes: 'Changes',
     noChanges: 'No changes',
     closeDiff: 'Close',
+    compareTabs: 'Compare',
+    compareTabsTooltip: 'Compare left and right tabs (Ctrl+Shift+C)',
+
+    // Keyboard Shortcuts
+    keyboardShortcuts: 'Keyboard Shortcuts',
+    shortcutAction: 'Action',
+    shortcutKey: 'Shortcut',
 
     // Stats
     characters: 'characters',
@@ -396,6 +410,13 @@ const translations: Record<Locale, Translations> = {
     changes: 'Zmiany',
     noChanges: 'Brak zmian',
     closeDiff: 'Zamknij',
+    compareTabs: 'Porównaj',
+    compareTabsTooltip: 'Porównaj lewy i prawy tab (Ctrl+Shift+C)',
+
+    // Keyboard Shortcuts
+    keyboardShortcuts: 'Skróty klawiszowe',
+    shortcutAction: 'Akcja',
+    shortcutKey: 'Skrót',
 
     // Stats
     characters: 'znaków',
