@@ -84,92 +84,79 @@
 ## Screenshots
 
 <p align="center">
-  <!-- TODO: Screenshot - Dark mode overview -->
-  <code>[ SCREENSHOT: Dark mode overview ]</code>
+<img width="3835" height="2071" alt="{03A741AD-0E65-42CC-9506-0C0EC0C8CF77}" src="https://github.com/user-attachments/assets/6dae5f4b-28b0-4803-9f07-9ac8b71581bb" />
   <br>
   <em>Dark mode</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Editor welcome / clean interface -->
-  <code>[ SCREENSHOT: Clean interface with toolbar ]</code>
+<img width="3837" height="2071" alt="{E38EA017-7177-4EBC-A5B9-3F8A4C905F14}" src="https://github.com/user-attachments/assets/ce4bbd47-5df3-445a-af3a-b13cadf5db3f" />
   <br>
   <em>Clean, minimalist interface with intuitive toolbar</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Document with table of contents -->
-  <code>[ SCREENSHOT: Document with table of contents ]</code>
+<img width="3840" height="2078" alt="{AD7741E3-C03B-4450-B8A8-460E9E22BF3D}" src="https://github.com/user-attachments/assets/f8e5ef5b-bc36-45b6-8019-29c22f9aee48" />
   <br>
   <em>Multi-tab editing with formatted documents and clickable table of contents</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Mermaid diagrams -->
-  <code>[ SCREENSHOT: Mermaid diagrams ]</code>
+  <img width="3828" height="2075" alt="{99F3795E-DB3D-4197-A14B-DC068C25989F}" src="https://github.com/user-attachments/assets/8d911a3a-e5e6-40dc-8d17-7e624a8c17c9" />
   <br>
   <em>C4 Architecture diagrams with zoom controls and fullscreen mode</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Fullscreen diagram view -->
-  <code>[ SCREENSHOT: Fullscreen diagram view ]</code>
+ <img width="3820" height="2038" alt="{F89EA26C-2E77-46E0-B8C7-C4FF18B263E9}" src="https://github.com/user-attachments/assets/21d560c1-25bd-41a0-b1ed-83e356ff26d3" />
   <br>
   <em>Fullscreen diagram view with 400% zoom for detailed inspection</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Code and documentation -->
-  <code>[ SCREENSHOT: Code blocks and documentation ]</code>
+  <img width="1578" height="742" alt="{55AD4147-7F6E-4A92-BE1F-A1CEC80A792D}" src="https://github.com/user-attachments/assets/5969be85-95a1-4199-a378-cfeb6075c48d" />
   <br>
   <em>Technical documentation with code blocks and embedded diagrams</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Split view -->
-  <code>[ SCREENSHOT: Split view ]</code>
+<img width="3831" height="2081" alt="{83B531B5-DD75-4850-B41E-BC7AE01EF82B}" src="https://github.com/user-attachments/assets/6fb41a24-958e-42c6-a56a-81ecf0d72a9d" />
   <br>
   <em>Split view for editing two documents simultaneously</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Compare tabs (diff) -->
-  <code>[ SCREENSHOT: Compare tabs diff view ]</code>
+<img width="3830" height="2072" alt="{118A90EF-97EE-463F-8C2E-63F06D69D75D}" src="https://github.com/user-attachments/assets/804dfb96-9d84-4bd6-ad3d-b6d0a8dbca06" />
   <br>
   <em>Compare documents side by side with line-level diff highlighting</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Change tracking -->
-  <code>[ SCREENSHOT: Change tracking ]</code>
+<img width="3822" height="2073" alt="{CD31C3AF-C82A-4984-AB34-7B033CC035AD}" src="https://github.com/user-attachments/assets/e4d2fcc5-d1a4-41f0-b7c7-16a389801206" />
   <br>
   <em>View all changes made since last save with additions and deletions</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Code view -->
-  <code>[ SCREENSHOT: Code view ]</code>
+<img width="3836" height="2076" alt="{454ECDFD-CE4B-4AA8-8A37-B972419B7ABB}" src="https://github.com/user-attachments/assets/c4823de1-4b66-4065-8c66-15b184d8619e" />
   <br>
   <em>Toggle between visual and Markdown code view with cursor tracking</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Keyboard shortcuts modal -->
-  <code>[ SCREENSHOT: Keyboard shortcuts modal ]</code>
+<img width="3834" height="1633" alt="{E3861707-CF03-4497-874E-AC88EE2FB29B}" src="https://github.com/user-attachments/assets/4594b71c-cb50-479d-ba8c-dd053efd34db" />
   <br>
   <em>Quick reference for all keyboard shortcuts (Ctrl+/)</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Token counter -->
-  <code>[ SCREENSHOT: Token counter ]</code>
+<img width="829" height="306" alt="{766E35F6-7699-426A-9BC9-8ED46FEA249F}" src="https://github.com/user-attachments/assets/8ffcf467-f02a-41e2-bda6-dda4fa44322d" />
   <br>
   <em>AI token counter with model selection (GPT, Claude, Gemini)</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Screenshot - Multi-window -->
-  <code>[ SCREENSHOT: Multi-window ]</code>
+<img width="3019" height="1565" alt="{A9692CF1-B62D-4B3B-B27B-D561D689DFE7}" src="https://github.com/user-attachments/assets/a28effaa-3e5b-4a9b-8b58-7fb4f4053d15" />
   <br>
   <em>Multiple windows with cross-window tab drag and drop</em>
 </p>
