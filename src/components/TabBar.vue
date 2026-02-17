@@ -133,7 +133,8 @@ const handleBarMouseLeave = () => {
       @mouseenter="handleMouseEnter(index)"
       @mouseleave="handleMouseLeave"
     >
-      <span class="tab-name">{{ tab.fileName }}{{ tab.hasChanges ? ' *' : '' }}</span>
+      <span class="tab-name">{{ tab.fileName }}</span>
+      <span v-if="tab.hasChanges" class="tab-unsaved">*</span>
       <button
         class="tab-close"
         @click.stop="emit('closeTab', tab.id)"
@@ -202,11 +203,23 @@ const handleBarMouseLeave = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
+  min-width: 0;
+}
+
+.tab-unsaved {
+  color: var(--text-muted);
+  font-weight: 700;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .tab.active .tab-name {
   color: var(--text-primary);
   font-weight: 500;
+}
+
+.tab.active .tab-unsaved {
+  color: var(--text-primary);
 }
 
 .tab-close {
