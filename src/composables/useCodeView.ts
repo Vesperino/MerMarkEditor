@@ -1,6 +1,14 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
+import {
+  DOM_SELECTORS,
+  TIMING,
+  CODE_EDITOR_LINE_HEIGHT,
+  MAX_DOM_RESTORE_ATTEMPTS,
+  SCROLL_OFFSET,
+  HIGHLIGHT_PADDING,
+} from '../constants';
 
 export interface UseCodeViewOptions {
   getActiveContent: () => string;
@@ -123,15 +131,14 @@ const clearVisualHighlight = () => {
 };
 
 const getHighlightRect = (element: HTMLElement) => {
-  const content = element.closest('.editor-content') as HTMLElement | null;
+  const content = element.closest(DOM_SELECTORS.EDITOR_CONTENT) as HTMLElement | null;
   const contentRect = content ? content.getBoundingClientRect() : element.getBoundingClientRect();
   const targetRect = element.getBoundingClientRect();
-  const padding = 4; 
   return {
     left: contentRect.left,
-    top: targetRect.top - padding,
+    top: targetRect.top - HIGHLIGHT_PADDING,
     width: contentRect.width,
-    height: Math.max(24, targetRect.height) + (padding * 2),
+    height: Math.max(24, targetRect.height) + (HIGHLIGHT_PADDING * 2),
   };
 };
 
@@ -157,15 +164,15 @@ const highlightVisualElement = (element: HTMLElement) => {
       activeHighlightElement = null;
     }
     highlightTimer = null;
-  }, 1000);
+  }, TIMING.HIGHLIGHT_DURATION);
 };
 
 const getActiveEditorContainer = (): HTMLElement | null => {
-  return document.querySelector('.editor-pane.active .editor-container') as HTMLElement | null;
+  return document.querySelector(DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER) as HTMLElement | null;
 };
 
 const getFallbackEditorContainer = (): HTMLElement | null => {
-  const containers = document.querySelectorAll('.editor-container');
+  const containers = document.querySelectorAll(DOM_SELECTORS.EDITOR_CONTAINER);
   if (containers.length === 1) {
     return containers[0] as HTMLElement;
   }
@@ -180,7 +187,7 @@ const scrollContainerToElement = (container: HTMLElement, target: HTMLElement, o
 };
 
 const getProseMirrorRoot = (container: HTMLElement): HTMLElement | null => {
-  return container.querySelector('.ProseMirror') as HTMLElement | null;
+  return container.querySelector(DOM_SELECTORS.PROSE_MIRROR) as HTMLElement | null;
 };
 
 // Find element containing the cursor marker in visual editor
@@ -292,7 +299,6 @@ const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
 
   const paddingTop = parseFloat(computedStyle.paddingTop);
   const paddingLeft = parseFloat(computedStyle.paddingLeft);
-  const padding = 4; // Vertical padding for highlight box
 
   const highlight = document.createElement('div');
   highlight.className = 'cursor-highlight';
@@ -308,12 +314,12 @@ const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
 
   highlight.style.position = 'fixed';
   highlight.style.left = `${textareaRect.left + paddingLeft}px`;
-  highlight.style.top = `${lineTopInViewport - padding}px`;
+  highlight.style.top = `${lineTopInViewport - HIGHLIGHT_PADDING}px`;
   highlight.style.width = `${textareaRect.width - (paddingLeft * 2)}px`;
-  highlight.style.height = `${lineHeight + (padding * 2)}px`;
+  highlight.style.height = `${lineHeight + (HIGHLIGHT_PADDING * 2)}px`;
 
   document.body.appendChild(highlight);
-  setTimeout(() => highlight.remove(), 1000);
+  setTimeout(() => highlight.remove(), TIMING.HIGHLIGHT_DURATION);
 };
 
 export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
@@ -365,7 +371,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       codeContentSnapshot = codeContent.value;
 
       // Save scroll ratio as fallback
-      const editorContainer = document.querySelector('.editor-pane.active .editor-container');
+      const editorContainer = document.querySelector(DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER);
       if (editorContainer) {
         const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
         savedScrollRatio.value = maxScroll > 0 ? editorContainer.scrollTop / maxScroll : 0;
@@ -386,7 +392,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
           // Scroll to show cursor line
           const lineNumber = getLineFromPosition(codeContent.value, markerPosition);
-          const lineHeight = 22.4;
+          const lineHeight = CODE_EDITOR_LINE_HEIGHT;
           const scrollTarget = Math.max(0, (lineNumber - 5) * lineHeight);
           codeEditorRef.value.scrollTop = scrollTarget;
         } else {
@@ -401,7 +407,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           if (codeEditorRef.value) {
             highlightCodeCursor(codeEditorRef.value);
           }
-        }, 100);
+        }, TIMING.HIGHLIGHT_DELAY);
       }
     } else {
       // ═══════════════════════════════════════════════════════════════════
@@ -461,7 +467,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
               : findCodeBlockElement(proseMirror, codeBlockIndex);
 
             if (targetElement) {
-              scrollContainerToElement(editorContainer, targetElement, 80);
+              scrollContainerToElement(editorContainer, targetElement, SCROLL_OFFSET);
               requestAnimationFrame(() => highlightVisualElement(targetElement));
               return;
             }
@@ -472,7 +478,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           if (maxScroll > 0) {
             editorContainer.scrollTop = Math.round(savedScrollRatio.value * maxScroll);
           }
-        }, 150);
+        }, TIMING.VIEW_SWITCH_RESTORE_DELAY);
       } else {
         const html = markdownToHtml(markdownWithMarker);
         setActiveContent(html);
@@ -484,7 +490,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
         const scheduleVisualRestore = () => {
           let attempts = 0;
-          const maxAttempts = 20;
+          const maxAttempts = MAX_DOM_RESTORE_ATTEMPTS;
 
           const tryRestore = () => {
             const editorContainer = getActiveEditorContainer() ||
@@ -493,7 +499,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             if (!editorContainer) {
               if (attempts < maxAttempts) {
                 attempts += 1;
-                setTimeout(tryRestore, 60);
+                setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
               }
               return;
             }
@@ -502,7 +508,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             if (!proseMirror || proseMirror.childElementCount === 0) {
               if (attempts < maxAttempts) {
                 attempts += 1;
-                setTimeout(tryRestore, 60);
+                setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
               }
               return;
             }
@@ -513,7 +519,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
               if (markerInfo) {
                 // Found marker - scroll to element and highlight
-                scrollContainerToElement(editorContainer, markerInfo.element, 80);
+                scrollContainerToElement(editorContainer, markerInfo.element, SCROLL_OFFSET);
 
                 // Remove marker from DOM
                 removeMarkerFromDOM(proseMirror);
@@ -534,7 +540,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
               : findCodeBlockElement(proseMirror, codeBlockIndex);
 
             if (fallbackElement) {
-              scrollContainerToElement(editorContainer, fallbackElement, 80);
+              scrollContainerToElement(editorContainer, fallbackElement, SCROLL_OFFSET);
               requestAnimationFrame(() => highlightVisualElement(fallbackElement));
               return;
             }

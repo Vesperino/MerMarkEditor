@@ -23,9 +23,42 @@ export interface UseDiffPreviewReturn {
   showDiffPreview: Ref<boolean>;
   diffPreviewLines: Ref<DiffLine[]>;
   diffStats: Ref<DiffStats>;
+  diffTitle: Ref<string>;
   canShowDiff: ComputedRef<boolean>;
   openDiffPreview: () => void;
+  openComparePreview: (leftMarkdown: string, rightMarkdown: string, leftName?: string, rightName?: string) => void;
   closeDiffPreview: () => void;
+}
+
+function generateDiff(oldText: string, newText: string): { lines: DiffLine[]; stats: DiffStats } {
+  const normalizedOld = oldText.replace(/\r\n/g, '\n');
+  const normalizedNew = newText.replace(/\r\n/g, '\n');
+
+  const changes = diffLines(normalizedOld, normalizedNew);
+
+  const lines: DiffLine[] = [];
+  let oldLine = 1;
+  let newLine = 1;
+  let addCount = 0;
+  let removeCount = 0;
+
+  for (const change of changes) {
+    const changeLines = change.value.replace(/\n$/, '').split('\n');
+
+    for (const line of changeLines) {
+      if (change.added) {
+        lines.push({ type: 'added', content: line, oldLineNumber: null, newLineNumber: newLine++ });
+        addCount++;
+      } else if (change.removed) {
+        lines.push({ type: 'removed', content: line, oldLineNumber: oldLine++, newLineNumber: null });
+        removeCount++;
+      } else {
+        lines.push({ type: 'unchanged', content: line, oldLineNumber: oldLine++, newLineNumber: newLine++ });
+      }
+    }
+  }
+
+  return { lines, stats: { additions: addCount, deletions: removeCount } };
 }
 
 export function useDiffPreview(options: UseDiffPreviewOptions): UseDiffPreviewReturn {
@@ -34,41 +67,29 @@ export function useDiffPreview(options: UseDiffPreviewOptions): UseDiffPreviewRe
   const showDiffPreview = ref(false);
   const diffPreviewLines = ref<DiffLine[]>([]);
   const diffStats = ref<DiffStats>({ additions: 0, deletions: 0 });
+  const diffTitle = ref('');
 
   const canShowDiff = computed(() => {
     return hasChanges.value && originalMarkdown.value !== null;
   });
 
   const openDiffPreview = () => {
-    const original = (originalMarkdown.value || '').replace(/\r\n/g, '\n');
-    const current = getCurrentMarkdown().replace(/\r\n/g, '\n');
+    const original = originalMarkdown.value || '';
+    const current = getCurrentMarkdown();
+    const result = generateDiff(original, current);
 
-    const changes = diffLines(original, current);
+    diffPreviewLines.value = result.lines;
+    diffStats.value = result.stats;
+    diffTitle.value = '';
+    showDiffPreview.value = true;
+  };
 
-    const lines: DiffLine[] = [];
-    let oldLine = 1;
-    let newLine = 1;
-    let addCount = 0;
-    let removeCount = 0;
+  const openComparePreview = (leftMarkdown: string, rightMarkdown: string, leftName?: string, rightName?: string) => {
+    const result = generateDiff(leftMarkdown, rightMarkdown);
 
-    for (const change of changes) {
-      const changeLines = change.value.replace(/\n$/, '').split('\n');
-
-      for (const line of changeLines) {
-        if (change.added) {
-          lines.push({ type: 'added', content: line, oldLineNumber: null, newLineNumber: newLine++ });
-          addCount++;
-        } else if (change.removed) {
-          lines.push({ type: 'removed', content: line, oldLineNumber: oldLine++, newLineNumber: null });
-          removeCount++;
-        } else {
-          lines.push({ type: 'unchanged', content: line, oldLineNumber: oldLine++, newLineNumber: newLine++ });
-        }
-      }
-    }
-
-    diffPreviewLines.value = lines;
-    diffStats.value = { additions: addCount, deletions: removeCount };
+    diffPreviewLines.value = result.lines;
+    diffStats.value = result.stats;
+    diffTitle.value = leftName && rightName ? `${leftName} ↔ ${rightName}` : '';
     showDiffPreview.value = true;
   };
 
@@ -76,14 +97,17 @@ export function useDiffPreview(options: UseDiffPreviewOptions): UseDiffPreviewRe
     showDiffPreview.value = false;
     diffPreviewLines.value = [];
     diffStats.value = { additions: 0, deletions: 0 };
+    diffTitle.value = '';
   };
 
   return {
     showDiffPreview,
     diffPreviewLines,
     diffStats,
+    diffTitle,
     canShowDiff,
     openDiffPreview,
+    openComparePreview,
     closeDiffPreview,
   };
 }

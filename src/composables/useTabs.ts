@@ -1,5 +1,6 @@
 import { ref, computed, nextTick, type Ref, type ComputedRef } from 'vue';
 import { t } from '../i18n';
+import { EMPTY_TAB_CONTENT } from '../constants';
 
 export interface Tab {
   id: string;
@@ -33,7 +34,7 @@ export function useTabs(): UseTabsReturn {
     id: 'tab-1',
     filePath: null,
     fileName: t.value.newDocument,
-    content: '<p></p>',
+    content: EMPTY_TAB_CONTENT,
     hasChanges: false,
     scrollTop: 0,
     originalMarkdown: null,
@@ -46,9 +47,12 @@ export function useTabs(): UseTabsReturn {
     tabs.value.find(t => t.id === activeTabId.value) || tabs.value[0]
   );
 
+  const findActiveTabIndex = (): number =>
+    tabs.value.findIndex(t => t.id === activeTabId.value);
+
   const createNewTab = (
     filePath: string | null = null,
-    fileContent: string = '<p></p>',
+    fileContent: string = EMPTY_TAB_CONTENT,
     fileName?: string
   ): string => {
     tabCounter++;
@@ -73,9 +77,9 @@ export function useTabs(): UseTabsReturn {
   ): Promise<void> => {
     // Save current editor content to current tab before switching
     if (getEditorContent) {
-      const currentTabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
-      if (currentTabIndex !== -1) {
-        tabs.value[currentTabIndex].content = getEditorContent();
+      const currentIdx = findActiveTabIndex();
+      if (currentIdx !== -1) {
+        tabs.value[currentIdx].content = getEditorContent();
       }
     }
 
@@ -87,15 +91,15 @@ export function useTabs(): UseTabsReturn {
 
     // Update editor with new tab's content
     if (setEditorContent && activeTab.value) {
-      setEditorContent(activeTab.value.content || '<p></p>');
+      setEditorContent(activeTab.value.content || EMPTY_TAB_CONTENT);
 
       await nextTick();
 
       // Preserve the tab's original hasChanges state after content load
       if (preserveHasChanges) {
-        const tabIndex = tabs.value.findIndex(t => t.id === tabId);
-        if (tabIndex !== -1) {
-          tabs.value[tabIndex].hasChanges = targetHasChanges;
+        const tab = tabs.value.find(t => t.id === tabId);
+        if (tab) {
+          tab.hasChanges = targetHasChanges;
         }
       }
     }
@@ -125,7 +129,7 @@ export function useTabs(): UseTabsReturn {
         const newTabId = createNewTab();
         activeTabId.value = newTabId;
         if (setEditorContent) {
-          setEditorContent('<p></p>');
+          setEditorContent(EMPTY_TAB_CONTENT);
         }
       }
       await nextTick();
@@ -137,23 +141,23 @@ export function useTabs(): UseTabsReturn {
   };
 
   const updateTabContent = (content: string): void => {
-    const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
-    if (tabIndex !== -1) {
-      tabs.value[tabIndex].content = content;
+    const idx = findActiveTabIndex();
+    if (idx !== -1) {
+      tabs.value[idx].content = content;
     }
   };
 
   const updateTabChanges = (hasChanges: boolean): void => {
-    const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
-    if (tabIndex !== -1) {
-      tabs.value[tabIndex].hasChanges = hasChanges;
+    const idx = findActiveTabIndex();
+    if (idx !== -1) {
+      tabs.value[idx].hasChanges = hasChanges;
     }
   };
 
   const saveScrollPosition = (scrollTop: number): void => {
-    const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
-    if (tabIndex !== -1) {
-      tabs.value[tabIndex].scrollTop = scrollTop;
+    const idx = findActiveTabIndex();
+    if (idx !== -1) {
+      tabs.value[idx].scrollTop = scrollTop;
     }
   };
 
