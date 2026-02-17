@@ -218,9 +218,9 @@ describe('htmlToMarkdown', () => {
         <tr><td>Cell 1</td><td>Cell 2</td></tr>
       </table>`;
       const result = htmlToMarkdown(html);
-      expect(result).toContain('|Header 1|Header 2|');
-      expect(result).toContain('|---|---|');
-      expect(result).toContain('|Cell 1|Cell 2|');
+      expect(result).toContain('| Header 1 | Header 2 |');
+      expect(result).toContain('| --- | --- |');
+      expect(result).toContain('| Cell 1 | Cell 2 |');
     });
   });
 
@@ -475,9 +475,9 @@ describe('round-trip conversion', () => {
     const original = '| Field | Col1 | Col2 |\n| --- | --- | --- |\n| Name |  |  |\n| Date | 2026-01-29 |  |';
     const html = markdownToHtml(original);
     const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toContain('|Field|Col1|Col2|');
-    expect(roundTrip).toContain('|Name|||');
-    expect(roundTrip).toContain('|Date|2026-01-29||');
+    expect(roundTrip).toContain('| Field | Col1 | Col2 |');
+    expect(roundTrip).toContain('| Name |  |  |');
+    expect(roundTrip).toContain('| Date | 2026-01-29 |  |');
   });
 });
 
@@ -548,92 +548,6 @@ describe('nested list round-trip', () => {
     expect(md).toContain('- Parent');
     expect(md).toContain('  - Child 1');
     expect(md).toContain('  - Child 2');
-  });
-});
-
-describe('formatting preservation', () => {
-  it('does not add plaintext language to code blocks without language', () => {
-    const original = '```\nsome code\n```';
-    const html = markdownToHtml(original);
-    const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toContain('```\n');
-    expect(roundTrip).not.toContain('```plaintext');
-  });
-
-  it('preserves explicit language on code blocks', () => {
-    const original = '```javascript\nconsole.log("hi");\n```';
-    const html = markdownToHtml(original);
-    const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toContain('```javascript\n');
-  });
-
-  it('does not add spaces to table pipes', () => {
-    const original = '|colA|colB|colC|\n|---|---|---|\n|a1|b1|c1|';
-    const html = markdownToHtml(original);
-    const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toContain('|colA|colB|colC|');
-    expect(roundTrip).toContain('|---|---|---|');
-    expect(roundTrip).toContain('|a1|b1|c1|');
-  });
-
-  it('does not add blank line between heading and following text', () => {
-    const original = '## Heading\ntext right after';
-    const html = markdownToHtml(original);
-    const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toBe('## Heading\ntext right after');
-  });
-
-  it('groups consecutive text lines as single paragraph with hard break', () => {
-    const original = 'line1\nline2\nline3';
-    const html = markdownToHtml(original);
-    expect(html).toContain('<p>line1<br>line2<br>line3</p>');
-    const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toBe('line1\nline2\nline3');
-  });
-
-  it('keeps blank-line-separated paragraphs as separate paragraphs', () => {
-    const original = 'paragraph one\n\nparagraph two';
-    const html = markdownToHtml(original);
-    expect(html).toContain('<p>paragraph one</p>');
-    expect(html).toContain('<p>paragraph two</p>');
-    const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toBe('paragraph one\n\nparagraph two');
-  });
-
-  it('preserves blank line between list and following paragraph', () => {
-    const original = '- item1\n- item2\n\nfollowing text';
-    const html = markdownToHtml(original);
-    const roundTrip = htmlToMarkdown(html);
-    expect(roundTrip).toContain('- item2\n\nfollowing text');
-  });
-
-  it('roundtrips sample document with minimal formatting changes', () => {
-    const original = [
-      '# sample',
-      '',
-      '## 1.first',
-      'line1-1',
-      'line1-2',
-      '',
-      '---',
-      '',
-      '## 2.second',
-      '### 2.1 chapter',
-      '',
-      '- select1',
-      '- select2',
-      '- select3',
-    ].join('\n');
-    const html = markdownToHtml(original);
-    const roundTrip = htmlToMarkdown(html);
-    // Heading followed by text — no extra blank line
-    expect(roundTrip).toContain('## 1.first\nline1-1');
-    // Consecutive text lines — no blank line between them
-    expect(roundTrip).not.toMatch(/line1-1\n\nline1-2/);
-    // HR preserved with surrounding blank lines
-    expect(roundTrip).toContain('---');
-    // Consecutive headings separated properly
-    expect(roundTrip).toContain('## 2.second\n### 2.1 chapter');
   });
 });
 

@@ -237,7 +237,7 @@ function processHtmlLists(html: string): string {
 
     if (closePos !== -1) {
       const content = result.slice(contentStart, closePos);
-      const replacement = '\n' + parseHtmlList(content, 0, false) + '\n';
+      const replacement = '\n' + parseHtmlList(content, 0, false);
       result = result.slice(0, startPos) + replacement + result.slice(closePos + 5); // </ul> = 5 chars
       ulRegex.lastIndex = 0;
     }
@@ -254,7 +254,7 @@ function processHtmlLists(html: string): string {
 
     if (closePos !== -1) {
       const content = result.slice(contentStart, closePos);
-      const replacement = '\n' + parseHtmlList(content, 0, true) + '\n';
+      const replacement = '\n' + parseHtmlList(content, 0, true);
       result = result.slice(0, startPos) + replacement + result.slice(closePos + 5); // </ol> = 5 chars
       olRegex.lastIndex = 0;
     }
@@ -280,17 +280,16 @@ export function htmlToMarkdown(html: string): string {
   });
 
   // Code blocks - extract language from class attribute
-  md = md.replace(/<pre[^>]*>\s*<code[^>]*class=["']language-(\w*)["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, lang, code) => {
-    const decodedCode = decodeHtmlEntities(code).replace(/\n$/, '');
+  md = md.replace(/<pre[^>]*>\s*<code[^>]*class=["']language-(\w+)["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, lang, code) => {
+    const decodedCode = decodeHtmlEntities(code);
     const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
-    const langTag = lang && lang !== 'plaintext' ? lang : '';
-    protectedBlocks.push(`\n\`\`\`${langTag}\n${decodedCode}\n\`\`\`\n`);
+    protectedBlocks.push(`\n\`\`\`${lang}\n${decodedCode}\n\`\`\`\n`);
     return placeholder;
   });
 
   // Code blocks without language
   md = md.replace(/<pre[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, code) => {
-    const decodedCode = decodeHtmlEntities(code).replace(/\n$/, '');
+    const decodedCode = decodeHtmlEntities(code);
     const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
     protectedBlocks.push(`\n\`\`\`\n${decodedCode}\n\`\`\`\n`);
     return placeholder;
@@ -319,10 +318,10 @@ export function htmlToMarkdown(html: string): string {
           .trim();
       });
 
-      result += '|' + cellValues.join('|') + '|\n';
+      result += '| ' + cellValues.join(' | ') + ' |\n';
 
       if (isHeader && index === 0) {
-        result += '|' + cellValues.map(() => '---').join('|') + '|\n';
+        result += '| ' + cellValues.map(() => '---').join(' | ') + ' |\n';
         isHeader = false;
       }
     });
@@ -339,12 +338,12 @@ export function htmlToMarkdown(html: string): string {
   md = processHtmlLists(md);
 
   // Headers
-  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>\n?/gi, (_, content) => `# ${convertInlineToMarkdown(content)}\n`);
-  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>\n?/gi, (_, content) => `## ${convertInlineToMarkdown(content)}\n`);
-  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>\n?/gi, (_, content) => `### ${convertInlineToMarkdown(content)}\n`);
-  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>\n?/gi, (_, content) => `#### ${convertInlineToMarkdown(content)}\n`);
-  md = md.replace(/<h5[^>]*>([\s\S]*?)<\/h5>\n?/gi, (_, content) => `##### ${convertInlineToMarkdown(content)}\n`);
-  md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>\n?/gi, (_, content) => `###### ${convertInlineToMarkdown(content)}\n`);
+  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, content) => `\n# ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, content) => `\n## ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, content) => `\n### ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, content) => `\n#### ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, (_, content) => `\n##### ${convertInlineToMarkdown(content)}\n\n`);
+  md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, (_, content) => `\n###### ${convertInlineToMarkdown(content)}\n\n`);
 
   // Blockquote
   md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content) => {
@@ -390,7 +389,7 @@ export function htmlToMarkdown(html: string): string {
 
   // Paragraphs and line breaks
   md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n');
-  md = md.replace(/<br[^>]*\/?>/gi, '\n');
+  md = md.replace(/<br[^>]*\/?>/gi, '  \n');
 
   // Remove remaining tags
   md = md.replace(/<span[^>]*>(.*?)<\/span>/gi, '$1');
@@ -541,7 +540,7 @@ export function markdownToHtml(md: string): string {
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/gi, (_, lang, code) => {
     const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
     const escapedCode = escapeHtml(code);
-    codeBlocks.push(`<pre><code class="language-${lang}">${escapedCode}</code></pre>`);
+    codeBlocks.push(`<pre><code class="language-${lang || 'plaintext'}">${escapedCode}</code></pre>`);
     return placeholder;
   });
 
@@ -619,9 +618,6 @@ export function markdownToHtml(md: string): string {
   // Paragraphs - exclude only block-level elements and placeholders, not inline elements
   html = html.replace(/^(?!<[huplodtb]|<\/|<hr|<img|__)(.+)$/gim, '<p>$1</p>');
   html = html.replace(/<p>\s*<\/p>/g, '');
-
-  // Merge adjacent paragraphs (consecutive lines without blank line) into single paragraph with hard breaks
-  html = html.replace(/<\/p>\n<p>/g, '<br>');
 
   // Restore code blocks
   codeBlocks.forEach((block, index) => {
