@@ -84,92 +84,79 @@
 ## Zrzuty ekranu
 
 <p align="center">
-  <!-- TODO: Zrzut - Tryb ciemny -->
-  <code>[ ZRZUT EKRANU: Tryb ciemny ]</code>
+<img width="3835" height="2071" alt="MerMark Editor - Tryb ciemny" src="https://github.com/user-attachments/assets/6dae5f4b-28b0-4803-9f07-9ac8b71581bb" />
   <br>
   <em>Tryb ciemny</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Czysty interfejs -->
-  <code>[ ZRZUT EKRANU: Czysty interfejs z paskiem narzędzi ]</code>
+<img width="3837" height="2071" alt="MerMark Editor - Czysty interfejs" src="https://github.com/user-attachments/assets/ce4bbd47-5df3-445a-af3a-b13cadf5db3f" />
   <br>
   <em>Czysty, minimalistyczny interfejs z intuicyjnym paskiem narzędzi</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Dokument ze spisem treści -->
-  <code>[ ZRZUT EKRANU: Dokument ze spisem treści ]</code>
+<img width="3840" height="2078" alt="MerMark Editor - Dokument ze spisem treści" src="https://github.com/user-attachments/assets/f8e5ef5b-bc36-45b6-8019-29c22f9aee48" />
   <br>
   <em>Edycja wielu dokumentów w zakładkach z klikalnym spisem treści</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Diagramy Mermaid -->
-  <code>[ ZRZUT EKRANU: Diagramy Mermaid ]</code>
+<img width="3828" height="2075" alt="MerMark Editor - Diagramy Mermaid" src="https://github.com/user-attachments/assets/8d911a3a-e5e6-40dc-8d17-7e624a8c17c9" />
   <br>
   <em>Diagramy architektury C4 z kontrolą powiększenia i trybem pełnoekranowym</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Pełnoekranowy widok diagramu -->
-  <code>[ ZRZUT EKRANU: Pełnoekranowy widok diagramu ]</code>
+<img width="3820" height="2038" alt="MerMark Editor - Pełnoekranowy widok diagramu" src="https://github.com/user-attachments/assets/21d560c1-25bd-41a0-b1ed-83e356ff26d3" />
   <br>
   <em>Pełnoekranowy widok diagramu z 400% powiększeniem dla szczegółowej inspekcji</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Kod i dokumentacja -->
-  <code>[ ZRZUT EKRANU: Bloki kodu i dokumentacja ]</code>
+<img width="1578" height="742" alt="MerMark Editor - Kod i dokumentacja" src="https://github.com/user-attachments/assets/5969be85-95a1-4199-a378-cfeb6075c48d" />
   <br>
   <em>Dokumentacja techniczna z blokami kodu i osadzonymi diagramami</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Widok podzielony -->
-  <code>[ ZRZUT EKRANU: Widok podzielony ]</code>
+<img width="3831" height="2081" alt="MerMark Editor - Widok podzielony" src="https://github.com/user-attachments/assets/6fb41a24-958e-42c6-a56a-81ecf0d72a9d" />
   <br>
   <em>Widok podzielony do edycji dwóch dokumentów jednocześnie</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Porównywanie zakładek (diff) -->
-  <code>[ ZRZUT EKRANU: Porównanie zakładek - widok diff ]</code>
+<img width="3830" height="2072" alt="MerMark Editor - Porównywanie zakładek" src="https://github.com/user-attachments/assets/804dfb96-9d84-4bd6-ad3d-b6d0a8dbca06" />
   <br>
   <em>Porównywanie dokumentów z podświetleniem różnic na poziomie linii</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Śledzenie zmian -->
-  <code>[ ZRZUT EKRANU: Śledzenie zmian ]</code>
+<img width="3822" height="2073" alt="MerMark Editor - Śledzenie zmian" src="https://github.com/user-attachments/assets/e4d2fcc5-d1a4-41f0-b7c7-16a389801206" />
   <br>
   <em>Podgląd wszystkich zmian od ostatniego zapisu z dodaniami i usunięciami</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Widok kodu -->
-  <code>[ ZRZUT EKRANU: Widok kodu ]</code>
+<img width="3836" height="2076" alt="MerMark Editor - Widok kodu" src="https://github.com/user-attachments/assets/c4823de1-4b66-4065-8c66-15b184d8619e" />
   <br>
   <em>Przełączanie między widokiem wizualnym a kodem Markdown ze śledzeniem kursora</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Modal skrótów klawiszowych -->
-  <code>[ ZRZUT EKRANU: Modal skrótów klawiszowych ]</code>
+<img width="3834" height="1633" alt="MerMark Editor - Skróty klawiszowe" src="https://github.com/user-attachments/assets/4594b71c-cb50-479d-ba8c-dd053efd34db" />
   <br>
   <em>Szybki podgląd wszystkich skrótów klawiszowych (Ctrl+/)</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Licznik tokenów -->
-  <code>[ ZRZUT EKRANU: Licznik tokenów ]</code>
+<img width="829" height="306" alt="MerMark Editor - Licznik tokenów" src="https://github.com/user-attachments/assets/8ffcf467-f02a-41e2-bda6-dda4fa44322d" />
   <br>
   <em>Licznik tokenów AI z wyborem modelu (GPT, Claude, Gemini)</em>
 </p>
 
 <p align="center">
-  <!-- TODO: Zrzut - Wiele okien -->
-  <code>[ ZRZUT EKRANU: Wiele okien ]</code>
+<img width="3019" height="1565" alt="MerMark Editor - Wiele okien" src="https://github.com/user-attachments/assets/a28effaa-3e5b-4a9b-8b58-7fb4f4053d15" />
   <br>
   <em>Wiele okien z przeciąganiem kart między oknami</em>
 </p>
