@@ -68,9 +68,12 @@
 - **Character & word count** - Track your progress
 - **Auto-save** - Never lose your work
 - **Bilingual UI** - English and Polish interface
+- **Keyboard shortcuts modal** - Quick reference for all shortcuts (`Ctrl+/`)
 
 ### Advanced Features
 - **Split View** - Edit two documents side by side with adjustable split ratio
+- **Compare Tabs** - Diff comparison between left and right pane documents (`Ctrl+Shift+C`)
+- **Change Tracking** - View all changes made since last save (`Ctrl+Shift+D`)
 - **Code View** - Switch between visual WYSIWYG and raw Markdown with cursor position tracking
 - **AI Token Counter** - Estimate tokens for GPT (OpenAI), Claude (Anthropic), and Gemini (Google)
 - **Multi-window support** - Open multiple independent editor windows
@@ -79,62 +82,94 @@
 ---
 
 ## Screenshots
+
 <p align="center">
-<img width="3834" height="2062" alt="{A58E1D94-68D2-4810-80DE-B704A3695685}" src="https://github.com/user-attachments/assets/1c06e6e4-3cdb-419d-a7e8-9ba2437d2c47" />
+  <!-- TODO: Screenshot - Dark mode overview -->
+  <code>[ SCREENSHOT: Dark mode overview ]</code>
   <br>
   <em>Dark mode</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/editor-welcome.png" alt="MerMark Editor - Welcome Screen" width="800">
+  <!-- TODO: Screenshot - Editor welcome / clean interface -->
+  <code>[ SCREENSHOT: Clean interface with toolbar ]</code>
   <br>
   <em>Clean, minimalist interface with intuitive toolbar</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/document-with-toc.png" alt="MerMark Editor - Document with Table of Contents" width="800">
+  <!-- TODO: Screenshot - Document with table of contents -->
+  <code>[ SCREENSHOT: Document with table of contents ]</code>
   <br>
   <em>Multi-tab editing with formatted documents and clickable table of contents</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/mermaid-diagrams.png" alt="MerMark Editor - Mermaid Diagrams" width="800">
+  <!-- TODO: Screenshot - Mermaid diagrams -->
+  <code>[ SCREENSHOT: Mermaid diagrams ]</code>
   <br>
   <em>C4 Architecture diagrams with zoom controls and fullscreen mode</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/diagram-fullscreen.png" alt="MerMark Editor - Fullscreen Diagram View" width="800">
+  <!-- TODO: Screenshot - Fullscreen diagram view -->
+  <code>[ SCREENSHOT: Fullscreen diagram view ]</code>
   <br>
   <em>Fullscreen diagram view with 400% zoom for detailed inspection</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/code-and-documentation.png" alt="MerMark Editor - Code and Documentation" width="800">
+  <!-- TODO: Screenshot - Code and documentation -->
+  <code>[ SCREENSHOT: Code blocks and documentation ]</code>
   <br>
   <em>Technical documentation with code blocks and embedded diagrams</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/split-view.png" alt="MerMark Editor - Split View" width="800">
+  <!-- TODO: Screenshot - Split view -->
+  <code>[ SCREENSHOT: Split view ]</code>
   <br>
   <em>Split view for editing two documents simultaneously</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/code-view.png" alt="MerMark Editor - Code View" width="800">
+  <!-- TODO: Screenshot - Compare tabs (diff) -->
+  <code>[ SCREENSHOT: Compare tabs diff view ]</code>
+  <br>
+  <em>Compare documents side by side with line-level diff highlighting</em>
+</p>
+
+<p align="center">
+  <!-- TODO: Screenshot - Change tracking -->
+  <code>[ SCREENSHOT: Change tracking ]</code>
+  <br>
+  <em>View all changes made since last save with additions and deletions</em>
+</p>
+
+<p align="center">
+  <!-- TODO: Screenshot - Code view -->
+  <code>[ SCREENSHOT: Code view ]</code>
   <br>
   <em>Toggle between visual and Markdown code view with cursor tracking</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/token-counter.png" alt="MerMark Editor - Token Counter" width="800">
+  <!-- TODO: Screenshot - Keyboard shortcuts modal -->
+  <code>[ SCREENSHOT: Keyboard shortcuts modal ]</code>
+  <br>
+  <em>Quick reference for all keyboard shortcuts (Ctrl+/)</em>
+</p>
+
+<p align="center">
+  <!-- TODO: Screenshot - Token counter -->
+  <code>[ SCREENSHOT: Token counter ]</code>
   <br>
   <em>AI token counter with model selection (GPT, Claude, Gemini)</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/multi-window.png" alt="MerMark Editor - Multi Window" width="800">
+  <!-- TODO: Screenshot - Multi-window -->
+  <code>[ SCREENSHOT: Multi-window ]</code>
   <br>
   <em>Multiple windows with cross-window tab drag and drop</em>
 </p>
@@ -170,16 +205,23 @@ Download the latest version from the [Releases page](https://github.com/Vesperin
 3. **Save As**: `Ctrl+Shift+S`
 4. **Export to PDF**: Click the PDF button in toolbar
 
-### Markdown Shortcuts
+### Keyboard Shortcuts
 
 | Action | Shortcut |
 |--------|----------|
+| New file | `Ctrl+N` |
+| Open file | `Ctrl+O` |
+| Save | `Ctrl+S` |
+| Save As | `Ctrl+Shift+S` |
+| Export PDF | `Ctrl+P` |
+| Undo | `Ctrl+Z` |
+| Redo | `Ctrl+Y` |
 | Bold | `Ctrl+B` |
 | Italic | `Ctrl+I` |
-| Heading 1-6 | `Ctrl+Alt+1-6` |
-| Code block | ` ``` ` |
-| Link | `[text](url)` |
-| Image | `![alt](url)` |
+| Show changes | `Ctrl+Shift+D` |
+| Compare tabs | `Ctrl+Shift+C` |
+| Keyboard shortcuts | `Ctrl+/` |
+| Close modal | `Escape` |
 
 ### Creating Mermaid Diagrams
 

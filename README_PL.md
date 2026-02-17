@@ -68,9 +68,12 @@
 - **Licznik znaków i słów** - Śledź postępy
 - **Automatyczny zapis** - Nigdy nie stracisz pracy
 - **Dwujęzyczny interfejs** - Polski i angielski
+- **Modal skrótów klawiszowych** - Szybki podgląd wszystkich skrótów (`Ctrl+/`)
 
 ### Zaawansowane funkcje
 - **Widok podzielony** - Edycja dwóch dokumentów obok siebie z regulowaną proporcją
+- **Porównywanie zakładek** - Porównanie diff między dokumentami w lewym i prawym panelu (`Ctrl+Shift+C`)
+- **Śledzenie zmian** - Podgląd wszystkich zmian od ostatniego zapisu (`Ctrl+Shift+D`)
 - **Widok kodu** - Przełączanie między edytorem wizualnym a kodem Markdown ze śledzeniem kursora
 - **Licznik tokenów AI** - Szacowanie tokenów dla GPT (OpenAI), Claude (Anthropic) i Gemini (Google)
 - **Obsługa wielu okien** - Otwieranie wielu niezależnych okien edytora
@@ -81,55 +84,92 @@
 ## Zrzuty ekranu
 
 <p align="center">
-  <img src="assets/screenshots/editor-welcome.png" alt="MerMark Editor - Ekran powitalny" width="800">
+  <!-- TODO: Zrzut - Tryb ciemny -->
+  <code>[ ZRZUT EKRANU: Tryb ciemny ]</code>
+  <br>
+  <em>Tryb ciemny</em>
+</p>
+
+<p align="center">
+  <!-- TODO: Zrzut - Czysty interfejs -->
+  <code>[ ZRZUT EKRANU: Czysty interfejs z paskiem narzędzi ]</code>
   <br>
   <em>Czysty, minimalistyczny interfejs z intuicyjnym paskiem narzędzi</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/document-with-toc.png" alt="MerMark Editor - Dokument ze spisem treści" width="800">
+  <!-- TODO: Zrzut - Dokument ze spisem treści -->
+  <code>[ ZRZUT EKRANU: Dokument ze spisem treści ]</code>
   <br>
   <em>Edycja wielu dokumentów w zakładkach z klikalnym spisem treści</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/mermaid-diagrams.png" alt="MerMark Editor - Diagramy Mermaid" width="800">
+  <!-- TODO: Zrzut - Diagramy Mermaid -->
+  <code>[ ZRZUT EKRANU: Diagramy Mermaid ]</code>
   <br>
   <em>Diagramy architektury C4 z kontrolą powiększenia i trybem pełnoekranowym</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/diagram-fullscreen.png" alt="MerMark Editor - Pełnoekranowy widok diagramu" width="800">
+  <!-- TODO: Zrzut - Pełnoekranowy widok diagramu -->
+  <code>[ ZRZUT EKRANU: Pełnoekranowy widok diagramu ]</code>
   <br>
   <em>Pełnoekranowy widok diagramu z 400% powiększeniem dla szczegółowej inspekcji</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/code-and-documentation.png" alt="MerMark Editor - Kod i dokumentacja" width="800">
+  <!-- TODO: Zrzut - Kod i dokumentacja -->
+  <code>[ ZRZUT EKRANU: Bloki kodu i dokumentacja ]</code>
   <br>
   <em>Dokumentacja techniczna z blokami kodu i osadzonymi diagramami</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/split-view.png" alt="MerMark Editor - Widok podzielony" width="800">
+  <!-- TODO: Zrzut - Widok podzielony -->
+  <code>[ ZRZUT EKRANU: Widok podzielony ]</code>
   <br>
   <em>Widok podzielony do edycji dwóch dokumentów jednocześnie</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/code-view.png" alt="MerMark Editor - Widok kodu" width="800">
+  <!-- TODO: Zrzut - Porównywanie zakładek (diff) -->
+  <code>[ ZRZUT EKRANU: Porównanie zakładek - widok diff ]</code>
+  <br>
+  <em>Porównywanie dokumentów z podświetleniem różnic na poziomie linii</em>
+</p>
+
+<p align="center">
+  <!-- TODO: Zrzut - Śledzenie zmian -->
+  <code>[ ZRZUT EKRANU: Śledzenie zmian ]</code>
+  <br>
+  <em>Podgląd wszystkich zmian od ostatniego zapisu z dodaniami i usunięciami</em>
+</p>
+
+<p align="center">
+  <!-- TODO: Zrzut - Widok kodu -->
+  <code>[ ZRZUT EKRANU: Widok kodu ]</code>
   <br>
   <em>Przełączanie między widokiem wizualnym a kodem Markdown ze śledzeniem kursora</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/token-counter.png" alt="MerMark Editor - Licznik tokenów" width="800">
+  <!-- TODO: Zrzut - Modal skrótów klawiszowych -->
+  <code>[ ZRZUT EKRANU: Modal skrótów klawiszowych ]</code>
+  <br>
+  <em>Szybki podgląd wszystkich skrótów klawiszowych (Ctrl+/)</em>
+</p>
+
+<p align="center">
+  <!-- TODO: Zrzut - Licznik tokenów -->
+  <code>[ ZRZUT EKRANU: Licznik tokenów ]</code>
   <br>
   <em>Licznik tokenów AI z wyborem modelu (GPT, Claude, Gemini)</em>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/multi-window.png" alt="MerMark Editor - Wiele okien" width="800">
+  <!-- TODO: Zrzut - Wiele okien -->
+  <code>[ ZRZUT EKRANU: Wiele okien ]</code>
   <br>
   <em>Wiele okien z przeciąganiem kart między oknami</em>
 </p>
@@ -165,16 +205,23 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 3. **Zapisz jako**: `Ctrl+Shift+S`
 4. **Eksportuj do PDF**: Kliknij przycisk PDF w pasku narzędzi
 
-### Skróty Markdown
+### Skróty klawiszowe
 
 | Akcja | Skrót |
 |-------|-------|
+| Nowy plik | `Ctrl+N` |
+| Otwórz plik | `Ctrl+O` |
+| Zapisz | `Ctrl+S` |
+| Zapisz jako | `Ctrl+Shift+S` |
+| Eksport PDF | `Ctrl+P` |
+| Cofnij | `Ctrl+Z` |
+| Ponów | `Ctrl+Y` |
 | Pogrubienie | `Ctrl+B` |
 | Kursywa | `Ctrl+I` |
-| Nagłówek 1-6 | `Ctrl+Alt+1-6` |
-| Blok kodu | ` ``` ` |
-| Link | `[tekst](url)` |
-| Obraz | `![alt](url)` |
+| Pokaż zmiany | `Ctrl+Shift+D` |
+| Porównaj zakładki | `Ctrl+Shift+C` |
+| Skróty klawiszowe | `Ctrl+/` |
+| Zamknij modal | `Escape` |
 
 ### Tworzenie diagramów Mermaid
 
