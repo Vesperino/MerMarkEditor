@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { useEditorZoom } from '../composables/useEditorZoom';
+
+const { zoomScale } = useEditorZoom();
+const codeZoomStyle = computed(() => ({ zoom: zoomScale.value }));
 
 defineProps<{
   modelValue: string;
@@ -28,6 +32,7 @@ const handleInput = (event: Event) => {
       id="code-editor-textarea"
       ref="textareaRef"
       class="code-editor"
+      :style="codeZoomStyle"
       :value="modelValue"
       @input="handleInput"
       spellcheck="false"

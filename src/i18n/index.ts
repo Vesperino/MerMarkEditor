@@ -165,6 +165,9 @@ export interface Translations {
   confirmNavigateTo: string;
   openLink: string;
 
+  // Editor Zoom
+  zoom: string;
+
   // Theme
   darkMode: string;
   lightMode: string;
@@ -333,6 +336,9 @@ const translations: Record<Locale, Translations> = {
     confirmNavigateTo: 'Are you sure you want to navigate to:',
     openLink: 'Open',
 
+    // Editor Zoom
+    zoom: 'Zoom',
+
     // Theme
     darkMode: 'Dark',
     lightMode: 'Light',
@@ -499,6 +505,9 @@ const translations: Record<Locale, Translations> = {
     openExternalLink: 'Otwórz link zewnętrzny',
     confirmNavigateTo: 'Czy na pewno chcesz przejść do:',
     openLink: 'Otwórz',
+
+    // Editor Zoom
+    zoom: 'Powiększenie',
 
     // Theme
     darkMode: 'Ciemny',
