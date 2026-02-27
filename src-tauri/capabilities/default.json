@@ -26,8 +26,11 @@
     "updater:default",
     "process:default",
     "core:window:allow-set-focus",
+    "core:window:allow-set-title",
+    "core:window:allow-set-theme",
     "core:window:allow-close",
     "core:window:allow-destroy",
+    "core:app:default",
     "core:webview:allow-print",
     "core:webview:allow-create-webview-window"
   ]

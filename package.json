@@ -61,8 +61,15 @@
     "@tiptap/vue-3": "^3.15.3",
     "diff": "^8.0.3",
     "lowlight": "^3.3.0",
-    "mermaid": "^11.12.2",
+    "mermaid": "^11.12.3",
     "vue": "^3.5.13"
+  },
+  "pnpm": {
+    "overrides": {
+      "markdown-it": ">=14.1.1",
+      "rollup": ">=4.59.0",
+      "minimatch": ">=9.0.7"
+    }
   },
   "devDependencies": {
     "@tauri-apps/api": "^2.10.1",
