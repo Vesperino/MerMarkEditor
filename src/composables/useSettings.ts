@@ -1,6 +1,7 @@
 import { ref, watch } from 'vue';
 import type { TokenModelId } from '../services/tokenCounter';
 import { TOKEN_MODELS } from '../services/tokenCounter';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -136,6 +137,11 @@ function applyTheme(theme: ThemeMode) {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
+  }
+  try {
+    getCurrentWindow().setTheme(theme);
+  } catch {
+    // ignore outside Tauri context
   }
 }
 

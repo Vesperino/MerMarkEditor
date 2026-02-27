@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, provide, computed, watchEffect, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -625,6 +627,14 @@ const openFileWithCrossWindowDialog = async (): Promise<void> => {
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
   window.addEventListener('wheel', handleWheel, { passive: false });
+
+  // Set window title with version
+  try {
+    const version = await getVersion();
+    await getCurrentWindow().setTitle(`MerMark Editor v${version}`);
+  } catch (error) {
+    console.error('[App] Error setting window title:', error);
+  }
 
   // Get current window label for file registry
   try {
