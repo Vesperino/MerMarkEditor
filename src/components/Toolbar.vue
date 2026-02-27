@@ -4,10 +4,12 @@ import type { Editor } from "@tiptap/vue-3";
 import { useI18n } from "../i18n";
 import { useSettings } from "../composables/useSettings";
 import { useTokenCounter } from "../composables/useTokenCounter";
+import { useEditorZoom } from "../composables/useEditorZoom";
 import { htmlToMarkdown } from "../utils/markdown-converter";
 
 const { t, locale, toggleLocale } = useI18n();
 const { settings, toggleAutoSave, toggleTheme } = useSettings();
+const { zoomPercent, zoomIn, zoomOut, resetZoom } = useEditorZoom();
 const {
   tokenCount,
   modelName,
@@ -572,6 +574,30 @@ const emit = defineEmits<{
 
       <div class="toolbar-separator"></div>
 
+      <!-- Editor Zoom -->
+      <div class="toolbar-group zoom-group">
+        <button @click="zoomOut" class="toolbar-btn icon-only" :title="t.zoomOut">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+        </button>
+        <button @click="resetZoom" class="toolbar-btn zoom-percent-btn" :title="t.reset">
+          {{ zoomPercent }}%
+        </button>
+        <button @click="zoomIn" class="toolbar-btn icon-only" :title="t.zoomIn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="11" y1="8" x2="11" y2="14"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
       <!-- Code View Toggle -->
       <button
         @click="emit('toggleCodeView')"
@@ -1127,5 +1153,19 @@ const emit = defineEmits<{
 .token-menu .dropdown-item.active {
   background: var(--token-active-bg);
   color: var(--token-active-color);
+}
+
+/* Editor Zoom */
+.zoom-group {
+  gap: 0;
+}
+
+.zoom-percent-btn {
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 44px;
+  padding: 4px 6px;
+  justify-content: center;
+  color: var(--text-muted);
 }
 </style>

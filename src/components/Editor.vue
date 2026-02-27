@@ -18,8 +18,9 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
-import { watch, ref, nextTick } from "vue";
+import { watch, ref, nextTick, computed } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
+import { useEditorZoom } from "../composables/useEditorZoom";
 import TableContextMenu from "./TableContextMenu.vue";
 
 // Guards against false hasChanges during programmatic content updates.
@@ -120,6 +121,8 @@ const HeadingWithId = Node.create({
 });
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
+const { zoomScale } = useEditorZoom();
+const editorZoomStyle = computed(() => ({ zoom: zoomScale.value }));
 
 // Table context menu state
 const showContextMenu = ref(false);
@@ -430,7 +433,7 @@ defineExpose({ editor });
 
 <template>
   <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick" @contextmenu="handleContextMenu">
-    <EditorContent :editor="editor" class="editor-content" />
+    <EditorContent :editor="editor" class="editor-content" :style="editorZoomStyle" />
     <TableContextMenu
       v-if="showContextMenu"
       :x="contextMenuX"

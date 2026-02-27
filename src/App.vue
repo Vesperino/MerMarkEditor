@@ -27,6 +27,7 @@ import { useFileOperations } from './composables/useFileOperations';
 import { useCloseConfirmation } from './composables/useCloseConfirmation';
 import { useWindowManager } from './composables/useWindowManager';
 import { useTabDrag } from './composables/useTabDrag';
+import { useEditorZoom } from './composables/useEditorZoom';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -390,6 +391,20 @@ const {
 // ============ Settings ============
 const { settings } = useSettings();
 
+// ============ Editor Zoom ============
+const { zoomIn, zoomOut } = useEditorZoom();
+
+const handleWheel = (event: WheelEvent) => {
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault();
+    if (event.deltaY < 0) {
+      zoomIn();
+    } else {
+      zoomOut();
+    }
+  }
+};
+
 // ============ Sync Active Tab Content ============
 // This ensures that the active tab's content and hasChanges are up to date
 // before checking for unsaved changes (e.g., when closing the window)
@@ -609,6 +624,7 @@ const openFileWithCrossWindowDialog = async (): Promise<void> => {
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
+  window.addEventListener('wheel', handleWheel, { passive: false });
 
   // Get current window label for file registry
   try {
@@ -703,6 +719,7 @@ onMounted(async () => {
 
 onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeyboard);
+  window.removeEventListener('wheel', handleWheel);
   if (unlistenOpenFile) {
     unlistenOpenFile();
   }
