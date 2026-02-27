@@ -175,6 +175,15 @@ Download the latest version from the [Releases page](https://github.com/Vesperin
 | macOS    | [.dmg (universal: Apple Silicon + Intel)](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 | Linux    | [.deb / .AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 
+### Important Note
+
+This app is open-source and not code-signed. Your OS may show a security warning on first launch:
+
+- **Windows** (SmartScreen): Click "More info" → "Run anyway"
+- **macOS**: Right-click the app → "Open" → "Open" to bypass Gatekeeper
+
+This is standard behavior for open-source software distributed without a paid code signing certificate. The source code is fully available for review in this repository.
+
 ### System Requirements
 
 - **Windows**: Windows 10 or later (64-bit)
