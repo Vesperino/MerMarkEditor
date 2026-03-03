@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ref, computed } from 'vue';
+import { ref, computed, type Ref } from 'vue';
 import type { Tab } from '../../composables/useTabs';
+import type { UseFileReloadOptions } from '../../composables/useFileReload';
 
 // Mock dependencies
 vi.mock('@tauri-apps/plugin-fs', () => ({
@@ -33,13 +34,13 @@ import { readTextFile } from '@tauri-apps/plugin-fs';
 import { markdownToHtml } from '../../utils/markdown-converter';
 
 describe('useFileReload', () => {
-  let mockActivePaneId: ReturnType<typeof ref<string>>;
-  let mockCurrentFile: ReturnType<typeof ref<string | null>>;
-  let mockHasChanges: ReturnType<typeof ref<boolean>>;
-  let mockSetEditorContent: ReturnType<typeof vi.fn>;
+  let mockActivePaneId: Ref<string>;
+  let mockCurrentFile: Ref<string | null>;
+  let mockHasChanges: Ref<boolean>;
+  let mockSetEditorContent: UseFileReloadOptions['setEditorContent'];
   let mockTab: Tab;
   let mockPane: { id: string; activeTabId: string; tabs: Tab[] };
-  let mockFindTabByFilePathSplit: ReturnType<typeof vi.fn>;
+  let mockFindTabByFilePathSplit: UseFileReloadOptions['findTabByFilePathSplit'];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,7 +48,7 @@ describe('useFileReload', () => {
     mockActivePaneId = ref('left');
     mockCurrentFile = ref<string | null>('/test/file.md');
     mockHasChanges = ref(false);
-    mockSetEditorContent = vi.fn();
+    mockSetEditorContent = vi.fn() as unknown as UseFileReloadOptions['setEditorContent'];
 
     mockTab = {
       id: 'tab-1',
@@ -70,7 +71,7 @@ describe('useFileReload', () => {
         return { pane: mockPane, tab: mockTab };
       }
       return undefined;
-    });
+    }) as unknown as UseFileReloadOptions['findTabByFilePathSplit'];
   });
 
   const createReload = () =>
@@ -253,7 +254,7 @@ describe('useFileReload', () => {
 
   describe('file not found in tabs', () => {
     it('should do nothing when findTabByFilePathSplit returns undefined on reload', async () => {
-      mockFindTabByFilePathSplit.mockReturnValue(undefined);
+      (mockFindTabByFilePathSplit as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
       mockCurrentFile.value = '/unknown/file.md';
       vi.mocked(readTextFile).mockResolvedValueOnce('content');
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { UseFileWatcherOptions } from '../../composables/useFileWatcher';
 
 // Mock @tauri-apps/plugin-fs
 const mockWatchCallback = vi.fn();
@@ -20,9 +21,9 @@ import { useFileWatcher } from '../../composables/useFileWatcher';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 
 describe('useFileWatcher', () => {
-  let onExternalChange: ReturnType<typeof vi.fn>;
-  let onFileDeleted: ReturnType<typeof vi.fn>;
-  let onWatchError: ReturnType<typeof vi.fn>;
+  let onExternalChange: UseFileWatcherOptions['onExternalChange'];
+  let onFileDeleted: UseFileWatcherOptions['onFileDeleted'];
+  let onWatchError: UseFileWatcherOptions['onWatchError'];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -179,7 +180,7 @@ describe('useFileWatcher', () => {
     });
 
     it('should call onWatchError when readTextFile throws and no onFileDeleted handler', async () => {
-      const watcher = useFileWatcher({ onExternalChange, onWatchError });
+      const watcher = useFileWatcher({ onExternalChange: onExternalChange!, onWatchError });
       await watcher.watchFile('/test/file.md', 'content');
 
       vi.mocked(readTextFile).mockRejectedValueOnce(new Error('disk error'));
