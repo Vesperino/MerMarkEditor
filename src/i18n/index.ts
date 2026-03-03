@@ -171,6 +171,21 @@ export interface Translations {
   // Theme
   darkMode: string;
   lightMode: string;
+
+  // File watching & conflict
+  fileReloadedExternally: (fileName: string) => string;
+  fileReloaded: string;
+  fileReloadError: string;
+  fileChangedExternally: string;
+  fileConflictMessage: string;
+  keepMyChanges: string;
+  loadExternalVersion: string;
+  externalChanges: string;
+  reloadFile: string;
+  preSaveConflict: string;
+  preSaveConflictMessage: string;
+  saveAnyway: string;
+  fileDeletedExternally: (fileName: string) => string;
 }
 
 const translations: Record<Locale, Translations> = {
@@ -342,6 +357,21 @@ const translations: Record<Locale, Translations> = {
     // Theme
     darkMode: 'Dark',
     lightMode: 'Light',
+
+    // File watching & conflict
+    fileReloadedExternally: (fileName: string) => `"${fileName}" was updated externally and reloaded.`,
+    fileReloaded: 'File reloaded from disk.',
+    fileReloadError: 'Could not reload file from disk.',
+    fileChangedExternally: 'File Changed Externally',
+    fileConflictMessage: 'The file has been modified outside the editor while you have unsaved changes.',
+    keepMyChanges: 'Keep My Changes',
+    loadExternalVersion: 'Load External Version',
+    externalChanges: 'External Changes',
+    reloadFile: 'Reload file',
+    preSaveConflict: 'File Modified',
+    preSaveConflictMessage: 'The file has been modified externally since you last loaded or saved it.',
+    saveAnyway: 'Save Anyway',
+    fileDeletedExternally: (fileName: string) => `"${fileName}" was deleted externally.`,
   },
 
   pl: {
@@ -512,6 +542,21 @@ const translations: Record<Locale, Translations> = {
     // Theme
     darkMode: 'Ciemny',
     lightMode: 'Jasny',
+
+    // File watching & conflict
+    fileReloadedExternally: (fileName: string) => `"${fileName}" został zaktualizowany zewnętrznie i ponownie wczytany.`,
+    fileReloaded: 'Plik ponownie wczytany z dysku.',
+    fileReloadError: 'Nie udało się ponownie wczytać pliku z dysku.',
+    fileChangedExternally: 'Plik zmieniony zewnętrznie',
+    fileConflictMessage: 'Plik został zmodyfikowany poza edytorem, a Ty masz niezapisane zmiany.',
+    keepMyChanges: 'Zachowaj moje zmiany',
+    loadExternalVersion: 'Wczytaj zewnętrzną wersję',
+    externalChanges: 'Zmiany zewnętrzne',
+    reloadFile: 'Wczytaj ponownie',
+    preSaveConflict: 'Plik zmodyfikowany',
+    preSaveConflictMessage: 'Plik został zmodyfikowany zewnętrznie od ostatniego wczytania lub zapisania.',
+    saveAnyway: 'Zapisz mimo to',
+    fileDeletedExternally: (fileName: string) => `"${fileName}" został usunięty zewnętrznie.`,
   },
 };
 

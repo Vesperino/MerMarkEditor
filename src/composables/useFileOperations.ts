@@ -16,6 +16,10 @@ export interface UseFileOperationsOptions {
   switchToTab: (tabId: string, preserveHasChanges?: boolean) => Promise<void>;
   getEditorHtml: () => string;
   setEditorContent: (content: string) => void;
+  markSaveStart?: (filePath: string) => void;
+  markSaveEnd?: (filePath: string, content: string) => void;
+  onFileOpened?: (filePath: string, content: string) => void;
+  onPreSaveConflict?: (filePath: string) => Promise<'save' | 'cancel'>;
 }
 
 export interface UseFileOperationsReturn {
@@ -44,6 +48,10 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     switchToTab,
     getEditorHtml,
     setEditorContent,
+    markSaveStart,
+    markSaveEnd,
+    onFileOpened,
+    onPreSaveConflict,
   } = options;
 
   const currentFile = computed(() => activeTab.value?.filePath || null);
@@ -97,6 +105,8 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       if (newTab) newTab.originalMarkdown = fileContent;
       await switchToTab(newTabId);
     }
+
+    onFileOpened?.(filePath, fileContent);
   };
 
   const openFile = async (): Promise<void> => {
@@ -125,6 +135,19 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
+  const checkPreSaveConflict = async (filePath: string, originalMarkdown: string | null): Promise<boolean> => {
+    if (!originalMarkdown || !onPreSaveConflict) return false;
+    try {
+      const currentDiskContent = await readTextFile(filePath);
+      // Normalize line endings for comparison
+      const normalizedDisk = currentDiskContent.replace(/\r\n/g, '\n');
+      const normalizedOriginal = originalMarkdown.replace(/\r\n/g, '\n');
+      return normalizedDisk !== normalizedOriginal;
+    } catch {
+      return false; // File might not exist yet (new file)
+    }
+  };
+
   const writeAndUpdateTab = async (filePath: string): Promise<void> => {
     const html = getEditorHtml();
     let markdown = htmlToMarkdown(html);
@@ -137,7 +160,18 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       markdown = applyLineEnding(markdown, originalLineEnding);
     }
 
+    // Pre-save conflict check
+    if (tabIndex !== -1 && onPreSaveConflict) {
+      const hasConflict = await checkPreSaveConflict(filePath, tabs.value[tabIndex].originalMarkdown);
+      if (hasConflict) {
+        const decision = await onPreSaveConflict(filePath);
+        if (decision === 'cancel') return;
+      }
+    }
+
+    markSaveStart?.(filePath);
     await writeTextFile(filePath, markdown);
+    markSaveEnd?.(filePath, markdown);
 
     if (tabIndex !== -1) {
       tabs.value[tabIndex].filePath = filePath;
@@ -273,6 +307,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
         newTab.originalMarkdown = fileContent;
       }
       await switchToTab(newTabId);
+      onFileOpened?.(fullPath, fileContent);
       isLoadingFile.value = false;
     } catch (error) {
       console.error('Error opening file in new tab:', error);

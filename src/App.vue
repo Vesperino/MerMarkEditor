@@ -19,6 +19,8 @@ import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
 import DiffPreview from './components/DiffPreview.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
+import ToastNotification from './components/ToastNotification.vue';
+import FileConflictModal from './components/FileConflictModal.vue';
 
 // Composables
 import { useAutoUpdate } from './composables/useAutoUpdate';
@@ -30,6 +32,7 @@ import { useCloseConfirmation } from './composables/useCloseConfirmation';
 import { useWindowManager } from './composables/useWindowManager';
 import { useTabDrag } from './composables/useTabDrag';
 import { useEditorZoom } from './composables/useEditorZoom';
+import { useFileReload } from './composables/useFileReload';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -167,6 +170,21 @@ const findTabByFilePath = (filePath: string) => {
   return result?.tab;
 };
 
+// ============ File Watcher & Reload ============
+const {
+  showToast, toastMessage, toastType, dismissToast,
+  showConflictModal, conflictFileName, conflictDiffLines, conflictDiffStats,
+  handleConflictKeepLocal, handleConflictLoadExternal,
+  manualReload,
+  watchFile, unwatchFile, unwatchAll, markSaveStart, markSaveEnd,
+} = useFileReload({
+  activePaneId,
+  currentFile,
+  hasChanges,
+  findTabByFilePathSplit,
+  setEditorContent,
+});
+
 // ============ Tab Close Confirmation ============
 const showTabCloseDialog = ref(false);
 const tabToClose = ref<{ id: string; paneId: string; fileName: string } | null>(null);
@@ -179,8 +197,9 @@ const closeTabAndCheckWindow = async (paneId: string, tabId: string) => {
 
   closeTabFromSplit(paneId, tabId);
 
-  // Unregister the file from the global registry
+  // Unregister the file from the global registry and stop watching
   if (filePath) {
+    unwatchFile(filePath);
     try {
       await unregisterOpenFile(filePath);
     } catch (error) {
@@ -277,6 +296,20 @@ const {
   switchToTab,
   getEditorHtml: getEditorContent,
   setEditorContent,
+  markSaveStart: (filePath: string) => markSaveStart(filePath),
+  markSaveEnd: (filePath: string, content: string) => markSaveEnd(filePath, content),
+  onFileOpened: (filePath: string, content: string) => {
+    watchFile(filePath, content);
+  },
+  onPreSaveConflict: async (_filePath: string) => {
+    // Show a simple confirm dialog for pre-save conflicts
+    return new Promise<'save' | 'cancel'>((resolve) => {
+      // Use the conflict modal approach - but for save conflicts
+      // For simplicity, use a window confirm since we don't want to block the save flow
+      const shouldSave = window.confirm(t.value.preSaveConflictMessage + '\n\n' + t.value.saveAnyway + '?');
+      resolve(shouldSave ? 'save' : 'cancel');
+    });
+  },
 });
 
 // ============ Code View ============
@@ -459,7 +492,9 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
       markdown = applyLineEnding(markdown, originalLineEnding);
     }
 
+    markSaveStart(tab.filePath);
     await writeTextFile(tab.filePath, markdown);
+    markSaveEnd(tab.filePath, markdown);
 
     // Update tab state
     tab.hasChanges = false;
@@ -553,6 +588,10 @@ const handleKeyboard = (event: KeyboardEvent) => {
           event.preventDefault();
           compareTabs();
         }
+        break;
+      case 'r':
+        event.preventDefault();
+        manualReload();
         break;
       case '/':
         event.preventDefault();
@@ -730,6 +769,7 @@ onMounted(async () => {
 onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeyboard);
   window.removeEventListener('wheel', handleWheel);
+  unwatchAll();
   if (unlistenOpenFile) {
     unlistenOpenFile();
   }
@@ -849,6 +889,25 @@ onUnmounted(async () => {
     <KeyboardShortcutsModal
       v-if="showShortcutsModal"
       @close="showShortcutsModal = false"
+    />
+
+    <!-- File Conflict Modal -->
+    <FileConflictModal
+      v-if="showConflictModal"
+      :file-name="conflictFileName"
+      :diff-lines="conflictDiffLines"
+      :diff-stats="conflictDiffStats"
+      @keep-local="handleConflictKeepLocal"
+      @load-external="handleConflictLoadExternal"
+      @close="handleConflictKeepLocal"
+    />
+
+    <!-- Toast Notification -->
+    <ToastNotification
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      @close="dismissToast"
     />
   </div>
 </template>

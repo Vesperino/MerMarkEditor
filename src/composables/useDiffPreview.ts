@@ -30,7 +30,7 @@ export interface UseDiffPreviewReturn {
   closeDiffPreview: () => void;
 }
 
-function generateDiff(oldText: string, newText: string): { lines: DiffLine[]; stats: DiffStats } {
+export function generateDiff(oldText: string, newText: string): { lines: DiffLine[]; stats: DiffStats } {
   const normalizedOld = oldText.replace(/\r\n/g, '\n');
   const normalizedNew = newText.replace(/\r\n/g, '\n');
 

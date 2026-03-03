@@ -24,6 +24,12 @@ export const TIMING = {
   HIGHLIGHT_DURATION: 1000,
   /** Delay before highlighting cursor after code view switch */
   HIGHLIGHT_DELAY: 100,
+  /** Debounce delay for file watcher events (AI editors write in multiple steps) */
+  FILE_WATCH_DEBOUNCE: 500,
+  /** Grace period to ignore file watch events after our own save */
+  OWN_SAVE_GRACE_PERIOD: 2000,
+  /** Duration for toast notification auto-dismiss */
+  TOAST_DURATION: 3000,
 } as const;
 
 /** Code editor line height for scroll calculations */
