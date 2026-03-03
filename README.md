@@ -78,6 +78,9 @@
 - **AI Token Counter** - Estimate tokens for GPT (OpenAI), Claude (Anthropic), and Gemini (Google)
 - **Multi-window support** - Open multiple independent editor windows
 - **Cross-window tab management** - Drag and drop tabs between panes and windows
+- **File watching** - Automatically detects external file changes and reloads content
+- **Conflict detection** - Shows inline diff when both local and external changes exist
+- **Manual reload** - Reload file from disk with `Ctrl+R`
 
 ---
 
@@ -216,6 +219,7 @@ This is standard behavior for open-source software distributed without a paid co
 | Italic | `Ctrl+I` |
 | Show changes | `Ctrl+Shift+D` |
 | Compare tabs | `Ctrl+Shift+C` |
+| Reload file | `Ctrl+R` |
 | Keyboard shortcuts | `Ctrl+/` |
 | Close modal | `Escape` |
 

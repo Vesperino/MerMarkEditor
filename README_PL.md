@@ -78,6 +78,9 @@
 - **Licznik tokenów AI** - Szacowanie tokenów dla GPT (OpenAI), Claude (Anthropic) i Gemini (Google)
 - **Obsługa wielu okien** - Otwieranie wielu niezależnych okien edytora
 - **Zarządzanie kartami między oknami** - Przeciąganie kart między panelami i oknami
+- **Obserwowanie plików** - Automatyczne wykrywanie zewnętrznych zmian i przeładowanie zawartości
+- **Wykrywanie konfliktów** - Wyświetla porównanie diff gdy istnieją zarówno lokalne jak i zewnętrzne zmiany
+- **Ręczne przeładowanie** - Przeładuj plik z dysku za pomocą `Ctrl+R`
 
 ---
 
@@ -207,6 +210,7 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 | Kursywa | `Ctrl+I` |
 | Pokaż zmiany | `Ctrl+Shift+D` |
 | Porównaj zakładki | `Ctrl+Shift+C` |
+| Przeładuj plik | `Ctrl+R` |
 | Skróty klawiszowe | `Ctrl+/` |
 | Zamknij modal | `Escape` |
 
