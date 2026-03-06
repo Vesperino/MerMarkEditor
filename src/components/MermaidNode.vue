@@ -98,7 +98,9 @@ const renderMermaid = async () => {
     error.value = null;
     const id = `mermaid-${Date.now()}`;
     // Convert placeholder back to <br> for mermaid rendering
-    const codeForRender = props.node.attrs.code.replace(/__BR__/g, '<br/>');
+    const codeForRender = props.node.attrs.code
+      .replace(/__BR__/g, '<br/>')
+      .replace(/\\n/g, '<br/>');
     const { svg } = await mermaid.render(id, codeForRender);
     containerRef.value.innerHTML = svg;
     // Apply current size to rendered SVG
