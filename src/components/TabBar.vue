@@ -21,6 +21,39 @@ const { isDragging, draggedTab, startDrag, setDropZone, clearDropZone } = useTab
 
 const dropTargetIndex = ref<number | null>(null);
 
+const duplicateFileNames = computed(() => {
+  const counts = new Map<string, number>();
+  for (const tab of props.tabs) {
+    counts.set(tab.fileName, (counts.get(tab.fileName) || 0) + 1);
+  }
+  return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([name]) => name));
+});
+
+const getTabDisplayName = (tab: Tab): string => {
+  if (!duplicateFileNames.value.has(tab.fileName) || !tab.filePath) {
+    return tab.fileName;
+  }
+  const parts = tab.filePath.replace(/\\/g, '/').split('/');
+  const parentFolder = parts.length >= 2 ? parts[parts.length - 2] : null;
+  return parentFolder ? `${parentFolder}/${tab.fileName}` : tab.fileName;
+};
+
+const hoveredTab = ref<Tab | null>(null);
+const tooltipX = ref(0);
+const tooltipY = ref(0);
+
+const showTooltip = (event: MouseEvent, tab: Tab) => {
+  if (!tab.filePath) return;
+  hoveredTab.value = tab;
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  tooltipX.value = rect.left + rect.width / 2;
+  tooltipY.value = rect.bottom + 8;
+};
+
+const hideTooltip = () => {
+  hoveredTab.value = null;
+};
+
 // Check if we're dragging over this pane
 const isDraggingOverThisPane = computed(() => {
   return isDragging.value && draggedTab.value?.paneId !== props.paneId;
@@ -130,10 +163,10 @@ const handleBarMouseLeave = () => {
         'being-dragged': isDragging && draggedTab?.tabId === tab.id
       }"
       @mousedown="handleMouseDown($event, tab)"
-      @mouseenter="handleMouseEnter(index)"
-      @mouseleave="handleMouseLeave"
+      @mouseenter="(e) => { handleMouseEnter(index); showTooltip(e, tab); }"
+      @mouseleave="() => { handleMouseLeave(); hideTooltip(); }"
     >
-      <span class="tab-name">{{ tab.fileName }}</span>
+      <span class="tab-name">{{ getTabDisplayName(tab) }}</span>
       <span v-if="tab.hasChanges" class="tab-unsaved">*</span>
       <button
         class="tab-close"
@@ -142,6 +175,17 @@ const handleBarMouseLeave = () => {
       >&times;</button>
     </div>
   </div>
+
+  <Teleport to="body">
+    <div
+      v-if="hoveredTab"
+      class="tab-tooltip"
+      :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
+    >
+      <span class="tab-tooltip-name">{{ hoveredTab.fileName }}</span>
+      <span class="tab-tooltip-path">{{ hoveredTab.filePath }}</span>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -248,5 +292,38 @@ const handleBarMouseLeave = () => {
   .tab-bar {
     display: none !important;
   }
+}
+</style>
+
+<style>
+.tab-tooltip {
+  position: fixed;
+  z-index: 99999;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border-primary, #334155);
+  border-radius: 6px;
+  padding: 6px 10px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  max-width: 480px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tab-tooltip-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.tab-tooltip-path {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 </style>

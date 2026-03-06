@@ -17,6 +17,7 @@ import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
+import TabBar from './components/TabBar.vue';
 import DiffPreview from './components/DiffPreview.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
@@ -355,6 +356,14 @@ const toggleCodeView = async () => {
 
   await nextTick();
   isLoadingContent.value = false;
+};
+
+// Switch tab while in code view: exit code view first to commit edits, then switch
+const switchToTabFromCodeView = async (tabId: string) => {
+  if (codeView.value) {
+    await toggleCodeView();
+  }
+  await switchToTab(tabId);
 };
 
 // ============ Diff Preview ============
@@ -824,12 +833,20 @@ onUnmounted(async () => {
     />
 
     <!-- Code View -->
-    <CodeEditor
-      v-else
-      ref="codeEditorComponentRef"
-      v-model="codeContent"
-      @update:model-value="onCodeContentUpdate"
-    />
+    <template v-else>
+      <TabBar
+        :tabs="tabs"
+        :active-tab-id="activeTabId"
+        :pane-id="activePaneId"
+        @switch-tab="switchToTabFromCodeView"
+        @close-tab="(tabId) => handleCloseTabRequest(activePaneId, tabId)"
+      />
+      <CodeEditor
+        ref="codeEditorComponentRef"
+        v-model="codeContent"
+        @update:model-value="onCodeContentUpdate"
+      />
+    </template>
 
     <!-- Loading Overlay -->
     <LoadingOverlay v-if="isLoadingFile" />

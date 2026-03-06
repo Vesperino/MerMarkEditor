@@ -447,7 +447,8 @@ defineExpose({ editor });
 <style>
 .editor-container {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--editor-container-bg);
 }
 

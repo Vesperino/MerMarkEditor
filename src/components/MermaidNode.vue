@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from "@tiptap/vue-3";
-import { ref, watch, onMounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import mermaid from "mermaid";
 import { useI18n } from "../i18n";
 import { useZoomPan } from "../composables/useZoomPan";
@@ -85,14 +85,18 @@ const handleFitToView = () => {
   fitToView(containerRef.value, viewportRef.value);
 };
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "default",
-  securityLevel: "loose",
-});
+const isDark = ref(document.documentElement.classList.contains("dark"));
+
+let darkModeObserver: MutationObserver | null = null;
 
 const renderMermaid = async () => {
   if (!containerRef.value) return;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark.value ? "dark" : "default",
+    securityLevel: "loose",
+  });
 
   try {
     error.value = null;
@@ -113,6 +117,21 @@ const renderMermaid = async () => {
 
 onMounted(() => {
   renderMermaid();
+
+  darkModeObserver = new MutationObserver(() => {
+    const nowDark = document.documentElement.classList.contains("dark");
+    if (nowDark !== isDark.value) {
+      isDark.value = nowDark;
+    }
+  });
+  darkModeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+});
+
+onUnmounted(() => {
+  darkModeObserver?.disconnect();
 });
 
 watch(
@@ -121,6 +140,10 @@ watch(
     renderMermaid();
   }
 );
+
+watch(isDark, () => {
+  renderMermaid();
+});
 
 // Watch for size changes
 watch(
@@ -573,6 +596,24 @@ const handleTemplateSelect = (code: string) => {
 .mermaid-content :deep(svg) {
   transition: width 0.2s ease, max-width 0.2s ease;
   display: block;
+}
+
+/* Dark mode: ensure edge paths and arrows are visible */
+html.dark .mermaid-content :deep(svg .edgePath path),
+html.dark .mermaid-content :deep(svg .flowchart-link),
+html.dark .mermaid-content :deep(svg path.path) {
+  stroke: #aaaaaa !important;
+}
+
+html.dark .mermaid-content :deep(svg marker path) {
+  fill: #aaaaaa !important;
+  stroke: none !important;
+}
+
+html.dark .mermaid-content :deep(svg line),
+html.dark .mermaid-content :deep(svg .messageLine0),
+html.dark .mermaid-content :deep(svg .messageLine1) {
+  stroke: #aaaaaa !important;
 }
 
 .btn-fullscreen {

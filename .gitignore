@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Local manual test files
+test-files/
+
 # Build outputs
 dist/
 src-tauri/target/

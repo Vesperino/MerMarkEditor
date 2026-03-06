@@ -10,6 +10,7 @@ export interface AppSettings {
   showTokenCount: boolean;
   tokenModel: TokenModelId;
   theme: ThemeMode;
+  codeWordWrap: boolean;
 }
 
 const STORAGE_KEY = 'mermark-settings';
@@ -69,6 +70,7 @@ function getDefaultSettings(): AppSettings {
     showTokenCount: true,
     tokenModel: 'gpt',
     theme: 'light',
+    codeWordWrap: false,
   };
 }
 
@@ -119,6 +121,10 @@ export function useSettings() {
     setTheme(newTheme);
   };
 
+  const toggleCodeWordWrap = () => {
+    settings.value.codeWordWrap = !settings.value.codeWordWrap;
+  };
+
   return {
     settings,
     setAutoSave,
@@ -128,6 +134,7 @@ export function useSettings() {
     setTokenModel,
     setTheme,
     toggleTheme,
+    toggleCodeWordWrap,
   };
 }
 

@@ -141,6 +141,7 @@ export interface Translations {
   autoSave: string;
   autoSaveOn: string;
   autoSaveOff: string;
+  wordWrap: string;
 
   // Update dialog
   updateAvailable: string;
@@ -327,6 +328,7 @@ const translations: Record<Locale, Translations> = {
     autoSave: 'Auto-save',
     autoSaveOn: 'On',
     autoSaveOff: 'Off',
+    wordWrap: 'Word wrap',
 
     // Update dialog
     updateAvailable: 'Update Available',
@@ -512,6 +514,7 @@ const translations: Record<Locale, Translations> = {
     autoSave: 'Autozapis',
     autoSaveOn: 'Wł.',
     autoSaveOff: 'Wył.',
+    wordWrap: 'Zawijanie wierszy',
 
     // Update dialog
     updateAvailable: 'Dostępna aktualizacja',

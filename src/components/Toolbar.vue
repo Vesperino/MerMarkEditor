@@ -270,6 +270,13 @@ const emit = defineEmits<{
 
       <div class="toolbar-separator"></div>
 
+      <!-- Editing tools — disabled in code view -->
+      <fieldset
+        class="toolbar-editing-fieldset"
+        :disabled="!!codeView"
+        :title="codeView ? t.visualView : undefined"
+      >
+
       <!-- Undo/Redo -->
       <div class="toolbar-group">
         <button
@@ -532,6 +539,8 @@ const emit = defineEmits<{
         </button>
       </div>
 
+      </fieldset><!-- end toolbar-editing-fieldset -->
+
       <!-- Spacer & Stats -->
       <div class="toolbar-spacer"></div>
       <div class="stats-display">
@@ -762,6 +771,22 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.toolbar-editing-fieldset {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  transition: opacity 0.15s;
+}
+
+.toolbar-editing-fieldset:disabled {
+  opacity: 0.35;
 }
 
 .toolbar-separator {
