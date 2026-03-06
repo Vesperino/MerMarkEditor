@@ -296,6 +296,8 @@ const {
   createNewTab,
   switchToTab,
   getEditorHtml: getEditorContent,
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  getMarkdownOverride: () => codeView.value ? codeContent.value : null,
   setEditorContent,
   markSaveStart: (filePath: string) => markSaveStart(filePath),
   markSaveEnd: (filePath: string, content: string) => markSaveEnd(filePath, content),
