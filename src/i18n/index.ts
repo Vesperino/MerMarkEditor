@@ -142,6 +142,7 @@ export interface Translations {
   autoSaveOn: string;
   autoSaveOff: string;
   wordWrap: string;
+  dropFilesHere: string;
 
   // Update dialog
   updateAvailable: string;
@@ -329,6 +330,7 @@ const translations: Record<Locale, Translations> = {
     autoSaveOn: 'On',
     autoSaveOff: 'Off',
     wordWrap: 'Word wrap',
+    dropFilesHere: 'Drop .md files here',
 
     // Update dialog
     updateAvailable: 'Update Available',
@@ -515,6 +517,7 @@ const translations: Record<Locale, Translations> = {
     autoSaveOn: 'Wł.',
     autoSaveOff: 'Wył.',
     wordWrap: 'Zawijanie wierszy',
+    dropFilesHere: 'Upuść pliki .md tutaj',
 
     // Update dialog
     updateAvailable: 'Dostępna aktualizacja',

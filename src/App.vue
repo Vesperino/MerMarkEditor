@@ -615,7 +615,13 @@ let unlistenOpenFile: UnlistenFn | null = null;
 let unlistenCloseRequest: (() => void) | null = null;
 let unlistenTabTransfer: UnlistenFn | null = null;
 let unlistenFocusFile: UnlistenFn | null = null;
+let unlistenDragEnter: UnlistenFn | null = null;
+let unlistenDragDrop: UnlistenFn | null = null;
+let unlistenDragLeave: UnlistenFn | null = null;
 let currentWindowLabel = '';
+
+// ============ File Drag & Drop ============
+const isDragOver = ref(false);
 
 // Wrapper that checks if file is open locally or in another window first
 const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => {
@@ -766,6 +772,25 @@ onMounted(async () => {
     console.error('Błąd nasłuchiwania focus-file:', error);
   }
 
+  // Listen for file drag & drop onto the window
+  try {
+    unlistenDragEnter = await listen('tauri://drag-enter', () => {
+      isDragOver.value = true;
+    });
+    unlistenDragLeave = await listen('tauri://drag-leave', () => {
+      isDragOver.value = false;
+    });
+    unlistenDragDrop = await listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
+      isDragOver.value = false;
+      const mdPaths = event.payload.paths.filter(p => p.toLowerCase().endsWith('.md'));
+      for (const filePath of mdPaths) {
+        await openFileWithCrossWindowCheck(filePath);
+      }
+    });
+  } catch (error) {
+    console.error('Błąd nasłuchiwania drag-drop:', error);
+  }
+
   // Enable change detection after editor stabilizes
   setTimeout(() => {
     isLoadingContent.value = false;
@@ -790,6 +815,15 @@ onUnmounted(async () => {
   }
   if (unlistenFocusFile) {
     unlistenFocusFile();
+  }
+  if (unlistenDragEnter) {
+    unlistenDragEnter();
+  }
+  if (unlistenDragLeave) {
+    unlistenDragLeave();
+  }
+  if (unlistenDragDrop) {
+    unlistenDragDrop();
   }
 
   // Unregister all files for this window
@@ -926,6 +960,19 @@ onUnmounted(async () => {
       :type="toastType"
       @close="dismissToast"
     />
+
+    <!-- File Drag & Drop Overlay -->
+    <div v-if="isDragOver" class="drag-drop-overlay">
+      <div class="drag-drop-box">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14,2 14,8 20,8"/>
+          <line x1="12" y1="12" x2="12" y2="18"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <span>{{ t.dropFilesHere }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -935,6 +982,31 @@ onUnmounted(async () => {
   flex-direction: column;
   height: 100vh;
   background: var(--bg-primary);
+}
+
+.drag-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.drag-drop-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 64px;
+  border: 2px dashed var(--primary, #3b82f6);
+  border-radius: 16px;
+  background: var(--bg-secondary, rgba(30, 41, 59, 0.9));
+  color: var(--primary, #3b82f6);
+  font-size: 18px;
+  font-weight: 500;
 }
 
 @media print {
