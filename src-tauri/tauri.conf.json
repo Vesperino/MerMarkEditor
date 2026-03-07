@@ -43,7 +43,8 @@
       },
       "nsis": {
         "languages": ["English", "Polish"],
-        "displayLanguageSelector": true
+        "displayLanguageSelector": true,
+        "requestExecutionLevel": "admin"
       }
     },
     "macOS": {
