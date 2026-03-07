@@ -27,6 +27,8 @@
     "tauri": "tauri",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
@@ -72,6 +74,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2.5.0",
     "@vitejs/plugin-vue": "^5.2.4",

@@ -29,12 +29,14 @@ export function useFileWatcher(options: UseFileWatcherOptions): UseFileWatcherRe
   const lastKnownDiskContent = new Map<string, string>();
 
   const isOwnSave = (filePath: string): boolean => {
-    if (ownSavesInProgress.has(filePath)) return true;
-
-    const saveTimestamp = recentOwnSaves.get(filePath);
-    if (saveTimestamp && Date.now() - saveTimestamp < TIMING.OWN_SAVE_GRACE_PERIOD) return true;
-
-    return false;
+    // Only skip events while OUR save is literally in progress (markSaveStart → markSaveEnd).
+    // The time-based grace period was removed because it caused a false-positive:
+    // an external save within 2s of our own save was silently ignored.
+    // Post-save spurious events are already filtered by the lastKnownDiskContent
+    // comparison below — after markSaveEnd the known content is updated to what
+    // we just wrote, so a watcher event for our own rename reads identical content
+    // and returns early without calling onExternalChange.
+    return ownSavesInProgress.has(filePath);
   };
 
   const handleWatchEvent = async (filePath: string) => {

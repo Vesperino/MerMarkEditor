@@ -188,6 +188,19 @@ export interface Translations {
   preSaveConflictMessage: string;
   saveAnyway: string;
   fileDeletedExternally: (fileName: string) => string;
+  // Merge editor
+  diffView: string;
+  mergeView: string;
+  acceptAllExternal: string;
+  rejectAllExternal: string;
+  mergeHint: string;
+  unchangedLines: string;
+  collapseLines: string;
+  changeHunk: string;
+  keepOriginal: string;
+  acceptExternal: string;
+  changesAccepted: string;
+  applyMerge: string;
 }
 
 const translations: Record<Locale, Translations> = {
@@ -376,6 +389,18 @@ const translations: Record<Locale, Translations> = {
     preSaveConflictMessage: 'The file has been modified externally since you last loaded or saved it.',
     saveAnyway: 'Save Anyway',
     fileDeletedExternally: (fileName: string) => `"${fileName}" was deleted externally.`,
+    diffView: 'Diff',
+    mergeView: 'Merge',
+    acceptAllExternal: 'Accept All External',
+    rejectAllExternal: 'Reject All External',
+    mergeHint: 'Select which external changes to keep',
+    unchangedLines: 'unchanged lines',
+    collapseLines: 'Collapse',
+    changeHunk: 'Change',
+    keepOriginal: 'Keep Mine',
+    acceptExternal: 'Take External',
+    changesAccepted: 'changes accepted',
+    applyMerge: 'Apply Merge',
   },
 
   pl: {
@@ -563,6 +588,18 @@ const translations: Record<Locale, Translations> = {
     preSaveConflictMessage: 'Plik został zmodyfikowany zewnętrznie od ostatniego wczytania lub zapisania.',
     saveAnyway: 'Zapisz mimo to',
     fileDeletedExternally: (fileName: string) => `"${fileName}" został usunięty zewnętrznie.`,
+    diffView: 'Diff',
+    mergeView: 'Merge',
+    acceptAllExternal: 'Zaakceptuj wszystkie zewnętrzne',
+    rejectAllExternal: 'Odrzuć wszystkie zewnętrzne',
+    mergeHint: 'Wybierz które zmiany zewnętrzne zachować',
+    unchangedLines: 'niezmienione linie',
+    collapseLines: 'Zwiń',
+    changeHunk: 'Zmiana',
+    keepOriginal: 'Zachowaj moje',
+    acceptExternal: 'Weź zewnętrzną',
+    changesAccepted: 'zmian zaakceptowanych',
+    applyMerge: 'Zastosuj merge',
   },
 };
 

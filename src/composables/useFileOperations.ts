@@ -1,6 +1,6 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { readTextFile, writeTextFile, rename, remove } from '@tauri-apps/plugin-fs';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding } from '../utils/markdown-converter';
@@ -15,11 +15,16 @@ export interface UseFileOperationsOptions {
   createNewTab: (filePath?: string | null, fileContent?: string, fileName?: string) => string;
   switchToTab: (tabId: string, preserveHasChanges?: boolean) => Promise<void>;
   getEditorHtml: () => string;
+  /** Optional override — when provided, used directly as markdown instead of converting from HTML.
+   *  Use this to pass raw codeContent when saving from code view. */
+  getMarkdownOverride?: () => string | null;
   setEditorContent: (content: string) => void;
   markSaveStart?: (filePath: string) => void;
   markSaveEnd?: (filePath: string, content: string) => void;
   onFileOpened?: (filePath: string, content: string) => void;
-  onPreSaveConflict?: (filePath: string) => Promise<'save' | 'cancel'>;
+  /** Returns 'save' | 'cancel' | mergedMarkdownString (to save the merged version).
+   *  localMarkdown is the current editor content (used to compute a local→disk diff). */
+  onPreSaveConflict?: (filePath: string, diskContent: string, localMarkdown: string) => Promise<'save' | 'cancel' | string>;
 }
 
 export interface UseFileOperationsReturn {
@@ -47,6 +52,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     createNewTab,
     switchToTab,
     getEditorHtml,
+    getMarkdownOverride,
     setEditorContent,
     markSaveStart,
     markSaveEnd,
@@ -135,22 +141,45 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
-  const checkPreSaveConflict = async (filePath: string, originalMarkdown: string | null): Promise<boolean> => {
-    if (!originalMarkdown || !onPreSaveConflict) return false;
+  // Returns disk content if a conflict is detected, null otherwise.
+  const checkPreSaveConflict = async (filePath: string, originalMarkdown: string | null): Promise<string | null> => {
+    if (!originalMarkdown || !onPreSaveConflict) return null;
     try {
       const currentDiskContent = await readTextFile(filePath);
       // Normalize line endings for comparison
       const normalizedDisk = currentDiskContent.replace(/\r\n/g, '\n');
       const normalizedOriginal = originalMarkdown.replace(/\r\n/g, '\n');
-      return normalizedDisk !== normalizedOriginal;
+      return normalizedDisk !== normalizedOriginal ? currentDiskContent : null;
     } catch {
-      return false; // File might not exist yet (new file)
+      return null; // File might not exist yet (new file)
+    }
+  };
+
+  const atomicWriteFile = async (filePath: string, content: string): Promise<void> => {
+    const tmpPath = filePath + '.tmp';
+    try {
+      markSaveStart?.(filePath);
+      await writeTextFile(tmpPath, content);
+      // Verify written content matches expected
+      const written = await readTextFile(tmpPath);
+      if (written !== content) {
+        throw new Error('Atomic save verification failed: written content does not match');
+      }
+      await rename(tmpPath, filePath);
+      markSaveEnd?.(filePath, content);
+    } catch (error) {
+      markSaveEnd?.(filePath, content); // release watcher guard even on failure
+      try { await remove(tmpPath); } catch { /* temp file may not exist */ }
+      throw error;
     }
   };
 
   const writeAndUpdateTab = async (filePath: string): Promise<void> => {
-    const html = getEditorHtml();
-    let markdown = htmlToMarkdown(html);
+    // When in code view, getMarkdownOverride() returns the raw markdown directly —
+    // avoids the empty-content bug caused by SplitContainer being unmounted.
+    const markdownOverride = getMarkdownOverride?.() ?? null;
+    const html = markdownOverride === null ? getEditorHtml() : null;
+    let markdown = markdownOverride ?? htmlToMarkdown(html!);
 
     const tabIndex = findActiveTabIndex();
 
@@ -161,23 +190,35 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
 
     // Pre-save conflict check
+    let mergedContentApplied = false;
     if (tabIndex !== -1 && onPreSaveConflict) {
-      const hasConflict = await checkPreSaveConflict(filePath, tabs.value[tabIndex].originalMarkdown);
-      if (hasConflict) {
-        const decision = await onPreSaveConflict(filePath);
+      const diskContent = await checkPreSaveConflict(filePath, tabs.value[tabIndex].originalMarkdown);
+      if (diskContent !== null) {
+        const decision = await onPreSaveConflict(filePath, diskContent, markdown);
         if (decision === 'cancel') return;
+        // If user applied a manual merge, use the merged content instead.
+        // The conflict handler already called reloadTabContent to update the editor —
+        // skip the tab.content = html overwrite below so the merged view isn't reverted.
+        if (decision !== 'save') {
+          markdown = decision;
+          mergedContentApplied = true;
+        }
       }
     }
 
-    markSaveStart?.(filePath);
-    await writeTextFile(filePath, markdown);
-    markSaveEnd?.(filePath, markdown);
+    await atomicWriteFile(filePath, markdown);
 
     if (tabIndex !== -1) {
       tabs.value[tabIndex].filePath = filePath;
       tabs.value[tabIndex].fileName = extractFileName(filePath);
       tabs.value[tabIndex].hasChanges = false;
-      tabs.value[tabIndex].content = html;
+      // Only update cached HTML when saving from visual mode — in code view the HTML
+      // will be regenerated from the saved markdown when switching back to visual mode.
+      // Skip when merged content was applied: the conflict handler already set tab.content
+      // via reloadTabContent; overwriting it here with pre-dialog html would revert the editor.
+      if (html !== null && !mergedContentApplied) {
+        tabs.value[tabIndex].content = html;
+      }
       tabs.value[tabIndex].originalMarkdown = markdown;
     }
   };
