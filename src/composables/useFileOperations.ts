@@ -22,7 +22,9 @@ export interface UseFileOperationsOptions {
   markSaveStart?: (filePath: string) => void;
   markSaveEnd?: (filePath: string, content: string) => void;
   onFileOpened?: (filePath: string, content: string) => void;
-  onPreSaveConflict?: (filePath: string) => Promise<'save' | 'cancel'>;
+  /** Returns 'save' | 'cancel' | mergedMarkdownString (to save the merged version).
+   *  localMarkdown is the current editor content (used to compute a local→disk diff). */
+  onPreSaveConflict?: (filePath: string, diskContent: string, localMarkdown: string) => Promise<'save' | 'cancel' | string>;
 }
 
 export interface UseFileOperationsReturn {
@@ -139,16 +141,17 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
-  const checkPreSaveConflict = async (filePath: string, originalMarkdown: string | null): Promise<boolean> => {
-    if (!originalMarkdown || !onPreSaveConflict) return false;
+  // Returns disk content if a conflict is detected, null otherwise.
+  const checkPreSaveConflict = async (filePath: string, originalMarkdown: string | null): Promise<string | null> => {
+    if (!originalMarkdown || !onPreSaveConflict) return null;
     try {
       const currentDiskContent = await readTextFile(filePath);
       // Normalize line endings for comparison
       const normalizedDisk = currentDiskContent.replace(/\r\n/g, '\n');
       const normalizedOriginal = originalMarkdown.replace(/\r\n/g, '\n');
-      return normalizedDisk !== normalizedOriginal;
+      return normalizedDisk !== normalizedOriginal ? currentDiskContent : null;
     } catch {
-      return false; // File might not exist yet (new file)
+      return null; // File might not exist yet (new file)
     }
   };
 
@@ -187,11 +190,19 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
 
     // Pre-save conflict check
+    let mergedContentApplied = false;
     if (tabIndex !== -1 && onPreSaveConflict) {
-      const hasConflict = await checkPreSaveConflict(filePath, tabs.value[tabIndex].originalMarkdown);
-      if (hasConflict) {
-        const decision = await onPreSaveConflict(filePath);
+      const diskContent = await checkPreSaveConflict(filePath, tabs.value[tabIndex].originalMarkdown);
+      if (diskContent !== null) {
+        const decision = await onPreSaveConflict(filePath, diskContent, markdown);
         if (decision === 'cancel') return;
+        // If user applied a manual merge, use the merged content instead.
+        // The conflict handler already called reloadTabContent to update the editor —
+        // skip the tab.content = html overwrite below so the merged view isn't reverted.
+        if (decision !== 'save') {
+          markdown = decision;
+          mergedContentApplied = true;
+        }
       }
     }
 
@@ -203,7 +214,9 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       tabs.value[tabIndex].hasChanges = false;
       // Only update cached HTML when saving from visual mode — in code view the HTML
       // will be regenerated from the saved markdown when switching back to visual mode.
-      if (html !== null) {
+      // Skip when merged content was applied: the conflict handler already set tab.content
+      // via reloadTabContent; overwriting it here with pre-dialog html would revert the editor.
+      if (html !== null && !mergedContentApplied) {
         tabs.value[tabIndex].content = html;
       }
       tabs.value[tabIndex].originalMarkdown = markdown;

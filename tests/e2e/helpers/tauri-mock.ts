@@ -30,6 +30,12 @@ export async function setupTauriMocks(
   getFs: () => MockFs;
   /** Inspect IPC calls log from a test */
   getCalls: () => Array<{ cmd: string; args: unknown }>;
+  /**
+   * Simulate an external file change: updates the Node-side FS and fires a
+   * synthetic watcher event so the app sees the file as changed externally.
+   * The file must already be watched by the app (i.e. opened in a tab).
+   */
+  triggerExternalChange: (filePath: string, newContent: string) => Promise<void>;
 }> {
   const fs: MockFs = { ...(opts.initialFs ?? {}) };
   const calls: Array<{ cmd: string; args: unknown }> = [];
@@ -63,7 +69,7 @@ export async function setupTauriMocks(
   });
 
   await page.exposeFunction('__mockFsWatch', (): void => {
-    // no-op watcher
+    // no-op — watcher registration is tracked browser-side via __watchCallbacks
   });
 
   // NOTE: dialogSavePath is intentionally NOT exposed via page.exposeFunction
@@ -84,6 +90,24 @@ export async function setupTauriMocks(
       // Mutable dialog save path — tests override this via page.evaluate
       // Using a plain window variable (NOT page.exposeFunction) so it can be reassigned
       (window as Record<string, unknown>).__mockDialogSavePath = null;
+
+      // Watcher callback registry: path -> Tauri callback id
+      // Filled when plugin:fs|watch is invoked (see invoke handler below).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__watchCallbacks = {} as Record<string, number>;
+
+      // Trigger a synthetic watcher event for a path (called from test via page.evaluate).
+      // The Node side must have already updated the FS content before calling this.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__triggerWatchEvent = (path: string) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const id = (window as any).__watchCallbacks[path];
+        if (id !== undefined) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cb = (window as any)[`_cb_${id}`];
+          if (cb) cb({ type: 'modify' });
+        }
+      };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__TAURI_INTERNALS__ = {
@@ -126,7 +150,17 @@ export async function setupTauriMocks(
           if (cmd === 'plugin:fs|exists') {
             return call('__mockFsExists', (args as Record<string, unknown>).path);
           }
-          if (cmd === 'plugin:fs|watch' || cmd === 'plugin:fs|unwatch') {
+          if (cmd === 'plugin:fs|watch') {
+            // Capture the Tauri callback id so tests can fire synthetic events.
+            // plugin-fs sends: { id: number, paths: string[], options: {...} }
+            const watchArgs = args as Record<string, unknown>;
+            const cbId = watchArgs.id as number;
+            const paths = (watchArgs.paths as string[]) ?? [];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const p of paths) (window as any).__watchCallbacks[p] = cbId;
+            return call('__mockFsWatch');
+          }
+          if (cmd === 'plugin:fs|unwatch') {
             return call('__mockFsWatch');
           }
 
@@ -187,8 +221,19 @@ export async function setupTauriMocks(
     { openFilePath, version },
   );
 
+  const triggerExternalChange = async (filePath: string, newContent: string): Promise<void> => {
+    // 1. Update the Node-side virtual FS so subsequent readTextFile calls return new content
+    fs[filePath] = newContent;
+    // 2. Fire a synthetic watcher event in the browser — the app will read the updated content
+    await page.evaluate((path: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__triggerWatchEvent(path);
+    }, filePath);
+  };
+
   return {
     getFs: () => ({ ...fs }),
     getCalls: () => [...calls],
+    triggerExternalChange,
   };
 }

@@ -174,9 +174,10 @@ const findTabByFilePath = (filePath: string) => {
 // ============ File Watcher & Reload ============
 const {
   showToast, toastMessage, toastType, dismissToast,
-  showConflictModal, conflictFileName, conflictDiffLines, conflictDiffStats,
-  handleConflictKeepLocal, handleConflictLoadExternal,
+  showConflictModal, conflictFileName, conflictFilePath, conflictDiffLines, conflictDiffStats,
+  handleConflictKeepLocal, handleConflictLoadExternal, handleConflictMerge,
   manualReload,
+  reloadTabContent,
   watchFile, unwatchFile, unwatchAll, markSaveStart, markSaveEnd,
 } = useFileReload({
   activePaneId,
@@ -185,6 +186,46 @@ const {
   findTabByFilePathSplit,
   setEditorContent,
 });
+
+// ============ Pre-Save Conflict Modal ============
+// Shown when the user tries to save but the file was modified externally since last load/save.
+// Reuses FileConflictModal with "Save Anyway" as the left-button label.
+const showPreSaveConflictModal = ref(false);
+const preSaveConflictFilePath = ref('');
+const preSaveConflictFileName = ref('');
+const preSaveConflictDiffLines = ref<import('./composables/useDiffPreview').DiffLine[]>([]);
+const preSaveConflictDiffStats = ref<import('./composables/useDiffPreview').DiffStats>({ additions: 0, deletions: 0 });
+const preSaveConflictDiskContent = ref('');
+let preSaveConflictResolver: ((decision: 'save' | 'cancel' | string) => void) | null = null;
+
+const handlePreSaveConflictSaveAnyway = () => {
+  showPreSaveConflictModal.value = false;
+  preSaveConflictResolver?.('save');
+  preSaveConflictResolver = null;
+};
+
+const handlePreSaveConflictLoadExternal = () => {
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  reloadTabContent(preSaveConflictFilePath.value, preSaveConflictDiskContent.value);
+  showPreSaveConflictModal.value = false;
+  preSaveConflictResolver?.('cancel');
+  preSaveConflictResolver = null;
+};
+
+const handlePreSaveConflictMerge = (mergedContent: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  reloadTabContent(preSaveConflictFilePath.value, mergedContent);
+  showPreSaveConflictModal.value = false;
+  // Pass merged content to writeAndUpdateTab — it will use it as the save content
+  preSaveConflictResolver?.(mergedContent);
+  preSaveConflictResolver = null;
+};
+
+const handlePreSaveConflictCancel = () => {
+  showPreSaveConflictModal.value = false;
+  preSaveConflictResolver?.('cancel');
+  preSaveConflictResolver = null;
+};
 
 // ============ Tab Close Confirmation ============
 const showTabCloseDialog = ref(false);
@@ -304,13 +345,19 @@ const {
   onFileOpened: (filePath: string, content: string) => {
     watchFile(filePath, content);
   },
-  onPreSaveConflict: async (_filePath: string) => {
-    // Show a simple confirm dialog for pre-save conflicts
-    return new Promise<'save' | 'cancel'>((resolve) => {
-      // Use the conflict modal approach - but for save conflicts
-      // For simplicity, use a window confirm since we don't want to block the save flow
-      const shouldSave = window.confirm(t.value.preSaveConflictMessage + '\n\n' + t.value.saveAnyway + '?');
-      resolve(shouldSave ? 'save' : 'cancel');
+  onPreSaveConflict: (filePath: string, diskContent: string, localMarkdown: string) => {
+    const tab = findTabByFilePath(filePath);
+    // Diff shows local (current editor) → disk so the user sees their changes vs external changes.
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    const diffResult = generateDiff(localMarkdown, diskContent);
+    preSaveConflictFilePath.value = filePath;
+    preSaveConflictFileName.value = tab?.fileName ?? filePath.split(/[/\\]/).pop() ?? filePath;
+    preSaveConflictDiffLines.value = diffResult.lines;
+    preSaveConflictDiffStats.value = diffResult.stats;
+    preSaveConflictDiskContent.value = diskContent;
+    showPreSaveConflictModal.value = true;
+    return new Promise<'save' | 'cancel' | string>((resolve) => {
+      preSaveConflictResolver = resolve;
     });
   },
 });
@@ -369,7 +416,7 @@ const switchToTabFromCodeView = async (tabId: string) => {
 };
 
 // ============ Diff Preview ============
-import { useDiffPreview } from './composables/useDiffPreview';
+import { useDiffPreview, generateDiff } from './composables/useDiffPreview';
 
 const {
   showDiffPreview,
@@ -944,14 +991,30 @@ onUnmounted(async () => {
       @close="showShortcutsModal = false"
     />
 
-    <!-- File Conflict Modal -->
+    <!-- Pre-Save Conflict Modal (file changed on disk since last load/save) -->
+    <FileConflictModal
+      v-if="showPreSaveConflictModal"
+      :file-name="preSaveConflictFileName"
+      :file-path="preSaveConflictFilePath"
+      :diff-lines="preSaveConflictDiffLines"
+      :diff-stats="preSaveConflictDiffStats"
+      :keep-local-label="t.saveAnyway"
+      @keep-local="handlePreSaveConflictSaveAnyway"
+      @load-external="handlePreSaveConflictLoadExternal"
+      @merge-apply="handlePreSaveConflictMerge"
+      @close="handlePreSaveConflictCancel"
+    />
+
+    <!-- File Conflict Modal (watcher-based external change) -->
     <FileConflictModal
       v-if="showConflictModal"
       :file-name="conflictFileName"
+      :file-path="conflictFilePath"
       :diff-lines="conflictDiffLines"
       :diff-stats="conflictDiffStats"
       @keep-local="handleConflictKeepLocal"
       @load-external="handleConflictLoadExternal"
+      @merge-apply="handleConflictMerge"
       @close="handleConflictKeepLocal"
     />
 

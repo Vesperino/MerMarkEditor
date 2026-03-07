@@ -30,6 +30,53 @@ export interface UseDiffPreviewReturn {
   closeDiffPreview: () => void;
 }
 
+export interface DiffHunk {
+  id: number;
+  type: 'unchanged' | 'change';
+  lines: DiffLine[];
+}
+
+/** Groups flat DiffLine[] into hunks of consecutive unchanged or changed lines. */
+export function splitIntoHunks(diffLines: DiffLine[]): DiffHunk[] {
+  const hunks: DiffHunk[] = [];
+  let hunkId = 0;
+  let current: DiffHunk | null = null;
+
+  for (const line of diffLines) {
+    const type = line.type === 'unchanged' ? 'unchanged' : 'change';
+    if (!current || current.type !== type) {
+      current = { id: hunkId++, type, lines: [] };
+      hunks.push(current);
+    }
+    current.lines.push(line);
+  }
+
+  return hunks;
+}
+
+/**
+ * Reconstructs text from hunk selections.
+ * acceptedIds = set of change-hunk IDs whose external (added) lines should be kept.
+ * Rejected change hunks fall back to original (removed) lines.
+ */
+export function applyHunkSelections(hunks: DiffHunk[], acceptedIds: Set<number>): string {
+  const lines: string[] = [];
+  for (const hunk of hunks) {
+    if (hunk.type === 'unchanged') {
+      for (const line of hunk.lines) lines.push(line.content);
+    } else if (acceptedIds.has(hunk.id)) {
+      for (const line of hunk.lines) {
+        if (line.type === 'added') lines.push(line.content);
+      }
+    } else {
+      for (const line of hunk.lines) {
+        if (line.type === 'removed') lines.push(line.content);
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
 export function generateDiff(oldText: string, newText: string): { lines: DiffLine[]; stats: DiffStats } {
   const normalizedOld = oldText.replace(/\r\n/g, '\n');
   const normalizedNew = newText.replace(/\r\n/g, '\n');

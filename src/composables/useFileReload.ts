@@ -1,6 +1,6 @@
 import { ref, computed, nextTick, type Ref, type ComputedRef } from 'vue';
 import { readTextFile } from '@tauri-apps/plugin-fs';
-import { markdownToHtml } from '../utils/markdown-converter';
+import { markdownToHtml, htmlToMarkdown } from '../utils/markdown-converter';
 import { generateDiff, type DiffLine, type DiffStats } from './useDiffPreview';
 import { useFileWatcher } from './useFileWatcher';
 import { t } from '../i18n';
@@ -53,7 +53,7 @@ export function useFileReload(options: UseFileReloadOptions) {
     onFileDeleted: (filePath: string) => {
       const result = findTabByFilePathSplit(filePath);
       if (!result) return;
-      showToastNotification(t.value.fileDeletedExternally(result.tab.fileName), 'warning');
+      showToastNotification(t.value.fileDeletedExternally(filePath), 'warning');
     },
     onWatchError: (filePath, error) => {
       console.error(`[FileWatcher] Error watching ${filePath}:`, error);
@@ -93,9 +93,11 @@ export function useFileReload(options: UseFileReloadOptions) {
 
     if (!tab.hasChanges) {
       reloadTabContent(filePath, newDiskContent);
-      showToastNotification(t.value.fileReloadedExternally(tab.fileName), 'info');
+      showToastNotification(t.value.fileReloadedExternally(filePath), 'info');
     } else {
-      const diffResult = generateDiff(tab.originalMarkdown || '', newDiskContent);
+      // Diff shows local (current editor) → disk so the user sees their changes vs external changes.
+      const localMarkdown = htmlToMarkdown(tab.content);
+      const diffResult = generateDiff(localMarkdown, newDiskContent);
       conflictFilePath.value = filePath;
       conflictFileName.value = tab.fileName;
       conflictDiffLines.value = diffResult.lines;
@@ -112,6 +114,11 @@ export function useFileReload(options: UseFileReloadOptions) {
 
   const handleConflictLoadExternal = () => {
     reloadTabContent(conflictFilePath.value, conflictNewContent.value);
+    showConflictModal.value = false;
+  };
+
+  const handleConflictMerge = (mergedContent: string) => {
+    reloadTabContent(conflictFilePath.value, mergedContent);
     showConflictModal.value = false;
   };
 
@@ -144,13 +151,18 @@ export function useFileReload(options: UseFileReloadOptions) {
     // Conflict modal
     showConflictModal: computed(() => showConflictModal.value),
     conflictFileName: computed(() => conflictFileName.value),
+    conflictFilePath: computed(() => conflictFilePath.value),
     conflictDiffLines: computed(() => conflictDiffLines.value),
     conflictDiffStats: computed(() => conflictDiffStats.value),
     handleConflictKeepLocal,
     handleConflictLoadExternal,
+    handleConflictMerge,
 
     // Manual reload
     manualReload,
+
+    // Reload helper (exposed for pre-save conflict "load external" action in App.vue)
+    reloadTabContent,
 
     // File watcher controls (exposed for App.vue integration)
     watchFile: fileWatcher.watchFile,
