@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import type { Tab } from '../composables/useTabs';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useI18n } from '../i18n';
@@ -41,13 +41,20 @@ const getTabDisplayName = (tab: Tab): string => {
 const hoveredTab = ref<Tab | null>(null);
 const tooltipX = ref(0);
 const tooltipY = ref(0);
+const tooltipRef = ref<HTMLElement | null>(null);
 
-const showTooltip = (event: MouseEvent, tab: Tab) => {
+const showTooltip = async (event: MouseEvent, tab: Tab) => {
   if (!tab.filePath) return;
   hoveredTab.value = tab;
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
   tooltipX.value = rect.left + rect.width / 2;
   tooltipY.value = rect.bottom + 8;
+  await nextTick();
+  if (tooltipRef.value) {
+    const tipRect = tooltipRef.value.getBoundingClientRect();
+    if (tipRect.left < 8) tooltipX.value += 8 - tipRect.left;
+    else if (tipRect.right > window.innerWidth - 8) tooltipX.value -= tipRect.right - (window.innerWidth - 8);
+  }
 };
 
 const hideTooltip = () => {
@@ -179,6 +186,7 @@ const handleBarMouseLeave = () => {
   <Teleport to="body">
     <div
       v-if="hoveredTab"
+      ref="tooltipRef"
       class="tab-tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
