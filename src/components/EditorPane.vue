@@ -32,6 +32,7 @@ const activeTab = computed(() => {
 });
 
 const editorContent = computed(() => activeTab.value?.content || '<p></p>');
+const editorFilePath = computed(() => activeTab.value?.filePath || null);
 
 const isValidDropTarget = computed(() => {
   return isDragging.value && draggedTab.value?.paneId !== props.pane.id;
@@ -113,6 +114,7 @@ defineExpose({
         v-if="!isEmpty"
         ref="editorRef"
         :model-value="editorContent"
+        :file-path="editorFilePath"
         @update:model-value="handleContentUpdate"
         @update:has-changes="handleChangesUpdate"
         @link-click="handleLinkClick"

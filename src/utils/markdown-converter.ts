@@ -143,10 +143,16 @@ export function htmlToMarkdown(html: string): string {
     return `\`${decoded}\``;
   });
 
-  // Images
-  md = md.replace(/<img\s+[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*\/?>/gi, '![$2]($1)');
-  md = md.replace(/<img\s+[^>]*alt=["']([^"']*)["'][^>]*src=["']([^"']*)["'][^>]*\/?>/gi, '![$1]($2)');
-  md = md.replace(/<img\s+[^>]*src=["']([^"']*)["'][^>]*\/?>/gi, '![]($1)');
+  // Images - prefer data-original-src over src, include title if present
+  md = md.replace(/<img\s+[^>]*?\/?>/gi, (match) => {
+    const srcMatch = match.match(/data-original-src=["']([^"']*)["']/i) || match.match(/src=["']([^"']*)["']/i);
+    const altMatch = match.match(/alt=["']([^"']*)["']/i);
+    const titleMatch = match.match(/title=["']([^"']*)["']/i);
+    const src = srcMatch ? srcMatch[1] : '';
+    const alt = altMatch ? altMatch[1] : '';
+    const title = titleMatch ? titleMatch[1] : '';
+    return title ? `\n![${alt}](${src} "${title}")\n` : `\n![${alt}](${src})\n`;
+  });
 
   // Paragraphs and line breaks
   md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n');

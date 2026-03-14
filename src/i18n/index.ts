@@ -47,6 +47,8 @@ export interface Translations {
   linkPrompt: string;
   image: string;
   imagePrompt: string;
+  imageFromUrl: string;
+  imageFromFile: string;
 
   // Toolbar - Table
   table: string;
@@ -248,6 +250,8 @@ const translations: Record<Locale, Translations> = {
     linkPrompt: 'Link URL:',
     image: 'Image ![alt](url)',
     imagePrompt: 'Image URL:',
+    imageFromUrl: 'From URL',
+    imageFromFile: 'From file',
 
     // Toolbar - Table
     table: 'Markdown Table',
@@ -447,6 +451,8 @@ const translations: Record<Locale, Translations> = {
     linkPrompt: 'URL linku:',
     image: 'Obrazek ![alt](url)',
     imagePrompt: 'URL obrazka:',
+    imageFromUrl: 'Z adresu URL',
+    imageFromFile: 'Z pliku',
 
     // Toolbar - Table
     table: 'Tabela Markdown',

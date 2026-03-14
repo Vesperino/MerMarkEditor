@@ -205,15 +205,15 @@ describe('useFileWatcher', () => {
       expect(onExternalChange).not.toHaveBeenCalled();
     });
 
-    it('should skip events within grace period after own save (markSaveEnd)', async () => {
+    it('should skip events when disk content matches saved content (markSaveEnd)', async () => {
       const watcher = createWatcher();
       await watcher.watchFile('/test/file.md', 'content');
 
       watcher.markSaveStart('/test/file.md');
       watcher.markSaveEnd('/test/file.md', 'saved content');
 
-      // Event within grace period (2000ms)
-      vi.advanceTimersByTime(500);
+      // Disk content matches what we just saved — should be filtered by content comparison
+      vi.mocked(readTextFile).mockResolvedValueOnce('saved content');
 
       capturedWatchHandler?.({ type: { modify: { kind: 'data', mode: 'content' } }, paths: ['/test/file.md'], attrs: {} });
       await vi.runAllTimersAsync();

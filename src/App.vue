@@ -502,12 +502,15 @@ const handleWheel = (event: WheelEvent) => {
 // This ensures that the active tab's content and hasChanges are up to date
 // before checking for unsaved changes (e.g., when closing the window)
 const syncActiveTabContent = () => {
+  // In code view the SplitContainer (and its Editor) is unmounted, so
+  // getEditorContent() would return the empty fallback '<p></p>' and
+  // overwrite the real tab content.  Skip syncing in that case.
+  if (codeView.value) return;
+
   const currentContent = getEditorContent();
   const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
   if (tabIndex !== -1) {
     tabs.value[tabIndex].content = currentContent;
-    // Check if content differs from the original (when file was loaded/saved)
-    // hasChanges should already be tracked, but ensure it's synced
   }
 };
 

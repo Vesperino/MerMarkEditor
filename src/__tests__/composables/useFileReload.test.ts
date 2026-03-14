@@ -11,7 +11,19 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 
 vi.mock('../../utils/markdown-converter', () => ({
   markdownToHtml: vi.fn((md: string) => `<p>${md}</p>`),
+  htmlToMarkdown: vi.fn((html: string) => html.replace(/<[^>]*>/g, '')),
 }));
+
+vi.mock('../../composables/useDiffPreview', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../composables/useDiffPreview')>();
+  return {
+    ...actual,
+    generateDiff: vi.fn((_oldText: string, _newText: string) => ({
+      lines: [{ type: 'added', content: 'diff line', oldLineNumber: null, newLineNumber: 1 }],
+      stats: { additions: 1, deletions: 0 },
+    })),
+  };
+});
 
 vi.mock('../../i18n', () => ({
   t: {
