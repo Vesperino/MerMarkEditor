@@ -15,6 +15,9 @@ import { Image as TiptapImage } from "@tiptap/extension-image";
 const Image = TiptapImage.extend({
   addOptions() {
     return {
+      inline: false as boolean,
+      allowBase64: false as boolean,
+      resize: false as const,
       ...this.parent?.(),
       HTMLAttributes: {
         class: 'editor-image',
