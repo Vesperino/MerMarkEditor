@@ -5,6 +5,7 @@ interface ListItem {
   content: string;
   type: 'ul' | 'ol';
   number?: number;
+  extraContent: string[];
 }
 
 function parseMarkdownListBlock(lines: string[], startIndex: number): { html: string; endIndex: number } {
@@ -20,16 +21,38 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
       const indent = Math.floor(ulMatch[1].length / 2);
       const content = ulMatch[2].trim();
       if (content) {
-        items.push({ indent, content, type: 'ul' });
+        items.push({ indent, content, type: 'ul', extraContent: [] });
       }
       idx++;
     } else if (olMatch) {
       const indent = Math.floor(olMatch[1].length / 2);
       const content = olMatch[3].trim();
       if (content) {
-        items.push({ indent, content, type: 'ol', number: parseInt(olMatch[2]) });
+        items.push({ indent, content, type: 'ol', number: parseInt(olMatch[2]), extraContent: [] });
       }
       idx++;
+    } else if (items.length > 0) {
+      const trimmed = line.trim();
+      if (trimmed === '') {
+        // Blank line - look ahead for more list items or indented continuations
+        let lookAhead = idx + 1;
+        while (lookAhead < lines.length && lines[lookAhead].trim() === '') {
+          lookAhead++;
+        }
+        if (lookAhead < lines.length &&
+            (/^\s*- /.test(lines[lookAhead]) || /^\s*\d+\. /.test(lines[lookAhead]) || /^\s{2,}/.test(lines[lookAhead]))) {
+          idx++;
+          continue;
+        }
+        break;
+      } else if (/^\s{2,}/.test(line)) {
+        // Indented continuation line - belongs to the previous list item
+        const lastItem = items[items.length - 1];
+        lastItem.extraContent.push(trimmed);
+        idx++;
+      } else {
+        break;
+      }
     } else {
       break;
     }
@@ -62,6 +85,16 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
         if (item.type !== listType) break;
 
         html += `<li><p>${item.content}</p>`;
+
+        // Emit continuation content (code blocks, text paragraphs)
+        for (const extra of item.extraContent) {
+          if (/^__(?:CODE_BLOCK|MERMAID_BLOCK)_\d+__$/.test(extra)) {
+            html += extra;
+          } else {
+            html += `<p>${extra}</p>`;
+          }
+        }
+
         i++;
 
         if (i < items.length && items[i].indent > baseIndent) {

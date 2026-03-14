@@ -376,6 +376,40 @@ button:disabled {
 }
 
 @media print {
+  /* Force light theme variables so all var() references resolve to print-friendly values */
+  html, html.dark {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --bg-input: #ffffff;
+    --text-primary: #000000;
+    --text-secondary: #333333;
+    --text-muted: #555555;
+    --text-faint: #777777;
+    --border-primary: #cccccc;
+    --border-secondary: #999999;
+    --code-inline-bg: #f0f0f0;
+    --code-block-bg: #f8f8f8;
+    --code-block-text: #333333;
+    --editor-container-bg: #ffffff;
+    --editor-content-bg: #ffffff;
+    --heading-border: #cccccc;
+    --blockquote-border: #555555;
+    --blockquote-text: #333333;
+    --link-color: #000000;
+    --link-hover: #000000;
+    --h6-color: #555555;
+    --hr-color: #333333;
+    --table-header-bg: #e8e8e8;
+    --table-hover-bg: #f8f8f8;
+    --tab-active-bg: #ffffff;
+    --toolbar-gradient-from: #ffffff;
+    --toolbar-gradient-to: #ffffff;
+    --shadow-sm: none;
+    --shadow-lg: none;
+    --shadow-dropdown: none;
+  }
+
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

@@ -164,9 +164,30 @@ export function htmlToMarkdown(html: string): string {
 
   md = decodeHtmlEntities(md);
 
-  // Restore protected blocks
+  // Restore protected blocks (with indentation support for blocks inside lists)
   protectedBlocks.forEach((block, index) => {
-    md = md.replace(`__PROTECTED_BLOCK_${index}__`, block);
+    const placeholder = `__PROTECTED_BLOCK_${index}__`;
+    const pos = md.indexOf(placeholder);
+    if (pos === -1) return;
+
+    // Check if the placeholder is on a line with leading whitespace (list context)
+    const lineStart = md.lastIndexOf('\n', pos - 1) + 1;
+    const linePrefix = md.slice(lineStart, pos);
+    const lineEndPos = md.indexOf('\n', pos + placeholder.length);
+    const afterPlaceholder = md.slice(pos + placeholder.length, lineEndPos === -1 ? md.length : lineEndPos);
+
+    if (linePrefix.length > 0 && linePrefix.trim() === '' && afterPlaceholder.trim() === '') {
+      // Placeholder is on its own indented line - indent the code block content
+      const indent = linePrefix;
+      const trimmedBlock = block.replace(/^\n+/, '').replace(/\n+$/, '');
+      const indentedBlock = trimmedBlock.split('\n').map(line =>
+        line.length > 0 ? indent + line : ''
+      ).join('\n');
+      const replaceEnd = lineEndPos === -1 ? md.length : lineEndPos;
+      md = md.slice(0, lineStart) + indentedBlock + md.slice(replaceEnd);
+    } else {
+      md = md.replace(placeholder, block);
+    }
   });
 
   // Clean up whitespace

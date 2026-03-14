@@ -551,6 +551,93 @@ describe('nested list round-trip', () => {
   });
 });
 
+describe('numbered lists with code blocks (issue #33)', () => {
+  it('markdownToHtml preserves ordered list with indented code block', () => {
+    const md = '1. Start the server:\n   ```bash\n   cd /app\n   ```\n2. Check status:\n   ```\n   curl localhost\n   ```\n3. Done.';
+    const html = markdownToHtml(md);
+    expect(html).toContain('<ol>');
+    expect(html).toContain('<li><p>');
+    // All three items should be in the same ordered list
+    const liCount = (html.match(/<li>/g) || []).length;
+    expect(liCount).toBe(3);
+    // Code blocks should be inside list items
+    expect(html).toContain('</p><pre><code');
+  });
+
+  it('markdownToHtml handles code block followed by text continuation', () => {
+    const md = '1. Read output:\n   ```\n   listening on PORT\n   ```\n   Extract PORT from that line.\n2. Done.';
+    const html = markdownToHtml(md);
+    expect(html).toContain('<ol>');
+    const liCount = (html.match(/<li>/g) || []).length;
+    expect(liCount).toBe(2);
+    // The text continuation should appear as a paragraph inside the list item
+    expect(html).toContain('Extract PORT from that line.');
+  });
+
+  it('markdownToHtml handles unordered list with code blocks', () => {
+    const md = '- Install:\n  ```bash\n  npm install\n  ```\n- Run:\n  ```bash\n  npm start\n  ```';
+    const html = markdownToHtml(md);
+    expect(html).toContain('<ul>');
+    const liCount = (html.match(/<li>/g) || []).length;
+    expect(liCount).toBe(2);
+    expect(html).toContain('</p><pre><code');
+  });
+
+  it('markdownToHtml handles the exact issue #33 reproduction case', () => {
+    const md = `## Starting the server
+
+The server automatically selects a free port on startup.
+
+1. Start the server with \`run_in_background\` to keep a task handle:
+   \`\`\`bash
+   cd ...
+   \`\`\`
+2. Read the task output to find the assigned port. The server prints a line like:
+   \`\`\`
+   listening on http://localhost:PORT/
+   \`\`\`
+   Extract \`PORT\` from that line and use it for all subsequent curl calls.
+3. Call \`get_status\` to verify it's running, then \`init_workspace\` to load a workspace.`;
+    const html = markdownToHtml(md);
+    expect(html).toContain('<ol>');
+    // All three items should be in the same list
+    const liCount = (html.match(/<li>/g) || []).length;
+    expect(liCount).toBe(3);
+    // Code blocks should be rendered
+    expect(html).toContain('<pre><code');
+  });
+
+  it('htmlToMarkdown preserves code blocks inside ordered list items', () => {
+    const html = '<ol><li><p>Start:</p><pre><code class="language-bash">cd /app</code></pre></li><li><p>Done.</p></li></ol>';
+    const md = htmlToMarkdown(html);
+    expect(md).toContain('1. Start:');
+    expect(md).toContain('```bash');
+    expect(md).toContain('cd /app');
+    expect(md).toContain('```');
+    expect(md).toContain('2. Done.');
+  });
+
+  it('htmlToMarkdown preserves code block followed by text in list item', () => {
+    const html = '<ol><li><p>Read output:</p><pre><code class="language-plaintext">listening on PORT</code></pre><p>Extract PORT from that line.</p></li><li><p>Done.</p></li></ol>';
+    const md = htmlToMarkdown(html);
+    expect(md).toContain('1. Read output:');
+    expect(md).toContain('listening on PORT');
+    expect(md).toContain('Extract PORT from that line.');
+    expect(md).toContain('2. Done.');
+  });
+
+  it('round-trip preserves numbered list with code blocks', () => {
+    const original = '1. Install:\n   ```bash\n   npm install\n   ```\n2. Run:\n   ```bash\n   npm start\n   ```\n3. Done.';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('1.');
+    expect(roundTrip).toContain('npm install');
+    expect(roundTrip).toContain('2.');
+    expect(roundTrip).toContain('npm start');
+    expect(roundTrip).toContain('3.');
+  });
+});
+
 describe('detectLineEnding', () => {
   it('detects CRLF line endings', () => {
     expect(detectLineEnding('line1\r\nline2\r\nline3')).toBe('\r\n');
