@@ -172,7 +172,17 @@ export function convertMarkdownFormatting(html: string): string {
 
 export function convertMarkdownLinksAndImages(html: string): string {
   let result = html;
-  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img class="editor-image" src="$2" alt="$1" />');
+  // Images: ![alt](url) or ![alt](url "title") — .+? supports paths with spaces
+  result = result.replace(/!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\s*\)/g, (_match, alt: string, src: string, title: string) => {
+    const titleAttr = title ? ` title="${title}"` : '';
+    // For local file paths, preserve the original path in data-original-src so it
+    // survives blob URL resolution roundtrips (the image-resolver replaces src with
+    // a blob URL for display, and data-original-src ensures htmlToMarkdown can
+    // recover the real path).
+    const isLocalPath = !(/^(https?:|data:|blob:)/i.test(src));
+    const originalSrcAttr = isLocalPath ? ` data-original-src="${src}"` : '';
+    return `<img class="editor-image" src="${src}" alt="${alt}"${titleAttr}${originalSrcAttr} />`;
+  });
   result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="editor-link" href="$2">$1</a>');
   return result;
 }

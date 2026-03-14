@@ -329,6 +329,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const savedCursorLine = ref(0);
   const savedScrollRatio = ref(0);
   let codeContentSnapshot = '';
+  let isToggling = false;
 
   // Inject styles on module load
   injectHighlightStyles();
@@ -336,6 +337,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const { getActiveContent, setActiveContent, markAsChanged } = options;
 
   const toggleCodeView = async (editor: Editor | null | undefined): Promise<void> => {
+    if (isToggling) return;
+    isToggling = true;
     if (!codeView.value) {
       // ═══════════════════════════════════════════════════════════════════
       // VISUAL → CODE: Insert marker at cursor, convert, find marker position
@@ -407,7 +410,10 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           if (codeEditorRef.value) {
             highlightCodeCursor(codeEditorRef.value);
           }
+          isToggling = false;
         }, TIMING.HIGHLIGHT_DELAY);
+      } else {
+        isToggling = false;
       }
     } else {
       // ═══════════════════════════════════════════════════════════════════
@@ -458,7 +464,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
         setTimeout(() => {
           const editorContainer = getActiveEditorContainer() || getFallbackEditorContainer();
-          if (!editorContainer) return;
+          if (!editorContainer) { isToggling = false; return; }
 
           const proseMirror = getProseMirrorRoot(editorContainer);
           if (proseMirror && proseMirror.childElementCount > 0) {
@@ -468,7 +474,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
             if (targetElement) {
               scrollContainerToElement(editorContainer, targetElement, SCROLL_OFFSET);
-              requestAnimationFrame(() => highlightVisualElement(targetElement));
+              requestAnimationFrame(() => { highlightVisualElement(targetElement); isToggling = false; });
               return;
             }
           }
@@ -478,6 +484,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           if (maxScroll > 0) {
             editorContainer.scrollTop = Math.round(savedScrollRatio.value * maxScroll);
           }
+          isToggling = false;
         }, TIMING.VIEW_SWITCH_RESTORE_DELAY);
       } else {
         const html = markdownToHtml(markdownWithMarker);
@@ -500,6 +507,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
               if (attempts < maxAttempts) {
                 attempts += 1;
                 setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
+              } else {
+                isToggling = false;
               }
               return;
             }
@@ -509,6 +518,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
               if (attempts < maxAttempts) {
                 attempts += 1;
                 setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
+              } else {
+                isToggling = false;
               }
               return;
             }
@@ -524,11 +535,16 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
                 // Remove marker from DOM
                 removeMarkerFromDOM(proseMirror);
 
-                // Also update the content without marker
-                const cleanHtml = proseMirror.innerHTML;
-                setActiveContent(cleanHtml);
+                // Clean marker from model content.
+                // Do NOT use proseMirror.innerHTML — it contains blob URLs from
+                // resolved images, which would corrupt the Tiptap model on re-set.
+                const currentContent = getActiveContent();
+                const cleanContent = currentContent.split(CURSOR_MARKER).join('');
+                if (cleanContent !== currentContent) {
+                  setActiveContent(cleanContent);
+                }
 
-                requestAnimationFrame(() => highlightVisualElement(markerInfo.element));
+                requestAnimationFrame(() => { highlightVisualElement(markerInfo.element); isToggling = false; });
                 return;
               }
             }
@@ -541,7 +557,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
             if (fallbackElement) {
               scrollContainerToElement(editorContainer, fallbackElement, SCROLL_OFFSET);
-              requestAnimationFrame(() => highlightVisualElement(fallbackElement));
+              requestAnimationFrame(() => { highlightVisualElement(fallbackElement); isToggling = false; });
               return;
             }
 
@@ -553,7 +569,9 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
             const firstElement = proseMirror.firstElementChild as HTMLElement | null;
             if (firstElement) {
-              requestAnimationFrame(() => highlightVisualElement(firstElement));
+              requestAnimationFrame(() => { highlightVisualElement(firstElement); isToggling = false; });
+            } else {
+              isToggling = false;
             }
           };
 

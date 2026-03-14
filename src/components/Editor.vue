@@ -7,7 +7,34 @@ import { Link as TiptapLink } from "@tiptap/extension-link";
 const Link = TiptapLink.extend({
   name: 'customLink',
 });
-import { Image } from "@tiptap/extension-image";
+import { Image as TiptapImage } from "@tiptap/extension-image";
+
+// Extend Image to:
+// 1. Always render with class="editor-image" (for CSS styling and DOM selectors)
+// 2. Preserve data-original-src (relative path) through Tiptap's schema
+const Image = TiptapImage.extend({
+  addOptions() {
+    return {
+      ...this.parent?.(),
+      HTMLAttributes: {
+        class: 'editor-image',
+      },
+    };
+  },
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      'data-original-src': {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-original-src'),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes['data-original-src']) return {};
+          return { 'data-original-src': attributes['data-original-src'] as string };
+        },
+      },
+    };
+  },
+});
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -21,11 +48,17 @@ import { common, createLowlight } from "lowlight";
 import { watch, ref, nextTick, computed } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { useEditorZoom } from "../composables/useEditorZoom";
+import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
 import TableContextMenu from "./TableContextMenu.vue";
+import ImagePreview from "./ImagePreview.vue";
 
 // Guards against false hasChanges during programmatic content updates.
 // Starts at 1 to cover initial editor creation; released after 300ms.
 let settingContentCount = 1;
+
+// Prevents concurrent image resolution calls (race condition between onUpdate's
+// requestAnimationFrame and watch handler's resolveEditorImages).
+let imageResolutionInProgress = false;
 
 // HTML snapshot from last file open/save — used to detect real changes (e.g. after undo).
 let lastSavedHtml = '';
@@ -128,6 +161,11 @@ const editorZoomStyle = computed(() => ({ zoom: zoomScale.value }));
 const showContextMenu = ref(false);
 const contextMenuX = ref(0);
 const contextMenuY = ref(0);
+
+// Image preview state
+const showImagePreview = ref(false);
+const previewImageSrc = ref('');
+const previewImageAlt = ref('');
 
 // Custom extension for list keyboard shortcuts (Tab/Shift+Tab indentation)
 const ListKeymap = Extension.create({
@@ -263,6 +301,7 @@ const parseTextTable = (text: string): string | null => {
 
 const props = defineProps<{
   modelValue?: string;
+  filePath?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -273,6 +312,29 @@ const emit = defineEmits<{
 
 const editor = useEditor({
   content: props.modelValue || `<p>${t.value.placeholder}</p>`,
+  // Resolve local image paths to blob URLs when the editor is first created.
+  // This is essential because: (1) the watch on modelValue doesn't fire for the
+  // initial value, and (2) onUpdate doesn't fire during initial content creation.
+  // Without this, images wouldn't display after code→visual switch (Editor recreated).
+  onCreate: ({ editor: ed }) => {
+    nextTick(() => {
+      const editorEl = editorContainerRef.value?.querySelector('.ProseMirror');
+      if (!editorEl) return;
+      const baseDir = props.filePath ? getDirectoryFromFilePath(props.filePath) : undefined;
+      if (!baseDir) return;
+      const unresolved = editorEl.querySelectorAll(
+        'img.editor-image:not([src^="blob:"]):not([src^="data:"]):not([src^="http"])'
+      );
+      if (unresolved.length === 0) return;
+      imageResolutionInProgress = true;
+      const domObs = (ed.view as any).domObserver;
+      domObs?.stop();
+      resolveEditorImages(editorEl, baseDir).finally(() => {
+        domObs?.start();
+        imageResolutionInProgress = false;
+      });
+    });
+  },
   extensions: [
     StarterKit.configure({
       codeBlock: false,
@@ -318,12 +380,35 @@ const editor = useEditor({
       limit: null,
     }),
   ],
-  onUpdate: ({ editor }) => {
-    const html = editor.getHTML();
+  onUpdate: ({ editor: ed }) => {
+    const html = ed.getHTML();
     emit("update:modelValue", html);
     if (settingContentCount === 0) {
       emit("update:hasChanges", html !== lastSavedHtml);
     }
+    // Defer image resolution to next frame to avoid conflicting with ProseMirror's
+    // current update cycle. Stop the DOM observer so blob URL changes don't get
+    // synced back into the document model (which would corrupt save/roundtrip).
+    requestAnimationFrame(() => {
+      // Skip if the watch handler is already resolving images (prevents race condition
+      // where this callback's .finally() starts the DOM observer while watch's
+      // resolveEditorImages is still changing img.src, corrupting the model with blob URLs).
+      if (imageResolutionInProgress) return;
+      const editorEl = editorContainerRef.value?.querySelector('.ProseMirror');
+      if (!editorEl) return;
+      const unresolved = editorEl.querySelectorAll(
+        'img.editor-image:not([src^="blob:"]):not([src^="data:"]):not([src^="http"])'
+      );
+      if (unresolved.length === 0) return;
+      const baseDir = props.filePath ? getDirectoryFromFilePath(props.filePath) : undefined;
+      imageResolutionInProgress = true;
+      const domObs = (ed.view as any).domObserver;
+      domObs?.stop();
+      resolveEditorImages(editorEl, baseDir || undefined).finally(() => {
+        domObs?.start();
+        imageResolutionInProgress = false;
+      });
+    });
   },
   editorProps: {
     // Disable spell-check, autocomplete, and autocorrect to prevent interference with code blocks
@@ -378,6 +463,21 @@ watch(
       editor.value.commands.setContent(newValue || "");
       lastSavedHtml = editor.value.getHTML();
       await nextTick();
+      // Resolve local image paths to blob URLs.
+      // Stop ProseMirror's DOM observer so blob URLs don't get synced into the model.
+      // Set imageResolutionInProgress to prevent onUpdate's rAF from running concurrently.
+      const editorEl = editorContainerRef.value?.querySelector('.ProseMirror');
+      if (editorEl && props.filePath && editor.value) {
+        const baseDir = getDirectoryFromFilePath(props.filePath);
+        if (baseDir) {
+          imageResolutionInProgress = true;
+          const domObs = (editor.value.view as any).domObserver;
+          domObs?.stop();
+          await resolveEditorImages(editorEl, baseDir);
+          domObs?.start();
+          imageResolutionInProgress = false;
+        }
+      }
       setTimeout(() => {
         settingContentCount = Math.max(0, settingContentCount - 1);
         emit("update:hasChanges", false);
@@ -386,9 +486,20 @@ watch(
   }
 );
 
-// Handle clicks on links
+// Handle clicks on links and images
 const handleEditorClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
+
+  // Check if clicked element is an image — open preview
+  if (target.tagName === 'IMG' && target.classList.contains('editor-image')) {
+    const img = target as HTMLImageElement;
+    if (img.src) {
+      previewImageSrc.value = img.src;
+      previewImageAlt.value = img.alt || '';
+      showImagePreview.value = true;
+      return;
+    }
+  }
 
   // Check if clicked element is a link or is inside a link
   const link = target.closest('a');
@@ -440,6 +551,12 @@ defineExpose({ editor });
       :y="contextMenuY"
       @close="showContextMenu = false"
       @action="handleContextMenuAction"
+    />
+    <ImagePreview
+      v-if="showImagePreview"
+      :src="previewImageSrc"
+      :alt="previewImageAlt"
+      @close="showImagePreview = false"
     />
   </div>
 </template>
@@ -641,6 +758,12 @@ defineExpose({ editor });
   height: auto;
   border-radius: 8px;
   margin: 1em 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.editor-content .tiptap img.editor-image:hover {
+  opacity: 0.85;
 }
 
 /* Table styles - apply to all tables */

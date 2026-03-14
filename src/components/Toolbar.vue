@@ -6,6 +6,7 @@ import { useSettings } from "../composables/useSettings";
 import { useTokenCounter } from "../composables/useTokenCounter";
 import { useEditorZoom } from "../composables/useEditorZoom";
 import { htmlToMarkdown } from "../utils/markdown-converter";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 const { t, locale, toggleLocale } = useI18n();
 const { settings, toggleAutoSave, toggleTheme } = useSettings();
@@ -22,6 +23,7 @@ const {
 const editor = inject<Ref<Editor | null>>("editor");
 
 const showTableMenu = ref(false);
+const showImageMenu = ref(false);
 
 // Reactive counter for triggering recomputation when editor updates
 const editorUpdateCounter = ref(0);
@@ -164,10 +166,28 @@ const setLink = () => {
   }
 };
 
-const insertImage = () => {
+const insertImageFromUrl = () => {
+  showImageMenu.value = false;
   const url = window.prompt(t.value.imagePrompt);
   if (url) {
     runCommand((e) => e.chain().focus().setImage({ src: url }).run());
+  }
+};
+
+const insertImageFromFile = async () => {
+  showImageMenu.value = false;
+  try {
+    const selected = await openDialog({
+      multiple: false,
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'] },
+      ],
+    });
+    if (selected) {
+      runCommand((e) => e.chain().focus().setImage({ src: selected as string }).run());
+    }
+  } catch (error) {
+    console.error('Error selecting image file:', error);
   }
 };
 
@@ -179,6 +199,7 @@ const insertMermaid = () => {
 // Close dropdowns when clicking outside
 const closeDropdowns = () => {
   showTableMenu.value = false;
+  showImageMenu.value = false;
   showTokenMenu.value = false;
 };
 
@@ -475,13 +496,31 @@ const emit = defineEmits<{
             <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
           </svg>
         </button>
-        <button @click="insertImage" class="toolbar-btn icon-only" :title="t.image">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5L5 21"/>
-          </svg>
-        </button>
+        <div class="dropdown-container">
+          <button @click="showImageMenu = !showImageMenu" class="toolbar-btn icon-only" :title="t.image">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+          </button>
+          <div v-if="showImageMenu" class="dropdown-menu">
+            <button @click="insertImageFromUrl" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+              </svg>
+              {{ t.imageFromUrl }}
+            </button>
+            <button @click="insertImageFromFile" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
+                <path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/>
+              </svg>
+              {{ t.imageFromFile }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="toolbar-separator"></div>

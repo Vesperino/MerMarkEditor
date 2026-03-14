@@ -303,7 +303,7 @@ describe('useFileOperations', () => {
 
       await saveFile();
 
-      expect(onPreSaveConflict).toHaveBeenCalledWith('/test/file.md');
+      expect(onPreSaveConflict).toHaveBeenCalledWith('/test/file.md', '# DIFFERENT disk content', 'md:<p>hello</p>');
       // File should NOT be written since user cancelled
       expect(mockWriteTextFile).not.toHaveBeenCalled();
       expect(tabs.value[0].hasChanges).toBe(true);
