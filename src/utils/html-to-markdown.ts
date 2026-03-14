@@ -118,7 +118,34 @@ export function parseHtmlList(html: string, indent = 0, isOrdered = false, start
     textContent = textContent
       .replace(/<label[^>]*>[\s\S]*?<\/label>/gi, '')
       .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1');
-    const text = convertInlineToMarkdown(textContent);
+
+    // Separate protected block placeholders from text content
+    const segments: { type: 'text' | 'block'; content: string }[] = [];
+    const segmentSource = textContent;
+    const blockRegex = /__PROTECTED_BLOCK_\d+__/g;
+    let blockMatch;
+    let lastIndex = 0;
+
+    while ((blockMatch = blockRegex.exec(segmentSource)) !== null) {
+      const before = segmentSource.slice(lastIndex, blockMatch.index);
+      if (before.trim()) {
+        segments.push({ type: 'text', content: before });
+      }
+      segments.push({ type: 'block', content: blockMatch[0] });
+      lastIndex = blockMatch.index + blockMatch[0].length;
+    }
+    const afterBlock = segmentSource.slice(lastIndex);
+    if (afterBlock.trim()) {
+      segments.push({ type: 'text', content: afterBlock });
+    }
+
+    // If no segments were found, use the original textContent
+    if (segments.length === 0) {
+      const text = convertInlineToMarkdown(textContent);
+      if (text.trim()) {
+        segments.push({ type: 'text', content: textContent });
+      }
+    }
 
     let marker: string;
     if (isTaskItem) {
@@ -130,8 +157,30 @@ export function parseHtmlList(html: string, indent = 0, isOrdered = false, start
       marker = '-';
     }
 
-    if (text.trim()) {
-      result += `${indentStr}${marker} ${text}\n`;
+    const contentIndent = indentStr + ' '.repeat(marker.length + 1);
+    let isFirstText = true;
+
+    for (const segment of segments) {
+      if (segment.type === 'text') {
+        const text = convertInlineToMarkdown(segment.content);
+        if (text.trim()) {
+          if (isFirstText) {
+            result += `${indentStr}${marker} ${text}\n`;
+            isFirstText = false;
+          } else {
+            result += `${contentIndent}${text}\n`;
+          }
+        }
+      } else {
+        // Protected block placeholder - output on its own indented line
+        if (isFirstText) {
+          // No text before the block - still output the marker
+          result += `${indentStr}${marker} ${segment.content}\n`;
+          isFirstText = false;
+        } else {
+          result += `${contentIndent}${segment.content}\n`;
+        }
+      }
     }
 
     if (nestedListHtml) {
