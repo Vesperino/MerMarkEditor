@@ -140,11 +140,26 @@ export interface Translations {
   allFiles: string;
 
   // Settings
+  settings: string;
   autoSave: string;
   autoSaveOn: string;
   autoSaveOff: string;
   wordWrap: string;
   dropFilesHere: string;
+  editorFont: string;
+  codeFont: string;
+  editorFontSize: string;
+  codeFontSize: string;
+  lineHeight: string;
+  tabSize: string;
+  spellcheck: string;
+  appearance: string;
+  editor: string;
+  code: string;
+  general: string;
+  on: string;
+  off: string;
+  language: string;
 
   // Update dialog
   updateAvailable: string;
@@ -343,11 +358,26 @@ const translations: Record<Locale, Translations> = {
     allFiles: 'All Files',
 
     // Settings
+    settings: 'Settings',
     autoSave: 'Auto-save',
     autoSaveOn: 'On',
     autoSaveOff: 'Off',
     wordWrap: 'Word wrap',
     dropFilesHere: 'Drop .md files here',
+    editorFont: 'Editor font',
+    codeFont: 'Code font',
+    editorFontSize: 'Editor font size',
+    codeFontSize: 'Code font size',
+    lineHeight: 'Line height',
+    tabSize: 'Tab size',
+    spellcheck: 'Spellcheck',
+    appearance: 'Appearance',
+    editor: 'Editor',
+    code: 'Code',
+    general: 'General',
+    on: 'On',
+    off: 'Off',
+    language: 'Language',
 
     // Update dialog
     updateAvailable: 'Update Available',
@@ -544,11 +574,26 @@ const translations: Record<Locale, Translations> = {
     allFiles: 'Wszystkie pliki',
 
     // Settings
+    settings: 'Ustawienia',
     autoSave: 'Autozapis',
     autoSaveOn: 'Wł.',
     autoSaveOff: 'Wył.',
     wordWrap: 'Zawijanie wierszy',
     dropFilesHere: 'Upuść pliki .md tutaj',
+    editorFont: 'Czcionka edytora',
+    codeFont: 'Czcionka kodu',
+    editorFontSize: 'Rozmiar czcionki edytora',
+    codeFontSize: 'Rozmiar czcionki kodu',
+    lineHeight: 'Wysokość linii',
+    tabSize: 'Rozmiar tabulatora',
+    spellcheck: 'Sprawdzanie pisowni',
+    appearance: 'Wygląd',
+    editor: 'Edytor',
+    code: 'Kod',
+    general: 'Ogólne',
+    on: 'Wł.',
+    off: 'Wył.',
+    language: 'Język',
 
     // Update dialog
     updateAvailable: 'Dostępna aktualizacja',

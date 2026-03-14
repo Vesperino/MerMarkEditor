@@ -51,6 +51,7 @@ import { common, createLowlight } from "lowlight";
 import { watch, ref, nextTick, computed } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { useEditorZoom } from "../composables/useEditorZoom";
+import { useSettings } from "../composables/useSettings";
 import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
 import TableContextMenu from "./TableContextMenu.vue";
 import ImagePreview from "./ImagePreview.vue";
@@ -158,6 +159,7 @@ const HeadingWithId = Node.create({
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
 const { zoomScale } = useEditorZoom();
+const { settings: appSettings } = useSettings();
 const editorZoomStyle = computed(() => ({ zoom: zoomScale.value }));
 
 // Table context menu state
@@ -542,6 +544,21 @@ const handleContextMenuAction = (action: string) => {
   commands[action]?.();
 };
 
+// Update spellcheck on settings change
+watch(() => appSettings.value.spellcheck, (newVal) => {
+  if (editor.value) {
+    editor.value.setOptions({
+      editorProps: {
+        ...editor.value.options.editorProps,
+        attributes: {
+          ...(editor.value.options.editorProps?.attributes as Record<string, string> || {}),
+          spellcheck: String(newVal),
+        },
+      },
+    });
+  }
+});
+
 defineExpose({ editor });
 </script>
 
@@ -587,6 +604,7 @@ defineExpose({ editor });
   border: none !important;
   min-height: 600px;
   text-align: left;
+  font-family: var(--editor-font-family, inherit);
 }
 
 .editor-content .tiptap:focus {
@@ -617,7 +635,8 @@ defineExpose({ editor });
 
 .editor-content .tiptap p {
   margin: 0.5em 0;
-  line-height: 1.6;
+  line-height: var(--editor-line-height, 1.6);
+  font-size: var(--editor-font-size, 16px);
 }
 
 .editor-content .tiptap h1 {
@@ -669,7 +688,7 @@ defineExpose({ editor });
   background: var(--code-inline-bg);
   padding: 0.2em 0.4em;
   border-radius: 4px;
-  font-family: "Fira Code", "Consolas", monospace;
+  font-family: var(--code-font-family, "Fira Code", "Consolas", monospace);
   font-size: 0.9em;
 }
 
