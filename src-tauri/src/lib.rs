@@ -1,8 +1,9 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeSet};
 use tauri::{Manager, Emitter, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
 use serde::{Deserialize, Serialize};
+use font_kit::source::SystemSource;
 
 // Store the file path to be opened (from CLI args or file association)
 pub struct OpenFileState(pub Mutex<Option<String>>);
@@ -127,6 +128,25 @@ async fn transfer_tab_to_window(
     Ok(())
 }
 
+/// List all font family names installed on the system.
+/// Returns a sorted, deduplicated list of font family names.
+#[tauri::command]
+fn list_system_fonts() -> Vec<String> {
+    let source = SystemSource::new();
+    let mut families = BTreeSet::new();
+
+    if let Ok(all_fonts) = source.all_families() {
+        for family in all_fonts {
+            // Skip hidden/internal fonts (starting with . or #)
+            if !family.starts_with('.') && !family.starts_with('#') {
+                families.insert(family);
+            }
+        }
+    }
+
+    families.into_iter().collect()
+}
+
 #[tauri::command]
 async fn create_new_window(app: tauri::AppHandle, file_path: Option<String>) -> Result<String, String> {
     let window_id = WINDOW_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -196,7 +216,8 @@ pub fn run() {
             unregister_open_file,
             unregister_window_files,
             check_file_open,
-            focus_window_with_file
+            focus_window_with_file,
+            list_system_fonts
         ])
         .setup(|app| {
             // Check for CLI arguments (file association on first launch)

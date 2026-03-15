@@ -140,11 +140,24 @@ export interface Translations {
   allFiles: string;
 
   // Settings
+  settings: string;
   autoSave: string;
   autoSaveOn: string;
   autoSaveOff: string;
   wordWrap: string;
   dropFilesHere: string;
+  editorFont: string;
+  codeFont: string;
+  lineHeight: string;
+  spellcheck: string;
+  expandTabs: string;
+  appearance: string;
+  editor: string;
+  code: string;
+  general: string;
+  on: string;
+  off: string;
+  language: string;
 
   // Update dialog
   updateAvailable: string;
@@ -153,6 +166,10 @@ export interface Translations {
   later: string;
   updating: string;
   updateNow: string;
+  whatsNew: string;
+  whatsNewIn: string;
+  loadingChangelog: string;
+  changelogError: string;
 
   // Split view / Panes
   dragTabHere: string;
@@ -343,11 +360,24 @@ const translations: Record<Locale, Translations> = {
     allFiles: 'All Files',
 
     // Settings
+    settings: 'Settings',
     autoSave: 'Auto-save',
     autoSaveOn: 'On',
     autoSaveOff: 'Off',
     wordWrap: 'Word wrap',
     dropFilesHere: 'Drop .md files here',
+    editorFont: 'Editor font',
+    codeFont: 'Code font',
+    lineHeight: 'Line height',
+    spellcheck: 'Spellcheck',
+    expandTabs: 'Expand tabs to fit name',
+    appearance: 'Appearance',
+    editor: 'Editor',
+    code: 'Code',
+    general: 'General',
+    on: 'On',
+    off: 'Off',
+    language: 'Language',
 
     // Update dialog
     updateAvailable: 'Update Available',
@@ -356,6 +386,10 @@ const translations: Record<Locale, Translations> = {
     later: 'Later',
     updating: 'Updating...',
     updateNow: 'Update Now',
+    whatsNew: "What's New",
+    whatsNewIn: "What's New in",
+    loadingChangelog: 'Loading changelog...',
+    changelogError: 'Could not load changelog.',
 
     // Split view / Panes
     dragTabHere: 'Drag tab here',
@@ -544,11 +578,24 @@ const translations: Record<Locale, Translations> = {
     allFiles: 'Wszystkie pliki',
 
     // Settings
+    settings: 'Ustawienia',
     autoSave: 'Autozapis',
     autoSaveOn: 'Wł.',
     autoSaveOff: 'Wył.',
     wordWrap: 'Zawijanie wierszy',
     dropFilesHere: 'Upuść pliki .md tutaj',
+    editorFont: 'Czcionka edytora',
+    codeFont: 'Czcionka kodu',
+    lineHeight: 'Wysokość linii',
+    spellcheck: 'Sprawdzanie pisowni',
+    expandTabs: 'Rozszerz karty do pełnej nazwy',
+    appearance: 'Wygląd',
+    editor: 'Edytor',
+    code: 'Kod',
+    general: 'Ogólne',
+    on: 'Wł.',
+    off: 'Wył.',
+    language: 'Język',
 
     // Update dialog
     updateAvailable: 'Dostępna aktualizacja',
@@ -557,6 +604,10 @@ const translations: Record<Locale, Translations> = {
     later: 'Później',
     updating: 'Aktualizowanie...',
     updateNow: 'Aktualizuj teraz',
+    whatsNew: 'Co nowego',
+    whatsNewIn: 'Co nowego w',
+    loadingChangelog: 'Wczytywanie zmian...',
+    changelogError: 'Nie udało się wczytać zmian.',
 
     // Split view / Panes
     dragTabHere: 'Przeciągnij kartę tutaj',

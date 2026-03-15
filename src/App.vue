@@ -20,6 +20,8 @@ import SplitContainer from './components/SplitContainer.vue';
 import TabBar from './components/TabBar.vue';
 import DiffPreview from './components/DiffPreview.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
+import SettingsModal from './components/SettingsModal.vue';
+import WhatsNewModal from './components/WhatsNewModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import FileConflictModal from './components/FileConflictModal.vue';
 
@@ -477,6 +479,12 @@ const compareTabs = () => {
 // ============ Keyboard Shortcuts Modal ============
 const showShortcutsModal = ref(false);
 
+// ============ Settings Modal ============
+const showSettingsModal = ref(false);
+
+// ============ What's New Modal ============
+const showWhatsNewModal = ref(false);
+
 // ============ Auto Update ============
 const {
   showUpdateDialog,
@@ -915,6 +923,7 @@ onUnmounted(async () => {
       @toggle-diff-preview="toggleDiffPreview"
       @compare-tabs="compareTabs"
       @show-shortcuts="showShortcutsModal = true"
+      @show-settings="showSettingsModal = true"
     />
 
     <!-- Split Container with Editor Panes -->
@@ -1000,6 +1009,19 @@ onUnmounted(async () => {
     <KeyboardShortcutsModal
       v-if="showShortcutsModal"
       @close="showShortcutsModal = false"
+    />
+
+    <!-- Settings Modal -->
+    <SettingsModal
+      v-if="showSettingsModal"
+      @close="showSettingsModal = false"
+      @show-whats-new="showSettingsModal = false; showWhatsNewModal = true"
+    />
+
+    <!-- What's New Modal -->
+    <WhatsNewModal
+      v-if="showWhatsNewModal"
+      @close="showWhatsNewModal = false"
     />
 
     <!-- Pre-Save Conflict Modal (file changed on disk since last load/save) -->

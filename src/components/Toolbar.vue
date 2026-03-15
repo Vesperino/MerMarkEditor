@@ -2,14 +2,12 @@
 import { inject, ref, computed, watch, onUnmounted, type Ref } from "vue";
 import type { Editor } from "@tiptap/vue-3";
 import { useI18n } from "../i18n";
-import { useSettings } from "../composables/useSettings";
 import { useTokenCounter } from "../composables/useTokenCounter";
 import { useEditorZoom } from "../composables/useEditorZoom";
 import { htmlToMarkdown } from "../utils/markdown-converter";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
-const { t, locale, toggleLocale } = useI18n();
-const { settings, toggleAutoSave, toggleTheme } = useSettings();
+const { t } = useI18n();
 const { zoomPercent, zoomIn, zoomOut, resetZoom } = useEditorZoom();
 const {
   tokenCount,
@@ -222,6 +220,7 @@ const emit = defineEmits<{
   toggleDiffPreview: [];
   compareTabs: [];
   showShortcuts: [];
+  showSettings: [];
 }>();
 </script>
 
@@ -285,6 +284,16 @@ const emit = defineEmits<{
             <line x1="14" y1="10" x2="14" y2="10"/>
             <line x1="18" y1="10" x2="18" y2="10"/>
             <line x1="8" y1="14" x2="16" y2="14"/>
+          </svg>
+        </button>
+        <button
+          @click="emit('showSettings')"
+          class="toolbar-btn icon-only settings-btn"
+          :title="t.settings"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
       </div>
@@ -715,73 +724,6 @@ const emit = defineEmits<{
         <span>{{ t.compareTabs }}</span>
       </button>
 
-      <div class="toolbar-separator"></div>
-
-      <!-- Auto-save Toggle -->
-      <div class="toolbar-group autosave-group">
-        <span class="autosave-label">{{ t.autoSave }}:</span>
-        <div class="radio-group">
-          <label class="radio-option" :class="{ active: !settings.autoSave }">
-            <input
-              type="radio"
-              name="autosave"
-              :value="false"
-              :checked="!settings.autoSave"
-              @change="toggleAutoSave"
-            />
-            <span>{{ t.autoSaveOff }}</span>
-          </label>
-          <label class="radio-option" :class="{ active: settings.autoSave }">
-            <input
-              type="radio"
-              name="autosave"
-              :value="true"
-              :checked="settings.autoSave"
-              @change="toggleAutoSave"
-            />
-            <span>{{ t.autoSaveOn }}</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Dark Mode Toggle -->
-      <button
-        @click="toggleTheme"
-        class="toolbar-btn theme-toggle-btn"
-        :title="settings.theme === 'dark' ? t.lightMode : t.darkMode"
-      >
-        <!-- Sun icon for dark mode (click to go light) -->
-        <svg v-if="settings.theme === 'dark'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <!-- Moon icon for light mode (click to go dark) -->
-        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-        <span>{{ settings.theme === 'dark' ? t.lightMode : t.darkMode }}</span>
-      </button>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Language Toggle -->
-      <button
-        @click="toggleLocale"
-        class="toolbar-btn lang-btn"
-        :title="locale === 'en' ? 'Switch to Polish' : 'Przełącz na angielski'"
-      >
-        <span class="lang-flag">{{ locale === 'en' ? '🇬🇧' : '🇵🇱' }}</span>
-        <span class="lang-code">{{ locale.toUpperCase() }}</span>
-      </button>
     </div>
   </div>
 </template>
@@ -982,18 +924,6 @@ const emit = defineEmits<{
   color: var(--text-primary);
 }
 
-.theme-toggle-btn {
-  background: transparent;
-  border: 1px solid var(--border-primary);
-  color: var(--text-secondary);
-  min-width: 80px;
-}
-
-.theme-toggle-btn:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
-
 .heading-select {
   padding: 6px 10px;
   border: 1px solid var(--border-primary);
@@ -1087,72 +1017,13 @@ const emit = defineEmits<{
   color: var(--border-secondary);
 }
 
-/* Language Toggle */
-.lang-btn {
-  gap: 4px;
-  padding: 4px 8px !important;
-  font-size: 12px;
-  min-width: auto;
-}
-
-.lang-flag {
-  font-size: 14px;
-}
-
-.lang-code {
-  font-weight: 600;
+/* Settings Button */
+.settings-btn {
   color: var(--text-muted);
 }
 
-.lang-btn:hover .lang-code {
+.settings-btn:hover {
   color: var(--text-primary);
-}
-
-/* Auto-save Toggle */
-.autosave-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.autosave-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.radio-group {
-  display: flex;
-  background: var(--radio-group-bg);
-  border-radius: 6px;
-  padding: 2px;
-  gap: 2px;
-}
-
-.radio-option {
-  display: flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-muted);
-  transition: all 0.15s;
-}
-
-.radio-option input {
-  display: none;
-}
-
-.radio-option:hover {
-  color: var(--text-secondary);
-}
-
-.radio-option.active {
-  background: var(--radio-active-bg);
-  color: var(--text-primary);
-  font-weight: 500;
-  box-shadow: var(--radio-active-shadow);
 }
 
 /* Token Counter */
@@ -1232,4 +1103,6 @@ const emit = defineEmits<{
   justify-content: center;
   color: var(--text-muted);
 }
+
+
 </style>

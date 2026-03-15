@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { markdownToHtml } from '../utils/markdown-converter';
 import { useI18n } from '../i18n';
 
 const { t } = useI18n();
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   version: string;
   notes: string;
   progress?: number;
@@ -13,6 +15,11 @@ withDefaults(defineProps<{
   progress: 0,
   isUpdating: false,
   error: null,
+});
+
+const notesHtml = computed(() => {
+  if (!props.notes) return '';
+  return markdownToHtml(props.notes);
 });
 
 const emit = defineEmits<{
@@ -29,9 +36,7 @@ const emit = defineEmits<{
       </div>
       <div class="dialog-content">
         <p>{{ t.newVersionAvailable }} <strong>{{ version }}</strong></p>
-        <div v-if="notes" class="update-notes">
-          <p>{{ notes }}</p>
-        </div>
+        <div v-if="notes" class="update-notes whats-new-content" v-html="notesHtml"></div>
         <div v-if="isUpdating" class="update-progress">
           <p>{{ t.downloadingUpdate }}</p>
           <div class="progress-bar">
@@ -68,7 +73,7 @@ const emit = defineEmits<{
   background: var(--dialog-bg);
   border-radius: 12px;
   width: 90%;
-  max-width: 450px;
+  max-width: 580px;
   box-shadow: 0 20px 60px var(--shadow-lg);
   overflow: hidden;
 }
@@ -145,7 +150,7 @@ const emit = defineEmits<{
   margin-top: 12px;
   font-size: 13px;
   color: var(--text-secondary);
-  max-height: 150px;
+  max-height: 300px;
   overflow-y: auto;
 }
 
