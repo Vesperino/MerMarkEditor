@@ -249,6 +249,80 @@ const estimateBlockLines = (element: HTMLElement): number => {
   return 2;
 };
 
+// Try to find a DOM element by matching the text content of the cursor's
+// markdown line. This is more robust than line counting for large documents
+// where cumulative estimation drift causes misses.
+const findElementByText = (root: HTMLElement, markdown: string, cursorLine: number): HTMLElement | null => {
+  const lines = markdown.split('\n');
+  const line = lines[cursorLine];
+  if (!line) return null;
+
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  // Heading: strip # prefix and search heading elements
+  const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+  if (headingMatch) {
+    const level = headingMatch[1].length;
+    const text = headingMatch[2].replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/`(.+?)`/g, '$1').trim();
+    const headings = root.querySelectorAll(`h${level}`) as NodeListOf<HTMLElement>;
+    for (const h of headings) {
+      if (h.textContent?.trim() === text) return h;
+    }
+    // Partial match fallback
+    for (const h of headings) {
+      if (text.length >= 5 && h.textContent?.includes(text.slice(0, 30))) return h;
+    }
+    return null;
+  }
+
+  // List item: strip bullet/number prefix
+  const listMatch = trimmed.match(/^(?:[-*+]|\d+\.)\s+(.+)$/);
+  if (listMatch) {
+    const text = listMatch[1].replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/`(.+?)`/g, '$1').trim();
+    if (text.length < 5) return null;
+    const items = root.querySelectorAll('li') as NodeListOf<HTMLElement>;
+    for (const li of items) {
+      if (li.textContent?.includes(text.slice(0, 40))) return li;
+    }
+    return null;
+  }
+
+  // Blockquote: strip > prefix
+  if (trimmed.startsWith('>')) {
+    const text = trimmed.replace(/^>\s*/, '').replace(/\*\*(.+?)\*\*/g, '$1').trim();
+    if (text.length < 5) return null;
+    const quotes = root.querySelectorAll('blockquote') as NodeListOf<HTMLElement>;
+    for (const bq of quotes) {
+      if (bq.textContent?.includes(text.slice(0, 40))) return bq;
+    }
+    return null;
+  }
+
+  // Plain paragraph text (skip code fences, HRs, table rows, blank lines)
+  if (trimmed.startsWith('```') || trimmed === '---' || trimmed.startsWith('|')) return null;
+  if (trimmed.length < 8) return null;
+
+  const plainText = trimmed
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .trim();
+
+  if (plainText.length < 8) return null;
+
+  const searchText = plainText.slice(0, 50);
+  const blocks = Array.from(root.children) as HTMLElement[];
+  for (const block of blocks) {
+    const tag = block.tagName.toLowerCase();
+    // Skip code blocks — their content is code, not matching paragraph text
+    if (tag === 'pre') continue;
+    if (block.textContent?.includes(searchText)) return block;
+  }
+  return null;
+};
+
 // Find element at approximate line position using cumulative line counting.
 // Walks through ProseMirror children, estimates how many markdown lines each
 // block represents, and returns the block where the cumulative count reaches
@@ -532,10 +606,11 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             return;
           }
 
-          // Find target element based on cursor context
+          // Find target element: try text match first (precise), then line estimate (fallback)
           const targetElement = codeBlockIndex >= 0
             ? findCodeBlockElement(proseMirror, codeBlockIndex)
-            : findElementAtLine(proseMirror, savedCursorLine.value, totalLines);
+            : (findElementByText(proseMirror, codeContent.value, savedCursorLine.value)
+              || findElementAtLine(proseMirror, savedCursorLine.value, totalLines));
 
           if (targetElement) {
             scrollContainerToElement(editorContainer, targetElement, SCROLL_OFFSET);
