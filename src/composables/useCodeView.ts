@@ -190,49 +190,7 @@ const getProseMirrorRoot = (container: HTMLElement): HTMLElement | null => {
   return container.querySelector(DOM_SELECTORS.PROSE_MIRROR) as HTMLElement | null;
 };
 
-// Find element containing the cursor marker in visual editor
-const findMarkerElement = (root: HTMLElement): { element: HTMLElement; textNode: Text; offset: number } | null => {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let node: Text | null;
-
-  while ((node = walker.nextNode() as Text | null)) {
-    const idx = node.textContent?.indexOf(CURSOR_MARKER) ?? -1;
-    if (idx !== -1) {
-      // Find the closest block-level parent for highlighting
-      let parent = node.parentElement;
-      while (parent && parent !== root) {
-        const display = getComputedStyle(parent).display;
-        if (display === 'block' || display === 'list-item' || parent.parentElement === root) {
-          return { element: parent, textNode: node, offset: idx };
-        }
-        parent = parent.parentElement;
-      }
-      // Fallback to direct child of root
-      parent = node.parentElement;
-      while (parent && parent.parentElement !== root) {
-        parent = parent.parentElement;
-      }
-      if (parent) {
-        return { element: parent, textNode: node, offset: idx };
-      }
-    }
-  }
-  return null;
-};
-
-// Remove marker from DOM tree
-const removeMarkerFromDOM = (root: HTMLElement): void => {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let node: Text | null;
-
-  while ((node = walker.nextNode() as Text | null)) {
-    if (node.textContent?.includes(CURSOR_MARKER)) {
-      node.textContent = node.textContent.replace(CURSOR_MARKER, '');
-    }
-  }
-};
-
-// Find element at approximate line position (fallback)
+// Find element at approximate line position
 const findElementAtLine = (root: HTMLElement, targetLine: number, totalLines: number): HTMLElement | null => {
   const blocks = Array.from(root.children) as HTMLElement[];
   if (blocks.length === 0) return null;
@@ -417,13 +375,17 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       }
     } else {
       // ═══════════════════════════════════════════════════════════════════
-      // CODE → VISUAL: Insert marker at cursor, convert, find marker in DOM
+      // CODE → VISUAL: Use line-based cursor restoration (no marker injection)
+      //
+      // Previously, a CURSOR_MARKER was injected into the markdown text at
+      // the cursor position. This corrupted image/link syntax when the
+      // cursor was inside e.g. ![alt](url), and zero-width spaces persisted
+      // invisibly (#37). Now we always use line-based positioning which is
+      // safe for all markdown constructs.
       // ═══════════════════════════════════════════════════════════════════
 
       let cursorLine = 0;
       let totalLines = 1;
-      let markdownWithMarker = codeContent.value;
-      let useMarker = false;
       let codeBlockIndex = -1;
 
       if (codeEditorRef.value) {
@@ -437,16 +399,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
         // Check if cursor is inside a code block
         const codeBlockInfo = getCodeBlockInfo(codeContent.value, cursorPos);
-
-        if (!codeBlockInfo.inside) {
-          // Not inside code block - use marker
-          useMarker = true;
-          markdownWithMarker =
-            codeContent.value.slice(0, cursorPos) +
-            CURSOR_MARKER +
-            codeContent.value.slice(cursorPos);
-        } else {
-          // Inside code block - remember which one
+        if (codeBlockInfo.inside) {
           codeBlockIndex = codeBlockInfo.blockIndex;
         }
       }
@@ -455,28 +408,56 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
       const contentChanged = codeContent.value !== codeContentSnapshot;
 
-      if (!contentChanged) {
-        // No changes — skip re-conversion to avoid marker/DOM mutation race conditions.
-        codeView.value = false;
+      if (contentChanged) {
+        const html = markdownToHtml(codeContent.value);
+        setActiveContent(html);
+        markAsChanged();
+      }
 
-        await nextTick();
-        await nextTick();
+      codeView.value = false;
 
-        setTimeout(() => {
-          const editorContainer = getActiveEditorContainer() || getFallbackEditorContainer();
-          if (!editorContainer) { isToggling = false; return; }
+      await nextTick();
+      await nextTick();
+
+      // Restore cursor position — retry until DOM is ready (needed after content change)
+      const scheduleVisualRestore = () => {
+        let attempts = 0;
+        const maxAttempts = MAX_DOM_RESTORE_ATTEMPTS;
+
+        const tryRestore = () => {
+          const editorContainer = getActiveEditorContainer() ||
+            (attempts >= maxAttempts - 1 ? getFallbackEditorContainer() : null);
+
+          if (!editorContainer) {
+            if (attempts < maxAttempts) {
+              attempts += 1;
+              setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
+            } else {
+              isToggling = false;
+            }
+            return;
+          }
 
           const proseMirror = getProseMirrorRoot(editorContainer);
-          if (proseMirror && proseMirror.childElementCount > 0) {
-            const targetElement = useMarker
-              ? findElementAtLine(proseMirror, savedCursorLine.value, totalLines)
-              : findCodeBlockElement(proseMirror, codeBlockIndex);
-
-            if (targetElement) {
-              scrollContainerToElement(editorContainer, targetElement, SCROLL_OFFSET);
-              requestAnimationFrame(() => { highlightVisualElement(targetElement); isToggling = false; });
-              return;
+          if (!proseMirror || proseMirror.childElementCount === 0) {
+            if (attempts < maxAttempts) {
+              attempts += 1;
+              setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
+            } else {
+              isToggling = false;
             }
+            return;
+          }
+
+          // Find target element based on cursor context
+          const targetElement = codeBlockIndex >= 0
+            ? findCodeBlockElement(proseMirror, codeBlockIndex)
+            : findElementAtLine(proseMirror, savedCursorLine.value, totalLines);
+
+          if (targetElement) {
+            scrollContainerToElement(editorContainer, targetElement, SCROLL_OFFSET);
+            requestAnimationFrame(() => { highlightVisualElement(targetElement); isToggling = false; });
+            return;
           }
 
           // Last resort: scroll ratio
@@ -485,101 +466,12 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             editorContainer.scrollTop = Math.round(savedScrollRatio.value * maxScroll);
           }
           isToggling = false;
-        }, TIMING.VIEW_SWITCH_RESTORE_DELAY);
-      } else {
-        const html = markdownToHtml(markdownWithMarker);
-        setActiveContent(html);
-        markAsChanged();
-        codeView.value = false;
-
-        await nextTick();
-        await nextTick();
-
-        const scheduleVisualRestore = () => {
-          let attempts = 0;
-          const maxAttempts = MAX_DOM_RESTORE_ATTEMPTS;
-
-          const tryRestore = () => {
-            const editorContainer = getActiveEditorContainer() ||
-              (attempts >= maxAttempts - 1 ? getFallbackEditorContainer() : null);
-
-            if (!editorContainer) {
-              if (attempts < maxAttempts) {
-                attempts += 1;
-                setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
-              } else {
-                isToggling = false;
-              }
-              return;
-            }
-
-            const proseMirror = getProseMirrorRoot(editorContainer);
-            if (!proseMirror || proseMirror.childElementCount === 0) {
-              if (attempts < maxAttempts) {
-                attempts += 1;
-                setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
-              } else {
-                isToggling = false;
-              }
-              return;
-            }
-
-            // Only try to find marker if we inserted one (not inside code block)
-            if (useMarker) {
-              const markerInfo = findMarkerElement(proseMirror);
-
-              if (markerInfo) {
-                // Found marker - scroll to element and highlight
-                scrollContainerToElement(editorContainer, markerInfo.element, SCROLL_OFFSET);
-
-                // Remove marker from DOM
-                removeMarkerFromDOM(proseMirror);
-
-                // Clean marker from model content.
-                // Do NOT use proseMirror.innerHTML — it contains blob URLs from
-                // resolved images, which would corrupt the Tiptap model on re-set.
-                const currentContent = getActiveContent();
-                const cleanContent = currentContent.split(CURSOR_MARKER).join('');
-                if (cleanContent !== currentContent) {
-                  setActiveContent(cleanContent);
-                }
-
-                requestAnimationFrame(() => { highlightVisualElement(markerInfo.element); isToggling = false; });
-                return;
-              }
-            }
-
-            // Marker not found or not used - use appropriate fallback
-            // If cursor was in code block, try to find the specific code block element by index
-            const fallbackElement = useMarker
-              ? findElementAtLine(proseMirror, savedCursorLine.value, totalLines)
-              : findCodeBlockElement(proseMirror, codeBlockIndex);
-
-            if (fallbackElement) {
-              scrollContainerToElement(editorContainer, fallbackElement, SCROLL_OFFSET);
-              requestAnimationFrame(() => { highlightVisualElement(fallbackElement); isToggling = false; });
-              return;
-            }
-
-            // Last resort: scroll ratio
-            const maxScroll = editorContainer.scrollHeight - editorContainer.clientHeight;
-            if (maxScroll > 0) {
-              editorContainer.scrollTop = Math.round(savedScrollRatio.value * maxScroll);
-            }
-
-            const firstElement = proseMirror.firstElementChild as HTMLElement | null;
-            if (firstElement) {
-              requestAnimationFrame(() => { highlightVisualElement(firstElement); isToggling = false; });
-            } else {
-              isToggling = false;
-            }
-          };
-
-          tryRestore();
         };
 
-        setTimeout(scheduleVisualRestore, 150);
-      }
+        tryRestore();
+      };
+
+      setTimeout(scheduleVisualRestore, contentChanged ? 150 : TIMING.VIEW_SWITCH_RESTORE_DELAY);
     }
   };
 
