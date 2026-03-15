@@ -190,16 +190,84 @@ const getProseMirrorRoot = (container: HTMLElement): HTMLElement | null => {
   return container.querySelector(DOM_SELECTORS.PROSE_MIRROR) as HTMLElement | null;
 };
 
-// Find element at approximate line position
+// Estimate how many markdown lines a ProseMirror block element represents.
+// Code blocks and similar multi-line constructs occupy many markdown lines
+// but render as a single DOM block, so we count their actual line content.
+const estimateBlockLines = (element: HTMLElement): number => {
+  const tagName = element.tagName.toLowerCase();
+
+  // Code blocks (pre > code): count newlines in text content + fences (``` open/close + lang)
+  if (tagName === 'pre') {
+    const codeEl = element.querySelector('code');
+    const text = codeEl ? codeEl.textContent || '' : element.textContent || '';
+    const contentLines = text.split('\n').length;
+    // +2 for the opening ``` and closing ``` lines, +1 blank line after
+    return contentLines + 3;
+  }
+
+  // Mermaid diagrams and node-view wrappers (similar to code blocks)
+  if (
+    element.hasAttribute('data-type') ||
+    element.classList.contains('mermaid-diagram') ||
+    element.classList.contains('mermaid-wrapper') ||
+    element.hasAttribute('data-node-view-wrapper')
+  ) {
+    const text = element.textContent || '';
+    const contentLines = text.split('\n').length;
+    // +2 for fences, +1 blank line after
+    return contentLines + 3;
+  }
+
+  // Tables: count rows + header separator + blank line
+  if (tagName === 'table') {
+    const rows = element.querySelectorAll('tr');
+    // header row + separator line + data rows + blank line
+    return Math.max(rows.length + 2, 3);
+  }
+
+  // Lists (ul, ol): count all list items (including nested) + blank line after
+  if (tagName === 'ul' || tagName === 'ol') {
+    const items = element.querySelectorAll('li');
+    return Math.max(items.length, 1) + 1;
+  }
+
+  // Blockquotes: count lines inside + blank line
+  if (tagName === 'blockquote') {
+    const text = element.textContent || '';
+    const lines = text.split('\n').filter((l) => l.trim().length > 0).length;
+    return Math.max(lines, 1) + 1;
+  }
+
+  // Headings, paragraphs, horizontal rules, etc.: typically 1 line + 1 blank line
+  return 2;
+};
+
+// Find element at approximate line position using cumulative line counting.
+// Walks through ProseMirror children, estimates how many markdown lines each
+// block represents, and returns the block where the cumulative count reaches
+// the target line.
 const findElementAtLine = (root: HTMLElement, targetLine: number, totalLines: number): HTMLElement | null => {
   const blocks = Array.from(root.children) as HTMLElement[];
   if (blocks.length === 0) return null;
 
-  // Approximate: distribute lines evenly across blocks
+  // Edge cases: very start or very end
+  if (targetLine <= 0) return blocks[0];
+  if (targetLine >= totalLines - 1) return blocks[blocks.length - 1];
+
+  let cumulativeLines = 0;
+  for (const block of blocks) {
+    const blockLines = estimateBlockLines(block);
+    if (cumulativeLines + blockLines > targetLine) {
+      return block;
+    }
+    cumulativeLines += blockLines;
+  }
+
+  // If cumulative counting exhausts all blocks without reaching targetLine,
+  // fall back to ratio-based approach (handles estimation drift)
   const ratio = totalLines > 0 ? targetLine / totalLines : 0;
   const targetIndex = Math.min(Math.floor(ratio * blocks.length), blocks.length - 1);
-
-  return blocks[Math.max(0, targetIndex)] || blocks[0];
+  return blocks[Math.max(0, targetIndex)] || blocks[blocks.length - 1];
 };
 
 // Find code block element by index (for when cursor is inside a specific code block)
