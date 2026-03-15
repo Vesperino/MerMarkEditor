@@ -21,6 +21,7 @@ import TabBar from './components/TabBar.vue';
 import DiffPreview from './components/DiffPreview.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
+import WhatsNewModal from './components/WhatsNewModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import FileConflictModal from './components/FileConflictModal.vue';
 
@@ -472,6 +473,9 @@ const showShortcutsModal = ref(false);
 
 // ============ Settings Modal ============
 const showSettingsModal = ref(false);
+
+// ============ What's New Modal ============
+const showWhatsNewModal = ref(false);
 
 // ============ Auto Update ============
 const {
@@ -1003,6 +1007,13 @@ onUnmounted(async () => {
     <SettingsModal
       v-if="showSettingsModal"
       @close="showSettingsModal = false"
+      @show-whats-new="showSettingsModal = false; showWhatsNewModal = true"
+    />
+
+    <!-- What's New Modal -->
+    <WhatsNewModal
+      v-if="showWhatsNewModal"
+      @close="showWhatsNewModal = false"
     />
 
     <!-- Pre-Save Conflict Modal (file changed on disk since last load/save) -->

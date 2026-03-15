@@ -110,7 +110,7 @@ function getDefaultSettings(): AppSettings {
     showTokenCount: true,
     tokenModel: 'gpt',
     theme: 'light',
-    codeWordWrap: false,
+    codeWordWrap: true,
     editorFontFamily: 'system',
     codeFontFamily: 'fira-code',
     editorLineHeight: 1.6,

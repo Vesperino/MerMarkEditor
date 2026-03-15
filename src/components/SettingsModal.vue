@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
+import { getVersion } from '@tauri-apps/api/app';
 import { useI18n } from '../i18n';
 import { useSettings, EDITOR_FONTS, CODE_FONTS } from '../composables/useSettings';
 import { useSystemFonts } from '../composables/useSystemFonts';
@@ -30,7 +31,10 @@ const activeTab = ref<SettingsTab>('editor');
 
 const emit = defineEmits<{
   close: [];
+  showWhatsNew: [];
 }>();
+
+const appVersion = ref('');
 
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
@@ -38,8 +42,13 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
+  try {
+    appVersion.value = await getVersion();
+  } catch {
+    appVersion.value = '?';
+  }
 });
 
 onUnmounted(() => {
@@ -359,6 +368,18 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
+
+            <div class="setting-divider"></div>
+
+            <div class="setting-row">
+              <label class="setting-label">Version</label>
+              <div class="setting-control version-control">
+                <span class="version-number">v{{ appVersion }}</span>
+                <button class="whats-new-link" @click="emit('showWhatsNew')">
+                  {{ t.whatsNew }}
+                </button>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -596,5 +617,38 @@ onUnmounted(() => {
   background: var(--code-block-bg);
   color: var(--code-block-text);
   font-family: var(--code-font-family);
+}
+
+/* Divider */
+.setting-divider {
+  border-top: 1px solid var(--border-primary);
+  margin: 4px 0;
+}
+
+/* Version & What's new */
+.version-control {
+  gap: 12px;
+}
+
+.version-number {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.whats-new-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.whats-new-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
 }
 </style>

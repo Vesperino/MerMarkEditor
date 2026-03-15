@@ -166,6 +166,10 @@ export interface Translations {
   later: string;
   updating: string;
   updateNow: string;
+  whatsNew: string;
+  whatsNewIn: string;
+  loadingChangelog: string;
+  changelogError: string;
 
   // Split view / Panes
   dragTabHere: string;
@@ -382,6 +386,10 @@ const translations: Record<Locale, Translations> = {
     later: 'Later',
     updating: 'Updating...',
     updateNow: 'Update Now',
+    whatsNew: "What's New",
+    whatsNewIn: "What's New in",
+    loadingChangelog: 'Loading changelog...',
+    changelogError: 'Could not load changelog.',
 
     // Split view / Panes
     dragTabHere: 'Drag tab here',
@@ -596,6 +604,10 @@ const translations: Record<Locale, Translations> = {
     later: 'Później',
     updating: 'Aktualizowanie...',
     updateNow: 'Aktualizuj teraz',
+    whatsNew: 'Co nowego',
+    whatsNewIn: 'Co nowego w',
+    loadingChangelog: 'Wczytywanie zmian...',
+    changelogError: 'Nie udało się wczytać zmian.',
 
     // Split view / Panes
     dragTabHere: 'Przeciągnij kartę tutaj',
