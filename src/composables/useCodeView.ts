@@ -258,6 +258,14 @@ const findElementAtLine = (root: HTMLElement, targetLine: number, totalLines: nu
   for (const block of blocks) {
     const blockLines = estimateBlockLines(block);
     if (cumulativeLines + blockLines > targetLine) {
+      // For lists, drill down to the specific <li> item
+      const tag = block.tagName.toLowerCase();
+      if (tag === 'ul' || tag === 'ol') {
+        const items = Array.from(block.querySelectorAll(':scope > li')) as HTMLElement[];
+        const lineIntoBlock = targetLine - cumulativeLines;
+        const itemIndex = Math.min(Math.max(0, lineIntoBlock), items.length - 1);
+        if (items[itemIndex]) return items[itemIndex];
+      }
       return block;
     }
     cumulativeLines += blockLines;
