@@ -32,9 +32,6 @@ export const TIMING = {
   TOAST_DURATION: 3000,
 } as const;
 
-/** Code editor line height for scroll calculations */
-export const CODE_EDITOR_LINE_HEIGHT = 22.4;
-
 /** Maximum number of DOM restore attempts */
 export const MAX_DOM_RESTORE_ATTEMPTS = 20;
 

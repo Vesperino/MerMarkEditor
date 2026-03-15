@@ -182,7 +182,7 @@ const handleTemplateSelect = (code: string) => {
 </script>
 
 <template>
-  <NodeViewWrapper class="mermaid-wrapper" :class="{ selected: props.selected }">
+  <NodeViewWrapper class="mermaid-wrapper" :class="{ selected: props.selected }" :data-code="encodeURIComponent(props.node.attrs.code)">
     <div class="mermaid-header">
       <span class="mermaid-label">Mermaid Diagram</span>
       <div class="mermaid-header-right">
