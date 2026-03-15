@@ -415,6 +415,14 @@ const switchToTabFromCodeView = async (tabId: string) => {
   await switchToTab(tabId);
 };
 
+// Close tab while in code view: exit code view first to commit edits if closing the active tab
+const closeTabFromCodeView = async (tabId: string) => {
+  if (codeView.value && tabId === activeTabId.value) {
+    await toggleCodeView();
+  }
+  handleCloseTabRequest(activePaneId.value, tabId);
+};
+
 // ============ Diff Preview ============
 import { useDiffPreview, generateDiff } from './composables/useDiffPreview';
 
@@ -925,7 +933,7 @@ onUnmounted(async () => {
         :active-tab-id="activeTabId"
         :pane-id="activePaneId"
         @switch-tab="switchToTabFromCodeView"
-        @close-tab="(tabId) => handleCloseTabRequest(activePaneId, tabId)"
+        @close-tab="closeTabFromCodeView"
       />
       <CodeEditor
         ref="codeEditorComponentRef"
