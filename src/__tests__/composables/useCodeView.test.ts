@@ -380,7 +380,7 @@ describe('useCodeView', () => {
   });
 
   describe('code-to-visual without edits should still restore cursor', () => {
-    it('should use findElementAtLine for cursor restoration when content unchanged', () => {
+    it('should use block map for cursor restoration when content unchanged', () => {
       // Simulate code→visual path with no changes
       const codeContent = '# Heading\n\nSome content here\n\nAnother paragraph';
       const codeContentSnapshot = codeContent; // Same = no changes
@@ -391,12 +391,10 @@ describe('useCodeView', () => {
       // Even though content didn't change, we should still have cursor info
       const cursorPos = 15; // Middle of "Some content here"
       const cursorLine = getLineFromPosition(codeContent, cursorPos);
-      const totalLines = codeContent.split('\n').length;
 
       expect(cursorLine).toBe(2);
-      expect(totalLines).toBe(5);
 
-      // The unchanged path should use findElementAtLine with these values
+      // The unchanged path should use findElementByBlockMap with cursor line
       // (not just scroll ratio), so the cursor position is highlighted
     });
 
