@@ -48,11 +48,9 @@ export interface AppSettings {
   codeWordWrap: boolean;
   editorFontFamily: string;
   codeFontFamily: string;
-  editorFontSize: number;
-  codeFontSize: number;
   editorLineHeight: number;
-  codeTabSize: number;
   spellcheck: boolean;
+  expandTabs: boolean;
 }
 
 const STORAGE_KEY = 'mermark-settings';
@@ -115,11 +113,9 @@ function getDefaultSettings(): AppSettings {
     codeWordWrap: false,
     editorFontFamily: 'system',
     codeFontFamily: 'fira-code',
-    editorFontSize: 16,
-    codeFontSize: 14,
     editorLineHeight: 1.6,
-    codeTabSize: 2,
     spellcheck: false,
+    expandTabs: false,
   };
 }
 
@@ -184,28 +180,17 @@ export function useSettings() {
     applyCssVars(settings.value);
   };
 
-  const setEditorFontSize = (size: number) => {
-    settings.value.editorFontSize = Math.max(10, Math.min(28, size));
-    applyCssVars(settings.value);
-  };
-
-  const setCodeFontSize = (size: number) => {
-    settings.value.codeFontSize = Math.max(10, Math.min(28, size));
-    applyCssVars(settings.value);
-  };
-
   const setEditorLineHeight = (lh: number) => {
     settings.value.editorLineHeight = Math.max(1.0, Math.min(2.5, lh));
     applyCssVars(settings.value);
   };
 
-  const setCodeTabSize = (size: number) => {
-    settings.value.codeTabSize = size;
-    applyCssVars(settings.value);
-  };
-
   const setSpellcheck = (value: boolean) => {
     settings.value.spellcheck = value;
+  };
+
+  const setExpandTabs = (value: boolean) => {
+    settings.value.expandTabs = value;
   };
 
   return {
@@ -220,11 +205,9 @@ export function useSettings() {
     toggleCodeWordWrap,
     setEditorFontFamily,
     setCodeFontFamily,
-    setEditorFontSize,
-    setCodeFontSize,
     setEditorLineHeight,
-    setCodeTabSize,
     setSpellcheck,
+    setExpandTabs,
   };
 }
 
@@ -263,10 +246,7 @@ function applyCssVars(s: AppSettings) {
   const root = document.documentElement.style;
   root.setProperty('--editor-font-family', resolveEditorFont(s.editorFontFamily));
   root.setProperty('--code-font-family', resolveCodeFont(s.codeFontFamily));
-  root.setProperty('--editor-font-size', `${s.editorFontSize}px`);
-  root.setProperty('--code-font-size', `${s.codeFontSize}px`);
   root.setProperty('--editor-line-height', `${s.editorLineHeight}`);
-  root.setProperty('--code-tab-size', `${s.codeTabSize}`);
 }
 
 // Apply theme and CSS vars on initial load

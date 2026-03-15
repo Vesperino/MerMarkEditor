@@ -11,11 +11,9 @@ const {
   setTheme,
   setEditorFontFamily,
   setCodeFontFamily,
-  setEditorFontSize,
-  setCodeFontSize,
   setEditorLineHeight,
-  setCodeTabSize,
   setSpellcheck,
+  setExpandTabs,
   toggleCodeWordWrap,
 } = useSettings();
 
@@ -163,6 +161,28 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t.expandTabs }}</label>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button
+                    class="toggle-option"
+                    :class="{ active: !settings.expandTabs }"
+                    @click="setExpandTabs(false)"
+                  >
+                    {{ t.off }}
+                  </button>
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.expandTabs }"
+                    @click="setExpandTabs(true)"
+                  >
+                    {{ t.on }}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Editor Tab -->
@@ -196,22 +216,6 @@ onUnmounted(() => {
                     </option>
                   </optgroup>
                 </select>
-              </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">{{ t.editorFontSize }}</label>
-              <div class="setting-control inline-control">
-                <input
-                  type="range"
-                  min="10"
-                  max="28"
-                  step="1"
-                  :value="settings.editorFontSize"
-                  @input="(e: Event) => setEditorFontSize(Number((e.target as HTMLInputElement).value))"
-                  class="setting-range"
-                />
-                <span class="range-value">{{ settings.editorFontSize }}px</span>
               </div>
             </div>
 
@@ -254,9 +258,8 @@ onUnmounted(() => {
             </div>
 
             <!-- Font preview -->
-            <div class="font-preview" :style="{ fontFamily: `var(--editor-font-family)`, fontSize: settings.editorFontSize + 'px', lineHeight: settings.editorLineHeight }">
-              The quick brown fox jumps over the lazy dog.<br>
-              Zażółć gęślą jaźń. 0123456789
+            <div class="font-preview" :style="{ fontFamily: `var(--editor-font-family)`, lineHeight: settings.editorLineHeight }">
+              The quick brown fox jumps over the lazy dog. 0123456789
             </div>
           </div>
 
@@ -305,39 +308,6 @@ onUnmounted(() => {
             </div>
 
             <div class="setting-row">
-              <label class="setting-label">{{ t.codeFontSize }}</label>
-              <div class="setting-control inline-control">
-                <input
-                  type="range"
-                  min="10"
-                  max="28"
-                  step="1"
-                  :value="settings.codeFontSize"
-                  @input="(e: Event) => setCodeFontSize(Number((e.target as HTMLInputElement).value))"
-                  class="setting-range"
-                />
-                <span class="range-value">{{ settings.codeFontSize }}px</span>
-              </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">{{ t.tabSize }}</label>
-              <div class="setting-control">
-                <div class="toggle-group">
-                  <button
-                    v-for="size in [2, 4, 8]"
-                    :key="size"
-                    class="toggle-option"
-                    :class="{ active: settings.codeTabSize === size }"
-                    @click="setCodeTabSize(size)"
-                  >
-                    {{ size }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="setting-row">
               <label class="setting-label">{{ t.wordWrap }}</label>
               <div class="setting-control">
                 <div class="toggle-group">
@@ -360,7 +330,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Code font preview -->
-            <div class="font-preview code-preview" :style="{ fontFamily: `var(--code-font-family)`, fontSize: settings.codeFontSize + 'px', tabSize: settings.codeTabSize }">
+            <div class="font-preview code-preview" :style="{ fontFamily: `var(--code-font-family)` }">
               <span style="color: #c678dd">const</span> <span style="color: #e06c75">greeting</span> = <span style="color: #98c379">"Hello, World!"</span>;<br>
               <span style="color: #c678dd">function</span> <span style="color: #61afef">sum</span>(a, b) { <span style="color: #c678dd">return</span> a + b; }
             </div>

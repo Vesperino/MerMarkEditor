@@ -3,8 +3,10 @@ import { ref, computed, nextTick } from 'vue';
 import type { Tab } from '../composables/useTabs';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useI18n } from '../i18n';
+import { useSettings } from '../composables/useSettings';
 
 const { t } = useI18n();
+const { settings } = useSettings();
 
 const props = defineProps<{
   tabs: Tab[];
@@ -155,7 +157,7 @@ const handleBarMouseLeave = () => {
 <template>
   <div
     class="tab-bar"
-    :class="{ 'drag-active': isDragging, 'drag-target': isDraggingOverThisPane }"
+    :class="{ 'drag-active': isDragging, 'drag-target': isDraggingOverThisPane, 'expand-tabs': settings.expandTabs }"
     @mouseenter="handleBarMouseEnter"
     @mousemove="handleBarMouseMove"
     @mouseleave="handleBarMouseLeave"
@@ -226,6 +228,10 @@ const handleBarMouseLeave = () => {
   user-select: none;
   max-width: 200px;
   transition: background 0.15s, opacity 0.15s;
+}
+
+.expand-tabs .tab {
+  max-width: none;
 }
 
 .tab:hover {

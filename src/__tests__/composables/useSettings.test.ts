@@ -87,6 +87,67 @@ describe('useSettings', () => {
     });
   });
 
+  describe('font settings', () => {
+    it('should have default editor font family', () => {
+      const { settings } = useSettings();
+      expect(settings.value.editorFontFamily).toBe('system');
+    });
+
+    it('should have default code font family', () => {
+      const { settings } = useSettings();
+      expect(settings.value.codeFontFamily).toBe('fira-code');
+    });
+
+    it('should set editor font family', () => {
+      const { settings, setEditorFontFamily } = useSettings();
+      setEditorFontFamily('georgia');
+      expect(settings.value.editorFontFamily).toBe('georgia');
+      setEditorFontFamily('system');
+    });
+
+    it('should set code font family', () => {
+      const { settings, setCodeFontFamily } = useSettings();
+      setCodeFontFamily('consolas');
+      expect(settings.value.codeFontFamily).toBe('consolas');
+      setCodeFontFamily('fira-code');
+    });
+
+    it('should set editor line height within bounds', () => {
+      const { settings, setEditorLineHeight } = useSettings();
+      setEditorLineHeight(1.8);
+      expect(settings.value.editorLineHeight).toBe(1.8);
+
+      setEditorLineHeight(0.5);
+      expect(settings.value.editorLineHeight).toBe(1.0);
+
+      setEditorLineHeight(3.0);
+      expect(settings.value.editorLineHeight).toBe(2.5);
+
+      setEditorLineHeight(1.6);
+    });
+  });
+
+  describe('expand tabs setting', () => {
+    it('should have expandTabs set to false by default', () => {
+      const { settings } = useSettings();
+      expect(settings.value.expandTabs).toBe(false);
+    });
+
+    it('should set expandTabs to true', () => {
+      const { settings, setExpandTabs } = useSettings();
+      setExpandTabs(true);
+      expect(settings.value.expandTabs).toBe(true);
+      setExpandTabs(false);
+    });
+
+    it('should toggle expandTabs back to false', () => {
+      const { settings, setExpandTabs } = useSettings();
+      setExpandTabs(true);
+      setExpandTabs(false);
+      expect(settings.value.expandTabs).toBe(false);
+    });
+  });
+
   describe('singleton behavior', () => {
     it('should return the same settings instance across multiple calls', () => {
       const { settings: settings1 } = useSettings();

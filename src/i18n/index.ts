@@ -148,11 +148,9 @@ export interface Translations {
   dropFilesHere: string;
   editorFont: string;
   codeFont: string;
-  editorFontSize: string;
-  codeFontSize: string;
   lineHeight: string;
-  tabSize: string;
   spellcheck: string;
+  expandTabs: string;
   appearance: string;
   editor: string;
   code: string;
@@ -366,11 +364,9 @@ const translations: Record<Locale, Translations> = {
     dropFilesHere: 'Drop .md files here',
     editorFont: 'Editor font',
     codeFont: 'Code font',
-    editorFontSize: 'Editor font size',
-    codeFontSize: 'Code font size',
     lineHeight: 'Line height',
-    tabSize: 'Tab size',
     spellcheck: 'Spellcheck',
+    expandTabs: 'Expand tabs to fit name',
     appearance: 'Appearance',
     editor: 'Editor',
     code: 'Code',
@@ -582,11 +578,9 @@ const translations: Record<Locale, Translations> = {
     dropFilesHere: 'Upuść pliki .md tutaj',
     editorFont: 'Czcionka edytora',
     codeFont: 'Czcionka kodu',
-    editorFontSize: 'Rozmiar czcionki edytora',
-    codeFontSize: 'Rozmiar czcionki kodu',
     lineHeight: 'Wysokość linii',
-    tabSize: 'Rozmiar tabulatora',
     spellcheck: 'Sprawdzanie pisowni',
+    expandTabs: 'Rozszerz karty do pełnej nazwy',
     appearance: 'Wygląd',
     editor: 'Edytor',
     code: 'Kod',
