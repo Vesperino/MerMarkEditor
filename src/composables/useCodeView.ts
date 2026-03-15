@@ -205,22 +205,29 @@ const estimateBlockLines = (element: HTMLElement): number => {
     return contentLines + 3;
   }
 
-  // Mermaid diagrams and node-view wrappers (similar to code blocks)
+  // Mermaid diagrams and node-view wrappers: read data-code attribute
+  // (textContent contains UI buttons like "Size: 25% 50%...", not mermaid code)
   if (
     element.hasAttribute('data-type') ||
     element.classList.contains('mermaid-diagram') ||
     element.classList.contains('mermaid-wrapper') ||
     element.hasAttribute('data-node-view-wrapper')
   ) {
-    const text = element.textContent || '';
-    const contentLines = text.split('\n').length;
-    // +2 for fences, +1 blank line after
-    return contentLines + 3;
+    const dataCode = element.getAttribute('data-code') ||
+      element.querySelector('[data-code]')?.getAttribute('data-code');
+    if (dataCode) {
+      const decoded = decodeURIComponent(dataCode);
+      // +2 for fences (```mermaid + ```), +1 blank line after
+      return decoded.split('\n').length + 3;
+    }
+    // Fallback: rough estimate if no data-code
+    return 8;
   }
 
-  // Tables: count rows + header separator + blank line
-  if (tagName === 'table') {
-    const rows = element.querySelectorAll('tr');
+  // Tables: ProseMirror wraps tables in divs, so also check for nested <table>
+  const tableEl = tagName === 'table' ? element : element.querySelector('table');
+  if (tableEl) {
+    const rows = tableEl.querySelectorAll('tr');
     // header row + separator line + data rows + blank line
     return Math.max(rows.length + 2, 3);
   }
