@@ -207,6 +207,11 @@ export interface Translations {
   preSaveConflictMessage: string;
   saveAnyway: string;
   fileDeletedExternally: (fileName: string) => string;
+  // Table of Contents
+  tableOfContents: string;
+  tocTooltip: string;
+  tocEmpty: string;
+
   // Merge editor
   diffView: string;
   mergeView: string;
@@ -427,6 +432,11 @@ const translations: Record<Locale, Translations> = {
     preSaveConflictMessage: 'The file has been modified externally since you last loaded or saved it.',
     saveAnyway: 'Save Anyway',
     fileDeletedExternally: (fileName: string) => `"${fileName}" was deleted externally.`,
+    // Table of Contents
+    tableOfContents: 'Table of Contents',
+    tocTooltip: 'Table of Contents (Ctrl+Shift+T)',
+    tocEmpty: 'No headings found. Add headings (H1-H6) to see the table of contents.',
+
     diffView: 'Diff',
     mergeView: 'Merge',
     acceptAllExternal: 'Accept All External',
@@ -645,6 +655,11 @@ const translations: Record<Locale, Translations> = {
     preSaveConflictMessage: 'Plik został zmodyfikowany zewnętrznie od ostatniego wczytania lub zapisania.',
     saveAnyway: 'Zapisz mimo to',
     fileDeletedExternally: (fileName: string) => `"${fileName}" został usunięty zewnętrznie.`,
+    // Table of Contents
+    tableOfContents: 'Spis treści',
+    tocTooltip: 'Spis treści (Ctrl+Shift+T)',
+    tocEmpty: 'Brak nagłówków. Dodaj nagłówki (H1-H6) aby zobaczyć spis treści.',
+
     diffView: 'Diff',
     mergeView: 'Merge',
     acceptAllExternal: 'Zaakceptuj wszystkie zewnętrzne',
