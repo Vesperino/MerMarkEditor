@@ -207,6 +207,7 @@ const props = defineProps<{
   diffActive?: boolean;
   canShowDiff?: boolean;
   canCompareTabs?: boolean;
+  tocActive?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -221,6 +222,7 @@ const emit = defineEmits<{
   compareTabs: [];
   showShortcuts: [];
   showSettings: [];
+  toggleToc: [];
 }>();
 </script>
 
@@ -655,6 +657,28 @@ const emit = defineEmits<{
 
       <div class="toolbar-separator"></div>
 
+      <!-- Table of Contents Toggle -->
+      <button
+        @click="emit('toggleToc')"
+        :class="{ active: props.tocActive }"
+        class="toolbar-btn toc-toggle-btn"
+        :title="t.tocTooltip"
+        :disabled="props.codeView"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="6" x2="3" y2="6"/>
+          <line x1="7" y1="6" x2="21" y2="6"/>
+          <line x1="5" y1="12" x2="5" y2="12"/>
+          <line x1="9" y1="12" x2="21" y2="12"/>
+          <line x1="5" y1="18" x2="5" y2="18"/>
+          <line x1="9" y1="18" x2="21" y2="18"/>
+          <circle cx="3" cy="6" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="5" cy="18" r="1" fill="currentColor" stroke="none"/>
+        </svg>
+        <span>{{ t.tableOfContents }}</span>
+      </button>
+
       <!-- Code View Toggle -->
       <button
         @click="emit('toggleCodeView')"
@@ -837,6 +861,28 @@ const emit = defineEmits<{
 .mermaid-btn:hover {
   background: var(--mermaid-hover-bg);
   border-color: var(--mermaid-hover-border);
+}
+
+.toc-toggle-btn {
+  background: var(--toc-toggle-bg);
+  border-color: var(--toc-toggle-border);
+  color: var(--toc-toggle-color);
+}
+
+.toc-toggle-btn:hover:not(:disabled) {
+  background: var(--toc-toggle-hover-bg);
+  border-color: var(--toc-toggle-hover-border);
+}
+
+.toc-toggle-btn.active {
+  background: var(--toc-toggle-active-bg);
+  border-color: var(--toc-toggle-active-border);
+  color: white;
+}
+
+.toc-toggle-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .code-toggle-btn {

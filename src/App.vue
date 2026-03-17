@@ -19,6 +19,7 @@ import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
 import TabBar from './components/TabBar.vue';
 import DiffPreview from './components/DiffPreview.vue';
+import TableOfContents from './components/TableOfContents.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
@@ -476,6 +477,12 @@ const compareTabs = () => {
   openComparePreview(leftMd, rightMd, leftTab.fileName, rightTab.fileName);
 };
 
+// ============ Table of Contents ============
+const showTocPanel = ref(false);
+const toggleTocPanel = () => {
+  showTocPanel.value = !showTocPanel.value;
+};
+
 // ============ Keyboard Shortcuts Modal ============
 const showShortcutsModal = ref(false);
 
@@ -664,6 +671,12 @@ const handleKeyboard = (event: KeyboardEvent) => {
         if (event.shiftKey && canCompareTabs.value) {
           event.preventDefault();
           compareTabs();
+        }
+        break;
+      case 't':
+        if (event.shiftKey) {
+          event.preventDefault();
+          toggleTocPanel();
         }
         break;
       case 'r':
@@ -913,6 +926,7 @@ onUnmounted(async () => {
       :diff-active="showDiffPreview"
       :can-show-diff="canShowDiff"
       :can-compare-tabs="canCompareTabs"
+      :toc-active="showTocPanel"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @save-file="saveFile"
@@ -924,16 +938,25 @@ onUnmounted(async () => {
       @compare-tabs="compareTabs"
       @show-shortcuts="showShortcutsModal = true"
       @show-settings="showSettingsModal = true"
+      @toggle-toc="toggleTocPanel"
     />
 
-    <!-- Split Container with Editor Panes -->
-    <SplitContainer
-      v-if="!codeView"
-      ref="splitContainerRef"
-      @link-click="handleLinkClick"
-      @close-tab-request="handleCloseTabRequest"
-      @changes-updated="handleChangesUpdated"
-    />
+    <!-- Main editor area with optional TOC sidebar -->
+    <div v-if="!codeView" class="editor-area">
+      <!-- Table of Contents Panel -->
+      <TableOfContents
+        v-if="showTocPanel"
+        @close="showTocPanel = false"
+      />
+
+      <!-- Split Container with Editor Panes -->
+      <SplitContainer
+        ref="splitContainerRef"
+        @link-click="handleLinkClick"
+        @close-tab-request="handleCloseTabRequest"
+        @changes-updated="handleChangesUpdated"
+      />
+    </div>
 
     <!-- Code View -->
     <template v-else>
@@ -1082,6 +1105,13 @@ onUnmounted(async () => {
   background: var(--bg-primary);
 }
 
+.editor-area {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
 .drag-drop-overlay {
   position: fixed;
   inset: 0;
@@ -1114,8 +1144,13 @@ onUnmounted(async () => {
     display: block !important;
   }
 
-  .toolbar {
+  .toolbar,
+  .toc-panel {
     display: none !important;
+  }
+
+  .editor-area {
+    display: block !important;
   }
 
   h1, h2, h3, h4, h5, h6 {
