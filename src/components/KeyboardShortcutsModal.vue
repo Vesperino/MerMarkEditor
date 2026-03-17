@@ -21,6 +21,7 @@ const shortcuts = [
   { key: 'Ctrl+I', action: () => t.value.italic },
   { key: 'Ctrl+Shift+D', action: () => t.value.changes },
   { key: 'Ctrl+Shift+C', action: () => t.value.compareTabs },
+  { key: 'Ctrl+Shift+T', action: () => t.value.tableOfContents },
   { key: 'Ctrl+/', action: () => t.value.keyboardShortcuts },
   { key: 'Escape', action: () => t.value.close },
 ];
