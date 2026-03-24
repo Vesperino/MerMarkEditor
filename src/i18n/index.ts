@@ -86,6 +86,7 @@ export interface Translations {
   shortcutKey: string;
 
   // Stats
+  stats: string;
   characters: string;
   words: string;
   tokens: string;
@@ -225,6 +226,16 @@ export interface Translations {
   acceptExternal: string;
   changesAccepted: string;
   applyMerge: string;
+
+  // Layout customization
+  layout: string;
+  topToolbar: string;
+  bottomStatusBar: string;
+  leftSidebar: string;
+  hiddenItems: string;
+  resetLayout: string;
+  layoutDescription: string;
+  moveTo: string;
 }
 
 const translations: Record<Locale, Translations> = {
@@ -311,6 +322,7 @@ const translations: Record<Locale, Translations> = {
     shortcutKey: 'Shortcut',
 
     // Stats
+    stats: 'Statistics',
     characters: 'characters',
     words: 'words',
     tokens: 'tokens',
@@ -449,6 +461,16 @@ const translations: Record<Locale, Translations> = {
     acceptExternal: 'Take External',
     changesAccepted: 'changes accepted',
     applyMerge: 'Apply Merge',
+
+    // Layout customization
+    layout: 'Layout',
+    topToolbar: 'Top Toolbar',
+    bottomStatusBar: 'Bottom Status Bar',
+    leftSidebar: 'Left Sidebar',
+    hiddenItems: 'Hidden Items',
+    resetLayout: 'Reset to Defaults',
+    layoutDescription: 'Drag items between zones to customize the layout',
+    moveTo: 'Move to',
   },
 
   pl: {
@@ -534,6 +556,7 @@ const translations: Record<Locale, Translations> = {
     shortcutKey: 'Skrót',
 
     // Stats
+    stats: 'Statystyki',
     characters: 'znaków',
     words: 'słów',
     tokens: 'tokenów',
@@ -672,6 +695,16 @@ const translations: Record<Locale, Translations> = {
     acceptExternal: 'Weź zewnętrzną',
     changesAccepted: 'zmian zaakceptowanych',
     applyMerge: 'Zastosuj merge',
+
+    // Layout customization
+    layout: 'Układ',
+    topToolbar: 'Górny pasek narzędzi',
+    bottomStatusBar: 'Dolny pasek statusu',
+    leftSidebar: 'Lewy panel',
+    hiddenItems: 'Ukryte elementy',
+    resetLayout: 'Przywróć domyślne',
+    layoutDescription: 'Przeciągnij elementy między strefami aby dostosować układ',
+    moveTo: 'Przenieś do',
   },
 };
 
