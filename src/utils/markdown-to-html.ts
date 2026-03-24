@@ -220,6 +220,12 @@ export function convertMarkdownLinksAndImages(html: string): string {
   return result;
 }
 
+export function extractPageBreaks(md: string): string {
+  // Replace raw HTML page break patterns with a div that survives escaping
+  return md.replace(/<div\s+style\s*=\s*["'][^"']*page-break-(?:after|before)\s*:\s*always[^"']*["'][^>]*>\s*<\/div>/gi,
+    '__PAGE_BREAK__');
+}
+
 export function extractCodeBlocks(md: string): { html: string; codeBlocks: string[] } {
   let html = md;
   const codeBlocks: string[] = [];
