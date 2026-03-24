@@ -759,9 +759,10 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
     padding: 10px 0 !important;
   }
 
-  /* SVG keeps its inline width set by JavaScript */
+  /* SVG root — force light background */
   .mermaid-content :deep(svg) {
     height: auto !important;
+    background: white !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -771,20 +772,39 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
     print-color-adjust: exact !important;
   }
 
-  .mermaid-content :deep(svg text) {
+  /* Background rect used by Mermaid dark theme */
+  .mermaid-content :deep(svg > rect),
+  .mermaid-content :deep(svg > style + rect),
+  .mermaid-content :deep(svg > g > rect) {
+    fill: white !important;
+  }
+
+  /* Text — dark on light */
+  .mermaid-content :deep(svg text),
+  .mermaid-content :deep(svg .nodeLabel),
+  .mermaid-content :deep(svg .edgeLabel .label),
+  .mermaid-content :deep(svg .label text),
+  .mermaid-content :deep(svg .legend text),
+  .mermaid-content :deep(svg tspan) {
     fill: #333 !important;
+    color: #333 !important;
     stroke: none !important;
   }
 
+  /* Node shapes — light fill */
   .mermaid-content :deep(svg .node rect),
   .mermaid-content :deep(svg .node circle),
   .mermaid-content :deep(svg .node ellipse),
   .mermaid-content :deep(svg .node polygon),
-  .mermaid-content :deep(svg .node path) {
+  .mermaid-content :deep(svg .node path),
+  .mermaid-content :deep(svg .label-container),
+  .mermaid-content :deep(svg .basic.label-container) {
+    fill: #f8f8f8 !important;
     stroke: #333 !important;
     stroke-width: 1px !important;
   }
 
+  /* Edges and arrows */
   .mermaid-content :deep(svg .edgePath path),
   .mermaid-content :deep(svg .flowchart-link),
   .mermaid-content :deep(svg path.path) {
@@ -796,26 +816,36 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
     fill: #333 !important;
   }
 
+  /* Edge labels */
   .mermaid-content :deep(svg .edgeLabel) {
     background-color: white !important;
   }
 
+  .mermaid-content :deep(svg .edgeLabel rect) {
+    fill: white !important;
+    opacity: 1 !important;
+  }
+
+  /* Clusters / subgraphs */
   .mermaid-content :deep(svg .cluster rect) {
     fill: #f8f8f8 !important;
     stroke: #ccc !important;
   }
 
+  /* Lines (sequence diagrams etc.) */
   .mermaid-content :deep(svg line),
   .mermaid-content :deep(svg .messageLine0),
   .mermaid-content :deep(svg .messageLine1) {
     stroke: #333 !important;
   }
 
+  /* Sequence diagram actors */
   .mermaid-content :deep(svg .actor) {
     stroke: #333 !important;
     fill: #f8f8f8 !important;
   }
 
+  /* Gantt chart */
   .mermaid-content :deep(svg .section0),
   .mermaid-content :deep(svg .section1) {
     fill: #f0f0f0 !important;
@@ -823,6 +853,7 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
 
   .mermaid-content :deep(svg .task) {
     stroke: #333 !important;
+    fill: #d0e0f0 !important;
   }
 }
 </style>

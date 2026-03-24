@@ -163,8 +163,11 @@ const createNewTab = (filePath?: string | null, content?: string, fileName?: str
   return createTab(activePaneId.value, filePath, content, fileName);
 };
 
-// Create a new empty document
-const newFile = () => {
+// Create a new empty document — exit code view first to commit edits
+const newFile = async () => {
+  if (codeView.value) {
+    await toggleCodeView();
+  }
   createNewTab();
 };
 

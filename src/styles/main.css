@@ -389,6 +389,32 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* ========== Page Break ========== */
+.page-break {
+  page-break-after: always;
+  break-after: page;
+  position: relative;
+  margin: 24px 0;
+  border: none;
+  border-top: 2px dashed var(--border-secondary, #999);
+  height: 0;
+  pointer-events: none;
+}
+
+.page-break::after {
+  content: 'Page break';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-primary, #fff);
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--text-muted, #777);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ========== Print Styles ========== */
 
 /* Page setup */
@@ -439,6 +465,19 @@ button:disabled {
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .page-break {
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .page-break::after {
+    display: none !important;
   }
 
   html, body {
@@ -570,11 +609,25 @@ button:disabled {
   pre .hljs-title { color: #8250df !important; }
   pre .hljs-built_in { color: #0550ae !important; }
 
-  /* Tables */
+  /* Tables — allow splitting across pages so there are no large gaps */
   table {
     border-collapse: collapse !important;
     width: 100% !important;
-    page-break-inside: avoid;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  /* Repeat table header on every page when table spans multiple pages */
+  thead {
+    display: table-header-group !important;
+  }
+
+  /* Avoid breaking inside a single row */
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   th, td {
@@ -582,6 +635,8 @@ button:disabled {
     padding: 6px 10px !important;
     text-align: left !important;
     color: #000 !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
   }
 
   th {
@@ -628,82 +683,7 @@ button:disabled {
     text-decoration: underline !important;
   }
 
-  /* Mermaid diagrams - preserve all colors for print */
-  .mermaid-wrapper {
-    border: none !important;
-    background: white !important;
-    padding: 10px 0 !important;
-    page-break-inside: avoid !important;
-  }
-
-  .mermaid-viewport {
-    overflow: visible !important;
-    max-height: none !important;
-    border: none !important;
-    min-height: auto !important;
-    background: white !important;
-  }
-
-  .mermaid-content {
-    display: flex !important;
-    transform: none !important;
-    padding: 0 !important;
-    min-height: auto !important;
-    justify-content: center !important;
-  }
-
-  .mermaid-content.hidden {
-    display: flex !important;
-  }
-
-  .mermaid-content svg {
-    max-width: 100% !important;
-    height: auto !important;
-  }
-
-  /* Mermaid SVG specific - preserve colors */
-  .mermaid-content svg * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  .mermaid-content svg text {
-    fill: #333 !important;
-  }
-
-  .mermaid-content svg .node rect,
-  .mermaid-content svg .node circle,
-  .mermaid-content svg .node ellipse,
-  .mermaid-content svg .node polygon,
-  .mermaid-content svg .node path {
-    stroke: #333 !important;
-  }
-
-  .mermaid-content svg .edgePath path {
-    stroke: #333 !important;
-  }
-
-  .mermaid-content svg .edgeLabel {
-    background-color: white !important;
-  }
-
-  .mermaid-content svg .label {
-    color: #333 !important;
-  }
-
-  /* Ensure mermaid background shapes are visible */
-  .mermaid-content svg .cluster rect {
-    fill: #f8f8f8 !important;
-    stroke: #ccc !important;
-  }
-
-  .mermaid-content svg .flowchart-link {
-    stroke: #333 !important;
-  }
-
-  .mermaid-content svg marker path {
-    fill: #333 !important;
-  }
+  /* Mermaid diagrams — color overrides are in MermaidNode.vue scoped styles */
 
   /* Split container and app layout - ensure full content visibility */
   .app,
@@ -716,8 +696,7 @@ button:disabled {
     display: block !important;
   }
 
-  /* Allow page breaks inside very large tables/diagrams when necessary */
-  table.allow-break,
+  /* Allow page breaks inside very large mermaid diagrams when necessary */
   .mermaid-wrapper.allow-break {
     page-break-inside: auto !important;
     break-inside: auto !important;

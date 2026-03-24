@@ -11,6 +11,7 @@ export {
   convertMarkdownFormatting,
   convertMarkdownLinksAndImages,
   extractCodeBlocks,
+  extractPageBreaks,
   restoreCodeBlocks,
 } from './markdown-to-html';
 
@@ -23,6 +24,7 @@ import {
   convertMarkdownFormatting,
   convertMarkdownLinksAndImages,
   extractCodeBlocks,
+  extractPageBreaks,
   restoreCodeBlocks,
 } from './markdown-to-html';
 
@@ -113,6 +115,9 @@ export function htmlToMarkdown(html: string): string {
     return `\n> ${text}\n\n`;
   });
 
+  // Page breaks
+  md = md.replace(/<div[^>]*class=["']page-break["'][^>]*>\s*<\/div>/gi, '\n<div style="page-break-after: always;"></div>\n');
+
   // Horizontal rule
   md = md.replace(/<hr[^>]*\/?>/gi, '\n---\n');
 
@@ -198,7 +203,8 @@ export function htmlToMarkdown(html: string): string {
 export function markdownToHtml(md: string): string {
   let html = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  // Extract code blocks before escaping
+  // Extract page breaks and code blocks before escaping
+  html = extractPageBreaks(html);
   const extracted = extractCodeBlocks(html);
   html = extracted.html;
   const codeBlocks = extracted.codeBlocks;
@@ -239,6 +245,10 @@ export function markdownToHtml(md: string): string {
 
   // Restore code blocks
   html = restoreCodeBlocks(html, codeBlocks);
+
+  // Restore page breaks
+  html = html.replace(/<p>__PAGE_BREAK__<\/p>/g, '<div class="page-break"></div>');
+  html = html.replace(/__PAGE_BREAK__/g, '<div class="page-break"></div>');
 
   return html;
 }

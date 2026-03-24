@@ -67,6 +67,7 @@ let imageResolutionInProgress = false;
 // HTML snapshot from last file open/save — used to detect real changes (e.g. after undo).
 let lastSavedHtml = '';
 import { MermaidExtension } from "../extensions/MermaidExtension";
+import { PageBreakExtension } from "../extensions/PageBreakExtension";
 import { useI18n } from "../i18n";
 
 const { t } = useI18n();
@@ -381,6 +382,7 @@ const editor = useEditor({
       placeholder: t.value.placeholder,
     }),
     MermaidExtension,
+    PageBreakExtension,
     CharacterCount.configure({
       limit: null,
     }),
