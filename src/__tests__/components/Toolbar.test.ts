@@ -357,7 +357,14 @@ describe('Toolbar Component', () => {
       });
 
       const tableButton = wrapper.find('button[title*="Table"]');
+      // Ensure menu is closed first
+      if (wrapper.find('.dropdown-menu').exists()) {
+        await tableButton.trigger('click');
+      }
+      // Open
       await tableButton.trigger('click');
+      expect(wrapper.find('.dropdown-menu').exists()).toBe(true);
+      // Close
       await tableButton.trigger('click');
 
       expect(wrapper.find('.dropdown-menu').exists()).toBe(false);
@@ -375,10 +382,16 @@ describe('Toolbar Component', () => {
       });
 
       const tableButton = wrapper.find('button[title*="Table"]');
+      // Ensure menu is closed first, then open
+      if (wrapper.find('.dropdown-menu').exists()) {
+        await tableButton.trigger('click');
+      }
       await tableButton.trigger('click');
 
-      const addRowButton = wrapper.find('.dropdown-item:nth-child(3)');
-      expect(addRowButton.attributes('disabled')).toBeDefined();
+      const dropdownItems = wrapper.findAll('.dropdown-item');
+      // Find the "Add row above" button (after the "Insert table" button and divider)
+      const addRowButton = dropdownItems.find(item => item.text().includes('Add row'));
+      expect(addRowButton?.attributes('disabled')).toBeDefined();
     });
   });
 

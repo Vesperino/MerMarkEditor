@@ -11,6 +11,8 @@ import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 // Components
 import Toolbar from './components/Toolbar.vue';
+import StatusBar from './components/StatusBar.vue';
+import LeftBar from './components/LeftBar.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
 import ExternalLinkDialog from './components/ExternalLinkDialog.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
@@ -37,6 +39,7 @@ import { useWindowManager } from './composables/useWindowManager';
 import { useTabDrag } from './composables/useTabDrag';
 import { useEditorZoom } from './composables/useEditorZoom';
 import { useFileReload } from './composables/useFileReload';
+import { useLayoutConfig } from './composables/useLayoutConfig';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -510,6 +513,9 @@ const {
 // ============ Settings ============
 const { settings } = useSettings();
 
+// ============ Layout Config ============
+const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
+
 // ============ Editor Zoom ============
 const { zoomIn, zoomOut } = useEditorZoom();
 
@@ -944,38 +950,89 @@ onUnmounted(async () => {
       @toggle-toc="toggleTocPanel"
     />
 
-    <!-- Main editor area with optional TOC sidebar -->
-    <div v-if="!codeView" class="editor-area">
-      <!-- Table of Contents Panel -->
-      <TableOfContents
-        v-if="showTocPanel"
-        @close="showTocPanel = false"
+    <!-- Main content area with optional left bar -->
+    <div class="main-area">
+      <!-- Left Bar (configurable) -->
+      <LeftBar
+        v-if="hasLeftBarItems"
+        :code-view="codeView"
+        :is-split-active="isSplitActive"
+        :diff-active="showDiffPreview"
+        :can-show-diff="canShowDiff"
+        :can-compare-tabs="canCompareTabs"
+        :toc-active="showTocPanel"
+        @new-file="newFile"
+        @open-file="openFileWithCrossWindowDialog"
+        @save-file="saveFile"
+        @save-file-as="saveFileAs"
+        @export-pdf="exportPdf"
+        @toggle-code-view="toggleCodeView"
+        @toggle-split="toggleSplit"
+        @toggle-diff-preview="toggleDiffPreview"
+        @compare-tabs="compareTabs"
+        @show-shortcuts="showShortcutsModal = true"
+        @show-settings="showSettingsModal = true"
+        @toggle-toc="toggleTocPanel"
       />
 
-      <!-- Split Container with Editor Panes -->
-      <SplitContainer
-        ref="splitContainerRef"
-        @link-click="handleLinkClick"
-        @close-tab-request="handleCloseTabRequest"
-        @changes-updated="handleChangesUpdated"
-      />
+      <!-- Editor area with optional TOC sidebar -->
+      <div v-if="!codeView" class="editor-area">
+        <!-- Table of Contents Panel -->
+        <TableOfContents
+          v-if="showTocPanel"
+          @close="showTocPanel = false"
+        />
+
+        <!-- Split Container with Editor Panes -->
+        <SplitContainer
+          ref="splitContainerRef"
+          @link-click="handleLinkClick"
+          @close-tab-request="handleCloseTabRequest"
+          @changes-updated="handleChangesUpdated"
+        />
+      </div>
+
+      <!-- Code View -->
+      <template v-else>
+        <div class="code-view-area">
+          <TabBar
+            :tabs="tabs"
+            :active-tab-id="activeTabId"
+            :pane-id="activePaneId"
+            @switch-tab="switchToTabFromCodeView"
+            @close-tab="closeTabFromCodeView"
+          />
+          <CodeEditor
+            ref="codeEditorComponentRef"
+            v-model="codeContent"
+            @update:model-value="onCodeContentUpdate"
+          />
+        </div>
+      </template>
     </div>
 
-    <!-- Code View -->
-    <template v-else>
-      <TabBar
-        :tabs="tabs"
-        :active-tab-id="activeTabId"
-        :pane-id="activePaneId"
-        @switch-tab="switchToTabFromCodeView"
-        @close-tab="closeTabFromCodeView"
-      />
-      <CodeEditor
-        ref="codeEditorComponentRef"
-        v-model="codeContent"
-        @update:model-value="onCodeContentUpdate"
-      />
-    </template>
+    <!-- Status Bar (configurable) -->
+    <StatusBar
+      v-if="hasStatusBarItems"
+      :code-view="codeView"
+      :is-split-active="isSplitActive"
+      :diff-active="showDiffPreview"
+      :can-show-diff="canShowDiff"
+      :can-compare-tabs="canCompareTabs"
+      :toc-active="showTocPanel"
+      @new-file="newFile"
+      @open-file="openFileWithCrossWindowDialog"
+      @save-file="saveFile"
+      @save-file-as="saveFileAs"
+      @export-pdf="exportPdf"
+      @toggle-code-view="toggleCodeView"
+      @toggle-split="toggleSplit"
+      @toggle-diff-preview="toggleDiffPreview"
+      @compare-tabs="compareTabs"
+      @show-shortcuts="showShortcutsModal = true"
+      @show-settings="showSettingsModal = true"
+      @toggle-toc="toggleTocPanel"
+    />
 
     <!-- Loading Overlay -->
     <LoadingOverlay v-if="isLoadingFile" />
@@ -1108,8 +1165,23 @@ onUnmounted(async () => {
   background: var(--bg-primary);
 }
 
+.main-area {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
 .editor-area {
   display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.code-view-area {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   overflow: hidden;
   min-height: 0;

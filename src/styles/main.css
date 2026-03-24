@@ -131,6 +131,10 @@
   --toolbar-gradient-from: #ffffff;
   --toolbar-gradient-to: #f8fafc;
 
+  /* Status Bar & Left Bar */
+  --statusbar-bg: #f8fafc;
+  --leftbar-bg: #f8fafc;
+
   /* Split divider */
   --divider-bg: #e2e8f0;
   --divider-hover: #cbd5e1;
@@ -295,6 +299,10 @@ html.dark {
 
   --toolbar-gradient-from: #262626;
   --toolbar-gradient-to: #222222;
+
+  /* Status Bar & Left Bar (dark) */
+  --statusbar-bg: #222222;
+  --leftbar-bg: #222222;
 
   --divider-bg: #383838;
   --divider-hover: #4a4a4a;
