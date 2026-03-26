@@ -556,6 +556,11 @@ button:disabled {
   }
 
   /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
   h1 {
     font-size: 22pt;
     margin-top: 0;
@@ -575,6 +580,7 @@ button:disabled {
   }
 
   p {
+    break-inside: avoid;
     orphans: 3;
     widows: 3;
     color: #000 !important;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from "@tiptap/vue-3";
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import mermaid from "mermaid";
 import { useI18n } from "../i18n";
 import { useZoomPan } from "../composables/useZoomPan";
@@ -48,11 +48,83 @@ const applySvgSize = () => {
 };
 
 const containerRef = ref<HTMLDivElement | null>(null);
+const previewContainerRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
 const isEditing = ref(false);
 const editCode = ref(props.node.attrs.code);
 const error = ref<string | null>(null);
+const previewError = ref<string | null>(null);
 const showTemplateModal = ref(false);
+const isDark = ref(document.documentElement.classList.contains("dark"));
+
+// Live preview rendering (debounced)
+let previewTimeout: ReturnType<typeof setTimeout> | null = null;
+const previewViewportRef = ref<HTMLDivElement | null>(null);
+
+// Separate zoom/pan for editor preview
+const {
+  zoomPercent: previewZoomPercent,
+  transformStyle: previewTransformStyle,
+  zoomIn: previewZoomIn,
+  zoomOut: previewZoomOut,
+  resetZoom: previewResetZoom,
+  fitToView: previewFitToView,
+  startPan: previewStartPan,
+  doPan: previewDoPan,
+  endPan: previewEndPan,
+  handleWheel: previewHandleWheel,
+} = useZoomPan();
+
+const handlePreviewFitToView = () => {
+  previewFitToView(previewContainerRef.value, previewViewportRef.value);
+};
+
+const renderPreview = async () => {
+  if (!previewContainerRef.value || !isEditing.value) return;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark.value ? "dark" : "default",
+    securityLevel: "loose",
+  });
+
+  try {
+    previewError.value = null;
+    const id = `mermaid-preview-${Date.now()}`;
+    const codeForRender = editCode.value
+      .replace(/__BR__/g, '<br/>')
+      .replace(/\\n/g, '<br/>');
+    const { svg } = await mermaid.render(id, codeForRender);
+    previewContainerRef.value.innerHTML = svg;
+  } catch (e: unknown) {
+    previewError.value = e instanceof Error ? e.message : t.value.diagramError;
+    previewContainerRef.value.innerHTML = "";
+  }
+};
+
+const debouncedRenderPreview = () => {
+  if (previewTimeout) clearTimeout(previewTimeout);
+  previewTimeout = setTimeout(renderPreview, 400);
+};
+
+const handleEditorKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    cancelEdit();
+  }
+};
+
+const handleTextareaKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const textarea = e.target as HTMLTextAreaElement;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    editCode.value = editCode.value.substring(0, start) + '  ' + editCode.value.substring(end);
+    nextTick(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + 2;
+    });
+  }
+};
 
 // Use composables
 const {
@@ -84,8 +156,6 @@ const handleWheel = (e: WheelEvent) => {
 const handleFitToView = () => {
   fitToView(containerRef.value, viewportRef.value);
 };
-
-const isDark = ref(document.documentElement.classList.contains("dark"));
 
 let darkModeObserver: MutationObserver | null = null;
 
@@ -157,6 +227,8 @@ const startEdit = () => {
   // Show <br> tags to user during editing (convert placeholder to actual syntax)
   editCode.value = props.node.attrs.code.replace(/__BR__/g, '<br/>');
   isEditing.value = true;
+  // Render initial preview after DOM updates
+  nextTick(() => renderPreview());
 };
 
 const saveEdit = () => {
@@ -179,6 +251,13 @@ const insertTemplate = (code: string) => {
 const handleTemplateSelect = (code: string) => {
   insertTemplate(code);
 };
+
+// Live preview: re-render on code changes while editing
+watch(editCode, () => {
+  if (isEditing.value) {
+    debouncedRenderPreview();
+  }
+});
 </script>
 
 <template>
@@ -206,41 +285,75 @@ const handleTemplateSelect = (code: string) => {
       </div>
     </div>
 
-    <div v-if="isEditing" class="mermaid-editor">
-      <div class="template-row">
-        <div class="template-buttons">
-          <button
-            v-for="tmpl in quickAccessTemplates"
-            :key="tmpl.name"
-            @click="insertTemplate(tmpl.code)"
-            class="btn-template"
-          >
-            {{ tmpl.name }}
-          </button>
+    <!-- Fullscreen editor overlay -->
+    <Teleport to="body">
+      <div v-if="isEditing" class="editor-fullscreen" @keydown="handleEditorKeydown">
+        <!-- Template modal (inside fullscreen so it renders on top) -->
+        <DiagramTemplateModal
+          :show="showTemplateModal"
+          @close="showTemplateModal = false"
+          @select="handleTemplateSelect"
+        />
+        <!-- Top bar -->
+        <div class="editor-topbar">
+          <span class="editor-topbar-title">Mermaid Editor</span>
+          <div class="editor-topbar-templates">
+            <button
+              v-for="tmpl in quickAccessTemplates"
+              :key="tmpl.name"
+              @click="insertTemplate(tmpl.code)"
+              class="btn-template"
+            >
+              {{ tmpl.name }}
+            </button>
+            <button @click="showTemplateModal = true" class="btn-more-templates">
+              {{ t.moreTemplates }}
+            </button>
+          </div>
+          <div class="editor-topbar-actions">
+            <button @click="saveEdit" class="btn-save">{{ t.saveDiagram }}</button>
+            <button @click="cancelEdit" class="btn-cancel">{{ t.cancelEdit }}</button>
+          </div>
         </div>
-        <button @click="showTemplateModal = true" class="btn-more-templates">
-          {{ t.moreTemplates }}
-        </button>
+        <!-- Split: code left, preview right -->
+        <div class="editor-split-fullscreen">
+          <div class="editor-code-pane">
+            <textarea
+              id="mermaid-editor-textarea"
+              v-model="editCode"
+              class="mermaid-textarea"
+              :placeholder="t.enterMermaidCode"
+              @keydown="handleTextareaKeydown"
+            ></textarea>
+          </div>
+          <div class="editor-preview-pane">
+            <div class="editor-preview-toolbar">
+              <button @click="previewZoomOut" class="btn-zoom" title="Zoom out">−</button>
+              <span class="zoom-level">{{ previewZoomPercent }}%</span>
+              <button @click="previewZoomIn" class="btn-zoom" title="Zoom in">+</button>
+              <button @click="previewResetZoom" class="btn-zoom-text">{{ t.reset }}</button>
+              <button @click="handlePreviewFitToView" class="btn-zoom-text">{{ t.fit }}</button>
+              <div v-if="previewError" class="preview-error-inline">{{ previewError }}</div>
+            </div>
+            <div
+              ref="previewViewportRef"
+              class="editor-preview-viewport"
+              @mousedown="previewStartPan"
+              @mousemove="previewDoPan"
+              @mouseup="previewEndPan"
+              @mouseleave="previewEndPan"
+              @wheel="previewHandleWheel"
+            >
+              <div
+                ref="previewContainerRef"
+                class="editor-preview-content"
+                :style="previewTransformStyle"
+              ></div>
+            </div>
+          </div>
+        </div>
       </div>
-      <textarea
-        id="mermaid-editor-textarea"
-        v-model="editCode"
-        class="mermaid-textarea"
-        :placeholder="t.enterMermaidCode"
-        rows="10"
-      ></textarea>
-      <div class="editor-actions">
-        <button @click="saveEdit" class="btn-save">{{ t.saveDiagram }}</button>
-        <button @click="cancelEdit" class="btn-cancel">{{ t.cancelEdit }}</button>
-      </div>
-    </div>
-
-    <!-- Template modal -->
-    <DiagramTemplateModal
-      :show="showTemplateModal"
-      @close="showTemplateModal = false"
-      @select="handleTemplateSelect"
-    />
+    </Teleport>
 
     <div v-if="error" class="mermaid-error">
       {{ error }}
@@ -445,22 +558,121 @@ const handleTemplateSelect = (code: string) => {
   background: var(--border-secondary);
 }
 
-.mermaid-editor {
-  margin-bottom: 12px;
+/* Fullscreen Editor Overlay */
+.editor-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
 }
 
-.template-row {
+.editor-topbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
 }
 
-.template-buttons {
+.editor-topbar-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.editor-topbar-templates {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   flex: 1;
+}
+
+.editor-topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.editor-split-fullscreen {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-code-pane {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  border-right: 1px solid var(--border-primary);
+}
+
+.editor-code-pane .mermaid-textarea {
+  flex: 1;
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  resize: none;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.editor-preview-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.editor-preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.preview-error-inline {
+  margin-left: 12px;
+  font-size: 11px;
+  color: var(--error-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-preview-viewport {
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+}
+
+.editor-preview-viewport:active {
+  cursor: grabbing;
+}
+
+.editor-preview-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  min-height: 100%;
+  transition: transform 0.1s ease-out;
+}
+
+.editor-preview-content :deep(svg) {
+  max-width: 100%;
+  height: auto;
 }
 
 .btn-more-templates {
