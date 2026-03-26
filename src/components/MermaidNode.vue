@@ -113,6 +113,19 @@ const handleEditorKeydown = (e: KeyboardEvent) => {
   }
 };
 
+const handleTextareaKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const textarea = e.target as HTMLTextAreaElement;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    editCode.value = editCode.value.substring(0, start) + '  ' + editCode.value.substring(end);
+    nextTick(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + 2;
+    });
+  }
+};
+
 // Use composables
 const {
   zoomPercent,
@@ -272,16 +285,15 @@ watch(editCode, () => {
       </div>
     </div>
 
-    <!-- Template modal -->
-    <DiagramTemplateModal
-      :show="showTemplateModal"
-      @close="showTemplateModal = false"
-      @select="handleTemplateSelect"
-    />
-
     <!-- Fullscreen editor overlay -->
     <Teleport to="body">
       <div v-if="isEditing" class="editor-fullscreen" @keydown="handleEditorKeydown">
+        <!-- Template modal (inside fullscreen so it renders on top) -->
+        <DiagramTemplateModal
+          :show="showTemplateModal"
+          @close="showTemplateModal = false"
+          @select="handleTemplateSelect"
+        />
         <!-- Top bar -->
         <div class="editor-topbar">
           <span class="editor-topbar-title">Mermaid Editor</span>
@@ -311,6 +323,7 @@ watch(editCode, () => {
               v-model="editCode"
               class="mermaid-textarea"
               :placeholder="t.enterMermaidCode"
+              @keydown="handleTextareaKeydown"
             ></textarea>
           </div>
           <div class="editor-preview-pane">
