@@ -83,6 +83,13 @@ async fn focus_window_with_file(
 
     if let Some(label) = window_label {
         if let Some(window) = app.get_webview_window(&label) {
+            // Bring window to front even if minimized (#49)
+            if window.is_minimized().unwrap_or(false) {
+                let _ = window.unminimize();
+            }
+            if !window.is_visible().unwrap_or(true) {
+                let _ = window.show();
+            }
             window.set_focus().map_err(|e| e.to_string())?;
             // Emit event to switch to the tab with this file
             window.emit("focus-file", file_path).map_err(|e| e.to_string())?;
@@ -189,18 +196,21 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // When another instance is launched with arguments (file association)
             // Send the file path to the existing window
-            if args.len() > 1 {
-                let file_path = &args[1];
-                if file_path.ends_with(".md") || file_path.ends_with(".markdown") {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.emit("open-file", file_path.clone());
-                        let _ = window.set_focus();
-                    }
+            if let Some(window) = app.get_webview_window("main") {
+                // Bring window to front even if minimized (#49)
+                if window.is_minimized().unwrap_or(false) {
+                    let _ = window.unminimize();
                 }
-            } else {
-                // No file argument, just focus the existing window
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.set_focus();
+                if !window.is_visible().unwrap_or(true) {
+                    let _ = window.show();
+                }
+                let _ = window.set_focus();
+
+                if args.len() > 1 {
+                    let file_path = &args[1];
+                    if file_path.ends_with(".md") || file_path.ends_with(".markdown") {
+                        let _ = window.emit("open-file", file_path.clone());
+                    }
                 }
             }
         }))
