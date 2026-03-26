@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NodeViewWrapper } from "@tiptap/vue-3";
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import mermaid from "mermaid";
 import { useI18n } from "../i18n";
 import { useZoomPan } from "../composables/useZoomPan";
@@ -48,11 +48,45 @@ const applySvgSize = () => {
 };
 
 const containerRef = ref<HTMLDivElement | null>(null);
+const previewContainerRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
 const isEditing = ref(false);
 const editCode = ref(props.node.attrs.code);
 const error = ref<string | null>(null);
+const previewError = ref<string | null>(null);
 const showTemplateModal = ref(false);
+const isDark = ref(document.documentElement.classList.contains("dark"));
+
+// Live preview rendering (debounced)
+let previewTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const renderPreview = async () => {
+  if (!previewContainerRef.value || !isEditing.value) return;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark.value ? "dark" : "default",
+    securityLevel: "loose",
+  });
+
+  try {
+    previewError.value = null;
+    const id = `mermaid-preview-${Date.now()}`;
+    const codeForRender = editCode.value
+      .replace(/__BR__/g, '<br/>')
+      .replace(/\\n/g, '<br/>');
+    const { svg } = await mermaid.render(id, codeForRender);
+    previewContainerRef.value.innerHTML = svg;
+  } catch (e: unknown) {
+    previewError.value = e instanceof Error ? e.message : t.value.diagramError;
+    previewContainerRef.value.innerHTML = "";
+  }
+};
+
+const debouncedRenderPreview = () => {
+  if (previewTimeout) clearTimeout(previewTimeout);
+  previewTimeout = setTimeout(renderPreview, 400);
+};
 
 // Use composables
 const {
@@ -84,8 +118,6 @@ const handleWheel = (e: WheelEvent) => {
 const handleFitToView = () => {
   fitToView(containerRef.value, viewportRef.value);
 };
-
-const isDark = ref(document.documentElement.classList.contains("dark"));
 
 let darkModeObserver: MutationObserver | null = null;
 
@@ -157,6 +189,8 @@ const startEdit = () => {
   // Show <br> tags to user during editing (convert placeholder to actual syntax)
   editCode.value = props.node.attrs.code.replace(/__BR__/g, '<br/>');
   isEditing.value = true;
+  // Render initial preview after DOM updates
+  nextTick(() => renderPreview());
 };
 
 const saveEdit = () => {
@@ -179,6 +213,13 @@ const insertTemplate = (code: string) => {
 const handleTemplateSelect = (code: string) => {
   insertTemplate(code);
 };
+
+// Live preview: re-render on code changes while editing
+watch(editCode, () => {
+  if (isEditing.value) {
+    debouncedRenderPreview();
+  }
+});
 </script>
 
 <template>
@@ -222,13 +263,19 @@ const handleTemplateSelect = (code: string) => {
           {{ t.moreTemplates }}
         </button>
       </div>
-      <textarea
-        id="mermaid-editor-textarea"
-        v-model="editCode"
-        class="mermaid-textarea"
-        :placeholder="t.enterMermaidCode"
-        rows="10"
-      ></textarea>
+      <div class="editor-split">
+        <textarea
+          id="mermaid-editor-textarea"
+          v-model="editCode"
+          class="mermaid-textarea"
+          :placeholder="t.enterMermaidCode"
+        ></textarea>
+        <div class="editor-preview">
+          <div class="editor-preview-label">Preview</div>
+          <div v-if="previewError" class="mermaid-error preview-error">{{ previewError }}</div>
+          <div ref="previewContainerRef" class="editor-preview-content"></div>
+        </div>
+      </div>
       <div class="editor-actions">
         <button @click="saveEdit" class="btn-save">{{ t.saveDiagram }}</button>
         <button @click="cancelEdit" class="btn-cancel">{{ t.cancelEdit }}</button>
@@ -447,6 +494,59 @@ const handleTemplateSelect = (code: string) => {
 
 .mermaid-editor {
   margin-bottom: 12px;
+}
+
+.editor-split {
+  display: flex;
+  gap: 12px;
+  min-height: 250px;
+}
+
+.editor-split .mermaid-textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+}
+
+.editor-preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.editor-preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-tertiary);
+}
+
+.editor-preview-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  overflow: auto;
+}
+
+.editor-preview-content :deep(svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview-error {
+  margin: 8px;
+  font-size: 11px;
 }
 
 .template-row {
