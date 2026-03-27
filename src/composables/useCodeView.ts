@@ -23,23 +23,8 @@ export interface UseCodeViewReturn {
   onCodeContentUpdate: (value: string) => void;
 }
 
-// Cursor marker - unique string that won't appear in normal content
-const CURSOR_MARKER = '\u200B__CURSOR__\u200B'; // Zero-width spaces + marker
-
 let activeHighlightElement: HTMLElement | null = null;
 let highlightTimer: number | null = null;
-
-// Find cursor marker position and remove it
-const extractMarkerPosition = (text: string): { position: number; clean: string } => {
-  const pos = text.indexOf(CURSOR_MARKER);
-  if (pos === -1) {
-    return { position: -1, clean: text };
-  }
-  return {
-    position: pos,
-    clean: text.slice(0, pos) + text.slice(pos + CURSOR_MARKER.length),
-  };
-};
 
 // Get line number from character position
 const getLineFromPosition = (text: string, pos: number): number => {
@@ -470,25 +455,49 @@ const getComputedLineHeight = (textarea: HTMLTextAreaElement): number => {
   return cs.lineHeight === 'normal' ? fontSize * 1.2 : parseFloat(cs.lineHeight);
 };
 
-// Highlight cursor position in code editor.
-// Uses the same lineHeight * lineNumber math as the scroll calculation
-// to guarantee the highlight always aligns with the scrolled-to position.
+// Measure the exact top-offset of the caret inside a textarea using a mirror div.
+// This avoids lineNumber*lineHeight math which drifts due to sub-pixel rounding.
+const MIRROR_PROPS = [
+  'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
+  'letter-spacing', 'word-spacing', 'text-indent', 'text-transform',
+  'line-height', 'tab-size',
+  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+  'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+  'white-space', 'overflow-wrap', 'word-break',
+];
+
+const measureCaretTop = (textarea: HTMLTextAreaElement, position: number): number => {
+  const cs = window.getComputedStyle(textarea);
+  const div = document.createElement('div');
+  for (const prop of MIRROR_PROPS) div.style.setProperty(prop, cs.getPropertyValue(prop));
+  div.style.position = 'absolute';
+  div.style.visibility = 'hidden';
+  div.style.overflow = 'hidden';
+  div.style.height = 'auto';
+  div.style.width = textarea.clientWidth + 'px';
+  div.style.boxSizing = 'border-box';
+
+  div.appendChild(document.createTextNode(textarea.value.substring(0, position)));
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b';
+  div.appendChild(marker);
+
+  document.body.appendChild(div);
+  const top = marker.offsetTop;
+  document.body.removeChild(div);
+  return top;
+};
+
 const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
   const cursorPos = textarea.selectionStart;
-  const content = textarea.value;
-  const lineNumber = content.slice(0, cursorPos).split('\n').length - 1;
-
+  const caretTop = measureCaretTop(textarea, cursorPos);
   const lh = getComputedLineHeight(textarea);
-  const paddingTop = parseFloat(window.getComputedStyle(textarea).paddingTop);
-
   const rect = textarea.getBoundingClientRect();
+  const scale = textarea.offsetHeight > 0 ? rect.height / textarea.offsetHeight : 1;
 
-  // lineHeight, paddingTop, scrollTop are all in the textarea's internal
-  // coordinate system (pre-zoom in old Chromium, zoomed in Chromium 128+).
-  // Convert to viewport pixels via clientHeight → rect.height ratio.
-  const visiblePos = lineNumber * lh + paddingTop - textarea.scrollTop;
-  const scale = textarea.clientHeight > 0 ? rect.height / textarea.clientHeight : 1;
-  const top = rect.top + visiblePos * scale;
+  const visibleTop = caretTop - textarea.scrollTop;
+  const top = rect.top + visibleTop * scale;
   const lineHVp = lh * scale;
 
   if (top < rect.top || top + lineHVp > rect.bottom) return;
@@ -524,7 +533,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
     isToggling = true;
     if (!codeView.value) {
       // ═══════════════════════════════════════════════════════════════════
-      // VISUAL → CODE: Insert marker at cursor, convert, find marker position
+      // VISUAL → CODE
       // ═══════════════════════════════════════════════════════════════════
 
       let markerPosition = -1;
@@ -532,25 +541,39 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       if (editor) {
         const { from } = editor.state.selection;
 
-        // Always try marker mechanism first — it's the most precise way to map
-        // the TipTap cursor to a markdown position.
-        editor.commands.insertContentAt(from, CURSOR_MARKER, { updateSelection: false });
-        const htmlWithMarker = editor.getHTML();
-        editor.commands.deleteRange({ from, to: from + CURSOR_MARKER.length });
-        const markdownWithMarker = htmlToMarkdown(htmlWithMarker);
-        const extracted = extractMarkerPosition(markdownWithMarker);
-        markerPosition = extracted.position;
-        codeContent.value = extracted.clean;
+        codeContent.value = htmlToMarkdown(editor.getHTML());
 
-        // Fallback: if marker landed near the document start but we have a
-        // saved position deep in the file, the marker is from a default cursor
-        // (posAtDOM failed during code→visual, TipTap cursor stayed at pos 0).
-        // Use savedCursorLine instead.
+        try {
+          const $pos = editor.state.doc.resolve(from);
+          const topBlockIndex = $pos.index(0);
+          const blocks = parseMarkdownBlocks(codeContent.value);
+
+          if (topBlockIndex >= 0 && topBlockIndex < blocks.length) {
+            const block = blocks[topBlockIndex];
+            const lines = codeContent.value.split('\n');
+            let charPos = 0;
+            for (let i = 0; i < block.startLine && i < lines.length; i++) {
+              charPos += lines[i].length + 1;
+            }
+
+            const blockNode = $pos.depth >= 1 ? $pos.node(1) : null;
+            if (blockNode && (block.type === 'heading' || block.type === 'paragraph')) {
+              const textOffset = from - $pos.start(1);
+              const mdLine = lines[block.startLine] || '';
+              const prefixMatch = mdLine.match(/^(#{1,6}\s|>\s)/);
+              const prefixLen = prefixMatch ? prefixMatch[0].length : 0;
+              charPos += Math.min(prefixLen + textOffset, mdLine.length);
+            }
+
+            markerPosition = Math.min(charPos, codeContent.value.length);
+          }
+        } catch { /* resolve() can throw for invalid positions */ }
+
         if (savedCursorLine.value > 5) {
-          const markerLine = markerPosition >= 0
+          const resolvedLine = markerPosition >= 0
             ? getLineFromPosition(codeContent.value, markerPosition)
             : -1;
-          if (markerLine <= 2) {
+          if (resolvedLine <= 2) {
             const lines = codeContent.value.split('\n');
             let pos = 0;
             for (let i = 0; i < savedCursorLine.value && i < lines.length; i++) {
@@ -575,7 +598,6 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
       codeView.value = true;
 
-      // Wait for Vue to mount the textarea (first tick) and apply :value binding (second tick)
       await nextTick();
       await nextTick();
 
@@ -590,13 +612,11 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           const scrollTarget = Math.max(0, (lineNumber - 5) * lh);
           codeEditorRef.value.scrollTop = scrollTarget;
         } else {
-          // Fallback: use scroll ratio
           const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
           const targetScroll = Math.round(savedScrollRatio.value * codeMaxScroll);
           codeEditorRef.value.scrollTop = targetScroll;
         }
 
-        // Highlight cursor position
         window.setTimeout(() => {
           if (codeEditorRef.value) {
             highlightCodeCursor(codeEditorRef.value);
@@ -608,18 +628,12 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       }
     } else {
       // ═══════════════════════════════════════════════════════════════════
-      // CODE → VISUAL: Use line-based cursor restoration (no marker injection)
-      //
-      // Previously, a CURSOR_MARKER was injected into the markdown text at
-      // the cursor position. This corrupted image/link syntax when the
-      // cursor was inside e.g. ![alt](url), and zero-width spaces persisted
-      // invisibly (#37). Now we always use line-based positioning which is
-      // safe for all markdown constructs.
+      // CODE → VISUAL
       // ═══════════════════════════════════════════════════════════════════
 
       let cursorLine = 0;
       let codeBlockIndex = -1;
-      let lineInCodeBlock = -1; // line offset within the code block (for drill-down)
+      let lineInCodeBlock = -1;
 
       if (codeEditorRef.value) {
         const cursorPos = codeEditorRef.value.selectionStart;

@@ -179,7 +179,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     // avoids the empty-content bug caused by SplitContainer being unmounted.
     const markdownOverride = getMarkdownOverride?.() ?? null;
     const html = markdownOverride === null ? getEditorHtml() : null;
-    let markdown = markdownOverride ?? htmlToMarkdown(html!);
+    let markdown = (markdownOverride ?? htmlToMarkdown(html!)).trimEnd();
 
     const tabIndex = findActiveTabIndex();
 
