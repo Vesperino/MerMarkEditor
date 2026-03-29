@@ -72,7 +72,7 @@ onMounted(() => {
 
       // Save file content before transfer
       if (tab && tab.content) {
-        const markdownContent = htmlToMarkdown(tab.content);
+        const markdownContent = htmlToMarkdown(tab.content).trimEnd();
         await writeTextFile(filePath, markdownContent);
       }
 

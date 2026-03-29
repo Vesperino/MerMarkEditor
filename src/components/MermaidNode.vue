@@ -26,7 +26,7 @@ const props = defineProps<{
 const sizeOptions = [25, 50, 75, 100] as const;
 
 // Current diagram size
-const diagramSize = computed(() => props.node.attrs.printScale || 100);
+const diagramSize = computed(() => props.node.attrs.printScale || 25);
 
 const setDiagramSize = (size: number) => {
   props.updateAttributes({ printScale: size });
@@ -77,6 +77,38 @@ const {
 
 const handlePreviewFitToView = () => {
   previewFitToView(previewContainerRef.value, previewViewportRef.value);
+};
+
+// Resizable split between code and preview panes
+const splitRatio = ref(50);
+let isDraggingSplit = false;
+let splitContainerRect: DOMRect | null = null;
+
+const splitContainerEl = ref<HTMLElement | null>(null);
+
+const startSplitDrag = (e: MouseEvent) => {
+  isDraggingSplit = true;
+  const container = (e.target as HTMLElement).closest('.editor-split-fullscreen') as HTMLElement;
+  splitContainerEl.value = container;
+  if (container) splitContainerRect = container.getBoundingClientRect();
+  document.addEventListener('mousemove', doSplitDrag);
+  document.addEventListener('mouseup', endSplitDrag);
+  e.preventDefault();
+};
+
+const doSplitDrag = (e: MouseEvent) => {
+  if (!isDraggingSplit || !splitContainerEl.value) return;
+  splitContainerRect = splitContainerEl.value.getBoundingClientRect();
+  const x = e.clientX - splitContainerRect.left;
+  const pct = (x / splitContainerRect.width) * 100;
+  splitRatio.value = Math.min(80, Math.max(20, pct));
+};
+
+const endSplitDrag = () => {
+  isDraggingSplit = false;
+  splitContainerRect = null;
+  document.removeEventListener('mousemove', doSplitDrag);
+  document.removeEventListener('mouseup', endSplitDrag);
 };
 
 const renderPreview = async () => {
@@ -317,7 +349,7 @@ watch(editCode, () => {
         </div>
         <!-- Split: code left, preview right -->
         <div class="editor-split-fullscreen">
-          <div class="editor-code-pane">
+          <div class="editor-code-pane" :style="{ flex: `0 0 ${splitRatio}%` }">
             <textarea
               id="mermaid-editor-textarea"
               v-model="editCode"
@@ -326,7 +358,10 @@ watch(editCode, () => {
               @keydown="handleTextareaKeydown"
             ></textarea>
           </div>
-          <div class="editor-preview-pane">
+          <div class="split-divider-mermaid" @mousedown="startSplitDrag">
+            <div class="divider-handle-mermaid"></div>
+          </div>
+          <div class="editor-preview-pane" :style="{ flex: `0 0 ${100 - splitRatio}%` }">
             <div class="editor-preview-toolbar">
               <button @click="previewZoomOut" class="btn-zoom" title="Zoom out">−</button>
               <span class="zoom-level">{{ previewZoomPercent }}%</span>
@@ -607,10 +642,8 @@ watch(editCode, () => {
 }
 
 .editor-code-pane {
-  flex: 1;
   display: flex;
   min-width: 0;
-  border-right: 1px solid var(--border-primary);
 }
 
 .editor-code-pane .mermaid-textarea {
@@ -624,8 +657,45 @@ watch(editCode, () => {
   line-height: 1.6;
 }
 
+.split-divider-mermaid {
+  width: 8px;
+  cursor: col-resize;
+  background: var(--divider-bg, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.split-divider-mermaid::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  top: 0;
+  bottom: 0;
+  cursor: col-resize;
+}
+
+.split-divider-mermaid:hover,
+.split-divider-mermaid:active {
+  background: var(--divider-hover, #cbd5e1);
+}
+
+.divider-handle-mermaid {
+  width: 2px;
+  height: 32px;
+  border-radius: 1px;
+  background: var(--divider-handle, #94a3b8);
+}
+
+.split-divider-mermaid:hover .divider-handle-mermaid,
+.split-divider-mermaid:active .divider-handle-mermaid {
+  background: var(--divider-handle-hover, #64748b);
+}
+
 .editor-preview-pane {
-  flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;

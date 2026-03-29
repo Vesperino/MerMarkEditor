@@ -577,7 +577,7 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
     // For active tab in active pane, get fresh content from editor; for others, use stored content
     const isActiveTab = tabId === activeTabId.value && paneId === activePaneId.value;
     const html = isActiveTab ? getEditorContent() : tab.content;
-    let markdown = htmlToMarkdown(html);
+    let markdown = htmlToMarkdown(html).trimEnd();
 
     // Preserve original line endings
     if (tab.originalMarkdown) {

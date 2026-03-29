@@ -86,7 +86,7 @@ export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseC
       if (filePath) {
         // Get current content - if this is the active tab, get from editor
         const html = tab.id === activeTabId.value ? getEditorHtml() : tab.content;
-        const markdown = htmlToMarkdown(html);
+        const markdown = htmlToMarkdown(html).trimEnd();
         await writeTextFile(filePath, markdown);
 
         // Update the tab

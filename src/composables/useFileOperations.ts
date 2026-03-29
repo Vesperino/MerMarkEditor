@@ -189,6 +189,8 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       markdown = applyLineEnding(markdown, originalLineEnding);
     }
 
+    markdown = markdown.trimEnd();
+
     // Pre-save conflict check
     let mergedContentApplied = false;
     if (tabIndex !== -1 && onPreSaveConflict) {

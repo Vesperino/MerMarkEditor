@@ -50,14 +50,14 @@ export const MermaidExtension = Node.create<MermaidOptions>({
         },
       },
       printScale: {
-        default: 100,
+        default: 25,
         parseHTML: (element) => {
           const scale = element.getAttribute("data-print-scale");
-          return scale ? parseInt(scale, 10) : 100;
+          return scale ? parseInt(scale, 10) : 25;
         },
         renderHTML: (attributes) => {
           return {
-            "data-print-scale": attributes.printScale || 100,
+            "data-print-scale": attributes.printScale || 25,
           };
         },
       },
