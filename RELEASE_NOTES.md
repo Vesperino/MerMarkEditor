@@ -1,5 +1,8 @@
 ## New Features
 
+- **Resizable mermaid editor split** — drag the divider between code and preview panes in the fullscreen mermaid editor to adjust their sizes (#51)
+- **Mermaid default scale** — new diagrams now render at 25% by default
+
 - **Customizable Layout** — toolbar items can now be moved between three zones: **Top Toolbar**, **Bottom Status Bar**, and **Left Sidebar** via Settings > Layout (#43)
   - Drag & drop items between zones to build your ideal layout
   - Move-to buttons (arrows) appear on hover for quick zone switching
@@ -25,3 +28,5 @@
 - **Fixed:** Clicking a heading or paragraph in Visual view and switching to Code lands on the correct markdown line
 - **Fixed:** Cursor inside a large code block now scrolls to and highlights the exact line within the code block in Visual view
 - **Fixed:** Code view tab switching no longer loses content (#46)
+- **Fixed:** Trailing blank lines no longer added at the end of markdown files on save (#53)
+- **Fixed:** Left bar, status bar and split dividers no longer appear in PDF/print output
