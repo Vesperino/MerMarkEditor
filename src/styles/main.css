@@ -506,6 +506,9 @@ button:disabled {
   /* Hide app UI - including tab bar and dialogs */
   .toolbar,
   .tab-bar,
+  .left-bar,
+  .status-bar,
+  .split-divider,
   .app > header,
   .mermaid-header,
   .mermaid-actions,
