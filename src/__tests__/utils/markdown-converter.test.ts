@@ -706,3 +706,38 @@ describe('line ending preservation through conversion', () => {
     expect(restored).toContain('Paragraph text.');
   });
 });
+
+describe('markdownToHtml trailing whitespace fix (#53)', () => {
+  it('should not return HTML with trailing newlines', () => {
+    const result = markdownToHtml('Hello\n\n');
+    expect(result).toBe(result.trimEnd());
+  });
+
+  it('should not return HTML with trailing whitespace for simple content', () => {
+    const result = markdownToHtml('# Title\n\nParagraph\n');
+    expect(result).toBe(result.trimEnd());
+  });
+
+  it('should not add trailing newlines during code-to-visual round-trip', () => {
+    const original = '# Title\n\nSome text';
+    const html = markdownToHtml(original);
+    expect(html).toBe(html.trimEnd());
+    const md = htmlToMarkdown(html);
+    expect(md).toBe(md.trim());
+  });
+});
+
+describe('applyLineEnding + trimEnd save path (#53)', () => {
+  it('should not leave trailing whitespace after applyLineEnding for CRLF', () => {
+    const md = htmlToMarkdown('<p>Hello</p>').trimEnd();
+    const result = applyLineEnding(md, '\r\n').trimEnd();
+    expect(result).toBe(result.trimEnd());
+    expect(result).not.toMatch(/[\r\n]+$/);
+  });
+
+  it('should not leave trailing whitespace after applyLineEnding for LF', () => {
+    const md = htmlToMarkdown('<p>Hello</p>').trimEnd();
+    const result = applyLineEnding(md, '\n').trimEnd();
+    expect(result).not.toMatch(/\n+$/);
+  });
+});

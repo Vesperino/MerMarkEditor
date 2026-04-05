@@ -250,7 +250,7 @@ export function markdownToHtml(md: string): string {
   html = html.replace(/<p>__PAGE_BREAK__<\/p>/g, '<div class="page-break"></div>');
   html = html.replace(/__PAGE_BREAK__/g, '<div class="page-break"></div>');
 
-  return html;
+  return html.trimEnd();
 }
 
 export function detectLineEnding(text: string): string {

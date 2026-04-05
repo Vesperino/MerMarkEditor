@@ -7,7 +7,7 @@ import { useSystemFonts } from '../composables/useSystemFonts';
 import { useLayoutConfig, type LayoutZone } from '../composables/useLayoutConfig';
 import { getItemDef } from '../data/toolbarItems';
 
-const { t, locale, toggleLocale } = useI18n();
+const { t, locale, setLocale, availableLocales, localeLabels } = useI18n();
 const {
   settings,
   toggleAutoSave,
@@ -386,18 +386,13 @@ onUnmounted(() => {
               <div class="setting-control">
                 <div class="toggle-group">
                   <button
+                    v-for="loc in availableLocales"
+                    :key="loc"
                     class="toggle-option"
-                    :class="{ active: locale === 'en' }"
-                    @click="locale !== 'en' && toggleLocale()"
+                    :class="{ active: locale === loc }"
+                    @click="locale !== loc && setLocale(loc)"
                   >
-                    English
-                  </button>
-                  <button
-                    class="toggle-option"
-                    :class="{ active: locale === 'pl' }"
-                    @click="locale !== 'pl' && toggleLocale()"
-                  >
-                    Polski
+                    {{ localeLabels[loc] }}
                   </button>
                 </div>
               </div>
@@ -446,7 +441,7 @@ onUnmounted(() => {
                       {{ font.label }}
                     </option>
                   </optgroup>
-                  <optgroup v-if="fontsLoaded && editorSystemFonts.length > 0" :label="locale === 'pl' ? 'Czcionki systemowe' : 'System Fonts'">
+                  <optgroup v-if="fontsLoaded && editorSystemFonts.length > 0" :label="t.systemFonts">
                     <option
                       v-for="font in editorSystemFonts"
                       :key="'sys-' + font.family"
@@ -524,7 +519,7 @@ onUnmounted(() => {
                       {{ font.label }}
                     </option>
                   </optgroup>
-                  <optgroup v-if="fontsLoaded && codeSystemFonts.length > 0" :label="locale === 'pl' ? 'Czcionki systemowe' : 'System Fonts'">
+                  <optgroup v-if="fontsLoaded && codeSystemFonts.length > 0" :label="t.systemFonts">
                     <option
                       v-for="font in codeSystemFonts"
                       :key="'sys-' + font.family"
@@ -534,7 +529,7 @@ onUnmounted(() => {
                       {{ font.family }}
                     </option>
                   </optgroup>
-                  <optgroup v-if="fontsLoaded && editorSystemFonts.length > 0" :label="locale === 'pl' ? 'Inne czcionki' : 'Other Fonts'">
+                  <optgroup v-if="fontsLoaded && editorSystemFonts.length > 0" :label="t.otherFonts">
                     <option
                       v-for="font in editorSystemFonts"
                       :key="'sys-other-' + font.family"

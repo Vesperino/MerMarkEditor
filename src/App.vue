@@ -40,6 +40,8 @@ import { useTabDrag } from './composables/useTabDrag';
 import { useEditorZoom } from './composables/useEditorZoom';
 import { useFileReload } from './composables/useFileReload';
 import { useLayoutConfig } from './composables/useLayoutConfig';
+import { useSessionRestore } from './composables/useSessionRestore';
+import { useRecentFiles } from './composables/useRecentFiles';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -58,6 +60,9 @@ const {
   isWindowEmpty,
   disableSplit,
 } = useSplitView();
+
+const { getSavedSession, clearSession, startWatching: startSessionWatching } = useSessionRestore(splitState);
+const { addRecentFile } = useRecentFiles();
 
 const {
   closeCurrentWindow,
@@ -353,6 +358,8 @@ const {
   markSaveEnd: (filePath: string, content: string) => markSaveEnd(filePath, content),
   onFileOpened: (filePath: string, content: string) => {
     watchFile(filePath, content);
+    const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
+    addRecentFile(filePath, fileName);
   },
   onPreSaveConflict: (filePath: string, diskContent: string, localMarkdown: string) => {
     const tab = findTabByFilePath(filePath);
@@ -583,6 +590,7 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
     if (tab.originalMarkdown) {
       const originalLineEnding = detectLineEnding(tab.originalMarkdown);
       markdown = applyLineEnding(markdown, originalLineEnding);
+      markdown = markdown.trimEnd();
     }
 
     markSaveStart(tab.filePath);
@@ -800,7 +808,10 @@ onMounted(async () => {
   // Check for file path from URL query parameters (for new windows created via drag)
   const { getFilePathFromUrl } = useWindowManager();
   const urlFilePath = getFilePathFromUrl();
+  let hasExplicitFile = false;
+
   if (urlFilePath) {
+    hasExplicitFile = true;
     console.log('[App] Opening file from URL:', urlFilePath);
     await nextTick();
     setTimeout(() => openFileWithCrossWindowCheck(urlFilePath), 100);
@@ -809,6 +820,7 @@ onMounted(async () => {
     try {
       const filePath = await invoke<string | null>('get_open_file_path');
       if (filePath) {
+        hasExplicitFile = true;
         await nextTick();
         setTimeout(() => openFileWithCrossWindowCheck(filePath), 100);
       }
@@ -816,6 +828,26 @@ onMounted(async () => {
       console.error('Błąd pobierania ścieżki pliku:', error);
     }
   }
+
+  // Restore previous session if no explicit file was provided
+  if (!hasExplicitFile) {
+    const session = getSavedSession();
+    if (session) {
+      await nextTick();
+      for (const pane of session.panes) {
+        for (const tab of pane.tabs) {
+          try {
+            await openFileWithCrossWindowCheck(tab.filePath);
+          } catch {
+            // File may have been deleted since last session
+          }
+        }
+      }
+    }
+  }
+
+  // Start persisting session state
+  startSessionWatching();
 
   // Listen for open-file events
   try {
@@ -938,6 +970,7 @@ onUnmounted(async () => {
       :toc-active="showTocPanel"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
+      @open-recent="openFileWithCrossWindowCheck"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
@@ -963,6 +996,7 @@ onUnmounted(async () => {
         :toc-active="showTocPanel"
         @new-file="newFile"
         @open-file="openFileWithCrossWindowDialog"
+      @open-recent="openFileWithCrossWindowCheck"
         @save-file="saveFile"
         @save-file-as="saveFileAs"
         @export-pdf="exportPdf"
@@ -1022,6 +1056,7 @@ onUnmounted(async () => {
       :toc-active="showTocPanel"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
+      @open-recent="openFileWithCrossWindowCheck"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
