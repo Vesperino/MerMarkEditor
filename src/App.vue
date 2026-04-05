@@ -61,7 +61,7 @@ const {
   disableSplit,
 } = useSplitView();
 
-const { getSavedSession, clearSession, startWatching: startSessionWatching } = useSessionRestore(splitState);
+const { getSavedSession, startWatching: startSessionWatching } = useSessionRestore(splitState);
 const { addRecentFile } = useRecentFiles();
 
 const {

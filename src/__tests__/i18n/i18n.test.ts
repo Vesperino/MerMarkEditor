@@ -6,12 +6,15 @@ import zhCN from '../../i18n/locales/zh-CN';
 
 const locales: Record<string, Translations> = { en, pl, 'zh-CN': zhCN };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRecord = Record<string, any>;
+
 function getStringKeys(obj: Translations): string[] {
-  return Object.keys(obj).filter(key => typeof (obj as Record<string, unknown>)[key] === 'string');
+  return Object.keys(obj).filter(key => typeof (obj as AnyRecord)[key] === 'string');
 }
 
 function getFunctionKeys(obj: Translations): string[] {
-  return Object.keys(obj).filter(key => typeof (obj as Record<string, unknown>)[key] === 'function');
+  return Object.keys(obj).filter(key => typeof (obj as AnyRecord)[key] === 'function');
 }
 
 describe('i18n translations', () => {
@@ -36,7 +39,7 @@ describe('i18n translations', () => {
   it('no string values should be empty', () => {
     for (const [name, locale] of Object.entries(locales)) {
       for (const key of getStringKeys(locale)) {
-        const value = (locale as Record<string, unknown>)[key] as string;
+        const value = (locale as AnyRecord)[key] as string;
         expect(value.length, `${name}.${key} is empty`).toBeGreaterThan(0);
       }
     }
@@ -45,8 +48,7 @@ describe('i18n translations', () => {
   it('function translations should return strings', () => {
     for (const [name, locale] of Object.entries(locales)) {
       for (const key of getFunctionKeys(locale)) {
-        const fn = (locale as Record<string, unknown>)[key] as (...args: unknown[]) => string;
-        // Test with a sample argument
+        const fn = (locale as AnyRecord)[key] as (...args: unknown[]) => string;
         const result = key === 'headingLevel' ? fn(1) : fn('test.md');
         expect(typeof result, `${name}.${key}() should return string`).toBe('string');
         expect(result.length, `${name}.${key}() returned empty string`).toBeGreaterThan(0);
@@ -57,10 +59,9 @@ describe('i18n translations', () => {
   it('zh-CN should have Chinese characters in most values', () => {
     const chineseRegex = /[\u4e00-\u9fff]/;
     const stringKeys = getStringKeys(zhCN);
-    // Exclude keys that are reasonably the same across languages (single letters, names)
     const skipKeys = new Set(['appName', 'bold', 'italic', 'strikethrough', 'inlineCode', 'mermaid', 'exportPdf', 'printScale', 'diffView', 'mergeView']);
     const keysToCheck = stringKeys.filter(k => !skipKeys.has(k));
-    const chineseCount = keysToCheck.filter(key => chineseRegex.test((zhCN as Record<string, unknown>)[key] as string)).length;
+    const chineseCount = keysToCheck.filter(key => chineseRegex.test((zhCN as AnyRecord)[key] as string)).length;
     const ratio = chineseCount / keysToCheck.length;
     expect(ratio, `Only ${(ratio * 100).toFixed(0)}% of zh-CN keys contain Chinese characters`).toBeGreaterThan(0.8);
   });

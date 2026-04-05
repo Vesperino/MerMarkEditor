@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref } from 'vue';
 import { useSessionRestore, type SessionData } from '../../composables/useSessionRestore';
-import type { SplitViewState } from '../../types/pane';
 
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
@@ -23,8 +22,8 @@ Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageMock,
 });
 
-function createSplitState(tabs: { filePath: string | null; fileName: string }[] = []): ReturnType<typeof ref<SplitViewState>> {
-  return ref<SplitViewState>({
+function createSplitState(tabs: { filePath: string | null; fileName: string }[] = []) {
+  return ref({
     panes: [{
       id: 'left',
       activeTabId: 'tab-1',
