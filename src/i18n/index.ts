@@ -1,6 +1,9 @@
 import { ref, computed } from 'vue';
+import en from './locales/en';
+import pl from './locales/pl';
+import zhCN from './locales/zh-CN';
 
-export type Locale = 'en' | 'pl';
+export type Locale = 'en' | 'pl' | 'zh-CN';
 
 export interface Translations {
   // App
@@ -208,6 +211,7 @@ export interface Translations {
   preSaveConflictMessage: string;
   saveAnyway: string;
   fileDeletedExternally: (fileName: string) => string;
+
   // Table of Contents
   tableOfContents: string;
   tocTooltip: string;
@@ -236,491 +240,40 @@ export interface Translations {
   resetLayout: string;
   layoutDescription: string;
   moveTo: string;
+
+  // Fonts
+  systemFonts: string;
+  otherFonts: string;
+
+  // Session
+  recentFiles: string;
+  clearRecentFiles: string;
+  noRecentFiles: string;
+  restoreSession: string;
 }
 
 const translations: Record<Locale, Translations> = {
-  en: {
-    appName: 'MerMark Editor',
-
-    // Toolbar - File operations
-    new: 'New',
-    open: 'Open',
-    save: 'Save',
-    saveAs: 'Save As',
-    exportPdf: 'PDF',
-
-    // Toolbar - Edit operations
-    undo: 'Undo',
-    redo: 'Redo',
-
-    // Toolbar - Text styles
-    paragraph: 'Paragraph',
-    heading: 'Heading',
-    headingLevel: (level: number) => `Heading ${level}`,
-
-    // Toolbar - Formatting
-    bold: 'B',
-    boldTooltip: 'Bold **text** (Ctrl+B)',
-    italic: 'I',
-    italicTooltip: 'Italic *text* (Ctrl+I)',
-    strikethrough: 'S',
-    strikethroughTooltip: 'Strikethrough ~~text~~',
-    inlineCode: 'Code',
-    inlineCodeTooltip: 'Inline code `code`',
-
-    // Toolbar - Lists
-    bulletList: 'Bullet list - item',
-    orderedList: 'Numbered list 1. item',
-    taskList: 'Task list - [x] task',
-
-    // Toolbar - Blocks
-    blockquote: 'Quote > text',
-    codeBlock: 'Code block ```code```',
-    horizontalRule: 'Horizontal line ---',
-
-    // Toolbar - Links & Media
-    link: 'Link [text](url)',
-    linkPrompt: 'Link URL:',
-    image: 'Image ![alt](url)',
-    imagePrompt: 'Image URL:',
-    imageFromUrl: 'From URL',
-    imageFromFile: 'From file',
-
-    // Toolbar - Table
-    table: 'Markdown Table',
-    insertTable: 'Insert table',
-    addRowAbove: 'Add row above',
-    addRowBelow: 'Add row below',
-    addColumnBefore: 'Add column before',
-    addColumnAfter: 'Add column after',
-    deleteRow: 'Delete row',
-    deleteColumn: 'Delete column',
-    deleteTable: 'Delete table',
-
-    // Toolbar - Mermaid
-    mermaid: 'Mermaid',
-    insertMermaid: 'Insert Mermaid diagram',
-
-    // Toolbar - Code View
-    codeView: 'Code',
-    visualView: 'Visual',
-
-    // Toolbar - Split View
-    splitView: 'Split',
-    singleView: 'Single',
-
-    // Toolbar - Diff Preview
-    changes: 'Changes',
-    noChanges: 'No changes',
-    closeDiff: 'Close',
-    compareTabs: 'Compare',
-    compareTabsTooltip: 'Compare left and right tabs (Ctrl+Shift+C)',
-
-    // Keyboard Shortcuts
-    keyboardShortcuts: 'Keyboard Shortcuts',
-    shortcutAction: 'Action',
-    shortcutKey: 'Shortcut',
-
-    // Stats
-    stats: 'Statistics',
-    characters: 'characters',
-    words: 'words',
-    tokens: 'tokens',
-    tokensTooltip: 'Estimated tokens for AI models (click to change model)',
-
-    // Editor
-    placeholder: 'Start typing or paste text...',
-
-    // Dialogs
-    unsavedChanges: 'Unsaved Changes',
-    unsavedChangesMessage: 'This document has unsaved changes. Do you want to save before closing?',
-    dontSave: "Don't Save",
-    cancel: 'Cancel',
-    saveAndClose: 'Save & Close',
-
-    // Tabs
-    newDocument: 'New Document',
-    closeTab: 'Close tab',
-
-    // Mermaid Node
-    editDiagram: 'Edit',
-    saveDiagram: 'Save',
-    cancelEdit: 'Cancel',
-    diagramError: 'Diagram rendering error',
-    printScale: 'PDF',
-    diagramSize: 'Size',
-    templates: 'Templates',
-    basic: 'Basic',
-    deleteDiagram: 'Delete',
-    moreTemplates: 'More templates...',
-    mermaidDiagramTemplates: 'Mermaid Diagram Templates',
-    enterMermaidCode: 'Enter Mermaid code...',
-    zoomIn: 'Zoom in',
-    zoomOut: 'Zoom out',
-    reset: 'Reset',
-    fit: 'Fit',
-    fullscreen: 'Fullscreen',
-    close: 'Close',
-
-    // Template categories
-    categoryBasic: 'Basic',
-    categoryStatesProcesses: 'States & Processes',
-    categoryDataRelations: 'Data & Relations',
-    categoryGitRequirements: 'Git & Requirements',
-    categoryC4Model: 'C4 Model',
-    categoryAdvanced: 'Advanced',
-
-    // File dialogs
-    openFile: 'Open Markdown file',
-    saveFile: 'Save Markdown file',
-    markdownFiles: 'Markdown Files',
-    allFiles: 'All Files',
-
-    // Settings
-    settings: 'Settings',
-    autoSave: 'Auto-save',
-    autoSaveOn: 'On',
-    autoSaveOff: 'Off',
-    wordWrap: 'Word wrap',
-    dropFilesHere: 'Drop .md files here',
-    editorFont: 'Editor font',
-    codeFont: 'Code font',
-    lineHeight: 'Line height',
-    spellcheck: 'Spellcheck',
-    expandTabs: 'Expand tabs to fit name',
-    appearance: 'Appearance',
-    editor: 'Editor',
-    code: 'Code',
-    general: 'General',
-    on: 'On',
-    off: 'Off',
-    language: 'Language',
-
-    // Update dialog
-    updateAvailable: 'Update Available',
-    newVersionAvailable: 'A new version is available:',
-    downloadingUpdate: 'Downloading update...',
-    later: 'Later',
-    updating: 'Updating...',
-    updateNow: 'Update Now',
-    whatsNew: "What's New",
-    whatsNewIn: "What's New in",
-    loadingChangelog: 'Loading changelog...',
-    changelogError: 'Could not load changelog.',
-
-    // Split view / Panes
-    dragTabHere: 'Drag tab here',
-    orOpenFileInPane: 'or open a file in this pane',
-    dropTabHere: 'Drop tab here',
-
-    // Save confirm dialog
-    fileHasUnsavedChanges: (fileName: string) => `File "${fileName}" has unsaved changes.`,
-    saveBeforeClosing: 'Do you want to save before closing?',
-    discard: 'Discard',
-
-    // External link dialog
-    openExternalLink: 'Open External Link',
-    confirmNavigateTo: 'Are you sure you want to navigate to:',
-    openLink: 'Open',
-
-    // Editor Zoom
-    zoom: 'Zoom',
-
-    // Theme
-    darkMode: 'Dark',
-    lightMode: 'Light',
-
-    // File watching & conflict
-    fileReloadedExternally: (fileName: string) => `"${fileName}" was updated externally and reloaded.`,
-    fileReloaded: 'File reloaded from disk.',
-    fileReloadError: 'Could not reload file from disk.',
-    fileChangedExternally: 'File Changed Externally',
-    fileConflictMessage: 'The file has been modified outside the editor while you have unsaved changes.',
-    keepMyChanges: 'Keep My Changes',
-    loadExternalVersion: 'Load External Version',
-    externalChanges: 'External Changes',
-    reloadFile: 'Reload file',
-    preSaveConflict: 'File Modified',
-    preSaveConflictMessage: 'The file has been modified externally since you last loaded or saved it.',
-    saveAnyway: 'Save Anyway',
-    fileDeletedExternally: (fileName: string) => `"${fileName}" was deleted externally.`,
-    // Table of Contents
-    tableOfContents: 'Table of Contents',
-    tocTooltip: 'Table of Contents (Ctrl+Shift+T)',
-    tocEmpty: 'No headings found. Add headings (H1-H6) to see the table of contents.',
-
-    diffView: 'Diff',
-    mergeView: 'Merge',
-    acceptAllExternal: 'Accept All External',
-    rejectAllExternal: 'Reject All External',
-    mergeHint: 'Select which external changes to keep',
-    unchangedLines: 'unchanged lines',
-    collapseLines: 'Collapse',
-    changeHunk: 'Change',
-    keepOriginal: 'Keep Mine',
-    acceptExternal: 'Take External',
-    changesAccepted: 'changes accepted',
-    applyMerge: 'Apply Merge',
-
-    // Layout customization
-    layout: 'Layout',
-    topToolbar: 'Top Toolbar',
-    bottomStatusBar: 'Bottom Status Bar',
-    leftSidebar: 'Left Sidebar',
-    hiddenItems: 'Hidden Items',
-    resetLayout: 'Reset to Defaults',
-    layoutDescription: 'Drag items between zones to customize the layout',
-    moveTo: 'Move to',
-  },
-
-  pl: {
-    appName: 'MerMark Editor',
-
-    // Toolbar - File operations
-    new: 'Nowy',
-    open: 'Otwórz',
-    save: 'Zapisz',
-    saveAs: 'Zapisz jako',
-    exportPdf: 'PDF',
-
-    // Toolbar - Edit operations
-    undo: 'Cofnij',
-    redo: 'Ponów',
-
-    // Toolbar - Text styles
-    paragraph: 'Paragraf',
-    heading: 'Nagłówek',
-    headingLevel: (level: number) => `Nagłówek ${level}`,
-
-    // Toolbar - Formatting
-    bold: 'B',
-    boldTooltip: 'Pogrubienie **tekst** (Ctrl+B)',
-    italic: 'I',
-    italicTooltip: 'Kursywa *tekst* (Ctrl+I)',
-    strikethrough: 'S',
-    strikethroughTooltip: 'Przekreślenie ~~tekst~~',
-    inlineCode: 'Kod',
-    inlineCodeTooltip: 'Kod inline `kod`',
-
-    // Toolbar - Lists
-    bulletList: 'Lista punktowana - element',
-    orderedList: 'Lista numerowana 1. element',
-    taskList: 'Lista zadań - [x] zadanie',
-
-    // Toolbar - Blocks
-    blockquote: 'Cytat > tekst',
-    codeBlock: 'Blok kodu ```kod```',
-    horizontalRule: 'Linia pozioma ---',
-
-    // Toolbar - Links & Media
-    link: 'Link [tekst](url)',
-    linkPrompt: 'URL linku:',
-    image: 'Obrazek ![alt](url)',
-    imagePrompt: 'URL obrazka:',
-    imageFromUrl: 'Z adresu URL',
-    imageFromFile: 'Z pliku',
-
-    // Toolbar - Table
-    table: 'Tabela Markdown',
-    insertTable: 'Wstaw tabelę',
-    addRowAbove: 'Dodaj wiersz powyżej',
-    addRowBelow: 'Dodaj wiersz poniżej',
-    addColumnBefore: 'Dodaj kolumnę przed',
-    addColumnAfter: 'Dodaj kolumnę po',
-    deleteRow: 'Usuń wiersz',
-    deleteColumn: 'Usuń kolumnę',
-    deleteTable: 'Usuń tabelę',
-
-    // Toolbar - Mermaid
-    mermaid: 'Mermaid',
-    insertMermaid: 'Wstaw diagram Mermaid',
-
-    // Toolbar - Code View
-    codeView: 'Kod',
-    visualView: 'Wizualny',
-
-    // Toolbar - Split View
-    splitView: 'Podziel',
-    singleView: 'Pojedynczy',
-
-    // Toolbar - Diff Preview
-    changes: 'Zmiany',
-    noChanges: 'Brak zmian',
-    closeDiff: 'Zamknij',
-    compareTabs: 'Porównaj',
-    compareTabsTooltip: 'Porównaj lewy i prawy tab (Ctrl+Shift+C)',
-
-    // Keyboard Shortcuts
-    keyboardShortcuts: 'Skróty klawiszowe',
-    shortcutAction: 'Akcja',
-    shortcutKey: 'Skrót',
-
-    // Stats
-    stats: 'Statystyki',
-    characters: 'znaków',
-    words: 'słów',
-    tokens: 'tokenów',
-    tokensTooltip: 'Szacunkowa liczba tokenów dla modeli AI (kliknij aby zmienić model)',
-
-    // Editor
-    placeholder: 'Zacznij pisać lub wklej tekst...',
-
-    // Dialogs
-    unsavedChanges: 'Niezapisane zmiany',
-    unsavedChangesMessage: 'Ten dokument ma niezapisane zmiany. Czy chcesz zapisać przed zamknięciem?',
-    dontSave: 'Nie zapisuj',
-    cancel: 'Anuluj',
-    saveAndClose: 'Zapisz i zamknij',
-
-    // Tabs
-    newDocument: 'Nowy dokument',
-    closeTab: 'Zamknij kartę',
-
-    // Mermaid Node
-    editDiagram: 'Edytuj',
-    saveDiagram: 'Zapisz',
-    cancelEdit: 'Anuluj',
-    diagramError: 'Błąd renderowania diagramu',
-    printScale: 'PDF',
-    diagramSize: 'Rozmiar',
-    templates: 'Szablony',
-    basic: 'Podstawowe',
-    deleteDiagram: 'Usuń',
-    moreTemplates: 'Więcej szablonów...',
-    mermaidDiagramTemplates: 'Szablony diagramów Mermaid',
-    enterMermaidCode: 'Wprowadź kod Mermaid...',
-    zoomIn: 'Powiększ',
-    zoomOut: 'Pomniejsz',
-    reset: 'Reset',
-    fit: 'Dopasuj',
-    fullscreen: 'Pełny ekran',
-    close: 'Zamknij',
-
-    // Template categories
-    categoryBasic: 'Podstawowe',
-    categoryStatesProcesses: 'Stany i procesy',
-    categoryDataRelations: 'Dane i relacje',
-    categoryGitRequirements: 'Git i wymagania',
-    categoryC4Model: 'C4 Model',
-    categoryAdvanced: 'Zaawansowane',
-
-    // File dialogs
-    openFile: 'Otwórz plik Markdown',
-    saveFile: 'Zapisz plik Markdown',
-    markdownFiles: 'Pliki Markdown',
-    allFiles: 'Wszystkie pliki',
-
-    // Settings
-    settings: 'Ustawienia',
-    autoSave: 'Autozapis',
-    autoSaveOn: 'Wł.',
-    autoSaveOff: 'Wył.',
-    wordWrap: 'Zawijanie wierszy',
-    dropFilesHere: 'Upuść pliki .md tutaj',
-    editorFont: 'Czcionka edytora',
-    codeFont: 'Czcionka kodu',
-    lineHeight: 'Wysokość linii',
-    spellcheck: 'Sprawdzanie pisowni',
-    expandTabs: 'Rozszerz karty do pełnej nazwy',
-    appearance: 'Wygląd',
-    editor: 'Edytor',
-    code: 'Kod',
-    general: 'Ogólne',
-    on: 'Wł.',
-    off: 'Wył.',
-    language: 'Język',
-
-    // Update dialog
-    updateAvailable: 'Dostępna aktualizacja',
-    newVersionAvailable: 'Dostępna jest nowa wersja:',
-    downloadingUpdate: 'Pobieranie aktualizacji...',
-    later: 'Później',
-    updating: 'Aktualizowanie...',
-    updateNow: 'Aktualizuj teraz',
-    whatsNew: 'Co nowego',
-    whatsNewIn: 'Co nowego w',
-    loadingChangelog: 'Wczytywanie zmian...',
-    changelogError: 'Nie udało się wczytać zmian.',
-
-    // Split view / Panes
-    dragTabHere: 'Przeciągnij kartę tutaj',
-    orOpenFileInPane: 'lub otwórz plik w tym panelu',
-    dropTabHere: 'Upuść kartę tutaj',
-
-    // Save confirm dialog
-    fileHasUnsavedChanges: (fileName: string) => `Plik "${fileName}" zawiera niezapisane zmiany.`,
-    saveBeforeClosing: 'Czy chcesz zapisać przed zamknięciem?',
-    discard: 'Odrzuć',
-
-    // External link dialog
-    openExternalLink: 'Otwórz link zewnętrzny',
-    confirmNavigateTo: 'Czy na pewno chcesz przejść do:',
-    openLink: 'Otwórz',
-
-    // Editor Zoom
-    zoom: 'Powiększenie',
-
-    // Theme
-    darkMode: 'Ciemny',
-    lightMode: 'Jasny',
-
-    // File watching & conflict
-    fileReloadedExternally: (fileName: string) => `"${fileName}" został zaktualizowany zewnętrznie i ponownie wczytany.`,
-    fileReloaded: 'Plik ponownie wczytany z dysku.',
-    fileReloadError: 'Nie udało się ponownie wczytać pliku z dysku.',
-    fileChangedExternally: 'Plik zmieniony zewnętrznie',
-    fileConflictMessage: 'Plik został zmodyfikowany poza edytorem, a Ty masz niezapisane zmiany.',
-    keepMyChanges: 'Zachowaj moje zmiany',
-    loadExternalVersion: 'Wczytaj zewnętrzną wersję',
-    externalChanges: 'Zmiany zewnętrzne',
-    reloadFile: 'Wczytaj ponownie',
-    preSaveConflict: 'Plik zmodyfikowany',
-    preSaveConflictMessage: 'Plik został zmodyfikowany zewnętrznie od ostatniego wczytania lub zapisania.',
-    saveAnyway: 'Zapisz mimo to',
-    fileDeletedExternally: (fileName: string) => `"${fileName}" został usunięty zewnętrznie.`,
-    // Table of Contents
-    tableOfContents: 'Spis treści',
-    tocTooltip: 'Spis treści (Ctrl+Shift+T)',
-    tocEmpty: 'Brak nagłówków. Dodaj nagłówki (H1-H6) aby zobaczyć spis treści.',
-
-    diffView: 'Diff',
-    mergeView: 'Merge',
-    acceptAllExternal: 'Zaakceptuj wszystkie zewnętrzne',
-    rejectAllExternal: 'Odrzuć wszystkie zewnętrzne',
-    mergeHint: 'Wybierz które zmiany zewnętrzne zachować',
-    unchangedLines: 'niezmienione linie',
-    collapseLines: 'Zwiń',
-    changeHunk: 'Zmiana',
-    keepOriginal: 'Zachowaj moje',
-    acceptExternal: 'Weź zewnętrzną',
-    changesAccepted: 'zmian zaakceptowanych',
-    applyMerge: 'Zastosuj merge',
-
-    // Layout customization
-    layout: 'Układ',
-    topToolbar: 'Górny pasek narzędzi',
-    bottomStatusBar: 'Dolny pasek statusu',
-    leftSidebar: 'Lewy panel',
-    hiddenItems: 'Ukryte elementy',
-    resetLayout: 'Przywróć domyślne',
-    layoutDescription: 'Przeciągnij elementy między strefami aby dostosować układ',
-    moveTo: 'Przenieś do',
-  },
+  en,
+  pl,
+  'zh-CN': zhCN,
 };
 
-// Get saved language or default to English
+const localeLabels: Record<Locale, string> = {
+  en: 'English',
+  pl: 'Polski',
+  'zh-CN': '简体中文',
+};
+
 function getInitialLocale(): Locale {
   const saved = localStorage.getItem('mermark-locale') as Locale | null;
-  return saved || 'en';
+  if (saved && saved in translations) return saved;
+  return 'en';
 }
 
-// Reactive locale state
 const currentLocale = ref<Locale>(getInitialLocale());
 
-// Computed translations
 export const t = computed(() => translations[currentLocale.value]);
 
-// Locale getter and setter
 export function useI18n() {
   const locale = computed({
     get: () => currentLocale.value,
@@ -735,15 +288,20 @@ export function useI18n() {
   };
 
   const toggleLocale = () => {
-    locale.value = locale.value === 'en' ? 'pl' : 'en';
+    const locales = availableLocales;
+    const idx = locales.indexOf(locale.value);
+    locale.value = locales[(idx + 1) % locales.length];
   };
+
+  const availableLocales: Locale[] = ['en', 'pl', 'zh-CN'];
 
   return {
     locale,
     t,
     setLocale,
     toggleLocale,
-    availableLocales: ['en', 'pl'] as const,
+    availableLocales,
+    localeLabels,
   };
 }
 

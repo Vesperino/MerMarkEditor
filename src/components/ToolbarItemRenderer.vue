@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useToolbarActions } from '../composables/useToolbarActions';
+import RecentFilesDropdown from './RecentFilesDropdown.vue';
 
 const props = defineProps<{
   itemId: string;
@@ -17,6 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   newFile: [];
   openFile: [];
+  openRecent: [filePath: string];
   saveFile: [];
   saveFileAs: [];
   exportPdf: [];
@@ -109,13 +111,16 @@ const showLabel = (id: string) => {
     <span v-if="showLabel(itemId)">{{ t.new }}</span>
   </button>
 
-  <button v-else-if="itemId === 'open-file'" @click="emit('openFile')" class="toolbar-btn" :class="{ 'icon-only': !showLabel(itemId) }" :title="`${t.open} (Ctrl+O)`" :disabled="isDisabled(itemId)">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
-      <path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/>
-    </svg>
-    <span v-if="showLabel(itemId)">{{ t.open }}</span>
-  </button>
+  <div v-else-if="itemId === 'open-file'" class="open-file-group">
+    <button @click="emit('openFile')" class="toolbar-btn" :class="{ 'icon-only': !showLabel(itemId) }" :title="`${t.open} (Ctrl+O)`" :disabled="isDisabled(itemId)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
+        <path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/>
+      </svg>
+      <span v-if="showLabel(itemId)">{{ t.open }}</span>
+    </button>
+    <RecentFilesDropdown @open-recent="(fp: string) => emit('openRecent', fp)" />
+  </div>
 
   <button v-else-if="itemId === 'save-file'" @click="emit('saveFile')" class="toolbar-btn" :class="{ 'icon-only': !showLabel(itemId) }" :title="`${t.save} (Ctrl+S)`" :disabled="isDisabled(itemId)">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -479,6 +484,11 @@ const showLabel = (id: string) => {
 </template>
 
 <style scoped>
+.open-file-group {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* Button styles inherited from toolbar context */
 .toolbar-btn {
   display: flex;

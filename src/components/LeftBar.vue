@@ -20,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   newFile: [];
   openFile: [];
+  openRecent: [filePath: string];
   saveFile: [];
   saveFileAs: [];
   exportPdf: [];
@@ -48,6 +49,7 @@ const emit = defineEmits<{
         dropdown-direction="right"
         @new-file="emit('newFile')"
         @open-file="emit('openFile')"
+        @open-recent="(fp: string) => emit('openRecent', fp)"
         @save-file="emit('saveFile')"
         @save-file-as="emit('saveFileAs')"
         @export-pdf="emit('exportPdf')"
