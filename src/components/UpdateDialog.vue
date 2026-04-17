@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { markdownToHtml } from '../utils/markdown-converter';
 import { useI18n } from '../i18n';
 
@@ -16,6 +16,8 @@ const props = withDefaults(defineProps<{
   isUpdating: false,
   error: null,
 });
+
+const notesExpanded = ref(true);
 
 const notesHtml = computed(() => {
   if (!props.notes) return '';
@@ -36,7 +38,20 @@ const emit = defineEmits<{
       </div>
       <div class="dialog-content">
         <p>{{ t.newVersionAvailable }} <strong>{{ version }}</strong></p>
-        <div v-if="notes" class="update-notes whats-new-content" v-html="notesHtml"></div>
+        <div v-if="notes" class="update-notes-container">
+          <button
+            class="update-notes-toggle"
+            :class="{ expanded: notesExpanded }"
+            @click="notesExpanded = !notesExpanded"
+            :aria-expanded="notesExpanded"
+          >
+            <svg class="toggle-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+            <span>{{ t.whatsNew || "What's new" }}</span>
+          </button>
+          <div v-show="notesExpanded" class="update-notes whats-new-content" v-html="notesHtml"></div>
+        </div>
         <div v-if="isUpdating" class="update-progress">
           <p>{{ t.downloadingUpdate }}</p>
           <div class="progress-bar">
@@ -143,15 +158,52 @@ const emit = defineEmits<{
   background: var(--primary-hover);
 }
 
+.update-notes-container {
+  margin-top: 12px;
+}
+
+.update-notes-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--dialog-actions-bg);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+}
+
+.update-notes-toggle:hover {
+  background: var(--border-primary);
+  color: var(--text-primary);
+}
+
+.toggle-chevron {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+}
+
+.update-notes-toggle.expanded .toggle-chevron {
+  transform: rotate(0);
+}
+
 .update-notes {
   background: var(--dialog-actions-bg);
   padding: 12px;
   border-radius: 6px;
-  margin-top: 12px;
+  margin-top: 6px;
   font-size: 13px;
   color: var(--text-secondary);
   max-height: 300px;
   overflow-y: auto;
+  border: 1px solid var(--border-primary);
 }
 
 .update-progress {
