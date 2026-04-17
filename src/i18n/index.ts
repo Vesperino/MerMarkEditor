@@ -68,6 +68,16 @@ export interface Translations {
   mermaid: string;
   insertMermaid: string;
 
+  // Toolbar - Footnotes
+  footnote: string;
+  insertFootnote: string;
+  footnotes: string;
+  addFootnote: string;
+  deleteFootnotes: string;
+  noFootnotes: string;
+  footnoteContentPlaceholder: string;
+  footnoteBacklink: string;
+
   // Toolbar - Code View
   codeView: string;
   visualView: string;

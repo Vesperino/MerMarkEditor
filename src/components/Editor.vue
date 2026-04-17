@@ -52,6 +52,7 @@ import { watch, ref, nextTick, computed } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { useEditorZoom } from "../composables/useEditorZoom";
 import { useSettings } from "../composables/useSettings";
+import { useFootnotes } from "../composables/useFootnotes";
 import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
 import TableContextMenu from "./TableContextMenu.vue";
 import ImagePreview from "./ImagePreview.vue";
@@ -68,6 +69,7 @@ let imageResolutionInProgress = false;
 let lastSavedHtml = '';
 import { MermaidExtension } from "../extensions/MermaidExtension";
 import { PageBreakExtension } from "../extensions/PageBreakExtension";
+import { FootnoteRef, FootnoteSection } from "../extensions/FootnoteExtension";
 import { useI18n } from "../i18n";
 
 const { t } = useI18n();
@@ -172,6 +174,8 @@ const contextMenuY = ref(0);
 const showImagePreview = ref(false);
 const previewImageSrc = ref('');
 const previewImageAlt = ref('');
+
+
 
 // Custom extension for list keyboard shortcuts (Tab/Shift+Tab indentation)
 const ListKeymap = Extension.create({
@@ -383,6 +387,8 @@ const editor = useEditor({
     }),
     MermaidExtension,
     PageBreakExtension,
+    FootnoteRef,
+    FootnoteSection,
     CharacterCount.configure({
       limit: null,
     }),
@@ -393,6 +399,7 @@ const editor = useEditor({
     if (settingContentCount === 0) {
       emit("update:hasChanges", html !== lastSavedHtml);
     }
+    footnotes.consumePendingInsert(ed);
     // Defer image resolution to next frame to avoid conflicting with ProseMirror's
     // current update cycle. Stop the DOM observer so blob URL changes don't get
     // synced back into the document model (which would corrupt save/roundtrip).
@@ -493,11 +500,16 @@ watch(
   }
 );
 
-// Handle clicks on links and images
+// Footnote interactions (tooltip, popover, auto-open after toolbar insert)
+const footnotes = useFootnotes(editor, editorContainerRef);
+
+// Handle clicks on links, images, and footnote refs
 const handleEditorClick = (event: MouseEvent) => {
+  if (footnotes.handleClick(event)) return;
+
   const target = event.target as HTMLElement;
 
-  // Check if clicked element is an image — open preview
+  // Image — open preview
   if (target.tagName === 'IMG' && target.classList.contains('editor-image')) {
     const img = target as HTMLImageElement;
     if (img.src) {
@@ -508,15 +520,13 @@ const handleEditorClick = (event: MouseEvent) => {
     }
   }
 
-  // Check if clicked element is a link or is inside a link
+  // Link
   const link = target.closest('a');
   if (link) {
     event.preventDefault();
     event.stopPropagation();
     const href = link.getAttribute('href');
-    if (href) {
-      emit('linkClick', href);
-    }
+    if (href) emit('linkClick', href);
   }
 };
 
@@ -565,7 +575,7 @@ defineExpose({ editor });
 </script>
 
 <template>
-  <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick" @contextmenu="handleContextMenu">
+  <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick" @contextmenu="handleContextMenu" @mouseover="footnotes.handleMouseOver" @mouseout="footnotes.handleMouseOut">
     <EditorContent :editor="editor" class="editor-content" :style="editorZoomStyle" />
     <TableContextMenu
       v-if="showContextMenu"
@@ -580,6 +590,34 @@ defineExpose({ editor });
       :alt="previewImageAlt"
       @close="showImagePreview = false"
     />
+    <div
+      v-if="footnotes.tooltip.value.visible"
+      class="footnote-tooltip"
+      :style="{ left: footnotes.tooltip.value.x + 'px', top: footnotes.tooltip.value.y + 'px' }"
+    >{{ footnotes.tooltip.value.content }}</div>
+    <div
+      v-if="footnotes.popover.value.visible"
+      :ref="(el) => (footnotes.popoverRef.value = el as HTMLDivElement)"
+      class="footnote-popover"
+      :style="{ left: footnotes.popover.value.x + 'px', top: footnotes.popover.value.y + 'px' }"
+      @click.stop
+    >
+      <div class="footnote-popover-header">
+        <span class="footnote-popover-label">[^{{ footnotes.popover.value.label }}]</span>
+        <button class="footnote-popover-close" @click="footnotes.closePopover" title="Close (Esc)">&#x2715;</button>
+      </div>
+      <textarea
+        v-model="footnotes.popover.value.content"
+        class="footnote-popover-textarea"
+        rows="3"
+        placeholder="Footnote text..."
+        @keydown="footnotes.handlePopoverKeydown"
+      ></textarea>
+      <div class="footnote-popover-footer">
+        <span class="footnote-popover-hint">Enter — save · Esc — cancel</span>
+        <button class="footnote-popover-save" @click="footnotes.savePopover">Save</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -957,5 +995,159 @@ defineExpose({ editor });
 
 .character-count.danger {
   color: var(--danger-light);
+}
+
+/* Footnote reference (superscript number in text) */
+.editor-content .tiptap sup.footnote-ref {
+  font-size: 0.75em;
+  line-height: 0;
+  position: relative;
+  vertical-align: super;
+  color: var(--link-color);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.editor-content .tiptap sup.footnote-ref:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* Footnote hover tooltip (Obsidian-style) */
+.footnote-tooltip {
+  position: absolute;
+  transform: translateX(-50%) translateY(-100%);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 400px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: var(--shadow-sm);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* Footnote edit popover (mini-modal above sup) */
+.footnote-popover {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  width: 340px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  z-index: 1001;
+}
+
+.footnote-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.footnote-popover-label {
+  font-family: var(--code-font-family, 'Fira Code', 'Consolas', monospace);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--link-color);
+}
+
+.footnote-popover-close {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 12px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.footnote-popover-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.footnote-popover-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: var(--bg-input, var(--bg-primary));
+  color: var(--text-primary);
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.footnote-popover-textarea:focus {
+  border-color: var(--primary);
+}
+
+.footnote-popover-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.footnote-popover-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.footnote-popover-save {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.footnote-popover-save:hover {
+  background: var(--primary-hover);
+}
+
+
+/* Footnotes section at document end */
+.editor-content .tiptap section.footnotes {
+  margin-top: 2em;
+  padding-top: 0.5em;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.editor-content .tiptap section.footnotes hr {
+  border: none;
+  border-top: 1px solid var(--border-primary);
+  margin-bottom: 1em;
+}
+
+.editor-content .tiptap section.footnotes ol {
+  padding-left: 1.5em;
+  margin: 0;
+}
+
+.editor-content .tiptap section.footnotes li {
+  margin: 0.3em 0;
+}
+
+.editor-content .tiptap section.footnotes li p {
+  margin: 0;
+  display: inline;
 }
 </style>

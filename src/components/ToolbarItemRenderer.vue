@@ -63,6 +63,7 @@ const {
   insertImageFromFile,
   showTokenMenu,
   insertMermaid,
+  insertFootnote,
   editor,
   t,
 } = useToolbarActions();
@@ -71,7 +72,7 @@ const needsEditor = (id: string) => {
   const editorItems = [
     'undo', 'redo', 'heading-select', 'bold', 'italic', 'strikethrough', 'inline-code',
     'bullet-list', 'ordered-list', 'task-list', 'blockquote', 'code-block', 'horizontal-rule',
-    'link', 'image', 'table', 'mermaid',
+    'link', 'image', 'table', 'mermaid', 'footnote',
   ];
   return editorItems.includes(id);
 };
@@ -92,7 +93,7 @@ const showLabel = (id: string) => {
   // Items that always show labels (not icon-only)
   const labelItems = [
     'new-file', 'open-file', 'save-file', 'save-file-as', 'export-pdf',
-    'mermaid', 'toggle-toc', 'toggle-code-view', 'toggle-split-view',
+    'mermaid', 'footnote', 'toggle-toc', 'toggle-code-view', 'toggle-split-view',
     'toggle-diff', 'compare-tabs',
   ];
   return labelItems.includes(id);
@@ -362,6 +363,16 @@ const showLabel = (id: string) => {
     <span v-if="showLabel(itemId)">{{ t.mermaid }}</span>
   </button>
 
+  <!-- Footnote -->
+  <button v-else-if="itemId === 'footnote'" @mousedown.prevent @click="insertFootnote" class="toolbar-btn footnote-btn" :class="{ 'icon-only': !showLabel(itemId) }" :title="t.insertFootnote" :disabled="isDisabled(itemId)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M4 19h16"/>
+      <text x="7" y="15" font-size="14" font-weight="bold" fill="currentColor" stroke="none" font-family="serif">f</text>
+      <text x="14" y="10" font-size="8" font-weight="bold" fill="currentColor" stroke="none">n</text>
+    </svg>
+    <span v-if="showLabel(itemId)">{{ t.footnote }}</span>
+  </button>
+
   <!-- Stats: characters + words + tokens as one group -->
   <div v-else-if="itemId === 'stats'" class="stats-display">
     <span class="stats-item">{{ characterCount }} {{ t.characters }}</span>
@@ -551,6 +562,9 @@ const showLabel = (id: string) => {
 /* Special button styles */
 .mermaid-btn { background: var(--mermaid-bg); border-color: var(--mermaid-border); color: var(--mermaid-color); }
 .mermaid-btn:hover { background: var(--mermaid-hover-bg); border-color: var(--mermaid-hover-border); }
+
+.footnote-btn { background: var(--mermaid-bg); border-color: var(--mermaid-border); color: var(--mermaid-color); }
+.footnote-btn:hover { background: var(--mermaid-hover-bg); border-color: var(--mermaid-hover-border); }
 
 .shortcuts-btn { color: var(--text-muted); }
 .shortcuts-btn:hover { color: var(--text-primary); }

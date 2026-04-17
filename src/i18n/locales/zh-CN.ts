@@ -62,6 +62,16 @@ const zhCN: Translations = {
   mermaid: 'Mermaid',
   insertMermaid: '插入 Mermaid 图表',
 
+  // Toolbar - Footnotes
+  footnote: '脚注',
+  insertFootnote: '插入脚注',
+  footnotes: '脚注',
+  addFootnote: '添加脚注',
+  deleteFootnotes: '删除所有脚注',
+  noFootnotes: '没有脚注。点击 + 添加一个。',
+  footnoteContentPlaceholder: '脚注文本...',
+  footnoteBacklink: '跳转到引用',
+
   // Toolbar - Code View
   codeView: '代码',
   visualView: '可视化',

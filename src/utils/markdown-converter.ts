@@ -14,6 +14,13 @@ export {
   extractPageBreaks,
   restoreCodeBlocks,
 } from './markdown-to-html';
+export {
+  extractFootnoteDefinitions,
+  convertFootnoteRefsToHtml,
+  buildFootnoteSectionHtml,
+  convertHtmlFootnoteRefsToMd,
+  extractHtmlFootnoteSection,
+} from './footnote-utils';
 
 import { decodeHtmlEntities, escapeHtml } from './html-entities';
 import { convertInlineToMarkdown, extractMermaidCode, parseHtmlList, processHtmlLists } from './html-to-markdown';
@@ -27,6 +34,13 @@ import {
   extractPageBreaks,
   restoreCodeBlocks,
 } from './markdown-to-html';
+import {
+  extractFootnoteDefinitions,
+  convertFootnoteRefsToHtml,
+  buildFootnoteSectionHtml,
+  convertHtmlFootnoteRefsToMd,
+  extractHtmlFootnoteSection,
+} from './footnote-utils';
 
 export function htmlToMarkdown(html: string): string {
   let md = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -59,6 +73,11 @@ export function htmlToMarkdown(html: string): string {
     protectedBlocks.push(`\n\`\`\`\n${decodedCode}\n\`\`\`\n`);
     return placeholder;
   });
+
+  // Footnotes — extract section and convert refs before other processing
+  const footnoteSection = extractHtmlFootnoteSection(md);
+  md = footnoteSection.html;
+  md = convertHtmlFootnoteRefsToMd(md);
 
   // Tables - convert links inside cells before stripping other tags
   md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, tableContent) => {
@@ -197,7 +216,14 @@ export function htmlToMarkdown(html: string): string {
 
   // Clean up whitespace
   md = md.replace(/\n{3,}/g, '\n\n');
-  return md.trim();
+  md = md.trim();
+
+  // Append footnote definitions at end
+  if (footnoteSection.definitions) {
+    md += '\n\n' + footnoteSection.definitions;
+  }
+
+  return md;
 }
 
 export function markdownToHtml(md: string): string {
@@ -208,6 +234,11 @@ export function markdownToHtml(md: string): string {
   const extracted = extractCodeBlocks(html);
   html = extracted.html;
   const codeBlocks = extracted.codeBlocks;
+
+  // Extract footnote definitions before HTML processing
+  const footnotes = extractFootnoteDefinitions(html);
+  html = footnotes.cleanedMd;
+  const footnoteDefs = footnotes.definitions;
 
   html = escapeHtml(html);
 
@@ -226,6 +257,9 @@ export function markdownToHtml(md: string): string {
 
   // Formatting + inline code
   html = convertMarkdownFormatting(html);
+
+  // Footnote references (after inline code conversion, before links)
+  html = convertFootnoteRefsToHtml(html, footnoteDefs);
 
   // Links and images
   html = convertMarkdownLinksAndImages(html);
@@ -249,6 +283,9 @@ export function markdownToHtml(md: string): string {
   // Restore page breaks
   html = html.replace(/<p>__PAGE_BREAK__<\/p>/g, '<div class="page-break"></div>');
   html = html.replace(/__PAGE_BREAK__/g, '<div class="page-break"></div>');
+
+  // Append footnotes section
+  html += buildFootnoteSectionHtml(footnoteDefs);
 
   return html.trimEnd();
 }

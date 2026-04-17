@@ -10,6 +10,7 @@ export type ToolbarItemCategory =
   | 'links-media'
   | 'table'
   | 'mermaid'
+  | 'footnote'
   | 'stats'
   | 'zoom'
   | 'view-toggles';
@@ -65,6 +66,9 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
 
   // Mermaid
   { id: 'mermaid', category: 'mermaid', defaultZone: 'toolbar', defaultOrder: 800, needsEditor: true, labelKey: 'mermaid' },
+
+  // Footnote
+  { id: 'footnote', category: 'footnote', defaultZone: 'toolbar', defaultOrder: 850, needsEditor: true, labelKey: 'footnote' },
 
   // Stats (characters + words + tokens as single movable group)
   { id: 'stats', category: 'stats', defaultZone: 'toolbar', defaultOrder: 900, needsEditor: false, labelKey: 'stats' },

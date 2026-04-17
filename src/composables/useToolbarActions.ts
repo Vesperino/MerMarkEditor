@@ -192,6 +192,11 @@ export function useToolbarActions() {
     runCommand((e) => (e.commands as any).insertMermaid());
   };
 
+  // Footnote — chain().focus() preserves selection after toolbar click steals focus
+  const insertFootnote = () => {
+    runCommand((e) => (e.chain() as any).focus().insertFootnote().run());
+  };
+
   // Close all dropdowns
   const closeDropdowns = () => {
     showTableMenu.value = false;
@@ -247,6 +252,9 @@ export function useToolbarActions() {
 
     // Mermaid
     insertMermaid,
+
+    // Footnote
+    insertFootnote,
 
     // Dropdowns
     closeDropdowns,

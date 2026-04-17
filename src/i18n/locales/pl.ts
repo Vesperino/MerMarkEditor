@@ -62,6 +62,16 @@ const pl: Translations = {
   mermaid: 'Mermaid',
   insertMermaid: 'Wstaw diagram Mermaid',
 
+  // Toolbar - Footnotes
+  footnote: 'Przypis',
+  insertFootnote: 'Wstaw przypis',
+  footnotes: 'Przypisy',
+  addFootnote: 'Dodaj przypis',
+  deleteFootnotes: 'Usuń wszystkie przypisy',
+  noFootnotes: 'Brak przypisów. Kliknij + aby dodać.',
+  footnoteContentPlaceholder: 'Treść przypisu...',
+  footnoteBacklink: 'Skocz do odnośnika',
+
   // Toolbar - Code View
   codeView: 'Kod',
   visualView: 'Wizualny',

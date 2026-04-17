@@ -62,6 +62,16 @@ const en: Translations = {
   mermaid: 'Mermaid',
   insertMermaid: 'Insert Mermaid diagram',
 
+  // Toolbar - Footnotes
+  footnote: 'Footnote',
+  insertFootnote: 'Insert footnote',
+  footnotes: 'Footnotes',
+  addFootnote: 'Add footnote',
+  deleteFootnotes: 'Delete all footnotes',
+  noFootnotes: 'No footnotes defined. Click + to add one.',
+  footnoteContentPlaceholder: 'Footnote text...',
+  footnoteBacklink: 'Jump to reference',
+
   // Toolbar - Code View
   codeView: 'Code',
   visualView: 'Visual',
