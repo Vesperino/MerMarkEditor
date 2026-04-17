@@ -76,7 +76,7 @@ describe('useLineNumbers', () => {
   });
 
   it('splits wrapped block into multiple lines by height', async () => {
-    const wrapped = stubChild('p', { top: 0, height: 60, left: 0, right: 100, bottom: 60, width: 100 });
+    const wrapped = stubChild('p', { top: 0, height: 60, left: 0, right: 100, bottom: 60, width: 100 }, { text: 'long wrapped paragraph' });
     const container = mountContainer([wrapped], { top: 0, height: 60, left: 0, right: 100, bottom: 60, width: 100 });
 
     const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
@@ -111,6 +111,16 @@ describe('useLineNumbers', () => {
   it('counts atomic mermaid block as one line', async () => {
     const mermaid = stubChild('div', { top: 0, height: 300, left: 0, right: 100, bottom: 300, width: 100 }, { attrs: { 'data-type': 'mermaid' } });
     const container = mountContainer([mermaid], { top: 0, height: 300, left: 0, right: 100, bottom: 300, width: 100 });
+
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
+    await nextTick();
+
+    expect(lines.value.length).toBe(1);
+  });
+
+  it('counts empty tall block as one line (ignores height/lineHeight ratio)', async () => {
+    const emptyTall = stubChild('div', { top: 0, height: 200, left: 0, right: 100, bottom: 200, width: 100 });
+    const container = mountContainer([emptyTall], { top: 0, height: 200, left: 0, right: 100, bottom: 200, width: 100 });
 
     const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
     await nextTick();

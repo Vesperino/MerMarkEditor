@@ -69,6 +69,8 @@ export function useLineNumbers({ containerRef, enabled }: UseLineNumbersOptions)
       return Math.max(1, el.querySelectorAll('tr').length);
     }
 
+    if ((el.textContent ?? '').trim() === '') return 1;
+
     const lineHeightPx = resolveLineHeightPx(el);
     if (lineHeightPx < MIN_LINE_HEIGHT_PX) return 1;
     return Math.max(1, Math.round(height / lineHeightPx));
