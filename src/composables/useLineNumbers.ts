@@ -118,16 +118,16 @@ function getLinesForBlock(el: HTMLElement, rect: DOMRect): LineRect[] {
     return getTableRowRects(el, rect);
   }
 
-  if (el.tagName === 'PRE') {
-    return getPreLineRects(el, rect);
-  }
-
   if ((el.textContent ?? '').trim() === '') {
     return [{ top: rect.top, height: rect.height }];
   }
 
   const textRects = getTextLineRects(el);
   if (textRects.length > 0) return textRects;
+
+  if (el.tagName === 'PRE') {
+    return getPreLineRects(el, rect);
+  }
 
   return fallbackLineRects(el, rect);
 }
