@@ -158,6 +158,7 @@ const en: Translations = {
   codeFont: 'Code font',
   lineHeight: 'Line height',
   spellcheck: 'Spellcheck',
+  showLineNumbers: 'Line numbers',
   expandTabs: 'Expand tabs to fit name',
   appearance: 'Appearance',
   editor: 'Editor',

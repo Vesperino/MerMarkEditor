@@ -48,14 +48,16 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
-import { watch, ref, nextTick, computed } from "vue";
+import { watch, ref, nextTick, computed, watchEffect } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { useEditorZoom } from "../composables/useEditorZoom";
 import { useSettings } from "../composables/useSettings";
 import { useFootnotes } from "../composables/useFootnotes";
+import { useLineNumbers } from "../composables/useLineNumbers";
 import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
 import TableContextMenu from "./TableContextMenu.vue";
 import ImagePreview from "./ImagePreview.vue";
+import EditorGutter from "./EditorGutter.vue";
 
 // Guards against false hasChanges during programmatic content updates.
 // Starts at 1 to cover initial editor creation; released after 300ms.
@@ -571,12 +573,30 @@ watch(() => appSettings.value.spellcheck, (newVal) => {
   }
 });
 
+const proseMirrorRef = ref<HTMLElement | null>(null);
+const showLineNumbersRef = computed(() => appSettings.value.showLineNumbers);
+const { lines: lineNumberEntries } = useLineNumbers({
+  containerRef: proseMirrorRef,
+  enabled: showLineNumbersRef,
+});
+
+watchEffect(() => {
+  proseMirrorRef.value = (editor.value?.view?.dom as HTMLElement | undefined) ?? null;
+});
+
 defineExpose({ editor });
 </script>
 
 <template>
   <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick" @contextmenu="handleContextMenu" @mouseover="footnotes.handleMouseOver" @mouseout="footnotes.handleMouseOut">
-    <EditorContent :editor="editor" class="editor-content" :style="editorZoomStyle" />
+    <div
+      class="editor-content-wrapper"
+      :class="{ 'has-line-numbers': appSettings.showLineNumbers }"
+      :style="editorZoomStyle"
+    >
+      <EditorGutter v-if="appSettings.showLineNumbers" :lines="lineNumberEntries" />
+      <EditorContent :editor="editor" class="editor-content" />
+    </div>
     <TableContextMenu
       v-if="showContextMenu"
       :x="contextMenuX"
@@ -629,10 +649,22 @@ defineExpose({ editor });
   background: var(--editor-container-bg);
 }
 
-.editor-content {
-  background: var(--editor-content-bg);
+.editor-content-wrapper {
+  position: relative;
   max-width: 900px;
   margin: 20px auto;
+}
+
+.editor-content-wrapper.has-line-numbers {
+  --editor-gutter-width: 3.5em;
+}
+
+.editor-content-wrapper.has-line-numbers .editor-content {
+  padding-left: calc(80px + var(--editor-gutter-width));
+}
+
+.editor-content {
+  background: var(--editor-content-bg);
   padding: 60px 80px;
   min-height: calc(100vh - 180px);
   box-shadow: var(--shadow-sm);
