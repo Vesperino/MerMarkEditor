@@ -3,6 +3,7 @@ import { ref, watch, onBeforeUnmount, type Ref } from 'vue';
 export interface LineEntry {
   top: number;
   num: number;
+  height: number;
 }
 
 interface UseLineNumbersOptions {
@@ -50,6 +51,7 @@ export function useLineNumbers({ containerRef, enabled }: UseLineNumbersOptions)
         entries.push({
           top: topInContainer + i * step,
           num: counter++,
+          height: step,
         });
       }
     }

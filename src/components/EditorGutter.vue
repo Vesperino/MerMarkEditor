@@ -12,7 +12,10 @@ defineProps<{
       v-for="line in lines"
       :key="line.num"
       class="editor-gutter-line"
-      :style="{ top: `calc(var(--editor-content-padding-top, 60px) + ${line.top}px)` }"
+      :style="{
+        top: `calc(var(--editor-content-padding-top, 60px) + ${line.top}px)`,
+        height: `${line.height}px`,
+      }"
     >{{ line.num }}</span>
   </div>
 </template>
@@ -35,7 +38,10 @@ defineProps<{
 .editor-gutter-line {
   position: absolute;
   right: 0.5em;
-  text-align: right;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   line-height: 1;
 }
 </style>
