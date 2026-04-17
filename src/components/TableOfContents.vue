@@ -11,6 +11,7 @@ interface TocItem {
   text: string;
   id: string;
   pos: number;
+  kind?: 'heading' | 'footnotes';
 }
 
 const emit = defineEmits<{
@@ -28,48 +29,71 @@ const extractHeadings = () => {
 
   const items: TocItem[] = [];
   const doc = editor.value.state.doc;
+  let footnotesPos: number | null = null;
 
   doc.descendants((node, pos) => {
     if (node.type.name === 'heading') {
       const level = node.attrs.level as number;
       const text = node.textContent;
       if (text.trim()) {
-        const id = `toc-heading-${pos}`;
-        items.push({ level, text, id, pos });
+        items.push({ level, text, id: `toc-heading-${pos}`, pos, kind: 'heading' });
       }
+    } else if (node.type.name === 'footnoteSection') {
+      footnotesPos = pos;
     }
   });
+
+  // Append Footnotes entry at the end if section exists
+  if (footnotesPos !== null) {
+    items.push({
+      level: 0,
+      text: t.value.footnotes || 'Footnotes',
+      id: 'toc-footnotes',
+      pos: footnotesPos,
+      kind: 'footnotes',
+    });
+  }
 
   headings.value = items;
 };
 
-// Compute min heading level for proper indentation
+// Compute min heading level for proper indentation (skip footnotes entry at level 0)
 const minLevel = computed(() => {
-  if (headings.value.length === 0) return 1;
-  return Math.min(...headings.value.map(h => h.level));
+  const realHeadings = headings.value.filter(h => h.kind !== 'footnotes');
+  if (realHeadings.length === 0) return 1;
+  return Math.min(...realHeadings.map(h => h.level));
 });
+
+const scrollContainerTo = (container: Element, target: Element) => {
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const offset = targetRect.top - containerRect.top + container.scrollTop - 20;
+  container.scrollTo({ top: offset, behavior: 'smooth' });
+};
 
 const scrollToHeading = (item: TocItem) => {
   if (!editor?.value) return;
 
-  // Focus editor and set cursor to heading position
+  // Footnotes entry: direct DOM scroll to section wrapper (atom block, no inner content)
+  if (item.kind === 'footnotes') {
+    editor.value.commands.focus();
+    const container = document.querySelector('.editor-container');
+    const section = container?.querySelector('.footnote-section-wrapper');
+    if (container && section) scrollContainerTo(container, section);
+    activeHeadingId.value = item.id;
+    return;
+  }
+
+  // Regular heading: cursor + scroll to DOM element
   editor.value.commands.focus();
   editor.value.commands.setTextSelection(item.pos + 1);
 
-  // Find the DOM element for this heading and scroll to it
   const { node } = editor.value.view.domAtPos(item.pos + 1);
-  const headingEl = node instanceof HTMLElement
-    ? node
-    : node.parentElement;
+  const headingEl = node instanceof HTMLElement ? node : node.parentElement;
 
   if (headingEl) {
     const container = headingEl.closest('.editor-container');
-    if (container) {
-      const containerRect = container.getBoundingClientRect();
-      const headingRect = headingEl.getBoundingClientRect();
-      const offset = headingRect.top - containerRect.top + container.scrollTop - 20;
-      container.scrollTo({ top: offset, behavior: 'smooth' });
-    }
+    if (container) scrollContainerTo(container, headingEl);
   }
 
   activeHeadingId.value = item.id;
@@ -125,13 +149,16 @@ onUnmounted(() => {
           class="toc-item"
           :class="[
             `toc-level-${item.level}`,
-            { active: activeHeadingId === item.id }
+            { active: activeHeadingId === item.id, 'toc-footnotes-entry': item.kind === 'footnotes' },
           ]"
-          :style="{ paddingLeft: `${(item.level - minLevel) * 16 + 12}px` }"
+          :style="{ paddingLeft: `${Math.max(item.level - minLevel, 0) * 16 + 12}px` }"
           @click="scrollToHeading(item)"
           :title="item.text"
         >
-          <span class="toc-level-indicator">H{{ item.level }}</span>
+          <span class="toc-level-indicator">
+            <template v-if="item.kind === 'footnotes'">&sect;</template>
+            <template v-else>H{{ item.level }}</template>
+          </span>
           <span class="toc-item-text">{{ item.text }}</span>
         </button>
       </nav>
@@ -259,6 +286,27 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Footnotes entry */
+.toc-footnotes-entry {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-primary);
+  font-weight: 500;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.toc-footnotes-entry:hover {
+  color: var(--text-primary);
+}
+
+.toc-footnotes-entry .toc-level-indicator {
+  font-size: 13px;
+  padding: 0;
+  background: transparent;
 }
 
 /* Heading level font sizes */

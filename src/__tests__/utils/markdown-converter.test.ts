@@ -707,6 +707,110 @@ describe('line ending preservation through conversion', () => {
   });
 });
 
+describe('footnotes in markdownToHtml', () => {
+  it('converts footnote references to <sup> elements', () => {
+    const md = 'Text with footnote[^1].\n\n[^1]: Footnote content.';
+    const result = markdownToHtml(md);
+    expect(result).toContain('data-footnote-ref="1"');
+    expect(result).toContain('>1</sup>');
+  });
+
+  it('builds footnotes section at end of HTML', () => {
+    const md = 'Text[^1].\n\n[^1]: Definition here.';
+    const result = markdownToHtml(md);
+    expect(result).toContain('<section class="footnotes" data-footnotes>');
+    expect(result).toContain('data-footnote-id="1"');
+    expect(result).toContain('Definition here.');
+  });
+
+  it('handles named footnote labels', () => {
+    const md = 'Text[^note].\n\n[^note]: Named footnote.';
+    const result = markdownToHtml(md);
+    expect(result).toContain('data-footnote-ref="note"');
+    expect(result).toContain('data-footnote-id="note"');
+  });
+
+  it('does not convert refs inside inline code', () => {
+    const md = '`[^1]` and [^1].\n\n[^1]: Real footnote.';
+    const result = markdownToHtml(md);
+    // The one inside <code> should remain as text
+    expect(result).toContain('<code>[^1]</code>');
+    // The one outside should be converted
+    expect(result).toContain('data-footnote-ref="1"');
+  });
+
+  it('produces no section when there are no footnotes', () => {
+    const md = 'Regular text without footnotes.';
+    const result = markdownToHtml(md);
+    expect(result).not.toContain('data-footnotes');
+  });
+});
+
+describe('footnotes in htmlToMarkdown', () => {
+  it('converts <sup> footnote refs to [^label]', () => {
+    const html = '<p>Text <sup class="footnote-ref" data-footnote-ref="1">1</sup>.</p><section class="footnotes" data-footnotes><hr><ol><li data-footnote-id="1"><p>Footnote.</p></li></ol></section>';
+    const result = htmlToMarkdown(html);
+    expect(result).toContain('[^1]');
+    expect(result).toContain('[^1]: Footnote.');
+  });
+
+  it('extracts multiple definitions', () => {
+    const html = '<p>A<sup class="footnote-ref" data-footnote-ref="1">1</sup> B<sup class="footnote-ref" data-footnote-ref="2">2</sup></p><section class="footnotes" data-footnotes><hr><ol><li data-footnote-id="1"><p>First.</p></li><li data-footnote-id="2"><p>Second.</p></li></ol></section>';
+    const result = htmlToMarkdown(html);
+    expect(result).toContain('[^1]');
+    expect(result).toContain('[^2]');
+    expect(result).toContain('[^1]: First.');
+    expect(result).toContain('[^2]: Second.');
+  });
+});
+
+describe('footnote round-trip', () => {
+  it('preserves simple footnote through round-trip', () => {
+    const original = 'Text with footnote[^1].\n\n[^1]: Footnote content.';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('[^1]');
+    expect(roundTrip).toContain('[^1]: Footnote content.');
+  });
+
+  it('preserves multiple footnotes through round-trip', () => {
+    const original = 'First[^1] and second[^2].\n\n[^1]: Note one.\n[^2]: Note two.';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('[^1]');
+    expect(roundTrip).toContain('[^2]');
+    expect(roundTrip).toContain('[^1]: Note one.');
+    expect(roundTrip).toContain('[^2]: Note two.');
+  });
+
+  it('preserves named footnote labels through round-trip', () => {
+    const original = 'Text[^note].\n\n[^note]: Named footnote.';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('[^note]');
+    expect(roundTrip).toContain('[^note]: Named footnote.');
+  });
+
+  it('preserves footnotes alongside other content', () => {
+    const original = '# Title\n\nParagraph with footnote[^1] and **bold**.\n\n- List item\n\n[^1]: The footnote.';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('# Title');
+    expect(roundTrip).toContain('[^1]');
+    expect(roundTrip).toContain('**bold**');
+    expect(roundTrip).toContain('- List item');
+    expect(roundTrip).toContain('[^1]: The footnote.');
+  });
+
+  it('preserves footnote ref inside inline code unchanged', () => {
+    const original = 'Use `[^1]` syntax for footnotes[^1].\n\n[^1]: Explanation.';
+    const html = markdownToHtml(original);
+    const roundTrip = htmlToMarkdown(html);
+    expect(roundTrip).toContain('`[^1]`');
+    expect(roundTrip).toContain('[^1]: Explanation.');
+  });
+});
+
 describe('markdownToHtml trailing whitespace fix (#53)', () => {
   it('should not return HTML with trailing newlines', () => {
     const result = markdownToHtml('Hello\n\n');
