@@ -9,6 +9,7 @@ export interface LineEntry {
 interface UseLineNumbersOptions {
   containerRef: Ref<HTMLElement | null>;
   enabled: Ref<boolean>;
+  anchorRef?: Ref<HTMLElement | null>;
 }
 
 interface LineRect {
@@ -17,9 +18,9 @@ interface LineRect {
 }
 
 const MIN_LINE_HEIGHT_PX = 4;
-const SAME_ROW_THRESHOLD_PX = 2;
+const OVERLAP_TOLERANCE_PX = 2;
 
-export function useLineNumbers({ containerRef, enabled }: UseLineNumbersOptions) {
+export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumbersOptions) {
   const lines = ref<LineEntry[]>([]);
 
   let resizeObserver: ResizeObserver | null = null;
@@ -41,7 +42,8 @@ export function useLineNumbers({ containerRef, enabled }: UseLineNumbersOptions)
       return;
     }
 
-    const containerRect = container.getBoundingClientRect();
+    const anchor = anchorRef?.value ?? container;
+    const anchorRect = anchor.getBoundingClientRect();
     const entries: LineEntry[] = [];
     let counter = 1;
 
@@ -52,7 +54,7 @@ export function useLineNumbers({ containerRef, enabled }: UseLineNumbersOptions)
       const lineRects = getLinesForBlock(child, rect);
       for (const lr of lineRects) {
         entries.push({
-          top: lr.top - containerRect.top,
+          top: lr.top - anchorRect.top,
           num: counter++,
           height: lr.height,
         });
@@ -156,30 +158,69 @@ function getPreLineRects(pre: HTMLElement, rect: DOMRect): LineRect[] {
 
 function getTextLineRects(el: HTMLElement): LineRect[] {
   if (!el.firstChild || typeof document.createRange !== 'function') return [];
-  try {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const raw = Array.from(range.getClientRects()).filter((r) => r.height > 0 && r.width > 0);
-    range.detach?.();
-    return mergeSameRow(raw);
-  } catch {
-    return [];
+  const collected: DOMRect[] = [];
+  collectInlineRects(el, collected);
+  return mergeSameRow(collected);
+}
+
+function collectInlineRects(el: HTMLElement, out: DOMRect[]): void {
+  if (!el.firstChild) return;
+
+  if (!hasBlockChild(el)) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = Array.from(range.getClientRects()).filter((r) => r.height > 0 && r.width > 0);
+      out.push(...rects);
+      range.detach?.();
+    } catch {
+      /* ignore */
+    }
+    return;
   }
+
+  for (const child of Array.from(el.children) as HTMLElement[]) {
+    const rect = child.getBoundingClientRect();
+    if (rect.height === 0 || rect.width === 0) continue;
+    collectInlineRects(child, out);
+  }
+}
+
+function hasBlockChild(el: HTMLElement): boolean {
+  for (const child of Array.from(el.children) as HTMLElement[]) {
+    const d = window.getComputedStyle(child).display;
+    if (
+      d === 'block' ||
+      d === 'flex' ||
+      d === 'grid' ||
+      d === 'list-item' ||
+      d === 'table' ||
+      d === 'table-row' ||
+      d === 'table-row-group' ||
+      d === 'flow-root'
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function mergeSameRow(rects: DOMRect[]): LineRect[] {
   if (rects.length === 0) return [];
   const sorted = [...rects].sort((a, b) => a.top - b.top);
-  const merged: LineRect[] = [];
+  const merged: { top: number; bottom: number }[] = [];
   for (const r of sorted) {
+    const top = r.top;
+    const bottom = r.top + r.height;
     const last = merged[merged.length - 1];
-    if (last && Math.abs(last.top - r.top) < SAME_ROW_THRESHOLD_PX) {
-      if (r.height > last.height) last.height = r.height;
+    if (last && top < last.bottom - OVERLAP_TOLERANCE_PX) {
+      last.top = Math.min(last.top, top);
+      last.bottom = Math.max(last.bottom, bottom);
     } else {
-      merged.push({ top: r.top, height: r.height });
+      merged.push({ top, bottom });
     }
   }
-  return merged;
+  return merged.map((m) => ({ top: m.top, height: m.bottom - m.top }));
 }
 
 function fallbackLineRects(el: HTMLElement, rect: DOMRect): LineRect[] {

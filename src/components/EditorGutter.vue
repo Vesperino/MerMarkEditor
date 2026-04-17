@@ -13,7 +13,7 @@ defineProps<{
       :key="line.num"
       class="editor-gutter-line"
       :style="{
-        top: `calc(var(--editor-content-padding-top, 60px) + ${line.top}px)`,
+        top: `${line.top}px`,
         height: `${line.height}px`,
       }"
     >{{ line.num }}</span>

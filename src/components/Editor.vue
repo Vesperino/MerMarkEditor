@@ -574,9 +574,11 @@ watch(() => appSettings.value.spellcheck, (newVal) => {
 });
 
 const proseMirrorRef = ref<HTMLElement | null>(null);
+const contentWrapperRef = ref<HTMLElement | null>(null);
 const showLineNumbersRef = computed(() => appSettings.value.showLineNumbers);
 const { lines: lineNumberEntries } = useLineNumbers({
   containerRef: proseMirrorRef,
+  anchorRef: contentWrapperRef,
   enabled: showLineNumbersRef,
 });
 
@@ -590,6 +592,7 @@ defineExpose({ editor });
 <template>
   <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick" @contextmenu="handleContextMenu" @mouseover="footnotes.handleMouseOver" @mouseout="footnotes.handleMouseOut">
     <div
+      ref="contentWrapperRef"
       class="editor-content-wrapper"
       :class="{ 'has-line-numbers': appSettings.showLineNumbers }"
       :style="editorZoomStyle"
