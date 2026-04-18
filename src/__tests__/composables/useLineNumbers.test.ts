@@ -118,14 +118,24 @@ describe('useLineNumbers', () => {
     expect(lines.value.length).toBe(1);
   });
 
-  it('counts empty tall block as one line (ignores height/lineHeight ratio)', async () => {
+  it('counts small empty block as one line', async () => {
+    const emptySmall = stubChild('p', { top: 0, height: 20, left: 0, right: 100, bottom: 20, width: 100 });
+    const container = mountContainer([emptySmall], { top: 0, height: 20, left: 0, right: 100, bottom: 20, width: 100 });
+
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
+    await nextTick();
+
+    expect(lines.value.length).toBe(1);
+  });
+
+  it('suppresses empty structural block with oversize height', async () => {
     const emptyTall = stubChild('div', { top: 0, height: 200, left: 0, right: 100, bottom: 200, width: 100 });
     const container = mountContainer([emptyTall], { top: 0, height: 200, left: 0, right: 100, bottom: 200, width: 100 });
 
     const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
     await nextTick();
 
-    expect(lines.value.length).toBe(1);
+    expect(lines.value.length).toBe(0);
   });
 
   it('skips zero-height children', async () => {

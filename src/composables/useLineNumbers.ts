@@ -18,7 +18,8 @@ interface LineRect {
 }
 
 const MIN_LINE_HEIGHT_PX = 4;
-const OVERLAP_TOLERANCE_PX = 2;
+const MERGE_OVERLAP_FRACTION = 0.35;
+const MAX_EMPTY_LINE_HEIGHT_PX = 60;
 
 export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumbersOptions) {
   const lines = ref<LineEntry[]>([]);
@@ -119,6 +120,7 @@ function getLinesForBlock(el: HTMLElement, rect: DOMRect): LineRect[] {
   }
 
   if ((el.textContent ?? '').trim() === '') {
+    if (rect.height > MAX_EMPTY_LINE_HEIGHT_PX) return [];
     return [{ top: rect.top, height: rect.height }];
   }
 
@@ -213,12 +215,16 @@ function mergeSameRow(rects: DOMRect[]): LineRect[] {
     const top = r.top;
     const bottom = r.top + r.height;
     const last = merged[merged.length - 1];
-    if (last && top < last.bottom - OVERLAP_TOLERANCE_PX) {
-      last.top = Math.min(last.top, top);
-      last.bottom = Math.max(last.bottom, bottom);
-    } else {
-      merged.push({ top, bottom });
+    if (last) {
+      const overlap = Math.min(last.bottom, bottom) - Math.max(last.top, top);
+      const minHeight = Math.min(last.bottom - last.top, bottom - top);
+      if (minHeight > 0 && overlap > minHeight * MERGE_OVERLAP_FRACTION) {
+        last.top = Math.min(last.top, top);
+        last.bottom = Math.max(last.bottom, bottom);
+        continue;
+      }
     }
+    merged.push({ top, bottom });
   }
   return merged.map((m) => ({ top: m.top, height: m.bottom - m.top }));
 }
