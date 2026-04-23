@@ -197,7 +197,7 @@ const handleScroll = (event: Event) => {
   box-sizing: border-box;
   padding: 0 0.5em 0 0.75em;
   background: var(--code-editor-bg);
-  color: var(--text-secondary, #888);
+  color: var(--code-editor-gutter-text, var(--text-secondary, #888));
   opacity: 0.6;
   font-family: var(--code-font-family, "Fira Code", "Consolas", "Monaco", monospace);
   font-size: var(--code-font-size, 14px);

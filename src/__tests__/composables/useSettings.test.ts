@@ -98,6 +98,11 @@ describe('useSettings', () => {
       expect(settings.value.codeFontFamily).toBe('fira-code');
     });
 
+    it('should have dark code theme by default', () => {
+      const { settings } = useSettings();
+      expect(settings.value.codeTheme).toBe('dark');
+    });
+
     it('should set editor font family', () => {
       const { settings, setEditorFontFamily } = useSettings();
       setEditorFontFamily('georgia');
@@ -110,6 +115,13 @@ describe('useSettings', () => {
       setCodeFontFamily('consolas');
       expect(settings.value.codeFontFamily).toBe('consolas');
       setCodeFontFamily('fira-code');
+    });
+
+    it('should set code theme', () => {
+      const { settings, setCodeTheme } = useSettings();
+      setCodeTheme('white');
+      expect(settings.value.codeTheme).toBe('white');
+      setCodeTheme('dark');
     });
 
     it('should set editor line height within bounds', () => {

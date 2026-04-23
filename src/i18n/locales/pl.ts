@@ -163,6 +163,7 @@ const pl: Translations = {
   dropFilesHere: 'Upuść pliki .md tutaj',
   editorFont: 'Czcionka edytora',
   codeFont: 'Czcionka kodu',
+  codeTheme: 'Motyw kodu',
   lineHeight: 'Wysokość linii',
   spellcheck: 'Sprawdzanie pisowni',
   showLineNumbers: 'Numery linii',
@@ -208,6 +209,7 @@ const pl: Translations = {
   // Theme
   darkMode: 'Ciemny',
   lightMode: 'Jasny',
+  whiteMode: 'Bialy',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `"${fileName}" został zaktualizowany zewnętrznie i ponownie wczytany.`,

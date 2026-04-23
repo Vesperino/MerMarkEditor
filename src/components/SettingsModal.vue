@@ -12,6 +12,7 @@ const {
   settings,
   toggleAutoSave,
   setTheme,
+  setCodeTheme,
   setEditorFontFamily,
   setCodeFontFamily,
   setEditorLineHeight,
@@ -525,6 +526,28 @@ onUnmounted(() => {
           <!-- Code Tab -->
           <div v-if="activeTab === 'code'" class="settings-section">
             <div class="setting-row">
+              <label class="setting-label">{{ t.codeTheme }}</label>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.codeTheme === 'dark' }"
+                    @click="setCodeTheme('dark')"
+                  >
+                    {{ t.darkMode }}
+                  </button>
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.codeTheme === 'white' }"
+                    @click="setCodeTheme('white')"
+                  >
+                    {{ t.whiteMode }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-row">
               <label class="setting-label">{{ t.codeFont }}</label>
               <div class="setting-control">
                 <select
@@ -590,8 +613,8 @@ onUnmounted(() => {
 
             <!-- Code font preview -->
             <div class="font-preview code-preview" :style="{ fontFamily: `var(--code-font-family)` }">
-              <span style="color: #c678dd">const</span> <span style="color: #e06c75">greeting</span> = <span style="color: #98c379">"Hello, World!"</span>;<br>
-              <span style="color: #c678dd">function</span> <span style="color: #61afef">sum</span>(a, b) { <span style="color: #c678dd">return</span> a + b; }
+              <span class="code-token-keyword">const</span> <span class="code-token-name">greeting</span> = <span class="code-token-string">"Hello, World!"</span>;<br>
+              <span class="code-token-keyword">function</span> <span class="code-token-function">sum</span>(a, b) { <span class="code-token-keyword">return</span> a + b; }
             </div>
           </div>
 
@@ -930,9 +953,25 @@ onUnmounted(() => {
 }
 
 .code-preview {
-  background: var(--code-block-bg);
-  color: var(--code-block-text);
+  background: var(--code-editor-bg);
+  color: var(--code-editor-text);
   font-family: var(--code-font-family);
+}
+
+.code-token-keyword {
+  color: var(--code-preview-keyword);
+}
+
+.code-token-name {
+  color: var(--code-preview-name);
+}
+
+.code-token-string {
+  color: var(--code-preview-string);
+}
+
+.code-token-function {
+  color: var(--code-preview-function);
 }
 
 /* Divider */
