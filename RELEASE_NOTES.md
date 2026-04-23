@@ -12,6 +12,15 @@
 - **Page break support** — `---` page breaks now render correctly in Visual view and PDF export (#45)
 - **Table of Contents sidebar** — collapsible left panel showing document headings with click-to-navigate (#41)
 - **Ctrl+Shift+T shortcut** to toggle the Table of Contents panel
+- **Expanded keyboard shortcuts** (#64) — all cross-platform (`Cmd` on macOS, `Ctrl` elsewhere):
+  - `Ctrl/Cmd+W` — close active tab (respects unsaved-changes dialog)
+  - `Ctrl/Cmd+N` — new document tab (previously listed in docs but not bound)
+  - `Ctrl/Cmd+Tab` / `Ctrl/Cmd+Shift+Tab` — cycle through tabs in the active pane
+  - `Ctrl/Cmd+1` … `Ctrl/Cmd+9` — jump to tab by index
+  - `Ctrl/Cmd+Shift+V` — toggle Code / Visual view
+  - `Ctrl/Cmd++` / `Ctrl/Cmd+-` / `Ctrl/Cmd+0` — editor zoom in / out / reset
+  - `Ctrl/Cmd+,` — open Settings
+  - Shortcuts modal (`Ctrl/Cmd+/`) now auto-renders Mac modifier glyphs (`⌘`, `⇧`, `⌥`)
 
 ## Improvements
 

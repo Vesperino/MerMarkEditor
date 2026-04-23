@@ -180,7 +180,7 @@ const handleBarMouseLeave = () => {
       <button
         class="tab-close"
         @click.stop="emit('closeTab', tab.id)"
-        :title="t.closeTab"
+        :title="t.closeTabTooltip"
       >&times;</button>
     </div>
   </div>

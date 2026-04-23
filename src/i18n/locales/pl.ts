@@ -91,6 +91,12 @@ const pl: Translations = {
   keyboardShortcuts: 'Skróty klawiszowe',
   shortcutAction: 'Akcja',
   shortcutKey: 'Skrót',
+  nextTab: 'Następna karta',
+  previousTab: 'Poprzednia karta',
+  jumpToTab: 'Przejdź do karty 1–9',
+  toggleCodeView: 'Przełącz widok Kod / Wizualny',
+  zoomInOut: 'Powiększ / pomniejsz',
+  resetZoom: 'Reset powiększenia',
 
   // Stats
   stats: 'Statystyki',
@@ -112,6 +118,7 @@ const pl: Translations = {
   // Tabs
   newDocument: 'Nowy dokument',
   closeTab: 'Zamknij kartę',
+  closeTabTooltip: 'Zamknij kartę (Ctrl+W)',
 
   // Mermaid Node
   editDiagram: 'Edytuj',
