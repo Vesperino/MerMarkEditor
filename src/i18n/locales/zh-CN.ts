@@ -91,6 +91,12 @@ const zhCN: Translations = {
   keyboardShortcuts: '键盘快捷键',
   shortcutAction: '操作',
   shortcutKey: '快捷键',
+  nextTab: '下一个标签页',
+  previousTab: '上一个标签页',
+  jumpToTab: '跳转到标签页 1–9',
+  toggleCodeView: '切换代码 / 可视视图',
+  zoomInOut: '放大 / 缩小',
+  resetZoom: '重置缩放',
 
   // Stats
   stats: '统计',

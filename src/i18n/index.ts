@@ -97,6 +97,12 @@ export interface Translations {
   keyboardShortcuts: string;
   shortcutAction: string;
   shortcutKey: string;
+  nextTab: string;
+  previousTab: string;
+  jumpToTab: string;
+  toggleCodeView: string;
+  zoomInOut: string;
+  resetZoom: string;
 
   // Stats
   stats: string;
