@@ -700,6 +700,12 @@ const handleKeyboard = (event: KeyboardEvent) => {
         event.preventDefault();
         manualReload();
         break;
+      case 'w':
+        if (activeTabId.value && activePaneId.value) {
+          event.preventDefault();
+          handleCloseTabRequest(activePaneId.value, activeTabId.value);
+        }
+        break;
       case '/':
         event.preventDefault();
         showShortcutsModal.value = !showShortcutsModal.value;

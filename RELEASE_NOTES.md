@@ -12,6 +12,7 @@
 - **Page break support** — `---` page breaks now render correctly in Visual view and PDF export (#45)
 - **Table of Contents sidebar** — collapsible left panel showing document headings with click-to-navigate (#41)
 - **Ctrl+Shift+T shortcut** to toggle the Table of Contents panel
+- **Ctrl+W shortcut** to close the active tab (respects unsaved changes dialog) (#64)
 
 ## Improvements
 

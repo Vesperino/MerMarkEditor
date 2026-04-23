@@ -220,6 +220,7 @@ This is standard behavior for open-source software distributed without a paid co
 | Show changes | `Ctrl+Shift+D` |
 | Compare tabs | `Ctrl+Shift+C` |
 | Reload file | `Ctrl+R` |
+| Close tab | `Ctrl+W` |
 | Keyboard shortcuts | `Ctrl+/` |
 | Close modal | `Escape` |
 

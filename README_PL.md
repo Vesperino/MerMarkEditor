@@ -211,6 +211,7 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 | Pokaż zmiany | `Ctrl+Shift+D` |
 | Porównaj zakładki | `Ctrl+Shift+C` |
 | Przeładuj plik | `Ctrl+R` |
+| Zamknij kartę | `Ctrl+W` |
 | Skróty klawiszowe | `Ctrl+/` |
 | Zamknij modal | `Escape` |
 

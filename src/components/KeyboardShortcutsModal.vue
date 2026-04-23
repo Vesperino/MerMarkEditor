@@ -14,6 +14,7 @@ const shortcuts = [
   { key: 'Ctrl+S', action: () => t.value.save },
   { key: 'Ctrl+Shift+S', action: () => t.value.saveAs },
   { key: 'Ctrl+R', action: () => t.value.reloadFile },
+  { key: 'Ctrl+W', action: () => t.value.closeTab },
   { key: 'Ctrl+P', action: () => t.value.exportPdf },
   { key: 'Ctrl+Z', action: () => t.value.undo },
   { key: 'Ctrl+Y', action: () => t.value.redo },
