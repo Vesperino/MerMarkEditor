@@ -171,6 +171,7 @@ export interface Translations {
   codeFont: string;
   lineHeight: string;
   spellcheck: string;
+  showLineNumbers: string;
   expandTabs: string;
   appearance: string;
   editor: string;

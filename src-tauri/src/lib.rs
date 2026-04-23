@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::collections::{HashMap, BTreeSet};
+use std::path::Path;
 use tauri::{Manager, Emitter, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
 use serde::{Deserialize, Serialize};
 use font_kit::source::SystemSource;
@@ -13,6 +14,14 @@ pub struct OpenFilesRegistry(pub Mutex<HashMap<String, String>>);
 
 // Counter for unique window IDs
 static WINDOW_COUNTER: AtomicU32 = AtomicU32::new(1);
+
+fn is_supported_markdown_path(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
+        .unwrap_or(false)
+}
 
 // Payload for transferring tabs between windows
 #[derive(Clone, Serialize, Deserialize)]
@@ -208,7 +217,7 @@ pub fn run() {
 
                 if args.len() > 1 {
                     let file_path = &args[1];
-                    if file_path.ends_with(".md") || file_path.ends_with(".markdown") {
+                    if is_supported_markdown_path(file_path) {
                         let _ = window.emit("open-file", file_path.clone());
                     }
                 }
@@ -234,7 +243,7 @@ pub fn run() {
             let args: Vec<String> = std::env::args().collect();
             if args.len() > 1 {
                 let file_path = &args[1];
-                if file_path.ends_with(".md") || file_path.ends_with(".markdown") {
+                if is_supported_markdown_path(file_path) {
                     // Store the file path to be retrieved by frontend
                     let state = app.state::<OpenFileState>();
                     *state.0.lock().unwrap() = Some(file_path.clone());
@@ -252,6 +261,34 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             match event {
+                #[cfg(target_os = "macos")]
+                RunEvent::Opened { urls } => {
+                    // macOS: Finder double-click on already-running app dispatches
+                    // NSApplicationDelegate application:openURLs: (no new process,
+                    // so single_instance plugin never fires). Handle it here. (#63)
+                    if let Some(window) = app.get_webview_window("main") {
+                        if window.is_minimized().unwrap_or(false) {
+                            let _ = window.unminimize();
+                        }
+                        if !window.is_visible().unwrap_or(true) {
+                            let _ = window.show();
+                        }
+                        let _ = window.set_focus();
+
+                        for url in urls {
+                            if let Ok(path) = url.to_file_path() {
+                                let path_str = path.to_string_lossy().to_string();
+                                if is_supported_markdown_path(&path_str) {
+                                    // Also store in state as fallback for cold-start
+                                    // race where frontend listener isn't mounted yet.
+                                    let state = app.state::<OpenFileState>();
+                                    *state.0.lock().unwrap() = Some(path_str.clone());
+                                    let _ = window.emit("open-file", path_str);
+                                }
+                            }
+                        }
+                    }
+                }
                 RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { api, .. }, .. } => {
                     // Get count of remaining windows
                     let windows = app.webview_windows();

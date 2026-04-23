@@ -17,6 +17,7 @@ const {
   setEditorLineHeight,
   setSpellcheck,
   setExpandTabs,
+  setShowLineNumbers,
   toggleCodeWordWrap,
 } = useSettings();
 
@@ -486,6 +487,28 @@ onUnmounted(() => {
                     class="toggle-option"
                     :class="{ active: settings.spellcheck }"
                     @click="setSpellcheck(true)"
+                  >
+                    {{ t.on }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t.showLineNumbers }}</label>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button
+                    class="toggle-option"
+                    :class="{ active: !settings.showLineNumbers }"
+                    @click="setShowLineNumbers(false)"
+                  >
+                    {{ t.off }}
+                  </button>
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.showLineNumbers }"
+                    @click="setShowLineNumbers(true)"
                   >
                     {{ t.on }}
                   </button>

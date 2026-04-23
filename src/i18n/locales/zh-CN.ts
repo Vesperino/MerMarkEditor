@@ -165,6 +165,7 @@ const zhCN: Translations = {
   codeFont: '代码字体',
   lineHeight: '行高',
   spellcheck: '拼写检查',
+  showLineNumbers: '行号',
   expandTabs: '展开标签页以显示完整名称',
   appearance: '外观',
   editor: '编辑器',

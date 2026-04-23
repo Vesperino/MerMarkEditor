@@ -51,6 +51,7 @@ export interface AppSettings {
   editorLineHeight: number;
   spellcheck: boolean;
   expandTabs: boolean;
+  showLineNumbers: boolean;
 }
 
 const STORAGE_KEY = 'mermark-settings';
@@ -116,6 +117,7 @@ function getDefaultSettings(): AppSettings {
     editorLineHeight: 1.6,
     spellcheck: false,
     expandTabs: false,
+    showLineNumbers: false,
   };
 }
 
@@ -193,6 +195,14 @@ export function useSettings() {
     settings.value.expandTabs = value;
   };
 
+  const setShowLineNumbers = (value: boolean) => {
+    settings.value.showLineNumbers = value;
+  };
+
+  const toggleShowLineNumbers = () => {
+    settings.value.showLineNumbers = !settings.value.showLineNumbers;
+  };
+
   return {
     settings,
     setAutoSave,
@@ -208,6 +218,8 @@ export function useSettings() {
     setEditorLineHeight,
     setSpellcheck,
     setExpandTabs,
+    setShowLineNumbers,
+    toggleShowLineNumbers,
   };
 }
 

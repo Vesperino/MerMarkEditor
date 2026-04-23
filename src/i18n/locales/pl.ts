@@ -165,6 +165,7 @@ const pl: Translations = {
   codeFont: 'Czcionka kodu',
   lineHeight: 'Wysokość linii',
   spellcheck: 'Sprawdzanie pisowni',
+  showLineNumbers: 'Numery linii',
   expandTabs: 'Rozszerz karty do pełnej nazwy',
   appearance: 'Wygląd',
   editor: 'Edytor',
