@@ -112,6 +112,7 @@ const en: Translations = {
   // Tabs
   newDocument: 'New Document',
   closeTab: 'Close tab',
+  closeTabTooltip: 'Close tab (Ctrl+W)',
 
   // Mermaid Node
   editDiagram: 'Edit',

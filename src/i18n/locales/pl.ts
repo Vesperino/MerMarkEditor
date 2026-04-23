@@ -112,6 +112,7 @@ const pl: Translations = {
   // Tabs
   newDocument: 'Nowy dokument',
   closeTab: 'Zamknij kartę',
+  closeTabTooltip: 'Zamknij kartę (Ctrl+W)',
 
   // Mermaid Node
   editDiagram: 'Edytuj',

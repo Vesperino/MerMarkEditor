@@ -112,6 +112,7 @@ const zhCN: Translations = {
   // Tabs
   newDocument: '新建文档',
   closeTab: '关闭标签页',
+  closeTabTooltip: '关闭标签页 (Ctrl+W)',
 
   // Mermaid Node
   editDiagram: '编辑',

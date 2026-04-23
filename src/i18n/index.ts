@@ -118,6 +118,7 @@ export interface Translations {
   // Tabs
   newDocument: string;
   closeTab: string;
+  closeTabTooltip: string;
 
   // Mermaid Node
   editDiagram: string;
