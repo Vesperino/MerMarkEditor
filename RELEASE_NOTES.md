@@ -25,7 +25,8 @@
 ## Improvements
 
 - **Toolbar architecture refactored** — the monolithic 1150-line Toolbar.vue has been decomposed into a registry-based system with shared composables, making it maintainable and extensible
-- **Statistics grouped** — character count, word count, and token counter are now a single movable unit
+- **Line counter added** - the editor now shows the current line count alongside the other document statistics
+- **Statistics grouped** - character count, word count, line count, and token counter are now a single movable unit
 - **Dropdown direction** adapts to zone: downward in toolbar, upward in status bar, rightward in left sidebar
 
 ## Bug Fixes
