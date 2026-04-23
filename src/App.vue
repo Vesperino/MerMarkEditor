@@ -524,7 +524,7 @@ const { settings } = useSettings();
 const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
 
 // ============ Editor Zoom ============
-const { zoomIn, zoomOut } = useEditorZoom();
+const { zoomIn, zoomOut, resetZoom } = useEditorZoom();
 
 const handleWheel = (event: WheelEvent) => {
   if (event.ctrlKey || event.metaKey) {
@@ -657,11 +657,44 @@ watch(() => settings.value.autoSave, (newValue) => {
 });
 
 // ============ Keyboard Shortcuts ============
+const switchTabByOffset = (offset: number) => {
+  const pane = splitState.value.panes.find(p => p.id === activePaneId.value);
+  if (!pane || pane.tabs.length === 0) return;
+  const currentIdx = pane.tabs.findIndex(t => t.id === pane.activeTabId);
+  const base = currentIdx === -1 ? 0 : currentIdx;
+  const nextIdx = (base + offset + pane.tabs.length) % pane.tabs.length;
+  switchTab(pane.id, pane.tabs[nextIdx].id);
+};
+
+const switchTabByIndex = (index: number) => {
+  const pane = splitState.value.panes.find(p => p.id === activePaneId.value);
+  if (!pane || index < 0 || index >= pane.tabs.length) return;
+  switchTab(pane.id, pane.tabs[index].id);
+};
+
 const handleKeyboard = (event: KeyboardEvent) => {
   const modifier = event.ctrlKey || event.metaKey;
 
   if (modifier) {
-    switch (event.key.toLowerCase()) {
+    const key = event.key.toLowerCase();
+
+    if (key === 'tab') {
+      event.preventDefault();
+      switchTabByOffset(event.shiftKey ? -1 : 1);
+      return;
+    }
+
+    if (!event.shiftKey && key >= '1' && key <= '9') {
+      event.preventDefault();
+      switchTabByIndex(Number(key) - 1);
+      return;
+    }
+
+    switch (key) {
+      case 'n':
+        event.preventDefault();
+        newFile();
+        break;
       case 's':
         event.preventDefault();
         if (event.shiftKey) {
@@ -699,6 +732,35 @@ const handleKeyboard = (event: KeyboardEvent) => {
       case 'r':
         event.preventDefault();
         manualReload();
+        break;
+      case 'w':
+        if (activeTabId.value && activePaneId.value) {
+          event.preventDefault();
+          handleCloseTabRequest(activePaneId.value, activeTabId.value);
+        }
+        break;
+      case '=':
+      case '+':
+        event.preventDefault();
+        zoomIn();
+        break;
+      case '-':
+        event.preventDefault();
+        zoomOut();
+        break;
+      case '0':
+        event.preventDefault();
+        resetZoom();
+        break;
+      case ',':
+        event.preventDefault();
+        showSettingsModal.value = true;
+        break;
+      case 'v':
+        if (event.shiftKey) {
+          event.preventDefault();
+          toggleCodeView();
+        }
         break;
       case '/':
         event.preventDefault();

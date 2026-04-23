@@ -220,8 +220,18 @@ This is standard behavior for open-source software distributed without a paid co
 | Show changes | `Ctrl+Shift+D` |
 | Compare tabs | `Ctrl+Shift+C` |
 | Reload file | `Ctrl+R` |
+| Close tab | `Ctrl+W` |
+| Next tab | `Ctrl+Tab` |
+| Previous tab | `Ctrl+Shift+Tab` |
+| Jump to tab 1–9 | `Ctrl+1` … `Ctrl+9` |
+| Toggle Code / Visual view | `Ctrl+Shift+V` |
+| Zoom in / out | `Ctrl++` / `Ctrl+-` |
+| Reset zoom | `Ctrl+0` |
+| Settings | `Ctrl+,` |
 | Keyboard shortcuts | `Ctrl+/` |
 | Close modal | `Escape` |
+
+> On macOS, use `⌘` (Cmd) in place of `Ctrl`.
 
 ### Creating Mermaid Diagrams
 

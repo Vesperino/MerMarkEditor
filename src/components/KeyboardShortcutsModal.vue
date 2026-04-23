@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from '../i18n';
 
 const { t } = useI18n();
@@ -8,13 +8,32 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const shortcuts = [
+const isMac = typeof navigator !== 'undefined'
+  && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
+
+const formatKey = (key: string): string => {
+  if (!isMac) return key;
+  return key
+    .replace(/\bCtrl\b/g, '⌘')
+    .replace(/\bShift\b/g, '⇧')
+    .replace(/\bAlt\b/g, '⌥');
+};
+
+const rawShortcuts = [
   { key: 'Ctrl+N', action: () => t.value.new },
   { key: 'Ctrl+O', action: () => t.value.open },
   { key: 'Ctrl+S', action: () => t.value.save },
   { key: 'Ctrl+Shift+S', action: () => t.value.saveAs },
   { key: 'Ctrl+R', action: () => t.value.reloadFile },
+  { key: 'Ctrl+W', action: () => t.value.closeTab },
+  { key: 'Ctrl+Tab', action: () => t.value.nextTab },
+  { key: 'Ctrl+Shift+Tab', action: () => t.value.previousTab },
+  { key: 'Ctrl+1…9', action: () => t.value.jumpToTab },
   { key: 'Ctrl+P', action: () => t.value.exportPdf },
+  { key: 'Ctrl+,', action: () => t.value.settings },
+  { key: 'Ctrl+Shift+V', action: () => t.value.toggleCodeView },
+  { key: 'Ctrl++ / Ctrl+-', action: () => t.value.zoomInOut },
+  { key: 'Ctrl+0', action: () => t.value.resetZoom },
   { key: 'Ctrl+Z', action: () => t.value.undo },
   { key: 'Ctrl+Y', action: () => t.value.redo },
   { key: 'Ctrl+B', action: () => t.value.bold },
@@ -25,6 +44,10 @@ const shortcuts = [
   { key: 'Ctrl+/', action: () => t.value.keyboardShortcuts },
   { key: 'Escape', action: () => t.value.close },
 ];
+
+const shortcuts = computed(() =>
+  rawShortcuts.map(s => ({ key: formatKey(s.key), action: s.action }))
+);
 
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {

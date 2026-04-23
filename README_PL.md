@@ -211,8 +211,18 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 | Pokaż zmiany | `Ctrl+Shift+D` |
 | Porównaj zakładki | `Ctrl+Shift+C` |
 | Przeładuj plik | `Ctrl+R` |
+| Zamknij kartę | `Ctrl+W` |
+| Następna karta | `Ctrl+Tab` |
+| Poprzednia karta | `Ctrl+Shift+Tab` |
+| Przejdź do karty 1–9 | `Ctrl+1` … `Ctrl+9` |
+| Przełącz widok Kod / Wizualny | `Ctrl+Shift+V` |
+| Powiększ / pomniejsz | `Ctrl++` / `Ctrl+-` |
+| Reset powiększenia | `Ctrl+0` |
+| Ustawienia | `Ctrl+,` |
 | Skróty klawiszowe | `Ctrl+/` |
 | Zamknij modal | `Escape` |
+
+> Na macOS używaj `⌘` (Cmd) zamiast `Ctrl`.
 
 ### Tworzenie diagramów Mermaid
 

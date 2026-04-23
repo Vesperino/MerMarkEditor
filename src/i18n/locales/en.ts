@@ -91,6 +91,12 @@ const en: Translations = {
   keyboardShortcuts: 'Keyboard Shortcuts',
   shortcutAction: 'Action',
   shortcutKey: 'Shortcut',
+  nextTab: 'Next tab',
+  previousTab: 'Previous tab',
+  jumpToTab: 'Jump to tab 1–9',
+  toggleCodeView: 'Toggle Code / Visual view',
+  zoomInOut: 'Zoom in / out',
+  resetZoom: 'Reset zoom',
 
   // Stats
   stats: 'Statistics',
@@ -112,6 +118,7 @@ const en: Translations = {
   // Tabs
   newDocument: 'New Document',
   closeTab: 'Close tab',
+  closeTabTooltip: 'Close tab (Ctrl+W)',
 
   // Mermaid Node
   editDiagram: 'Edit',
