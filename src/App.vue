@@ -662,6 +662,10 @@ const handleKeyboard = (event: KeyboardEvent) => {
 
   if (modifier) {
     switch (event.key.toLowerCase()) {
+      case 'n':
+        event.preventDefault();
+        newFile();
+        break;
       case 's':
         event.preventDefault();
         if (event.shiftKey) {

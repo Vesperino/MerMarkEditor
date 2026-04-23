@@ -13,6 +13,7 @@
 - **Table of Contents sidebar** — collapsible left panel showing document headings with click-to-navigate (#41)
 - **Ctrl+Shift+T shortcut** to toggle the Table of Contents panel
 - **Ctrl+W shortcut** to close the active tab (respects unsaved changes dialog) (#64)
+- **Ctrl+N shortcut** wired to create a new document tab (previously listed in docs but not bound)
 
 ## Improvements
 
