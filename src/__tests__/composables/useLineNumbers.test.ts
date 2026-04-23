@@ -31,6 +31,7 @@ function mountContainer(children: HTMLElement[], containerRect: RectStub, contai
 }
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
     observe() {}
@@ -86,6 +87,30 @@ describe('useLineNumbers', () => {
     expect(lines.value.map((l) => l.num)).toEqual([1, 2, 3]);
   });
 
+  it('normalizes small text-rect variance to the computed line height', async () => {
+    const wrapped = stubChild('p', { top: 0, height: 50, left: 0, right: 100, bottom: 50, width: 100 }, {
+      text: 'wrapped paragraph',
+      lineHeight: '24px',
+    });
+    const container = mountContainer([wrapped], { top: 0, height: 50, left: 0, right: 100, bottom: 50, width: 100 });
+
+    vi.spyOn(document, 'createRange').mockImplementation(() => ({
+      selectNodeContents() {},
+      getClientRects: () => ([
+        { top: 0, height: 25, left: 0, right: 100, bottom: 25, width: 100 },
+        { top: 24.5, height: 24.8, left: 0, right: 100, bottom: 49.3, width: 100 },
+      ].map((rect) => ({ ...rect, x: rect.left, y: rect.top, toJSON: () => ({}) }) as DOMRect)),
+      detach() {},
+    }) as unknown as Range);
+
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
+    await nextTick();
+
+    expect(lines.value).toHaveLength(2);
+    expect(lines.value.map((line) => line.height)).toEqual([24, 24]);
+    expect(lines.value.map((line) => Number(line.top.toFixed(2)))).toEqual([0.5, 24.5]);
+  });
+
   it('counts PRE by text-content newlines, not height', async () => {
     const pre = stubChild('pre', { top: 0, height: 200, left: 0, right: 100, bottom: 200, width: 100 }, {
       text: 'line1\nline2\nline3\nline4',
@@ -106,6 +131,38 @@ describe('useLineNumbers', () => {
     await nextTick();
 
     expect(lines.value.length).toBe(3);
+  });
+
+  it('counts table rows when TipTap wraps the table in tableWrapper', async () => {
+    const wrapper = stubChild('div', { top: 0, height: 160, left: 0, right: 100, bottom: 160, width: 100 }, {
+      attrs: { class: 'tableWrapper' },
+    });
+    const table = stubChild('table', { top: 0, height: 160, left: 0, right: 100, bottom: 160, width: 100 }, { rowCount: 4 });
+    wrapper.appendChild(table);
+
+    const rows = Array.from(table.querySelectorAll('tr')) as HTMLElement[];
+    rows.forEach((row, index) => {
+      const top = index * 40;
+      row.getBoundingClientRect = () => ({
+        top,
+        height: 40,
+        left: 0,
+        right: 100,
+        bottom: top + 40,
+        width: 100,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    });
+
+    const container = mountContainer([wrapper], { top: 0, height: 160, left: 0, right: 100, bottom: 160, width: 100 });
+
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
+    await nextTick();
+
+    expect(lines.value).toHaveLength(4);
+    expect(lines.value.map((line) => line.top)).toEqual([0, 40, 80, 120]);
   });
 
   it('counts atomic mermaid block as one line', async () => {

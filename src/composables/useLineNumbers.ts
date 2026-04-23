@@ -19,6 +19,7 @@ interface LineRect {
 
 const MIN_LINE_HEIGHT_PX = 4;
 const MERGE_OVERLAP_FRACTION = 0.35;
+const LINE_HEIGHT_SNAP_FRACTION = 0.45;
 const MAX_EMPTY_LINE_HEIGHT_PX = 60;
 
 export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumbersOptions) {
@@ -115,8 +116,9 @@ function getLinesForBlock(el: HTMLElement, rect: DOMRect): LineRect[] {
     return [{ top: rect.top, height: rect.height }];
   }
 
-  if (el.tagName === 'TABLE') {
-    return getTableRowRects(el, rect);
+  const table = resolveTableElement(el);
+  if (table) {
+    return getTableRowRects(table, table.getBoundingClientRect());
   }
 
   if ((el.textContent ?? '').trim() === '') {
@@ -148,6 +150,14 @@ function getTableRowRects(table: HTMLElement, tableRect: DOMRect): LineRect[] {
   return rows.map((_, i) => ({ top: tableRect.top + i * step, height: step }));
 }
 
+function resolveTableElement(el: HTMLElement): HTMLElement | null {
+  if (el.tagName === 'TABLE') return el;
+  if (el.classList.contains('tableWrapper')) {
+    return el.querySelector(':scope > table');
+  }
+  return null;
+}
+
 function getPreLineRects(pre: HTMLElement, rect: DOMRect): LineRect[] {
   const textLines = Math.max(1, (pre.textContent ?? '').split('\n').length);
   const step = rect.height / textLines;
@@ -162,7 +172,7 @@ function getTextLineRects(el: HTMLElement): LineRect[] {
   if (!el.firstChild || typeof document.createRange !== 'function') return [];
   const collected: DOMRect[] = [];
   collectInlineRects(el, collected);
-  return mergeSameRow(collected);
+  return normalizeTextLineRects(mergeSameRow(collected), resolveLineHeightPx(el));
 }
 
 function collectInlineRects(el: HTMLElement, out: DOMRect[]): void {
@@ -227,6 +237,38 @@ function mergeSameRow(rects: DOMRect[]): LineRect[] {
     merged.push({ top, bottom });
   }
   return merged.map((m) => ({ top: m.top, height: m.bottom - m.top }));
+}
+
+function normalizeTextLineRects(rects: LineRect[], lineHeightPx: number): LineRect[] {
+  if (rects.length === 0 || lineHeightPx < MIN_LINE_HEIGHT_PX) return rects;
+
+  const tolerance = lineHeightPx * LINE_HEIGHT_SNAP_FRACTION;
+  const normalized: LineRect[] = [];
+  let baselineTop: number | null = null;
+
+  for (let index = 0; index < rects.length; index++) {
+    const rect = rects[index];
+    const shouldSnapHeight = Math.abs(rect.height - lineHeightPx) <= tolerance;
+    const height = shouldSnapHeight ? lineHeightPx : rect.height;
+    let top = rect.top;
+
+    if (shouldSnapHeight) {
+      top += (rect.height - height) / 2;
+    }
+
+    if (baselineTop === null) {
+      baselineTop = top;
+    } else {
+      const expectedTop = baselineTop + index * lineHeightPx;
+      if (Math.abs(top - expectedTop) <= tolerance) {
+        top = expectedTop;
+      }
+    }
+
+    normalized.push({ top, height });
+  }
+
+  return normalized;
 }
 
 function fallbackLineRects(el: HTMLElement, rect: DOMRect): LineRect[] {
