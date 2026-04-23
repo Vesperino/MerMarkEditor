@@ -4,6 +4,7 @@ import { TOKEN_MODELS } from '../services/tokenCounter';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type ThemeMode = 'light' | 'dark';
+export type CodeThemeMode = 'dark' | 'white';
 
 export interface FontPreset {
   id: string;
@@ -45,6 +46,7 @@ export interface AppSettings {
   showTokenCount: boolean;
   tokenModel: TokenModelId;
   theme: ThemeMode;
+  codeTheme: CodeThemeMode;
   codeWordWrap: boolean;
   editorFontFamily: string;
   codeFontFamily: string;
@@ -97,6 +99,9 @@ function loadSettings(): AppSettings {
       if (parsed.tokenModel) {
         parsed.tokenModel = migrateTokenModel(parsed.tokenModel);
       }
+      if (parsed.codeTheme && !['dark', 'white'].includes(parsed.codeTheme)) {
+        parsed.codeTheme = getDefaultSettings().codeTheme;
+      }
       return { ...getDefaultSettings(), ...parsed };
     }
   } catch (error) {
@@ -111,6 +116,7 @@ function getDefaultSettings(): AppSettings {
     showTokenCount: true,
     tokenModel: 'gpt',
     theme: 'light',
+    codeTheme: 'dark',
     codeWordWrap: true,
     editorFontFamily: 'system',
     codeFontFamily: 'fira-code',
@@ -172,6 +178,11 @@ export function useSettings() {
     settings.value.codeWordWrap = !settings.value.codeWordWrap;
   };
 
+  const setCodeTheme = (theme: CodeThemeMode) => {
+    settings.value.codeTheme = theme;
+    applyCssVars(settings.value);
+  };
+
   const setEditorFontFamily = (fontId: string) => {
     settings.value.editorFontFamily = fontId;
     applyCssVars(settings.value);
@@ -213,6 +224,7 @@ export function useSettings() {
     setTheme,
     toggleTheme,
     toggleCodeWordWrap,
+    setCodeTheme,
     setEditorFontFamily,
     setCodeFontFamily,
     setEditorLineHeight,
@@ -253,12 +265,26 @@ function resolveCodeFont(id: string): string {
   return `"${id}", monospace`;
 }
 
+function applyCodeThemeVars(root: CSSStyleDeclaration, theme: CodeThemeMode) {
+  const darkTheme = theme === 'dark';
+
+  root.setProperty('--code-editor-container-bg', darkTheme ? '#1e293b' : '#f1f5f9');
+  root.setProperty('--code-editor-bg', darkTheme ? '#0f172a' : '#ffffff');
+  root.setProperty('--code-editor-text', darkTheme ? '#e2e8f0' : '#1e293b');
+  root.setProperty('--code-editor-gutter-text', darkTheme ? '#94a3b8' : '#64748b');
+  root.setProperty('--code-preview-keyword', darkTheme ? '#c678dd' : '#7c3aed');
+  root.setProperty('--code-preview-name', darkTheme ? '#e06c75' : '#dc2626');
+  root.setProperty('--code-preview-string', darkTheme ? '#98c379' : '#15803d');
+  root.setProperty('--code-preview-function', darkTheme ? '#61afef' : '#2563eb');
+}
+
 // Apply all CSS custom properties to document root
 function applyCssVars(s: AppSettings) {
   const root = document.documentElement.style;
   root.setProperty('--editor-font-family', resolveEditorFont(s.editorFontFamily));
   root.setProperty('--code-font-family', resolveCodeFont(s.codeFontFamily));
   root.setProperty('--editor-line-height', `${s.editorLineHeight}`);
+  applyCodeThemeVars(root, s.codeTheme);
 }
 
 // Apply theme and CSS vars on initial load

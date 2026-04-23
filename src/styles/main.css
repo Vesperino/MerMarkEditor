@@ -145,6 +145,11 @@
   --code-editor-container-bg: #1e293b;
   --code-editor-bg: #0f172a;
   --code-editor-text: #e2e8f0;
+  --code-editor-gutter-text: #94a3b8;
+  --code-preview-keyword: #c678dd;
+  --code-preview-name: #e06c75;
+  --code-preview-string: #98c379;
+  --code-preview-function: #61afef;
 
   /* Progress bar */
   --progress-bg: #e2e8f0;
@@ -312,6 +317,11 @@ html.dark {
   --code-editor-container-bg: #111111;
   --code-editor-bg: #0a0a0a;
   --code-editor-text: #e2e8f0;
+  --code-editor-gutter-text: #94a3b8;
+  --code-preview-keyword: #c678dd;
+  --code-preview-name: #e06c75;
+  --code-preview-string: #98c379;
+  --code-preview-function: #61afef;
 
   --progress-bg: #383838;
   --progress-fill: #3b82f6;

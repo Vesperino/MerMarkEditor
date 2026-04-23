@@ -163,6 +163,7 @@ const zhCN: Translations = {
   dropFilesHere: '将 .md 文件拖放至此',
   editorFont: '编辑器字体',
   codeFont: '代码字体',
+  codeTheme: '代码主题',
   lineHeight: '行高',
   spellcheck: '拼写检查',
   showLineNumbers: '行号',
@@ -208,6 +209,7 @@ const zhCN: Translations = {
   // Theme
   darkMode: '深色',
   lightMode: '浅色',
+  whiteMode: '白色',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `"${fileName}" 已被外部更新并重新加载。`,

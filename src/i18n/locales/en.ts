@@ -163,6 +163,7 @@ const en: Translations = {
   dropFilesHere: 'Drop .md files here',
   editorFont: 'Editor font',
   codeFont: 'Code font',
+  codeTheme: 'Code theme',
   lineHeight: 'Line height',
   spellcheck: 'Spellcheck',
   showLineNumbers: 'Line numbers',
@@ -208,6 +209,7 @@ const en: Translations = {
   // Theme
   darkMode: 'Dark',
   lightMode: 'Light',
+  whiteMode: 'White',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `"${fileName}" was updated externally and reloaded.`,

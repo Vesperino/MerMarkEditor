@@ -169,6 +169,7 @@ export interface Translations {
   dropFilesHere: string;
   editorFont: string;
   codeFont: string;
+  codeTheme: string;
   lineHeight: string;
   spellcheck: string;
   showLineNumbers: string;
@@ -214,6 +215,7 @@ export interface Translations {
   // Theme
   darkMode: string;
   lightMode: string;
+  whiteMode: string;
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => string;
