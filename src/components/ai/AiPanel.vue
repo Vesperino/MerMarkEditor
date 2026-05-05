@@ -195,7 +195,7 @@ function onSelectModel(id: string) {
   }
 }
 
-watch(selectedCli, (cli) => {
+watch(selectedCli, (cli, oldCli) => {
   setAiDefaultCli(cli);
   selectedModel.value = cli === 'claude'
     ? settings.value.ai.defaultModelClaude
@@ -204,6 +204,13 @@ watch(selectedCli, (cli) => {
     ? settings.value.ai.effortClaude
     : settings.value.ai.effortCodex;
   aiContext.reset(cli);
+  // Switching CLI starts a fresh conversation: each CLI keeps its own
+  // session_id format, and resuming a claude session with codex (or vice
+  // versa) fails server-side with "no rollout found".
+  if (oldCli && oldCli !== cli) {
+    ai.startNewThread();
+    session.startNew();
+  }
 });
 
 watch(selectedModel, (m) => {
@@ -390,7 +397,7 @@ async function onSend() {
       await aiCommands.snapshotCreate(
         props.docPath,
         onDiskBefore,
-        session.current.value?.sessionId ?? null,
+        (session.current.value && session.current.value.cli === selectedCli.value ? session.current.value.sessionId : null),
         settings.value.ai.snapshotsKeep,
       );
     } catch (e) {
@@ -400,7 +407,7 @@ async function onSend() {
 
   const final = await ai.send({
     cli: selectedCli.value,
-    sessionId: session.current.value?.sessionId ?? null,
+    sessionId: (session.current.value && session.current.value.cli === selectedCli.value ? session.current.value.sessionId : null),
     model: selectedModel.value,
     effort: selectedEffort.value,
     prompt,
