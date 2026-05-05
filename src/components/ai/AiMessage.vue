@@ -29,6 +29,26 @@ const prettyToolArgs = computed(() => {
     return props.message.text;
   }
 });
+const toolName = computed(() => props.message.tool?.trim() || 'tool');
+const toolPreview = computed(() => {
+  const raw = props.message.text?.trim();
+  if (!raw) return 'No arguments';
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const entries = Object.entries(parsed as Record<string, unknown>);
+      if (entries.length > 0) {
+        return entries
+          .slice(0, 3)
+          .map(([key, value]) => `${key}: ${formatToolPreviewValue(value)}`)
+          .join(', ');
+      }
+    }
+    return formatToolPreviewValue(parsed);
+  } catch {
+    return raw.replace(/\s+/g, ' ');
+  }
+});
 // Show typing indicator while waiting for first text chunk.
 const isThinking = computed(
   () => isAssistant.value && !props.message.done && props.message.text === '' && !props.message.error
@@ -93,6 +113,15 @@ function onLink(url: string | undefined, e: MouseEvent) {
   e.preventDefault();
   emit('linkClick', url);
 }
+
+function formatToolPreviewValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return value.replace(/\s+/g, ' ');
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return `[${value.length}]`;
+  if (typeof value === 'object') return '{...}';
+  return String(value);
+}
 </script>
 
 <template>
@@ -108,8 +137,8 @@ function onLink(url: string | undefined, e: MouseEvent) {
     >
       <svg class="ai-msg__tool-chevron" :class="{ 'ai-msg__tool-chevron--open': toolExpanded }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-      <span class="ai-msg__tool-label">{{ message.tool }}</span>
-      <span v-if="!toolExpanded" class="ai-msg__tool-args">{{ message.text }}</span>
+      <span class="ai-msg__tool-label">{{ toolName }}</span>
+      <span v-if="!toolExpanded" class="ai-msg__tool-args">{{ toolPreview }}</span>
     </button>
     <pre v-if="toolExpanded" class="ai-msg__tool-args-full">{{ prettyToolArgs }}</pre>
   </div>
@@ -225,18 +254,21 @@ function onLink(url: string | undefined, e: MouseEvent) {
 /* Tool usage entry — width hugs content (collapsed) and only stretches when
    the JSON dump is open. */
 .ai-msg--tool {
+  padding: 0;
   align-self: flex-start;
   width: fit-content;
   max-width: 100%;
   background: var(--bg-secondary, var(--bg-tertiary));
   color: var(--text-secondary);
   font-size: 11px;
+  line-height: 1.35;
   border-radius: 6px;
   border: 1px dashed var(--border-primary);
   font-family: var(--code-font-family, monospace);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
+  min-height: 30px;
 }
 .ai-msg--tool-expanded {
   align-self: stretch;
@@ -255,6 +287,9 @@ function onLink(url: string | undefined, e: MouseEvent) {
   text-align: left;
   width: 100%;
   min-width: 0;
+  min-height: 30px;
+  line-height: 1.35;
+  box-sizing: border-box;
 }
 .ai-msg__tool-row:hover { background: var(--hover-bg, rgba(0,0,0,0.04)); }
 .ai-msg__tool-chevron {
@@ -267,15 +302,17 @@ function onLink(url: string | undefined, e: MouseEvent) {
   font-weight: 600;
   color: var(--primary);
   flex-shrink: 0;
+  line-height: inherit;
 }
 .ai-msg__tool-args {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  max-width: 28ch;
+  max-width: min(52ch, 100%);
   opacity: 0.7;
   color: var(--text-muted);
+  line-height: inherit;
 }
 .ai-msg__tool-args-full {
   margin: 0;
