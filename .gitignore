@@ -35,3 +35,6 @@ src-tauri/Cargo.lock
 *.key
 !*.key.pub
 test-results/
+
+# Local planning / brainstorm docs (superpowers workflow output)
+docs/superpowers/
