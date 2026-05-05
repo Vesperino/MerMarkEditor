@@ -6,6 +6,8 @@ use tauri::{Manager, Emitter, WebviewUrl, WebviewWindowBuilder, RunEvent, Window
 use serde::{Deserialize, Serialize};
 use font_kit::source::SystemSource;
 
+mod ai;
+
 // Store the file path to be opened (from CLI args or file association)
 pub struct OpenFileState(pub Mutex<Option<String>>);
 
