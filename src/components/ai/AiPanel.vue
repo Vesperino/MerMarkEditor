@@ -53,6 +53,17 @@ const selectedEffort = ref<string>(
 const customModelInput = ref<string>('');
 const inputValue = ref('');
 const fullscreen = ref(false);
+const minimized = ref(false);
+const topOffset = ref(44);
+
+let toolbarObserver: ResizeObserver | null = null;
+function measureToolbar() {
+  const tb = document.querySelector('.toolbar');
+  if (tb) {
+    const rect = tb.getBoundingClientRect();
+    topOffset.value = Math.ceil(rect.bottom);
+  }
+}
 // Tool activity ribbon: AI emits a tool_request, we surface it for ~3s as a
 // small inline indicator so the user sees what's happening. The actual
 // permission gate lives in the spawned CLI (--permission-mode + --allowedTools).
@@ -137,11 +148,18 @@ watch(selectedEffort, (e) => {
   else setAiEffortCodex(e);
 });
 
-const sideStyle = computed(() => {
+const sideStyle = computed<Record<string, string>>(() => {
   if (fullscreen.value) return {};
-  return settings.value.ai.panelSide === 'left'
+  const base = settings.value.ai.panelSide === 'left'
     ? { left: '0', right: 'auto' }
     : { right: '0', left: 'auto' };
+  return { ...base, top: `${topOffset.value}px` };
+});
+
+const minimizedStyle = computed<Record<string, string>>(() => {
+  return settings.value.ai.panelSide === 'left'
+    ? { left: '0', right: 'auto', top: `${topOffset.value + 12}px` }
+    : { right: '0', left: 'auto', top: `${topOffset.value + 12}px` };
 });
 
 function onGlobalKeydown(e: KeyboardEvent) {
@@ -159,6 +177,14 @@ function onGlobalKeydown(e: KeyboardEvent) {
 onMounted(async () => {
   window.addEventListener('keydown', onGlobalKeydown);
   window.addEventListener('click', onWindowClick);
+  // Track toolbar height so panel sits below it regardless of 1 / 2 / 3 rows.
+  measureToolbar();
+  const tb = document.querySelector('.toolbar');
+  if (tb && 'ResizeObserver' in window) {
+    toolbarObserver = new ResizeObserver(measureToolbar);
+    toolbarObserver.observe(tb);
+  }
+  window.addEventListener('resize', measureToolbar);
   if (props.docPath) {
     ai.bindDoc(props.docPath);
     await Promise.all([
@@ -172,6 +198,8 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown);
   window.removeEventListener('click', onWindowClick);
+  window.removeEventListener('resize', measureToolbar);
+  toolbarObserver?.disconnect();
 });
 
 watch(() => props.docPath, async (p) => {
@@ -325,8 +353,19 @@ function onDeleteThread(id: string) {
 </script>
 
 <template>
+  <button
+    v-if="props.open && settings.ai.enabled && minimized"
+    class="ai-panel-tab"
+    :class="{ 'ai-panel-tab--left': settings.ai.panelSide === 'left' }"
+    :style="minimizedStyle"
+    @click="minimized = false"
+    title="Restore AI panel"
+  >
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v1H7a4 4 0 0 0-4 4v3a4 4 0 0 0 2 3.46V20a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.54A4 4 0 0 0 21 13v-3a4 4 0 0 0-4-4h-2V5a3 3 0 0 0-3-3z"/></svg>
+    <span>AI</span>
+  </button>
   <aside
-    v-if="props.open && settings.ai.enabled"
+    v-if="props.open && settings.ai.enabled && !minimized"
     class="ai-panel"
     :class="{ 'ai-panel--fullscreen': fullscreen, 'ai-panel--left': settings.ai.panelSide === 'left' && !fullscreen }"
     :style="sideStyle"
@@ -402,12 +441,16 @@ function onDeleteThread(id: string) {
         <button class="ai-panel__icon-btn" @click="newChat" :title="t.aiNewChat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
-        <button class="ai-panel__icon-btn" @click="fullscreen = !fullscreen" :title="fullscreen ? t.aiExitFullscreen : t.aiFullscreen">
-          <svg v-if="!fullscreen" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/></svg>
-          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6"/></svg>
+        <span class="ai-panel__win-sep" />
+        <button class="ai-panel__win-btn" @click="minimized = true" title="Minimize to tab">
+          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="8" width="8" height="1" fill="currentColor"/></svg>
         </button>
-        <button class="ai-panel__icon-btn ai-panel__close" @click="emit('close')" :title="`${t.aiClose} (Esc)`">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <button class="ai-panel__win-btn" @click="fullscreen = !fullscreen" :title="fullscreen ? t.aiExitFullscreen : t.aiFullscreen">
+          <svg v-if="!fullscreen" width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor"/></svg>
+          <svg v-else width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="3" width="6" height="6" fill="none" stroke="currentColor"/><rect x="3" y="1" width="6" height="6" fill="none" stroke="currentColor"/></svg>
+        </button>
+        <button class="ai-panel__win-btn ai-panel__win-btn--close" @click="emit('close')" :title="`${t.aiClose} (Esc)`">
+          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor"/></svg>
         </button>
       </div>
     </header>
@@ -589,6 +632,68 @@ function onDeleteThread(id: string) {
   background: var(--hover-bg);
   color: var(--text-primary);
 }
+
+/* Window-control buttons (minimize/maximize/close) — distinct from action icons */
+.ai-panel__win-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-primary);
+  margin: 0 4px;
+}
+.ai-panel__win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  background: transparent;
+  color: var(--text-secondary, var(--text-muted));
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+.ai-panel__win-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+.ai-panel__win-btn--close:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* Minimized tab — small button stuck to viewport edge */
+.ai-panel-tab {
+  position: fixed;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: var(--bg-primary);
+  color: var(--primary);
+  border: 1px solid var(--border-primary);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+  transition: background 100ms ease, transform 100ms ease;
+}
+.ai-panel-tab:hover {
+  background: var(--hover-bg);
+  transform: translateX(-2px);
+}
+.ai-panel-tab--left {
+  border-right: 1px solid var(--border-primary);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+.ai-panel-tab--left:hover { transform: translateX(2px); }
+
 .ai-panel__bypass--on {
   background: var(--diff-removed-bg, #fef3c7);
   color: var(--split-toggle-color, #b45309);
