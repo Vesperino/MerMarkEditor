@@ -500,7 +500,8 @@ function onDeleteThread(id: string) {
 <style scoped>
 .ai-panel {
   position: fixed;
-  top: 0;
+  /* Start below the app toolbar so its controls (zoom, etc.) stay reachable. */
+  top: var(--toolbar-height, 44px);
   bottom: 0;
   width: 420px;
   background: var(--bg-primary);
