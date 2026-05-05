@@ -369,6 +369,25 @@ export interface Translations {
   aiSentAttachmentTooltip: (n: number) => string;
   aiSentImagesLabel: (n: number) => string;
   aiToolChipTooltip: string;
+  aiToolUsed: (tool: string) => string;
+  aiAccessToolFileReadDesc: string;
+  aiAccessToolFileWriteDesc: string;
+  aiAccessToolBashDesc: string;
+  aiAccessToolNetworkDesc: string;
+  aiSnapshotPinTooltip: string;
+  aiSnapshotUnpinTooltip: string;
+  aiSnapshotExportTooltip: string;
+  aiSnapshotsTitle: string;
+  aiSnapshotsHint: string;
+  aiSnapshotsEmpty: string;
+  aiSnapshotPinnedBadge: string;
+  aiSnapshotRestoreTooltip: string;
+  aiSnapshotRestoring: string;
+  aiSnapshotRestore: string;
+  aiSnapshotPin: string;
+  aiSnapshotUnpin: string;
+  aiSnapshotExport: string;
+  aiSnapshotDeleteTooltip: string;
   collapseSidebar: string;
   expandSidebar: string;
 }

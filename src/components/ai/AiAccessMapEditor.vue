@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { useI18n } from '../../i18n';
 import type { AccessMap } from '../../services/aiCommands';
+
+const { t } = useI18n();
 
 const props = defineProps<{ modelValue: AccessMap }>();
 const emit = defineEmits<{ 'update:modelValue': [m: AccessMap] }>();
@@ -38,12 +41,12 @@ interface ToolDef {
   icon: string;
   warn?: boolean;
 }
-const TOOLS: ToolDef[] = [
-  { key: 'fileRead', label: 'File read', desc: 'Read project files', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6' },
-  { key: 'fileWrite', label: 'File write', desc: 'Edit and create files', icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' },
-  { key: 'bash', label: 'Shell', desc: 'Execute shell commands', icon: 'M4 17l6-6-6-6 M12 19h8', warn: true },
-  { key: 'network', label: 'Network', desc: 'Fetch from internet', icon: 'M21 12c0 5-4 9-9 9s-9-4-9-9 4-9 9-9 9 4 9 9z M3 12h18 M12 3a15 15 0 0 1 0 18 M12 3a15 15 0 0 0 0 18', warn: true },
-];
+const TOOLS = computed<ToolDef[]>(() => [
+  { key: 'fileRead', label: t.value.aiAccessToolFileRead, desc: t.value.aiAccessToolFileReadDesc, icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6' },
+  { key: 'fileWrite', label: t.value.aiAccessToolFileWrite, desc: t.value.aiAccessToolFileWriteDesc, icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' },
+  { key: 'bash', label: t.value.aiAccessToolBash, desc: t.value.aiAccessToolBashDesc, icon: 'M4 17l6-6-6-6 M12 19h8', warn: true },
+  { key: 'network', label: t.value.aiAccessToolNetwork, desc: t.value.aiAccessToolNetworkDesc, icon: 'M21 12c0 5-4 9-9 9s-9-4-9-9 4-9 9-9 9 4 9 9z M3 12h18 M12 3a15 15 0 0 1 0 18 M12 3a15 15 0 0 0 0 18', warn: true },
+]);
 
 function basename(p: string): string {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));

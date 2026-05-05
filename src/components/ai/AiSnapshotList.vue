@@ -2,6 +2,9 @@
 import { onMounted, watch, computed, ref } from 'vue';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { useAiSnapshots } from '../../composables/useAiSnapshots';
+import { useI18n } from '../../i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{ docPath: string }>();
 const emit = defineEmits<{ restored: [content: string] }>();
@@ -61,13 +64,13 @@ function formatBytes(n: number): string {
   <details class="ai-snapshots">
     <summary class="ai-snapshots__summary">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-      <strong>Document snapshots</strong>
+      <strong>{{ t.aiSnapshotsTitle }}</strong>
       <span class="ai-snapshots__count">{{ snapshots.items.value.length }}</span>
-      <small class="ai-snapshots__hint">— file revisions saved before each AI edit</small>
+      <small class="ai-snapshots__hint">{{ t.aiSnapshotsHint }}</small>
     </summary>
 
     <div v-if="sortedItems.length === 0" class="ai-snapshots__empty">
-      No snapshots yet. The next AI edit will create one.
+      {{ t.aiSnapshotsEmpty }}
     </div>
 
     <ul v-else class="ai-snapshots__list">
@@ -76,25 +79,25 @@ function formatBytes(n: number): string {
           <span class="ai-snap-card__num">#{{ sortedItems.length - idx }}</span>
           <span class="ai-snap-card__time" :title="item.ts">{{ formatRelative(item.ts) }}</span>
           <span class="ai-snap-card__size">{{ formatBytes(item.byteSize) }}</span>
-          <span v-if="item.pinned" class="ai-snap-card__pin" title="Pinned — won't be auto-rotated">📌</span>
+          <span v-if="item.pinned" class="ai-snap-card__pin" :title="t.aiSnapshotPinnedBadge">📌</span>
         </div>
         <div class="ai-snap-card__actions">
           <button
             class="ai-snap-card__btn ai-snap-card__btn--primary"
             :disabled="restoring !== null"
             @click="onRestore(item.id)"
-            title="Restore this version into editor + disk"
+            :title="t.aiSnapshotRestoreTooltip"
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
-            {{ restoring === item.id ? 'Restoring…' : 'Restore' }}
+            {{ restoring === item.id ? t.aiSnapshotRestoring : t.aiSnapshotRestore }}
           </button>
-          <button class="ai-snap-card__btn" @click="snapshots.setPinned(item.id, !item.pinned)" :title="item.pinned ? 'Unpin' : 'Pin to protect from rotation'">
-            {{ item.pinned ? 'Unpin' : 'Pin' }}
+          <button class="ai-snap-card__btn" @click="snapshots.setPinned(item.id, !item.pinned)" :title="item.pinned ? t.aiSnapshotUnpinTooltip : t.aiSnapshotPinTooltip">
+            {{ item.pinned ? t.aiSnapshotUnpin : t.aiSnapshotPin }}
           </button>
-          <button class="ai-snap-card__btn" @click="onExport(item.id)" title="Save as separate file">
-            Export
+          <button class="ai-snap-card__btn" @click="onExport(item.id)" :title="t.aiSnapshotExportTooltip">
+            {{ t.aiSnapshotExport }}
           </button>
-          <button class="ai-snap-card__btn ai-snap-card__btn--danger" @click="snapshots.remove(item.id)" title="Delete">
+          <button class="ai-snap-card__btn ai-snap-card__btn--danger" @click="snapshots.remove(item.id)" :title="t.aiSnapshotDeleteTooltip">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg>
           </button>
         </div>
