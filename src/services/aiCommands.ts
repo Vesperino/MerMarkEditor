@@ -60,6 +60,8 @@ export interface AiSendRequest {
   accessMap: AccessMap;
   bypass: boolean;
   workDir: string;
+  /** Absolute paths to attached image files. */
+  images?: string[];
 }
 
 export type AiResponseChunk =
@@ -74,6 +76,10 @@ export const aiCommands = {
 
   send: (req: AiSendRequest, requestId: string) => invoke<string>('ai_send', { req, requestId }),
   cancel: (requestId: string) => invoke<void>('ai_cancel', { requestId }),
+
+  /** Persist an image (clipboard / drag-drop) to a tmp file and return its path. */
+  imageSave: (bytes: Uint8Array, extension: string) =>
+    invoke<string>('ai_image_save', { bytes: Array.from(bytes), extension }),
 
   accessLoad: (docPath: string) => invoke<AccessMap>('ai_access_load', { docPath }),
   accessSave: (docPath: string, map: AccessMap) => invoke<void>('ai_access_save', { docPath, map }),

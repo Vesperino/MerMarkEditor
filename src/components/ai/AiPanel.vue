@@ -64,6 +64,101 @@ const selectedEffort = ref<string>(
 );
 const customModelInput = ref<string>('');
 const inputValue = ref('');
+
+// Image attachments (clipboard paste, drag-drop, or file picker). Held in
+// memory as Blob + objectURL until send time, then persisted via
+// `aiCommands.imageSave` so the backend can attach them to the spawned CLI.
+interface PendingImage {
+  id: string;
+  blob: Blob;
+  blobUrl: string;
+  name: string;
+  mime: string;
+  ext: string;
+}
+const pendingImages = ref<PendingImage[]>([]);
+const previewedImage = ref<PendingImage | null>(null);
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] as const;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB per attachment
+
+function addPendingImage(file: Blob, name?: string) {
+  if (file.size > MAX_IMAGE_BYTES) {
+    window.alert(`Image too large (${Math.round(file.size / 1024 / 1024)} MB). Max ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
+    return;
+  }
+  const mime = file.type || 'image/png';
+  const rawExt = mime.split('/')[1]?.toLowerCase() ?? 'png';
+  const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+  const blobUrl = URL.createObjectURL(file);
+  pendingImages.value.push({
+    id: crypto.randomUUID(),
+    blob: file,
+    blobUrl,
+    name: name ?? `pasted-${pendingImages.value.length + 1}.${ext}`,
+    mime,
+    ext,
+  });
+}
+
+function removePendingImage(id: string) {
+  const idx = pendingImages.value.findIndex(p => p.id === id);
+  if (idx < 0) return;
+  URL.revokeObjectURL(pendingImages.value[idx].blobUrl);
+  pendingImages.value.splice(idx, 1);
+}
+
+function clearPendingImages() {
+  for (const p of pendingImages.value) URL.revokeObjectURL(p.blobUrl);
+  pendingImages.value = [];
+}
+
+function onComposerPaste(e: ClipboardEvent) {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        addPendingImage(file);
+      }
+    }
+  }
+}
+
+async function pickImageFile() {
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const selected = await open({
+    multiple: true,
+    filters: [{ name: 'Images', extensions: [...IMAGE_EXTS] }],
+  });
+  if (!selected) return;
+  const paths = Array.isArray(selected) ? selected : [selected];
+  const { readFile } = await import('@tauri-apps/plugin-fs');
+  for (const p of paths) {
+    try {
+      const bytes = await readFile(p);
+      const ext = (p.split('.').pop() || 'png').toLowerCase();
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+      const blob = new Blob([bytes], { type: mime });
+      const name = p.split(/[/\\]/).pop() || 'image';
+      addPendingImage(blob, name);
+    } catch (e) {
+      console.error('[AiPanel] pickImageFile read failed:', e);
+    }
+  }
+}
+
+async function persistPendingImagesForSend(): Promise<string[]> {
+  if (pendingImages.value.length === 0) return [];
+  const out: string[] = [];
+  for (const img of pendingImages.value) {
+    const buf = await img.blob.arrayBuffer();
+    const path = await aiCommands.imageSave(new Uint8Array(buf), img.ext);
+    out.push(path);
+  }
+  return out;
+}
 const fullscreen = ref(false);
 const minimized = ref(false);
 const topOffset = ref(44);
@@ -238,6 +333,11 @@ const minimizedStyle = computed<Record<string, string>>(() => {
 });
 
 function onGlobalKeydown(e: KeyboardEvent) {
+  // Esc dismisses the image preview overlay first, before any other handler.
+  if (e.key === 'Escape' && previewedImage.value) {
+    previewedImage.value = null;
+    return;
+  }
   // Esc closes the panel UNLESS the user is editing the composer (avoid losing input).
   if (e.key === 'Escape' && !fullscreen.value) {
     const target = e.target as HTMLElement | null;
@@ -384,6 +484,18 @@ async function onSend() {
   const prompt = inputValue.value;
   inputValue.value = '';
 
+  // Persist any pending images to disk so the spawned CLI can attach them.
+  let imagePaths: string[] = [];
+  try {
+    imagePaths = await persistPendingImagesForSend();
+  } catch (e) {
+    console.error('[AiPanel] persisting images failed:', e);
+    window.alert(`Image upload failed: ${(e as Error)?.message ?? e}`);
+    return;
+  }
+  // Clear the chip strip immediately — backend has its own copies now.
+  clearPendingImages();
+
   // Push an attachment marker into the chat so user sees what was sent.
   if (sentPins.length > 0) {
     ai.pushAttachment(sentPins);
@@ -414,6 +526,7 @@ async function onSend() {
     preamble: buildPreamble(),
     accessMap: access.current.value,
     workDir: props.workDir,
+    images: imagePaths,
     onSessionId: async (sid) => {
       await session.persistFromResponse({
         docPath: props.docPath,
@@ -721,15 +834,36 @@ function onDeleteThread(id: string) {
           <pre class="ai-panel__pinned-preview ai-panel__pinned-preview--live">{{ liveSelectionText }}</pre>
         </div>
       </div>
+      <div v-if="pendingImages.length > 0" class="ai-panel__images">
+        <div class="ai-panel__images-head">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span class="ai-panel__images-label">
+            {{ pendingImages.length }} image{{ pendingImages.length === 1 ? '' : 's' }} attached
+          </span>
+          <button class="ai-panel__pinned-action ai-panel__pinned-action--clear" @click="clearPendingImages" title="Remove all">Clear</button>
+        </div>
+        <ul class="ai-panel__images-list">
+          <li v-for="img in pendingImages" :key="img.id" class="ai-panel__image-thumb">
+            <button class="ai-panel__image-thumb-btn" @click="previewedImage = img" :title="`${img.name} — click to preview`">
+              <img :src="img.blobUrl" :alt="img.name" />
+            </button>
+            <button class="ai-panel__image-rm" @click="removePendingImage(img.id)" title="Remove this image">×</button>
+          </li>
+        </ul>
+      </div>
       <textarea
         v-model="inputValue"
         class="ai-panel__input"
-        :placeholder="cliConnected ? 'Type a message…' : t.aiStatusAuthRequired"
+        :placeholder="cliConnected ? 'Type a message… (paste images with Ctrl+V)' : t.aiStatusAuthRequired"
         :disabled="!cliConnected"
         rows="3"
         @keydown="onKeydownComposer"
+        @paste="onComposerPaste"
       />
       <div class="ai-panel__composer-actions">
+        <button class="ai-panel__btn ai-panel__btn--icon" @click="pickImageFile" :disabled="!cliConnected" title="Attach image">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </button>
         <span class="ai-panel__hint">{{ t.aiEmptyKeyHint }}</span>
         <button v-if="ai.isSending.value" class="ai-panel__btn ai-panel__btn--secondary" @click="onCancel">{{ t.aiCancelButton }}</button>
         <button v-else class="ai-panel__btn ai-panel__btn--primary" @click="onSend" :disabled="!inputValue.trim() || !cliConnected">{{ t.aiSendButton }}</button>
@@ -766,6 +900,19 @@ function onDeleteThread(id: string) {
         </div>
       </div>
     </div>
+
+    <!-- Image preview overlay (click thumbnail in composer) -->
+    <Teleport to="body">
+      <div
+        v-if="previewedImage"
+        class="ai-image-preview"
+        @click.self="previewedImage = null"
+      >
+        <button class="ai-image-preview__close" @click="previewedImage = null" title="Close (Esc)">×</button>
+        <img :src="previewedImage.blobUrl" :alt="previewedImage.name" />
+        <div class="ai-image-preview__caption">{{ previewedImage.name }}</div>
+      </div>
+    </Teleport>
   </aside>
 </template>
 
@@ -1490,4 +1637,136 @@ function onDeleteThread(id: string) {
   max-height: 320px;
   overflow-y: auto;
 }
+
+/* ---- Image attachments ---- */
+.ai-panel__images {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--bg-tertiary);
+  border: 1px dashed var(--border-primary);
+  border-radius: 6px;
+}
+.ai-panel__images-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ai-panel__images-label { font-weight: 600; flex: 1; }
+.ai-panel__images-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ai-panel__image-thumb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+}
+.ai-panel__image-thumb-btn {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+}
+.ai-panel__image-thumb-btn:hover { border-color: var(--primary); }
+.ai-panel__image-thumb-btn > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ai-panel__image-rm {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.ai-panel__image-rm:hover {
+  background: var(--error-bg, #fee);
+  color: var(--error-color, #c00);
+  border-color: var(--error-color, #c00);
+}
+.ai-panel__btn--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.ai-panel__btn--icon:hover { background: var(--hover-bg); color: var(--text-primary); }
+.ai-panel__btn--icon:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Fullscreen preview overlay */
+.ai-image-preview {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 40px;
+  cursor: zoom-out;
+}
+.ai-image-preview > img {
+  max-width: 100%;
+  max-height: calc(100vh - 120px);
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+.ai-image-preview__caption {
+  margin-top: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-family: var(--code-font-family, monospace);
+  opacity: 0.85;
+}
+.ai-image-preview__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ai-image-preview__close:hover { background: rgba(255,255,255,0.25); }
 </style>

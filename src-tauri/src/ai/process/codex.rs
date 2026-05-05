@@ -75,6 +75,12 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         if req.bypass {
             cmd.arg("--dangerously-bypass-approvals-and-sandbox");
         }
+        // Attach images: codex `exec` accepts repeated `-i <FILE>` flags. Only
+        // applied to the new-session path because the resume subcommand does
+        // not surface `-i`.
+        for img in &req.images {
+            cmd.arg("-i").arg(img);
+        }
         cmd.arg("--").arg("-");
     }
 

@@ -261,6 +261,27 @@ fn ai_cancel(registry: tauri::State<'_, ai::process::ChildRegistry>, request_id:
     ai::process::cancel(&registry, &request_id);
 }
 
+/// Persist an image (clipboard paste, drag-drop, etc.) to a temporary file
+/// inside `<app_data>/ai/images/` and return its absolute path. The frontend
+/// then references that path via `convertFileSrc` for previews and forwards
+/// it through `AiSendRequest.images` so the backend can attach it to claude
+/// or codex.
+#[tauri::command]
+fn ai_image_save(
+    app: tauri::AppHandle,
+    bytes: Vec<u8>,
+    extension: String,
+) -> Result<String, String> {
+    let dir = ai::paths::images_dir(&app)?;
+    let safe_ext = extension.trim().trim_start_matches('.').to_ascii_lowercase();
+    let allowed = matches!(safe_ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp");
+    let ext = if allowed { safe_ext.as_str() } else { "png" };
+    let name = format!("{}.{}", uuid::Uuid::new_v4(), ext);
+    let path = dir.join(name);
+    std::fs::write(&path, &bytes).map_err(|e| format!("write image failed: {}", e))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// List all font family names installed on the system.
 /// Returns a sorted, deduplicated list of font family names.
 #[tauri::command]
@@ -375,7 +396,8 @@ pub fn run() {
             ai_audit_read,
             ai_audit_clear,
             ai_send,
-            ai_cancel
+            ai_cancel,
+            ai_image_save
         ])
         .setup(|app| {
             // Check for CLI arguments (file association on first launch)

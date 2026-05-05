@@ -132,6 +132,8 @@ export interface SendOpts {
   preamble: string;
   accessMap: AccessMap;
   workDir: string;
+  /** Absolute paths to attached image files (clipboard paste / file picker). */
+  images?: string[];
   onSessionId?: (id: string) => void;
   onToolRequest?: (tool: string, args: unknown, requestId: string) => void;
   onToolDenied?: (tool: string, reason: string) => void;
@@ -292,6 +294,7 @@ export function useAi() {
       accessMap: opts.accessMap,
       bypass: bypassEnabled.value,
       workDir: opts.workDir,
+      images: opts.images ?? [],
     };
 
     try {

@@ -25,6 +25,11 @@ pub struct AiSendRequest {
     pub access_map: AccessMap,
     pub bypass: bool,
     pub work_dir: String,
+    /// Absolute paths to image files attached to this turn. Each provider
+    /// passes them differently (codex: `-i path`; claude: stdin stream-json
+    /// content blocks — wired in a follow-up).
+    #[serde(default)]
+    pub images: Vec<String>,
 }
 
 pub async fn spawn(

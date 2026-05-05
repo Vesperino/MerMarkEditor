@@ -30,6 +30,13 @@ pub fn snapshots_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Tmp dir for clipboard / paste-source images attached to AI prompts.
+pub fn images_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = ai_root(app)?.join("images");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
 /// SHA-1 hex of a string. Used to derive directory/file names from doc paths.
 pub fn hash_path(s: &str) -> String {
     let mut hasher = Sha1::new();
