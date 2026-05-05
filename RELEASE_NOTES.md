@@ -91,6 +91,7 @@ MerMark Editor now ships with a full **local AI assistant** powered by your own 
 - **AI panel architecture refactored** — the 1772-line `AiPanel.vue` was split into a 502-line orchestrator + 12 self-contained subcomponents (header, composer, message list, pin list, image strip, attachment modal, image preview, threads dropdown, context bar, status notices, tool toast, minimised tab) and 5 reusable composables (`useAiPanelLayout`, `useAiPinnedSelections`, `useAiPendingImages`, `useAiPreamble`, `useAiToolToast`). Every subcomponent ships its own scoped CSS, so style edits no longer require hunting through 850 lines of CSS in a sibling file. 89 new Vitest tests cover the composables and the most-touched subcomponents.
 - **Statistics grouped** — character / word / line / token counters as a single movable unit.
 - **White theme option for Code view** (#67).
+- **Optional support link** — Settings → General now has a subtle "Support development" row with a Buy Me a Coffee button (transparent until you hover it, opens in your default browser). MerMark stays free, MIT-licensed and telemetry-free; the link is just there if you want to say thanks.
 
 ## Bug Fixes
 
