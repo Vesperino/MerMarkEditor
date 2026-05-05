@@ -2,12 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from '../../i18n';
 import { useSettings, type CliKind } from '../../composables/useSettings';
-import { useAi } from '../../composables/useAi';
+import { useAi, type AiMessage as AiMessageType } from '../../composables/useAi';
 import { useAiSession } from '../../composables/useAiSession';
 import { useAiAccessMap } from '../../composables/useAiAccessMap';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiApply } from '../../composables/useAiApply';
 import { parseAiOutput } from '../../composables/useAiOutputParser';
+import { htmlToMarkdown } from '../../utils/markdown-converter';
 import AiMessage from './AiMessage.vue';
 import AiSnapshotList from './AiSnapshotList.vue';
 import AiAccessMapEditor from './AiAccessMapEditor.vue';
@@ -43,7 +44,17 @@ const requestStartHash = ref<string>('');
 // Large doc truncation
 const LARGE_DOC_THRESHOLD = 200 * 1024;
 const sendFullDocOverride = ref(false);
-const docTooLarge = computed(() => props.docContent.length > LARGE_DOC_THRESHOLD);
+
+const docMarkdown = computed(() => {
+  const c = props.docContent;
+  if (!c) return '';
+  if (c.trimStart().startsWith('<')) {
+    try { return htmlToMarkdown(c); } catch { return c; }
+  }
+  return c;
+});
+
+const docTooLarge = computed(() => docMarkdown.value.length > LARGE_DOC_THRESHOLD);
 
 const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
@@ -97,7 +108,7 @@ function buildPreamble(): string {
     `  \`\`\`mermark-patch ... \`\`\`    (unified diff against the current doc)`,
   ];
   if (docTooLarge.value && !sendFullDocOverride.value) {
-    lines.push('', `Note: the active document is large (${props.docContent.length} bytes). When reading the file, focus on the first 200KB unless instructed otherwise.`);
+    lines.push('', `Note: the active document is large (${docMarkdown.value.length} bytes). When reading the file, focus on the first 200KB unless instructed otherwise.`);
   }
   return lines.join('\n');
 }
@@ -112,7 +123,7 @@ async function onSend() {
   inputValue.value = '';
 
   // Capture pre-send hash for concurrent-edit detection.
-  requestStartHash.value = await session.sha1Hex(props.docContent);
+  requestStartHash.value = await session.sha1Hex(docMarkdown.value);
 
   const final = await ai.send({
     cli: selectedCli.value,
@@ -126,7 +137,7 @@ async function onSend() {
         docPath: props.docPath,
         cli: selectedCli.value,
         sessionId: sid,
-        docContent: props.docContent,
+        docContent: docMarkdown.value,
       });
     },
     onToolRequest: (tool, args) => {
@@ -137,7 +148,7 @@ async function onSend() {
   const parsed = parseAiOutput(final.text);
   if (parsed.kind !== 'plain') {
     // Concurrent edit check: did the doc change while AI was thinking?
-    const nowHash = await session.sha1Hex(props.docContent);
+    const nowHash = await session.sha1Hex(docMarkdown.value);
     if (nowHash !== requestStartHash.value) {
       const choice = window.confirm(
         'Document changed during the AI request. Apply the suggested changes anyway?'
@@ -147,15 +158,50 @@ async function onSend() {
 
     const result = await apply.prepare(parsed, {
       docPath: props.docPath,
-      currentContent: props.docContent,
+      currentContent: docMarkdown.value,
       selectionRange: props.selectionRange,
       sessionId: session.current.value?.sessionId ?? null,
       snapshotsKeep: settings.value.ai.snapshotsKeep,
     });
     if (result.ok && result.newContent) {
-      emit('showDiff', props.docContent, result.newContent);
+      emit('showDiff', docMarkdown.value, result.newContent);
     }
   }
+}
+
+async function onMessageApply(message: AiMessageType) {
+  const parsed = parseAiOutput(message.text);
+  if (parsed.kind === 'plain' || !access.current.value) return;
+  const result = await apply.prepare(parsed, {
+    docPath: props.docPath,
+    currentContent: docMarkdown.value,
+    selectionRange: props.selectionRange,
+    sessionId: session.current.value?.sessionId ?? null,
+    snapshotsKeep: settings.value.ai.snapshotsKeep,
+  });
+  if (result.ok && result.newContent && result.tmpPath) {
+    emit('applyContent', result.newContent);
+    await apply.commitTmp(result.tmpPath);
+  }
+}
+
+async function onMessageReject(_message: AiMessageType) {
+  // Nothing persistent yet; future: discard the staged tmp if one exists.
+  // For now this is a no-op signal that the user dismissed the suggestion.
+}
+
+function onMessageShowDiff(message: AiMessageType) {
+  const parsed = parseAiOutput(message.text);
+  if (parsed.kind === 'plain') return;
+  let candidate: string;
+  if (parsed.kind === 'replace') {
+    candidate = props.selectionRange
+      ? docMarkdown.value.slice(0, props.selectionRange.start) + parsed.payload + docMarkdown.value.slice(props.selectionRange.end)
+      : parsed.payload;
+  } else {
+    candidate = parsed.payload;
+  }
+  emit('showDiff', docMarkdown.value, candidate);
 }
 
 async function onCancel() {
@@ -183,12 +229,15 @@ async function onSnapshotRestored(content: string) {
         :key="i"
         :message="m"
         :has-fence="m.role === 'assistant' && m.done && messageHasFence(m.text)"
+        @apply="onMessageApply(m)"
+        @reject="onMessageReject(m)"
+        @show-diff="onMessageShowDiff(m)"
       />
     </div>
 
     <footer class="ai-panel__footer">
       <div v-if="docTooLarge" class="ai-large-doc-banner">
-        <span>Document is large ({{ Math.round(props.docContent.length / 1024) }} KB).</span>
+        <span>Document is large ({{ Math.round(docMarkdown.length / 1024) }} KB).</span>
         <label>
           <input type="checkbox" v-model="sendFullDocOverride" />
           Send full document anyway

@@ -48,6 +48,8 @@ export function useAi() {
     try {
       const requestId = await aiCommands.send(req);
       inFlightRequestId.value = requestId;
+      let resolveCompletion!: () => void;
+      const completion = new Promise<void>(r => { resolveCompletion = r; });
       unlisten = await aiCommands.onStream(requestId, (chunk: AiResponseChunk) => {
         switch (chunk.kind) {
           case 'text':
@@ -62,18 +64,16 @@ export function useAi() {
           case 'done':
             assistant.done = true;
             opts.onSessionId?.(chunk.sessionId);
+            resolveCompletion();
             break;
           case 'error':
             assistant.error = chunk.message;
             assistant.done = true;
+            resolveCompletion();
             break;
         }
       });
-      await new Promise<void>(resolve => {
-        const t = setInterval(() => {
-          if (assistant.done) { clearInterval(t); resolve(); }
-        }, 50);
-      });
+      await completion;
     } finally {
       if (unlisten) unlisten();
       inFlightRequestId.value = null;
