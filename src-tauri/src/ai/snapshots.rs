@@ -1,8 +1,13 @@
 use std::path::PathBuf;
+use std::sync::Mutex;
 use chrono::Utc;
-use sha1::{Sha1, Digest};
 use crate::ai::paths::{snapshots_dir, hash_path};
 use crate::ai::types::SnapshotIndexEntry;
+
+/// Process-wide lock for read-modify-write of snapshot indexes / files so
+/// concurrent windows of the same MerMark process do not lose each other's
+/// pin state or rotate races.
+static SNAPSHOT_LOCK: Mutex<()> = Mutex::new(());
 
 fn doc_dir(app: &tauri::AppHandle, doc_path: &str) -> Result<PathBuf, String> {
     let dir = snapshots_dir(app)?.join(hash_path(doc_path));
@@ -29,15 +34,6 @@ fn write_index(dir: &std::path::Path, items: &[SnapshotIndexEntry]) -> Result<()
     std::fs::write(index_file(dir), bytes).map_err(|e| e.to_string())
 }
 
-fn sha1_hex(s: &str) -> String {
-    let mut h = Sha1::new();
-    h.update(s.as_bytes());
-    let out = h.finalize();
-    let mut hex = String::with_capacity(40);
-    for b in out { hex.push_str(&format!("{:02x}", b)); }
-    hex
-}
-
 /// Create a new snapshot of `content`. Rotates so that pinned + N newest remain.
 pub fn create(
     app: &tauri::AppHandle,
@@ -46,6 +42,7 @@ pub fn create(
     source_session_id: Option<String>,
     keep: usize,
 ) -> Result<SnapshotIndexEntry, String> {
+    let _g = SNAPSHOT_LOCK.lock().unwrap();
     let keep = keep.max(1);
     let dir = doc_dir(app, doc_path)?;
     let ts = Utc::now().to_rfc3339();
@@ -57,7 +54,7 @@ pub fn create(
         ts,
         source_session_id,
         pinned: false,
-        content_hash: sha1_hex(content),
+        content_hash: hash_path(content),
         byte_size: content.len() as u64,
     };
     let mut items = list(app, doc_path)?;
@@ -92,25 +89,48 @@ fn rotate(
     Ok(())
 }
 
+/// Verify the id exists in the persisted index. Returns the directory on success.
+/// Refuses caller-supplied ids that aren't in the index — defends against path
+/// traversal in the {id}.md filename.
+fn require_known_id(app: &tauri::AppHandle, doc_path: &str, id: &str) -> Result<PathBuf, String> {
+    let items = list(app, doc_path)?;
+    if !items.iter().any(|i| i.id == id) {
+        return Err(format!("snapshot not found: {}", id));
+    }
+    doc_dir(app, doc_path)
+}
+
 pub fn restore(app: &tauri::AppHandle, doc_path: &str, id: &str) -> Result<String, String> {
-    let dir = doc_dir(app, doc_path)?;
-    let path = dir.join(format!("{}.md", id));
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+    let dir = require_known_id(app, doc_path, id)?;
+    std::fs::read_to_string(dir.join(format!("{}.md", id))).map_err(|e| e.to_string())
 }
 
 pub fn set_pinned(app: &tauri::AppHandle, doc_path: &str, id: &str, pinned: bool) -> Result<(), String> {
+    let _g = SNAPSHOT_LOCK.lock().unwrap();
     let dir = doc_dir(app, doc_path)?;
     let mut items = list(app, doc_path)?;
+    let mut found = false;
     for item in items.iter_mut() {
-        if item.id == id { item.pinned = pinned; }
+        if item.id == id {
+            item.pinned = pinned;
+            found = true;
+        }
+    }
+    if !found {
+        return Err(format!("snapshot not found: {}", id));
     }
     write_index(&dir, &items)
 }
 
 pub fn delete(app: &tauri::AppHandle, doc_path: &str, id: &str) -> Result<(), String> {
+    let _g = SNAPSHOT_LOCK.lock().unwrap();
     let dir = doc_dir(app, doc_path)?;
     let mut items = list(app, doc_path)?;
+    let before = items.len();
     items.retain(|i| i.id != id);
+    if items.len() == before {
+        return Err(format!("snapshot not found: {}", id));
+    }
     write_index(&dir, &items)?;
     let _ = std::fs::remove_file(dir.join(format!("{}.md", id)));
     Ok(())
@@ -122,6 +142,7 @@ pub fn export(app: &tauri::AppHandle, doc_path: &str, id: &str, dest: &std::path
 }
 
 pub fn migrate(app: &tauri::AppHandle, old_path: &str, new_path: &str) -> Result<(), String> {
+    let _g = SNAPSHOT_LOCK.lock().unwrap();
     let from = snapshots_dir(app)?.join(hash_path(old_path));
     if !from.exists() {
         return Ok(());
