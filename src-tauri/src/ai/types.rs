@@ -25,19 +25,13 @@ pub struct HealthStatus {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessMapTools {
     pub bash: bool,
     pub network: bool,
     pub file_read: bool,
     pub file_write: bool,
-}
-
-impl Default for AccessMapTools {
-    fn default() -> Self {
-        Self { bash: false, network: false, file_read: false, file_write: false }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,7 +86,7 @@ pub struct AuditEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum AiResponseChunk {
     /// Streamed text content.
     Text { content: String },
@@ -100,21 +94,18 @@ pub enum AiResponseChunk {
     ToolRequest {
         tool: String,
         args: serde_json::Value,
-        #[serde(rename = "requestId")]
         request_id: String,
     },
     /// Tool was denied by the access map (Rust-side enforcement).
     ToolDenied { tool: String, reason: String },
     /// Final marker.
     Done {
-        #[serde(rename = "sessionId")]
         session_id: String,
         usage: Option<serde_json::Value>,
     },
     /// Process error.
     Error {
         message: String,
-        #[serde(rename = "exitCode")]
         exit_code: Option<i32>,
     },
 }
@@ -163,5 +154,36 @@ mod tests {
         let chunk = AiResponseChunk::Text { content: "x".into() };
         let v: serde_json::Value = serde_json::from_str(&serde_json::to_string(&chunk).unwrap()).unwrap();
         assert_eq!(v["kind"], "text");
+    }
+
+    #[test]
+    fn ai_response_chunk_done_emits_camel_case_session_id() {
+        let chunk = AiResponseChunk::Done { session_id: "s1".into(), usage: None };
+        let v: serde_json::Value = serde_json::from_str(&serde_json::to_string(&chunk).unwrap()).unwrap();
+        assert_eq!(v["kind"], "done");
+        assert_eq!(v["sessionId"], "s1");
+        // Round-trip back.
+        let back: AiResponseChunk = serde_json::from_str(&serde_json::to_string(&chunk).unwrap()).unwrap();
+        assert!(matches!(back, AiResponseChunk::Done { session_id, .. } if session_id == "s1"));
+    }
+
+    #[test]
+    fn ai_response_chunk_tool_request_emits_camel_case_request_id() {
+        let chunk = AiResponseChunk::ToolRequest {
+            tool: "Bash".into(),
+            args: serde_json::json!({"cmd": "ls"}),
+            request_id: "rq".into(),
+        };
+        let v: serde_json::Value = serde_json::from_str(&serde_json::to_string(&chunk).unwrap()).unwrap();
+        assert_eq!(v["kind"], "tool_request");
+        assert_eq!(v["requestId"], "rq");
+    }
+
+    #[test]
+    fn ai_response_chunk_error_emits_camel_case_exit_code() {
+        let chunk = AiResponseChunk::Error { message: "boom".into(), exit_code: Some(1) };
+        let v: serde_json::Value = serde_json::from_str(&serde_json::to_string(&chunk).unwrap()).unwrap();
+        assert_eq!(v["kind"], "error");
+        assert_eq!(v["exitCode"], 1);
     }
 }
