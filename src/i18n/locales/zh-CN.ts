@@ -187,6 +187,9 @@ const zhCN: Translations = {
   whatsNewIn: '新功能 -',
   loadingChangelog: '正在加载更新日志...',
   changelogError: '无法加载更新日志。',
+  supportDev: '支持开发',
+  supportDevTooltip: 'MerMark 免费且开源。如果它帮助到你，可以请我喝杯咖啡 — 完全自愿。',
+  buyMeACoffee: '请我喝咖啡',
 
   // Split view / Panes
   dragTabHere: '将标签页拖放至此',

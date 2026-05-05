@@ -193,6 +193,9 @@ export interface Translations {
   whatsNewIn: string;
   loadingChangelog: string;
   changelogError: string;
+  supportDev: string;
+  supportDevTooltip: string;
+  buyMeACoffee: string;
 
   // Split view / Panes
   dragTabHere: string;

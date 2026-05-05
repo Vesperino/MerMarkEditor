@@ -187,6 +187,9 @@ const en: Translations = {
   whatsNewIn: "What's New in",
   loadingChangelog: 'Loading changelog...',
   changelogError: 'Could not load changelog.',
+  supportDev: 'Support development',
+  supportDevTooltip: 'MerMark is free and open source. If it helps you, you can buy me a coffee — totally optional.',
+  buyMeACoffee: 'Buy me a coffee',
 
   // Split view / Panes
   dragTabHere: 'Drag tab here',

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { getVersion } from '@tauri-apps/api/app';
+import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useI18n } from '../i18n';
 import { useSettings, EDITOR_FONTS, CODE_FONTS } from '../composables/useSettings';
 import { useSystemFonts } from '../composables/useSystemFonts';
@@ -671,6 +672,26 @@ onUnmounted(() => {
                 </button>
               </div>
             </div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t.supportDev }}</label>
+              <div class="setting-control">
+                <button
+                  class="bmc-link"
+                  :title="t.supportDevTooltip"
+                  @click="openExternal('https://buymeacoffee.com/vesperinio')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+                    <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+                    <line x1="6" y1="2" x2="6" y2="4"/>
+                    <line x1="10" y1="2" x2="10" y2="4"/>
+                    <line x1="14" y1="2" x2="14" y2="4"/>
+                  </svg>
+                  <span>{{ t.buyMeACoffee }}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Layout Tab -->
@@ -1031,6 +1052,31 @@ onUnmounted(() => {
 .whats-new-link:hover {
   opacity: 0.8;
   text-decoration: underline;
+}
+
+/* Subtle support-the-developer button. Stays muted until hovered so it
+   never demands attention on first open of Settings. */
+.bmc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.bmc-link:hover {
+  background: var(--hover-bg);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.bmc-link svg {
+  flex-shrink: 0;
 }
 
 /* Layout Tab */

@@ -187,6 +187,9 @@ const pl: Translations = {
   whatsNewIn: 'Co nowego w',
   loadingChangelog: 'Wczytywanie zmian...',
   changelogError: 'Nie udało się wczytać zmian.',
+  supportDev: 'Wesprzyj rozwój',
+  supportDevTooltip: 'MerMark jest darmowy i open source. Jeśli ci pomaga, możesz postawić mi kawę — całkowicie opcjonalnie.',
+  buyMeACoffee: 'Postaw mi kawę',
 
   // Split view / Panes
   dragTabHere: 'Przeciągnij kartę tutaj',

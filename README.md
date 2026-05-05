@@ -443,11 +443,18 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## Support
 
-If you find this project useful, please consider:
+MerMark is and will stay free and open source under the MIT license. If you find this project useful, please consider:
 
 - Giving it a star on GitHub
 - Reporting bugs and suggesting features
 - Contributing to the codebase
+- [Buying me a coffee](https://buymeacoffee.com/vesperinio) — totally optional, just a way to say thanks if MerMark saves you time
+
+<p align="center">
+  <a href="https://buymeacoffee.com/vesperinio">
+    <img src="https://img.shields.io/badge/Buy_me_a_coffee-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Buy me a coffee" />
+  </a>
+</p>
 
 ---
 

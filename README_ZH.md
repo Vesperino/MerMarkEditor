@@ -443,11 +443,18 @@ pnpm test:run
 
 ## 支持
 
-如果你觉得这个项目有用，欢迎：
+MerMark 现在以及未来都将基于 MIT 许可证保持免费与开源。如果你觉得这个项目有用，欢迎：
 
 - 在 GitHub 上点亮星标
 - 报告 bug 与提出新功能建议
 - 为代码库做出贡献
+- [请我喝杯咖啡](https://buymeacoffee.com/vesperinio) — 完全自愿，如果 MerMark 帮你节省了时间，可以这样表示感谢
+
+<p align="center">
+  <a href="https://buymeacoffee.com/vesperinio">
+    <img src="https://img.shields.io/badge/%E8%AF%B7%E6%88%91%E5%96%9D%E5%92%96%E5%95%A1-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="请我喝咖啡" />
+  </a>
+</p>
 
 ---
 

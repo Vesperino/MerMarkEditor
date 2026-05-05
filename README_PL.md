@@ -434,11 +434,18 @@ Ten projekt jest licencjonowany na warunkach **licencji MIT** - zobacz plik [LIC
 
 ## Wsparcie
 
-Jeśli uważasz ten projekt za użyteczny, rozważ:
+MerMark jest i pozostanie darmowy oraz open source na licencji MIT. Jeśli uważasz ten projekt za użyteczny, rozważ:
 
 - Danie gwiazdki na GitHub
 - Zgłaszanie błędów i sugestii funkcji
 - Wkład w kod źródłowy
+- [Postawienie mi kawy](https://buymeacoffee.com/vesperinio) — całkowicie opcjonalnie, jeżeli MerMark oszczędza ci czas
+
+<p align="center">
+  <a href="https://buymeacoffee.com/vesperinio">
+    <img src="https://img.shields.io/badge/Postaw_mi_kaw%C4%99-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Postaw mi kawę" />
+  </a>
+</p>
 
 ---
 
