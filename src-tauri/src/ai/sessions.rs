@@ -1,8 +1,13 @@
 use std::collections::HashMap;
+use std::sync::Mutex;
 use crate::ai::paths::sessions_file;
 use crate::ai::types::{CliKind, SessionMapping};
 
 type Store = HashMap<String, SessionMapping>;
+
+/// Process-wide lock around read-modify-write of `sessions.json` so two windows
+/// of the same MerMark process cannot clobber each other's mappings.
+static STORE_LOCK: Mutex<()> = Mutex::new(());
 
 fn load_store(app: &tauri::AppHandle) -> Result<Store, String> {
     let path = sessions_file(app)?;
@@ -24,18 +29,21 @@ pub fn get(app: &tauri::AppHandle, doc_path: &str) -> Result<Option<SessionMappi
 }
 
 pub fn upsert(app: &tauri::AppHandle, mapping: SessionMapping) -> Result<(), String> {
+    let _g = STORE_LOCK.lock().unwrap();
     let mut store = load_store(app)?;
     store.insert(mapping.doc_path.clone(), mapping);
     save_store(app, &store)
 }
 
 pub fn remove(app: &tauri::AppHandle, doc_path: &str) -> Result<(), String> {
+    let _g = STORE_LOCK.lock().unwrap();
     let mut store = load_store(app)?;
     store.remove(doc_path);
     save_store(app, &store)
 }
 
 pub fn migrate(app: &tauri::AppHandle, old_path: &str, new_path: &str) -> Result<(), String> {
+    let _g = STORE_LOCK.lock().unwrap();
     let mut store = load_store(app)?;
     if let Some(mut entry) = store.remove(old_path) {
         entry.doc_path = new_path.to_string();
