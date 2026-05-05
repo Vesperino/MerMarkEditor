@@ -14,12 +14,18 @@
 </p>
 
 <p align="center">
+  <a href="#local-ai-assistant">AI Assistant</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
-  <a href="#development">Development</a> •
-  <a href="README_PL.md">Polski</a>
+  <a href="#development">Development</a>
+</p>
+
+<p align="center">
+  <strong>English</strong> •
+  <a href="README_PL.md">Polski</a> •
+  <a href="README_ZH.md">中文</a>
 </p>
 
 ---
@@ -34,7 +40,102 @@
 - **Native performance** - Built with Tauri for fast, lightweight operation
 - **WYSIWYG editing** - See your formatted content as you type
 - **Mermaid integration** - Create diagrams directly in your documents
+- **Local AI assistant** - Talk to Claude or Codex about your notes; they edit your files directly
 - **Cross-platform** - Available on Windows, macOS and Linux
+
+---
+
+## Local AI Assistant
+
+MerMark ships with a built-in AI panel powered by your own `claude` and/or `codex` CLI installs. Everything runs on your machine, against your account — no third-party proxy, no telemetry, no extra API keys.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/ai-panel-overview.png" alt="AI panel overview" />
+  <br>
+  <em>AI panel docked to the editor with model picker, threads dropdown, pinned fragments and live context bar</em>
+</p>
+
+### What it can actually do
+
+- **Edit your markdown directly** — "rewrite this section in a friendlier tone", "extract action items into a bullet list", "translate the meeting notes to English". The AI writes the new content straight to disk (atomically, via `.mermark-ai.tmp`), the file watcher reloads the editor, and a snapshot is captured first so one-click **Revert** undoes the change.
+- **Read across folders you authorize** — point the access map at a project folder and the AI reads any file inside: notes from yesterday, a glossary, a style guide. Only paths you've added show up.
+- **Modify peer files** — write paths in the access map let the AI create or update other files: split a long doc into multiple notes, generate a summary alongside the source, build a TOC file for a folder.
+- **Search the web** — turn on the `network` tool toggle and the model fetches live information.
+- **Run shell commands** — opt-in via the `bash` tool toggle when you want the AI to grep your notes folder, run a build, or any other terminal task. Default off.
+
+### Multi-fragment selection + image attachments
+
+Pin one or more highlighted fragments — Visual *and* Code view — and the AI gets just those fragments, not your entire document. Toggle **Send** off to keep pins visible without sending. Send a screenshot to the model by pasting (`Ctrl+V`), drag-dropping into the panel, or picking files (png / jpg / jpeg / gif / webp / bmp). Both Claude and Codex see the image.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png" alt="Pinning multiple fragments" />
+  <br>
+  <em>Pin multiple highlighted fragments before sending — each appears as a numbered chip in the composer</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-attach.png" alt="Image attachments" />
+  <br>
+  <em>Attach images via paste, drag & drop, or the file picker — chips with click-to-preview thumbnails</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png" alt="Image thumbs in chat history" />
+  <br>
+  <em>Sent images stay in chat history as thumbnails so you remember what was passed to the model</em>
+</p>
+
+### Tool calls visible in the chat
+
+When the model uses a tool — bash, file read, file write, web fetch, codex shell — the call appears as a dashed chip in the transcript with the tool name and a one-line preview of the arguments. Click any chip to expand a pretty-printed JSON view of the full call.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/tool-chips.png" alt="Tool call chips" />
+  <br>
+  <em>Every tool the AI uses (Read, Edit, Write, Bash, WebFetch, ...) shows up inline as an expandable chip</em>
+</p>
+
+### Per-document threads, with full context restore
+
+Every doc has its own thread history; **+** archives the current chat and starts fresh. Up to 50 threads per document, persisted in `localStorage`. Click an old chat from the dropdown and the panel automatically switches Claude ↔ Codex, restores the model and reasoning effort you were last using, so continuing the conversation behaves the same way it did last time.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/thread-restore.png" alt="Thread restore" />
+  <br>
+  <em>Reopen a thread and the panel restores the CLI, model and effort you were using before</em>
+</p>
+
+### Safety, auditability, and per-doc access control
+
+Pre-edit snapshots are captured automatically on every AI write, with rotated retention (pinned + N newest, default 3) and one-click **Revert**. Per-document access maps constrain everything the model can touch: read paths, write paths, and tool toggles (file read / file write / bash / network) — add files with **+ File** or whole folders with **+ Folder**. A statusbar indicator shows green / red / blinking-red (bypass on) so you always know the panel state.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/access-map.png" alt="Access map editor" />
+  <br>
+  <em>Per-document access map — explicit read / write paths plus tool toggles</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/snapshots.png" alt="Snapshot history" />
+  <br>
+  <em>Snapshot history — restore, pin, export or delete pre-edit revisions</em>
+</p>
+
+### Two providers, one panel
+
+Switch between `claude` and `codex` from the chat header. Per-CLI defaults persist (last model, last reasoning effort). Token streaming, segmented context-usage bar, clickable links, send shortcut (`Ctrl+Enter` / `Cmd+Enter`), minimize-to-tab + fullscreen window controls. The full feature list lives in [RELEASE_NOTES.md](RELEASE_NOTES.md).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/streaming-context.png" alt="Streaming and context bar" />
+  <br>
+  <em>Token streaming with a live segmented context-usage bar (input / cache / free)</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/settings-ai.png" alt="AI settings tab" />
+  <br>
+  <em>Settings → AI — install / authentication health, audit log viewer, runtime bypass toggle</em>
+</p>
 
 ---
 
