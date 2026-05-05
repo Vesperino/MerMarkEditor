@@ -371,13 +371,27 @@ function onDeleteThread(id: string) {
     :style="sideStyle"
   >
     <header class="ai-panel__header">
-      <div class="ai-panel__title-group">
-        <svg class="ai-panel__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v1H7a4 4 0 0 0-4 4v3a4 4 0 0 0 2 3.46V20a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.54A4 4 0 0 0 21 13v-3a4 4 0 0 0-4-4h-2V5a3 3 0 0 0-3-3z"/>
-          <circle cx="9" cy="13" r="1"/>
-          <circle cx="15" cy="13" r="1"/>
-        </svg>
-        <strong>{{ t.aiPanelTitle }}</strong>
+      <div class="ai-panel__title-row">
+        <div class="ai-panel__title-group">
+          <svg class="ai-panel__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v1H7a4 4 0 0 0-4 4v3a4 4 0 0 0 2 3.46V20a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.54A4 4 0 0 0 21 13v-3a4 4 0 0 0-4-4h-2V5a3 3 0 0 0-3-3z"/>
+            <circle cx="9" cy="13" r="1"/>
+            <circle cx="15" cy="13" r="1"/>
+          </svg>
+          <strong>{{ t.aiPanelTitle }}</strong>
+        </div>
+        <div class="ai-panel__window-controls">
+          <button class="ai-panel__win-btn" @click="minimized = true" title="Minimize to tab">
+            <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="8" width="8" height="1" fill="currentColor"/></svg>
+          </button>
+          <button class="ai-panel__win-btn" @click="fullscreen = !fullscreen" :title="fullscreen ? t.aiExitFullscreen : t.aiFullscreen">
+            <svg v-if="!fullscreen" width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor"/></svg>
+            <svg v-else width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="3" width="6" height="6" fill="none" stroke="currentColor"/><rect x="3" y="1" width="6" height="6" fill="none" stroke="currentColor"/></svg>
+          </button>
+          <button class="ai-panel__win-btn ai-panel__win-btn--close" @click="emit('close')" :title="`${t.aiClose} (Esc)`">
+            <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor"/></svg>
+          </button>
+        </div>
       </div>
 
       <div class="ai-panel__model-group">
@@ -440,17 +454,6 @@ function onDeleteThread(id: string) {
         </details>
         <button class="ai-panel__icon-btn" @click="newChat" :title="t.aiNewChat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <span class="ai-panel__win-sep" />
-        <button class="ai-panel__win-btn" @click="minimized = true" title="Minimize to tab">
-          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="8" width="8" height="1" fill="currentColor"/></svg>
-        </button>
-        <button class="ai-panel__win-btn" @click="fullscreen = !fullscreen" :title="fullscreen ? t.aiExitFullscreen : t.aiFullscreen">
-          <svg v-if="!fullscreen" width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor"/></svg>
-          <svg v-else width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="3" width="6" height="6" fill="none" stroke="currentColor"/><rect x="3" y="1" width="6" height="6" fill="none" stroke="currentColor"/></svg>
-        </button>
-        <button class="ai-panel__win-btn ai-panel__win-btn--close" @click="emit('close')" :title="`${t.aiClose} (Esc)`">
-          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor"/></svg>
         </button>
       </div>
     </header>
@@ -568,18 +571,11 @@ function onDeleteThread(id: string) {
 
 .ai-panel__header {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
   background: linear-gradient(180deg, var(--toolbar-gradient-from), var(--toolbar-gradient-to));
   border-bottom: 1px solid var(--border-primary);
-  flex-wrap: wrap;
-}
-.ai-panel__title-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
 }
 .ai-panel__icon {
   color: var(--primary);
@@ -588,7 +584,7 @@ function onDeleteThread(id: string) {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
+  flex-wrap: wrap;
 }
 .ai-panel__status-dot {
   width: 8px;
@@ -614,6 +610,7 @@ function onDeleteThread(id: string) {
 .ai-panel__actions {
   display: flex;
   gap: 4px;
+  margin-left: auto;
 }
 .ai-panel__icon-btn {
   display: inline-flex;
@@ -633,13 +630,27 @@ function onDeleteThread(id: string) {
   color: var(--text-primary);
 }
 
-/* Window-control buttons (minimize/maximize/close) — distinct from action icons */
-.ai-panel__win-sep {
-  width: 1px;
-  height: 18px;
-  background: var(--border-primary);
-  margin: 0 4px;
+.ai-panel__title-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 6px;
 }
+.ai-panel__title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  flex: 1;
+}
+.ai-panel__window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* Window-control buttons (minimize/maximize/close) */
 .ai-panel__win-btn {
   display: inline-flex;
   align-items: center;
