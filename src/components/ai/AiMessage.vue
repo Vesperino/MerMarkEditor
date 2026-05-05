@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { AiMessage } from '../../composables/useAi';
 
 const props = defineProps<{
@@ -16,10 +16,8 @@ const isTool = computed(() => props.message.role === 'tool');
 const isAttachment = computed(() => props.message.role === 'attachment');
 const isAssistant = computed(() => props.message.role === 'assistant');
 
-// Expand tool chip on click to reveal full args. Args arrive as a JSON
-// string (see useAi.ts pushMessage for tool_request); pretty-print so the
-// expanded view is readable.
-const toolExpanded = ref(false);
+// Tool args arrive as a JSON string (see useAi.ts pushMessage for
+// tool_request); pretty-print so the expanded view is readable.
 const prettyToolArgs = computed(() => {
   if (!isTool.value || !props.message.text.trim()) return 'No arguments captured for this tool call.';
   try {
@@ -125,27 +123,24 @@ function formatToolPreviewValue(value: unknown): string {
 </script>
 
 <template>
-  <div
+  <details
     v-if="isTool"
     class="ai-msg ai-msg--tool"
-    :class="{ 'ai-msg--tool-expanded': toolExpanded }"
   >
-    <button
-      type="button"
+    <summary
       class="ai-msg__tool-row"
-      @click.stop="toolExpanded = !toolExpanded"
-      :title="toolExpanded ? 'Click to collapse' : 'Click to view full arguments'"
+      title="Click to show or hide full arguments"
     >
-      <svg class="ai-msg__tool-chevron" :class="{ 'ai-msg__tool-chevron--open': toolExpanded }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      <svg class="ai-msg__tool-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       <span class="ai-msg__tool-label">{{ toolName }}</span>
       <span class="ai-msg__tool-args">{{ toolPreview }}</span>
-    </button>
-    <div v-if="toolExpanded" class="ai-msg__tool-details">
+    </summary>
+    <div class="ai-msg__tool-details">
       <span class="ai-msg__tool-details-label">Full arguments</span>
       <pre class="ai-msg__tool-args-full">{{ prettyToolArgs }}</pre>
     </div>
-  </div>
+  </details>
   <button
     v-else-if="isAttachment"
     class="ai-msg ai-msg--attachment"
@@ -276,10 +271,8 @@ function formatToolPreviewValue(value: unknown): string {
   overflow: hidden;
   position: relative;
 }
-/* Higher specificity — `.ai-msg.ai-msg--tool-expanded` beats both
-   `.ai-msg--tool` and `.ai-msg` regardless of source order, so the chip
-   reliably stretches when its details panel is open. */
-.ai-msg.ai-msg--tool-expanded {
+/* Native open state stretches the chip when its details panel is visible. */
+.ai-msg--tool[open] {
   align-self: stretch;
   width: 100%;
   max-width: 100%;
@@ -301,16 +294,16 @@ function formatToolPreviewValue(value: unknown): string {
   min-height: 30px;
   line-height: 1.35;
   box-sizing: border-box;
-  pointer-events: auto;
+  list-style: none;
 }
-.ai-msg__tool-row > * { pointer-events: none; }
+.ai-msg__tool-row::-webkit-details-marker { display: none; }
 .ai-msg__tool-row:hover { background: var(--hover-bg, rgba(0,0,0,0.04)); }
 .ai-msg__tool-chevron {
   flex-shrink: 0;
   transition: transform 120ms ease;
   opacity: 0.6;
 }
-.ai-msg__tool-chevron--open { transform: rotate(90deg); }
+.ai-msg--tool[open] .ai-msg__tool-chevron { transform: rotate(90deg); }
 .ai-msg__tool-label {
   font-weight: 600;
   color: var(--primary);

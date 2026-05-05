@@ -20,7 +20,12 @@ describe('AiMessage', () => {
     expect(wrapper.find('.ai-msg__tool-args').text()).toContain('file_path: E:/doc.md');
     expect(wrapper.find('.ai-msg__tool-args').text()).toContain('limit: 120');
 
+    const details = wrapper.find('details').element as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+
     await wrapper.find('.ai-msg__tool-row').trigger('click');
+
+    expect(details.open).toBe(true);
 
     expect(wrapper.find('.ai-msg__tool-args').text()).toContain('file_path: E:/doc.md');
     expect(wrapper.find('.ai-msg__tool-details-label').text()).toBe('Full arguments');
