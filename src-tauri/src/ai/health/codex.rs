@@ -49,15 +49,17 @@ pub async fn probe() -> HealthStatus {
 
 fn parse_account(out: &str) -> Option<String> {
     for line in out.lines() {
-        let lower = line.to_ascii_lowercase();
-        if lower.contains("logged in as") || lower.contains("account") || lower.contains("user") {
-            if let Some(idx) = line.find(':') {
-                return Some(line[idx + 1..].trim().to_string());
-            }
+        let trimmed = line.trim_start();
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("logged in as:")
+            || lower.starts_with("account:")
+            || lower.starts_with("user:")
+        {
+            return trimmed.splitn(2, ':').nth(1).map(|v| v.trim().to_string());
         }
         // Handle "Logged in using <provider>" (no colon after the value).
         if lower.starts_with("logged in") {
-            return Some(line.trim().to_string());
+            return Some(trimmed.to_string());
         }
     }
     None
@@ -100,5 +102,11 @@ mod tests {
     fn parse_account_handles_logged_in_using_format() {
         let out = "Logged in using ChatGPT";
         assert_eq!(parse_account(out), Some("Logged in using ChatGPT".into()));
+    }
+
+    #[test]
+    fn parse_account_ignores_user_in_unrelated_context() {
+        assert_eq!(parse_account("Run codex --user-config: see docs"), None);
+        assert_eq!(parse_account("Account status: ok"), None);
     }
 }

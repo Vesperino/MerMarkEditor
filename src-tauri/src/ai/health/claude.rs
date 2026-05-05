@@ -53,11 +53,10 @@ pub async fn probe() -> HealthStatus {
 
 fn parse_account(out: &str) -> Option<String> {
     for line in out.lines() {
-        let lower = line.to_ascii_lowercase();
-        if lower.contains("account") || lower.contains("logged in as") {
-            if let Some(idx) = line.find(':') {
-                return Some(line[idx + 1..].trim().to_string());
-            }
+        let trimmed = line.trim_start();
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("account:") || lower.starts_with("logged in as:") {
+            return trimmed.splitn(2, ':').nth(1).map(|v| v.trim().to_string());
         }
     }
     None
@@ -99,5 +98,12 @@ mod tests {
     #[test]
     fn parse_account_returns_none_when_absent() {
         assert_eq!(parse_account("nothing here"), None);
+    }
+
+    #[test]
+    fn parse_account_ignores_account_status_substring() {
+        // Sentence containing 'account' must not falsely match.
+        assert_eq!(parse_account("Account status: ok"), None);
+        assert_eq!(parse_account("Use 'claude account' to switch"), None);
     }
 }
