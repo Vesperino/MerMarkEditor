@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
 import { htmlToMarkdown } from '../../utils/markdown-converter';
 import { useI18n } from '../../i18n';
 import { useSettings, type CliKind } from '../../composables/useSettings';
-import { useAi, type AiMessage as AiMessageT } from '../../composables/useAi';
+import { useAi } from '../../composables/useAi';
 import { useAiSession } from '../../composables/useAiSession';
 import { useAiAccessMap } from '../../composables/useAiAccessMap';
 import { useAiHealth } from '../../composables/useAiHealth';
@@ -14,6 +14,7 @@ import AiMessage from './AiMessage.vue';
 import AiSnapshotList from './AiSnapshotList.vue';
 import AiAccessMapEditor from './AiAccessMapEditor.vue';
 import { useAiContext } from '../../composables/useAiContext';
+import { aiCommands } from '../../services/aiCommands';
 
 const props = defineProps<{
   open: boolean;
@@ -35,7 +36,7 @@ const ai = useAi();
 const session = useAiSession();
 const access = useAiAccessMap();
 const health = useAiHealth();
-const apply = useAiApply();
+useAiApply(); // kept for potential future restoration of fence flow
 const aiContext = useAiContext();
 
 const selectedCli = ref<CliKind>(settings.value.ai.defaultCli);
@@ -59,9 +60,6 @@ const toolActivity = ref<string | null>(null);
 let toolActivityTimer: number | null = null;
 const messagesEl = ref<HTMLElement | null>(null);
 const threadsDetails = ref<HTMLDetailsElement | null>(null);
-// Auto-apply mode: AI proposals are accepted instantly without diff prompt.
-// Runtime-only (per-app-session) — separate from the tool-call bypass.
-const autoApply = ref<boolean>(false);
 
 function onWindowClick(e: MouseEvent) {
   // Close threads dropdown when clicking outside it.
@@ -206,9 +204,9 @@ function buildPreamble(): string {
     `Write paths: ${am?.writePaths.join(', ') ?? props.docPath}`,
     `Allowed tools: ${tools}`,
     ``,
-    `When proposing edits, wrap your change in either:`,
-    `  \`\`\`mermark-replace ... \`\`\`  (full new content of the active doc, or selection replacement)`,
-    `  \`\`\`mermark-patch ... \`\`\`    (unified diff against the current doc)`,
+    `When the user asks for edits to the active file, USE YOUR Edit / Write TOOLS to modify the file on disk directly. Do NOT return code fences with the proposed change — the host will reload the editor from disk after you finish.`,
+    ``,
+    `For chat-only answers (questions about the file, summaries, suggestions), respond as plain text without editing the file.`,
   ];
   if (docTooLarge.value && !sendFullDocOverride.value) {
     lines.push('', `Note: the active document is large (${docMarkdown.value.length} bytes). Focus on the first 200KB unless instructed otherwise.`);
@@ -225,7 +223,19 @@ async function onSend() {
   const prompt = inputValue.value;
   inputValue.value = '';
 
-  const startHash = await session.sha1Hex(docMarkdown.value);
+  // Pre-send snapshot from DISK (not from editor HTML — file is the truth).
+  try {
+    const { readTextFile } = await import('@tauri-apps/plugin-fs');
+    const onDiskBefore = await readTextFile(props.docPath);
+    await aiCommands.snapshotCreate(
+      props.docPath,
+      onDiskBefore,
+      session.current.value?.sessionId ?? null,
+      settings.value.ai.snapshotsKeep,
+    );
+  } catch (e) {
+    console.warn('[AiPanel] pre-send snapshot failed (continuing anyway):', e);
+  }
 
   const final = await ai.send({
     cli: selectedCli.value,
@@ -251,68 +261,34 @@ async function onSend() {
     },
   });
 
-  const parsed = parseAiOutput(final.text);
-  if (parsed.kind !== 'plain') {
-    const nowHash = await session.sha1Hex(docMarkdown.value);
-    if (nowHash !== startHash) {
-      const proceed = window.confirm('Document changed during the AI request. Apply suggested changes anyway?');
-      if (!proceed) return;
-    }
-    const result = await apply.prepare(parsed, {
-      docPath: props.docPath,
-      currentContent: docMarkdown.value,
-      selectionRange: props.selectionRange,
-      sessionId: session.current.value?.sessionId ?? null,
-      snapshotsKeep: settings.value.ai.snapshotsKeep,
-    });
-    if (!result.ok) {
-      // Surface the failure into the assistant message instead of the silent
-      // raw-patch-as-content fallback we used to do.
-      console.warn('[AiPanel] apply.prepare failed:', result.reason);
-    } else if (result.newContent) {
-      if (autoApply.value && result.tmpPath) {
-        // Direct apply, no confirm.
-        emit('applyContent', result.newContent);
-        await apply.commitTmp(result.tmpPath);
-      } else {
-        emit('showDiff', docMarkdown.value, result.newContent);
-      }
-    }
-  }
+  // The existing useFileWatcher in App.vue will fire when AI's Edit/Write tool
+  // touches the file. The fence-based apply flow is no longer used.
+  console.log('[AiPanel] response final length:', final.text.length);
 }
 
 async function onCancel() { await ai.cancel(); }
 
-async function onMessageApply(message: AiMessageT) {
-  const parsed = parseAiOutput(message.text);
-  if (parsed.kind === 'plain' || !access.current.value) return;
-  const result = await apply.prepare(parsed, {
-    docPath: props.docPath,
-    currentContent: docMarkdown.value,
-    selectionRange: props.selectionRange,
-    sessionId: session.current.value?.sessionId ?? null,
-    snapshotsKeep: settings.value.ai.snapshotsKeep,
-  });
-  if (result.ok && result.newContent && result.tmpPath) {
-    emit('applyContent', result.newContent);
-    await apply.commitTmp(result.tmpPath);
+async function revertLastSnapshot() {
+  try {
+    const items = await aiCommands.snapshotList(props.docPath);
+    if (items.length === 0) {
+      window.alert('No snapshots to revert to.');
+      return;
+    }
+    // Newest first.
+    const sorted = [...items].sort((a, b) => b.ts.localeCompare(a.ts));
+    const latest = sorted[0];
+    const ok = window.confirm(`Revert to snapshot from ${latest.ts}?`);
+    if (!ok) return;
+    const content = await aiCommands.snapshotRestore(props.docPath, latest.id);
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+    await writeTextFile(props.docPath, content);
+    // Tell App.vue to reload (skips diff — revert matches disk).
+    emit('applyContent', content);
+  } catch (e) {
+    console.error('[AiPanel] revert failed:', e);
+    window.alert(`Revert failed: ${(e as Error).message}`);
   }
-}
-
-function onMessageReject(_message: AiMessageT) {}
-
-function onMessageShowDiff(message: AiMessageT) {
-  const parsed = parseAiOutput(message.text);
-  if (parsed.kind === 'plain') return;
-  let candidate: string;
-  if (parsed.kind === 'replace') {
-    candidate = props.selectionRange
-      ? docMarkdown.value.slice(0, props.selectionRange.start) + parsed.payload + docMarkdown.value.slice(props.selectionRange.end)
-      : parsed.payload;
-  } else {
-    candidate = parsed.payload;
-  }
-  emit('showDiff', docMarkdown.value, candidate);
 }
 
 async function onSnapshotRestored(content: string) { emit('applyContent', content); }
@@ -398,13 +374,11 @@ function onDeleteThread(id: string) {
 
       <div class="ai-panel__actions">
         <button
-          class="ai-panel__icon-btn ai-panel__bypass"
-          :class="{ 'ai-panel__bypass--on': autoApply }"
-          @click="autoApply = !autoApply"
-          :title="autoApply ? 'Auto-apply ON — proposals applied without confirm' : 'Auto-apply OFF — review diff before apply'"
+          class="ai-panel__icon-btn"
+          @click="revertLastSnapshot"
+          title="Revert to last snapshot before AI edit"
         >
-          <svg v-if="autoApply" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
         </button>
         <details class="ai-panel__threads" ref="threadsDetails">
           <summary class="ai-panel__icon-btn" :title="`${ai.threads.value.length} chat(s)`">
@@ -482,9 +456,6 @@ function onDeleteThread(id: string) {
         :key="i"
         :message="m"
         :has-fence="m.role === 'assistant' && m.done && messageHasFence(m.text)"
-        @apply="onMessageApply(m)"
-        @reject="onMessageReject(m)"
-        @show-diff="onMessageShowDiff(m)"
       />
     </div>
 

@@ -79,14 +79,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sandbox_mode_defaults_to_read_only() {
+    fn sandbox_mode_defaults_to_workspace_write() {
+        // Default now enables file_write so AI can edit the active doc directly.
         let t = AccessMapTools::default();
+        assert_eq!(sandbox_mode(&t, false), "workspace-write");
+    }
+
+    #[test]
+    fn sandbox_mode_all_off_is_read_only() {
+        // Explicitly disable all tools to test read-only sandbox.
+        let t = AccessMapTools { bash: false, network: false, file_read: false, file_write: false };
         assert_eq!(sandbox_mode(&t, false), "read-only");
     }
 
     #[test]
     fn sandbox_mode_with_file_write_is_workspace_write() {
-        let t = AccessMapTools { file_write: true, ..AccessMapTools::default() };
+        let t = AccessMapTools { file_write: true, bash: false, network: false, file_read: false };
         assert_eq!(sandbox_mode(&t, false), "workspace-write");
     }
 

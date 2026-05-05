@@ -63,13 +63,27 @@ mod tests {
 
     #[test]
     fn allowed_tools_for_all_off_is_empty() {
-        let t = AccessMapTools::default();
+        // Explicitly disable all tools (default now enables file_read+file_write).
+        let t = AccessMapTools { bash: false, network: false, file_read: false, file_write: false };
         assert_eq!(allowed_tools(&t), "");
     }
 
     #[test]
+    fn allowed_tools_for_default_includes_read_write_tools() {
+        // Default enables file_read + file_write for direct on-disk AI edits.
+        let t = AccessMapTools::default();
+        let s = allowed_tools(&t);
+        assert!(s.contains("Read"));
+        assert!(s.contains("Glob"));
+        assert!(s.contains("Grep"));
+        assert!(s.contains("Write"));
+        assert!(s.contains("Edit"));
+        assert!(!s.contains("Bash"));
+    }
+
+    #[test]
     fn allowed_tools_for_file_read_includes_read_glob_grep() {
-        let t = AccessMapTools { file_read: true, ..AccessMapTools::default() };
+        let t = AccessMapTools { file_read: true, bash: false, network: false, file_write: false };
         let s = allowed_tools(&t);
         assert!(s.contains("Read"));
         assert!(s.contains("Glob"));
@@ -78,7 +92,8 @@ mod tests {
 
     #[test]
     fn allowed_tools_for_bash_only_returns_just_bash() {
-        let t = AccessMapTools { bash: true, ..AccessMapTools::default() };
+        // Explicitly disable file_read + file_write to test bash-only case.
+        let t = AccessMapTools { bash: true, network: false, file_read: false, file_write: false };
         assert_eq!(allowed_tools(&t), "Bash");
     }
 }

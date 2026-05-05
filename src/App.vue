@@ -513,12 +513,8 @@ function toggleAiPanel() {
 }
 
 function onAiApplyContent(content: string) {
-  // Replace TipTap content via the existing setEditorContent helper,
-  // then auto-open the DiffPreview modal so the user sees what changed.
+  // Reload-only — no auto-diff (revert flow already matches disk).
   setEditorContent(content);
-  nextTick(() => {
-    if (canShowDiff.value) openDiffPreview();
-  });
 }
 
 function onAiShowDiff(_orig: string, candidate: string) {

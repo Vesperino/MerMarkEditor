@@ -25,13 +25,22 @@ pub struct HealthStatus {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessMapTools {
     pub bash: bool,
     pub network: bool,
     pub file_read: bool,
     pub file_write: bool,
+}
+
+impl Default for AccessMapTools {
+    fn default() -> Self {
+        // File read + write enabled by default so AI can edit the active
+        // markdown file directly. bash + network stay off (require explicit
+        // opt-in via the access-map editor).
+        Self { bash: false, network: false, file_read: true, file_write: true }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,10 +128,10 @@ mod tests {
         let am = AccessMap::default_for_doc("/foo/bar.md");
         assert_eq!(am.read_paths, vec!["/foo/bar.md"]);
         assert_eq!(am.write_paths, vec!["/foo/bar.md"]);
+        assert!(am.tools.file_read);
+        assert!(am.tools.file_write);
         assert!(!am.tools.bash);
         assert!(!am.tools.network);
-        assert!(!am.tools.file_read);
-        assert!(!am.tools.file_write);
     }
 
     #[test]
