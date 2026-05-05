@@ -364,6 +364,12 @@ const {
     const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
     addRecentFile(filePath, fileName);
   },
+  onAfterSave: (filePath: string, content: string) => {
+    // New file just got a path (Save / Save As on a fresh tab) — ensure
+    // the file watcher is registered so external edits (e.g., AI) are
+    // detected and trigger an editor reload.
+    watchFile(filePath, content);
+  },
   onPreSaveConflict: (filePath: string, diskContent: string, localMarkdown: string) => {
     const tab = findTabByFilePath(filePath);
     // Diff shows local (current editor) → disk so the user sees their changes vs external changes.

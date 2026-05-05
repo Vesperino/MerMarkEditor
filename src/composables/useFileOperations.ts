@@ -23,6 +23,10 @@ export interface UseFileOperationsOptions {
   markSaveStart?: (filePath: string) => void;
   markSaveEnd?: (filePath: string, content: string) => void;
   onFileOpened?: (filePath: string, content: string) => void;
+  /** Called after a successful save / save-as so the host can register a
+   *  file watcher for new paths. Safe to call repeatedly — the watcher
+   *  layer ignores already-watched files. */
+  onAfterSave?: (filePath: string, content: string) => void;
   /** Returns 'save' | 'cancel' | mergedMarkdownString (to save the merged version).
    *  localMarkdown is the current editor content (used to compute a local→disk diff). */
   onPreSaveConflict?: (filePath: string, diskContent: string, localMarkdown: string) => Promise<'save' | 'cancel' | string>;
@@ -57,6 +61,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     setEditorContent,
     markSaveStart,
     markSaveEnd,
+    onAfterSave,
     onFileOpened,
     onPreSaveConflict,
   } = options;
@@ -224,6 +229,9 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       }
       tabs.value[tabIndex].originalMarkdown = markdown;
     }
+
+    // Tell host to start watching this path (no-op if already watched).
+    onAfterSave?.(filePath, markdown);
   };
 
   const saveFile = async (): Promise<void> => {
