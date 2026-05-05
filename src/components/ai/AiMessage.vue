@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useI18n } from '../../i18n';
 import type { AiMessage } from '../../composables/useAi';
 
 const props = defineProps<{
@@ -14,12 +13,28 @@ const emit = defineEmits<{
   reject: [];
 }>();
 
-const { t } = useI18n();
 const isAssistant = computed(() => props.message.role === 'assistant');
 // Show typing indicator while waiting for first text chunk.
 const isThinking = computed(
   () => isAssistant.value && !props.message.done && props.message.text === '' && !props.message.error
 );
+
+// Strip mermark-replace / mermark-patch fence blocks from the visible bubble
+// (they are huge and noisy; the action buttons handle them).
+const FENCE_RE = /```mermark-(replace|patch)\n[\s\S]*?```\s*/g;
+const visibleText = computed(() => {
+  const t = props.message.text;
+  if (!props.hasFence) return t;
+  return t.replace(FENCE_RE, '').trim();
+});
+
+// Detect whether the AI proposed a patch vs full replace, for the badge.
+const fenceKind = computed<'patch' | 'replace' | null>(() => {
+  if (!props.hasFence) return null;
+  if (/```mermark-replace/.test(props.message.text)) return 'replace';
+  if (/```mermark-patch/.test(props.message.text)) return 'patch';
+  return null;
+});
 </script>
 
 <template>
@@ -37,12 +52,18 @@ const isThinking = computed(
       <span class="ai-msg__thinking-dot" />
       <span class="ai-msg__thinking-text">Thinking…</span>
     </div>
-    <pre v-else class="ai-msg__text">{{ message.text }}</pre>
+    <pre v-else class="ai-msg__text">{{ visibleText }}</pre>
     <div v-if="message.error" class="ai-msg__error">{{ message.error }}</div>
-    <div v-if="isAssistant && message.done && hasFence" class="ai-msg__actions">
-      <button @click="emit('showDiff')">Diff</button>
-      <button @click="emit('apply')">{{ t.aiTmpRecoveryRestore }}</button>
-      <button @click="emit('reject')">{{ t.aiTmpRecoveryDiscard }}</button>
+    <div v-if="isAssistant && message.done && hasFence" class="ai-msg__proposal">
+      <div class="ai-msg__proposal-header">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+        <span>AI proposes a {{ fenceKind === 'patch' ? 'patch' : 'replacement' }}</span>
+      </div>
+      <div class="ai-msg__actions">
+        <button class="ai-msg__btn" @click="emit('showDiff')">Show diff</button>
+        <button class="ai-msg__btn ai-msg__btn--primary" @click="emit('apply')">Accept</button>
+        <button class="ai-msg__btn" @click="emit('reject')">Discard</button>
+      </div>
     </div>
   </div>
 </template>
@@ -80,15 +101,27 @@ const isThinking = computed(
   font-family: inherit;
 }
 .ai-msg__error { font-size: 12px; margin-top: 6px; }
-.ai-msg__actions {
-  display: flex;
-  gap: 6px;
+.ai-msg__proposal {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--border-primary);
 }
-.ai-msg__actions button {
-  padding: 4px 10px;
+.ai-msg__proposal-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ai-msg__actions {
+  display: flex;
+  gap: 6px;
+}
+.ai-msg__btn {
+  padding: 5px 12px;
   font-size: 12px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -97,7 +130,13 @@ const isThinking = computed(
   cursor: pointer;
   transition: background 100ms ease;
 }
-.ai-msg__actions button:hover { background: var(--hover-bg); }
+.ai-msg__btn:hover { background: var(--hover-bg); }
+.ai-msg__btn--primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.ai-msg__btn--primary:hover { background: var(--primary-hover, var(--primary)); filter: brightness(1.1); }
 
 /* Typing indicator while waiting for first chunk */
 .ai-msg__thinking {

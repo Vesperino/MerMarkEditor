@@ -58,6 +58,18 @@ const fullscreen = ref(false);
 const toolActivity = ref<string | null>(null);
 let toolActivityTimer: number | null = null;
 const messagesEl = ref<HTMLElement | null>(null);
+const threadsDetails = ref<HTMLDetailsElement | null>(null);
+// Auto-apply mode: AI proposals are accepted instantly without diff prompt.
+// Runtime-only (per-app-session) — separate from the tool-call bypass.
+const autoApply = ref<boolean>(false);
+
+function onWindowClick(e: MouseEvent) {
+  // Close threads dropdown when clicking outside it.
+  const det = threadsDetails.value;
+  if (det && det.open && !det.contains(e.target as Node)) {
+    det.removeAttribute('open');
+  }
+}
 
 // Large doc truncation
 const LARGE_DOC_THRESHOLD = 200 * 1024;
@@ -148,6 +160,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 onMounted(async () => {
   window.addEventListener('keydown', onGlobalKeydown);
+  window.addEventListener('click', onWindowClick);
   if (props.docPath) {
     ai.bindDoc(props.docPath);
     await Promise.all([
@@ -160,6 +173,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown);
+  window.removeEventListener('click', onWindowClick);
 });
 
 watch(() => props.docPath, async (p) => {
@@ -251,8 +265,18 @@ async function onSend() {
       sessionId: session.current.value?.sessionId ?? null,
       snapshotsKeep: settings.value.ai.snapshotsKeep,
     });
-    if (result.ok && result.newContent) {
-      emit('showDiff', docMarkdown.value, result.newContent);
+    if (!result.ok) {
+      // Surface the failure into the assistant message instead of the silent
+      // raw-patch-as-content fallback we used to do.
+      console.warn('[AiPanel] apply.prepare failed:', result.reason);
+    } else if (result.newContent) {
+      if (autoApply.value && result.tmpPath) {
+        // Direct apply, no confirm.
+        emit('applyContent', result.newContent);
+        await apply.commitTmp(result.tmpPath);
+      } else {
+        emit('showDiff', docMarkdown.value, result.newContent);
+      }
     }
   }
 }
@@ -373,7 +397,16 @@ function onDeleteThread(id: string) {
       </div>
 
       <div class="ai-panel__actions">
-        <details class="ai-panel__threads">
+        <button
+          class="ai-panel__icon-btn ai-panel__bypass"
+          :class="{ 'ai-panel__bypass--on': autoApply }"
+          @click="autoApply = !autoApply"
+          :title="autoApply ? 'Auto-apply ON — proposals applied without confirm' : 'Auto-apply OFF — review diff before apply'"
+        >
+          <svg v-if="autoApply" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+        </button>
+        <details class="ai-panel__threads" ref="threadsDetails">
           <summary class="ai-panel__icon-btn" :title="`${ai.threads.value.length} chat(s)`">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
           </summary>
@@ -583,6 +616,14 @@ function onDeleteThread(id: string) {
 .ai-panel__icon-btn:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+.ai-panel__bypass--on {
+  background: var(--diff-removed-bg, #fef3c7);
+  color: var(--split-toggle-color, #b45309);
+}
+.ai-panel__bypass--on:hover {
+  background: var(--diff-removed-bg, #fde68a);
+  color: var(--split-toggle-color, #b45309);
 }
 
 /* Threads dropdown */

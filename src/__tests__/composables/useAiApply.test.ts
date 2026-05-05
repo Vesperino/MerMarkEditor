@@ -46,11 +46,11 @@ describe('useAiApply.prepare', () => {
     expect(r.reason).toBe('no-fence');
   });
 
-  it('patch with bad context falls back to full replace', async () => {
+  it('patch with bad context returns ok:false (no raw-patch dump)', async () => {
     const { prepare } = useAiApply();
     const badPatch = `--- a\n+++ b\n@@ -1,1 +1,1 @@\n-NOT IN DOC\n+REPLACEMENT\n`;
     const r = await prepare({ kind: 'patch', text: '', payload: badPatch }, { ...ctx, selectionRange: null });
-    expect(r.ok).toBe(true);
-    expect(r.fellBackToFullReplace).toBe(true);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('patch-context-mismatch');
   });
 });

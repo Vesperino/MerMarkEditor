@@ -29,7 +29,9 @@ async function onExport(id: string) {
 
 <template>
   <details class="ai-snapshots">
-    <summary>{{ t.aiHistory }} ({{ snapshots.items.value.length }})</summary>
+    <summary>Document snapshots ({{ snapshots.items.value.length }})
+      <small style="opacity:0.6;font-weight:normal;">— file revisions saved before each AI edit</small>
+    </summary>
     <ul>
       <li v-for="item in snapshots.items.value" :key="item.id">
         <span class="ai-snap__ts">{{ item.ts }}</span>

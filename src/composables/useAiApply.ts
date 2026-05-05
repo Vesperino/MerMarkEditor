@@ -38,14 +38,15 @@ export function useAiApply() {
         newContent = parsed.payload;
       }
     } else {
-      // patch
+      // patch — must apply cleanly. The previous fallback that wrote the raw
+      // patch text as the new content was a footgun (overwrote the doc with
+      // diff syntax). Now we surface the failure so the panel can show an
+      // error and the user can ask again.
       const applied = applyPatch(ctx.currentContent, parsed.payload);
       if (applied === false) {
-        newContent = parsed.payload;
-        fellBack = true;
-      } else {
-        newContent = applied;
+        return { ok: false, reason: 'patch-context-mismatch' };
       }
+      newContent = applied;
     }
 
     try {
