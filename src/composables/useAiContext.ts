@@ -18,6 +18,10 @@ export interface ContextUsage {
   fraction: number;
   /** True if no usage has been recorded yet. */
   empty: boolean;
+  /** Free / unused space in the window. */
+  freeTokens: number;
+  /** Reserved category-style breakdown (claude /context-like). */
+  breakdown: Array<{ key: string; label: string; tokens: number; pct: number; color: string }>;
 }
 
 const DEFAULT_CONTEXT_WINDOW: Record<CliKind, number> = {
@@ -28,15 +32,18 @@ const DEFAULT_CONTEXT_WINDOW: Record<CliKind, number> = {
 const usage = ref<ContextUsage>(emptyUsage('claude'));
 
 function emptyUsage(cli: CliKind): ContextUsage {
+  const cw = DEFAULT_CONTEXT_WINDOW[cli];
   return {
     inputTokens: 0,
     cacheCreationTokens: 0,
     cacheReadTokens: 0,
     outputTokens: 0,
     totalInputTokens: 0,
-    contextWindow: DEFAULT_CONTEXT_WINDOW[cli],
+    contextWindow: cw,
     fraction: 0,
     empty: true,
+    freeTokens: cw,
+    breakdown: [],
   };
 }
 
@@ -70,6 +77,19 @@ export function parseUsage(cli: CliKind, raw: unknown): ContextUsage {
   }
 
   const fraction = contextWindow > 0 ? Math.min(1, totalInputTokens / contextWindow) : 0;
+  const freeTokens = Math.max(0, contextWindow - totalInputTokens);
+
+  // Approximate /context-like category breakdown from what stream-json gives us.
+  // claude does not expose system-prompt vs tools vs skills in the result event,
+  // so we group cache_creation as "System+Tools (cached first turn)", cache_read
+  // as "Cached (subsequent reads)", and input_tokens as "This turn".
+  const pct = (t: number): number => contextWindow > 0 ? (t / contextWindow) * 100 : 0;
+  const breakdown = [
+    { key: 'cache_creation', label: 'System + tools (cache create)', tokens: cacheCreationTokens, pct: pct(cacheCreationTokens), color: '#f97316' },
+    { key: 'cache_read', label: 'Cached (cache read)', tokens: cacheReadTokens, pct: pct(cacheReadTokens), color: '#a855f7' },
+    { key: 'input', label: 'This turn input', tokens: inputTokens, pct: pct(inputTokens), color: '#2563eb' },
+    { key: 'free', label: 'Free space', tokens: freeTokens, pct: pct(freeTokens), color: '#e2e8f0' },
+  ].filter(b => b.tokens > 0 || b.key === 'free');
 
   return {
     inputTokens,
@@ -80,6 +100,8 @@ export function parseUsage(cli: CliKind, raw: unknown): ContextUsage {
     contextWindow,
     fraction,
     empty: totalInputTokens === 0 && outputTokens === 0,
+    freeTokens,
+    breakdown,
   };
 }
 

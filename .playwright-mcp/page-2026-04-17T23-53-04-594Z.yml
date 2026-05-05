@@ -1,0 +1,108 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - button "New" [ref=e6] [cursor=pointer]:
+      - img [ref=e7]
+      - generic [ref=e10]: New
+    - generic [ref=e11]:
+      - button "Open" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+        - generic [ref=e16]: Open
+      - button "Recent Files" [disabled] [ref=e18]:
+        - img [ref=e19]
+    - button "Save" [ref=e21] [cursor=pointer]:
+      - img [ref=e22]
+      - generic [ref=e26]: Save
+    - button "Save As" [ref=e27] [cursor=pointer]:
+      - img [ref=e28]
+      - generic [ref=e31]: Save As
+    - button "PDF" [ref=e32] [cursor=pointer]:
+      - img [ref=e33]
+      - generic [ref=e37]: PDF
+    - button "Keyboard Shortcuts (Ctrl+/)" [ref=e38] [cursor=pointer]:
+      - img [ref=e39]
+    - button "Settings" [ref=e41] [cursor=pointer]:
+      - img [ref=e42]
+    - button "Undo (Ctrl+Z)" [disabled] [ref=e46]:
+      - img [ref=e47]
+    - button "Redo (Ctrl+Y)" [disabled] [ref=e51]:
+      - img [ref=e52]
+    - combobox "Heading" [disabled] [ref=e58]:
+      - option "Paragraph" [selected]
+      - option "Heading 1"
+      - option "Heading 2"
+      - option "Heading 3"
+      - option "Heading 4"
+      - option "Heading 5"
+      - option "Heading 6"
+    - button "B" [disabled] [ref=e60]:
+      - strong [ref=e61]: B
+    - button "I" [disabled] [ref=e62]:
+      - emphasis [ref=e63]: I
+    - button "S" [disabled] [ref=e64]:
+      - generic [ref=e65]: S
+    - 'button "Inline code `code`" [disabled] [ref=e66]':
+      - img [ref=e67]
+    - button "Bullet list - item" [disabled] [ref=e71]:
+      - img [ref=e72]
+    - button "Numbered list 1. item" [disabled] [ref=e76]:
+      - img [ref=e77]
+    - button "Task list - [x] task" [disabled] [ref=e81]:
+      - img [ref=e82]
+    - button "Quote > text" [disabled] [ref=e87]:
+      - img [ref=e88]
+    - 'button "Code block ```code```" [disabled] [ref=e91]':
+      - img [ref=e92]
+    - button "Horizontal line ---" [disabled] [ref=e96]:
+      - img [ref=e97]
+    - button "Link [text](url)" [disabled] [ref=e99]:
+      - img [ref=e100]
+    - button "Image ![alt](url)" [disabled] [ref=e104]:
+      - img [ref=e105]
+    - button "Markdown Table" [disabled] [ref=e111]:
+      - img [ref=e112]
+    - button "Mermaid" [disabled] [ref=e115]:
+      - img [ref=e116]
+      - generic [ref=e121]: Mermaid
+    - button "Footnote" [disabled] [ref=e123]:
+      - img [ref=e124]:
+        - generic [ref=e125]: f
+        - generic [ref=e126]: "n"
+      - generic [ref=e127]: Footnote
+    - generic [ref=e129]:
+      - generic [ref=e130]: 0 characters
+      - generic [ref=e131]: "|"
+      - generic [ref=e132]: 0 words
+      - generic [ref=e133]: "|"
+      - button "~0 tokens (GPT (OpenAI))" [ref=e135] [cursor=pointer]:
+        - generic [ref=e136]: ~0
+        - generic [ref=e137]: tokens
+        - generic [ref=e138]: (GPT (OpenAI))
+        - img [ref=e139]
+    - generic [ref=e142]:
+      - button "Zoom out" [ref=e143] [cursor=pointer]:
+        - img [ref=e144]
+      - button "100%" [ref=e147] [cursor=pointer]
+      - button "Zoom in" [ref=e148] [cursor=pointer]:
+        - img [ref=e149]
+    - button "Table of Contents" [disabled] [ref=e153]:
+      - img [ref=e154]
+      - generic [ref=e158]: Table of Contents
+    - button "Visual" [ref=e194] [cursor=pointer]:
+      - img [ref=e195]
+      - generic [ref=e164]: Visual
+    - button "Split" [disabled] [ref=e165]:
+      - img [ref=e166]
+      - generic [ref=e168]: Split
+    - button "Changes" [disabled] [ref=e169]:
+      - img [ref=e170]
+      - generic [ref=e173]: Changes
+    - button "Compare" [disabled] [ref=e174]:
+      - img [ref=e175]
+      - generic [ref=e180]: Compare
+  - generic [ref=e198]:
+    - generic [ref=e200]:
+      - generic: New Document
+      - button "×" [ref=e201] [cursor=pointer]
+    - generic [ref=e202]:
+      - generic [ref=e204]: "1"
+      - textbox [active] [ref=e205]

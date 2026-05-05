@@ -1,0 +1,190 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - button "New" [ref=e6] [cursor=pointer]:
+      - img [ref=e7]
+      - generic [ref=e10]: New
+    - generic [ref=e11]:
+      - button "Open" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+        - generic [ref=e16]: Open
+      - button "Recent Files" [disabled] [ref=e18]:
+        - img [ref=e19]
+    - button "Save" [ref=e21] [cursor=pointer]:
+      - img [ref=e22]
+      - generic [ref=e26]: Save
+    - button "Save As" [ref=e27] [cursor=pointer]:
+      - img [ref=e28]
+      - generic [ref=e31]: Save As
+    - button "PDF" [ref=e32] [cursor=pointer]:
+      - img [ref=e33]
+      - generic [ref=e37]: PDF
+    - button "Keyboard Shortcuts (Ctrl+/)" [ref=e38] [cursor=pointer]:
+      - img [ref=e39]
+    - button "Settings" [ref=e41] [cursor=pointer]:
+      - img [ref=e42]
+    - button "Undo (Ctrl+Z)" [disabled] [ref=e46]:
+      - img [ref=e47]
+    - button "Redo (Ctrl+Y)" [disabled] [ref=e51]:
+      - img [ref=e52]
+    - combobox "Heading" [ref=e58] [cursor=pointer]:
+      - option "Paragraph"
+      - option "Heading 1" [selected]
+      - option "Heading 2"
+      - option "Heading 3"
+      - option "Heading 4"
+      - option "Heading 5"
+      - option "Heading 6"
+    - button "B" [ref=e60] [cursor=pointer]:
+      - strong [ref=e61]: B
+    - button "I" [ref=e62] [cursor=pointer]:
+      - emphasis [ref=e63]: I
+    - button "S" [ref=e64] [cursor=pointer]:
+      - generic [ref=e65]: S
+    - 'button "Inline code `code`" [ref=e66] [cursor=pointer]':
+      - img [ref=e67]
+    - button "Bullet list - item" [ref=e71] [cursor=pointer]:
+      - img [ref=e72]
+    - button "Numbered list 1. item" [ref=e76] [cursor=pointer]:
+      - img [ref=e77]
+    - button "Task list - [x] task" [ref=e81] [cursor=pointer]:
+      - img [ref=e82]
+    - button "Quote > text" [ref=e87] [cursor=pointer]:
+      - img [ref=e88]
+    - 'button "Code block ```code```" [ref=e91] [cursor=pointer]':
+      - img [ref=e92]
+    - button "Horizontal line ---" [ref=e96] [cursor=pointer]:
+      - img [ref=e97]
+    - button "Link [text](url)" [ref=e99] [cursor=pointer]:
+      - img [ref=e100]
+    - button "Image ![alt](url)" [ref=e104] [cursor=pointer]:
+      - img [ref=e105]
+    - button "Markdown Table" [ref=e111] [cursor=pointer]:
+      - img [ref=e112]
+    - button "Mermaid" [ref=e115] [cursor=pointer]:
+      - img [ref=e116]
+      - generic [ref=e121]: Mermaid
+    - button "Footnote" [ref=e123] [cursor=pointer]:
+      - img [ref=e124]:
+        - generic [ref=e125]: f
+        - generic [ref=e126]: "n"
+      - generic [ref=e127]: Footnote
+    - generic [ref=e129]:
+      - generic [ref=e130]: 553 characters
+      - generic [ref=e131]: "|"
+      - generic [ref=e132]: 89 words
+      - generic [ref=e133]: "|"
+      - button "~244 tokens (GPT (OpenAI))" [ref=e236] [cursor=pointer]:
+        - generic [ref=e136]: ~244
+        - generic [ref=e137]: tokens
+        - generic [ref=e138]: (GPT (OpenAI))
+        - img [ref=e139]
+    - generic [ref=e142]:
+      - button "Zoom out" [ref=e143] [cursor=pointer]:
+        - img [ref=e144]
+      - button "100%" [ref=e147] [cursor=pointer]
+      - button "Zoom in" [ref=e148] [cursor=pointer]:
+        - img [ref=e149]
+    - button "Table of Contents" [ref=e153] [cursor=pointer]:
+      - img [ref=e154]
+      - generic [ref=e158]: Table of Contents
+    - button "Code" [active] [ref=e237] [cursor=pointer]:
+      - img [ref=e238]
+      - generic [ref=e164]: Code
+    - button "Split" [ref=e165] [cursor=pointer]:
+      - img [ref=e166]
+      - generic [ref=e168]: Split
+    - button "Changes" [disabled] [ref=e169]:
+      - img [ref=e170]
+      - generic [ref=e173]: Changes
+    - button "Compare" [disabled] [ref=e174]:
+      - img [ref=e175]
+      - generic [ref=e180]: Compare
+  - generic [ref=e244]:
+    - generic [ref=e246]:
+      - generic: New Document
+      - generic: "*"
+      - button "×" [ref=e247] [cursor=pointer]
+    - generic [ref=e250]:
+      - generic:
+        - generic: "1"
+        - generic: "2"
+        - generic: "3"
+        - generic: "4"
+        - generic: "5"
+        - generic: "6"
+        - generic: "7"
+        - generic: "8"
+        - generic: "9"
+        - generic: "10"
+        - generic: "11"
+        - generic: "12"
+        - generic: "13"
+        - generic: "14"
+      - generic [ref=e252]:
+        - heading "Footnotes Test Document" [level=1] [ref=e253]
+        - heading "Basic Footnotes" [level=2] [ref=e254]
+        - paragraph [ref=e255]:
+          - text: This is a paragraph with a simple footnote
+          - superscript [ref=e256] [cursor=pointer]: "1"
+          - text: . The reference appears as a superscript number.
+        - paragraph [ref=e257]:
+          - text: Here is another paragraph with a named footnote
+          - superscript [ref=e258] [cursor=pointer]: "2"
+          - text: . Named labels work too.
+        - heading "Multiple References" [level=2] [ref=e259]
+        - paragraph [ref=e260]:
+          - text: You can use multiple footnotes
+          - superscript [ref=e261] [cursor=pointer]: "3"
+          - text: in the same paragraph
+          - superscript [ref=e262] [cursor=pointer]: "4"
+          - text: . They are numbered sequentially.
+        - heading "Footnotes with Formatting" [level=2] [ref=e263]
+        - paragraph [ref=e264]:
+          - text: This paragraph references a footnote with
+          - strong [ref=e265]: bold
+          - text: text in the body
+          - superscript [ref=e266] [cursor=pointer]: "5"
+          - text: .
+        - heading "Footnote in Context" [level=2] [ref=e267]
+        - paragraph [ref=e268]:
+          - text: Footnotes are commonly used in academic writing
+          - superscript [ref=e269] [cursor=pointer]: "6"
+          - text: ", technical documentation"
+          - superscript [ref=e270] [cursor=pointer]: "7"
+          - text: ", and legal texts."
+        - paragraph [ref=e271]:
+          - text: Notice that
+          - superscript [ref=e272] [cursor=pointer]: "6"
+          - text: is referenced twice.
+        - heading "Edge Cases" [level=2] [ref=e273]
+        - generic [ref=e274]:
+          - generic [ref=e275]: Footnotes
+          - list [ref=e276]:
+            - listitem [ref=e277]:
+              - generic [ref=e278]: "1."
+              - generic [ref=e279]: Simple first footnote.
+              - button "↩" [ref=e280] [cursor=pointer]
+            - listitem [ref=e281]:
+              - generic [ref=e282]: "2."
+              - generic [ref=e283]: A named footnote reference.
+              - button "↩" [ref=e284] [cursor=pointer]
+            - listitem [ref=e285]:
+              - generic [ref=e286]: "3."
+              - generic [ref=e287]: Second footnote, referenced first.
+              - button "↩" [ref=e288] [cursor=pointer]
+            - listitem [ref=e289]:
+              - generic [ref=e290]: "4."
+              - generic [ref=e291]: Third footnote to verify sequential numbering.
+              - button "↩" [ref=e292] [cursor=pointer]
+            - listitem [ref=e293]:
+              - generic [ref=e294]: "5."
+              - generic [ref=e295]: Footnote content can also contain **bold** or *italic* text.
+              - button "↩" [ref=e296] [cursor=pointer]
+            - listitem [ref=e297]:
+              - generic [ref=e298]: "6."
+              - generic [ref=e299]: "See: Markdown Extended Syntax."
+              - button "↩" [ref=e300] [cursor=pointer]
+            - listitem [ref=e301]:
+              - generic [ref=e302]: "7."
+              - generic [ref=e303]: This is the first line of a multi-paragraph footnote.
+              - button "↩" [ref=e304] [cursor=pointer]

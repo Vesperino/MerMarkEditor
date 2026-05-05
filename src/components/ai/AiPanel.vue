@@ -126,22 +126,6 @@ watch(selectedEffort, (e) => {
   else setAiEffortCodex(e);
 });
 
-const fillClass = computed(() =>
-  aiContext.fractionPct.value >= 80 ? 'ai-panel__context-fill--warn' : ''
-);
-
-const contextTooltip = computed(() => {
-  const u = aiContext.usage.value;
-  if (u.empty) return '';
-  return [
-    `Input: ${u.inputTokens.toLocaleString()}`,
-    `Cache create: ${u.cacheCreationTokens.toLocaleString()}`,
-    `Cache read: ${u.cacheReadTokens.toLocaleString()}`,
-    `Output: ${u.outputTokens.toLocaleString()}`,
-    `Window: ${u.contextWindow.toLocaleString()}`,
-  ].join('\n');
-});
-
 const sideStyle = computed(() => {
   if (fullscreen.value) return {};
   return settings.value.ai.panelSide === 'left'
@@ -384,14 +368,34 @@ function newChat() {
       </div>
     </header>
 
-    <div v-if="!aiContext.usage.value.empty" class="ai-panel__context">
-      <div class="ai-panel__context-bar">
-        <div class="ai-panel__context-fill" :class="fillClass" :style="{ width: aiContext.fractionPct.value + '%' }" />
-      </div>
-      <span class="ai-panel__context-label" :title="contextTooltip">
-        {{ aiContext.usageLabel.value }}
-      </span>
-    </div>
+    <details v-if="!aiContext.usage.value.empty" class="ai-panel__context">
+      <summary class="ai-panel__context-summary">
+        <div class="ai-panel__context-bar">
+          <div
+            v-for="seg in aiContext.usage.value.breakdown.filter(b => b.key !== 'free')"
+            :key="seg.key"
+            class="ai-panel__context-seg"
+            :style="{ width: seg.pct + '%', background: seg.color }"
+            :title="`${seg.label}: ${seg.tokens.toLocaleString()} (${seg.pct.toFixed(1)}%)`"
+          />
+        </div>
+        <span class="ai-panel__context-label">
+          {{ aiContext.usageLabel.value }}
+        </span>
+      </summary>
+      <ul class="ai-panel__context-breakdown">
+        <li v-for="seg in aiContext.usage.value.breakdown" :key="seg.key">
+          <span class="ai-panel__context-dot" :style="{ background: seg.color }" />
+          <span class="ai-panel__context-name">{{ seg.label }}</span>
+          <span class="ai-panel__context-num">{{ seg.tokens.toLocaleString() }}</span>
+          <span class="ai-panel__context-pct">{{ seg.pct.toFixed(1) }}%</span>
+        </li>
+        <li v-if="aiContext.usage.value.outputTokens > 0" class="ai-panel__context-extra">
+          <span class="ai-panel__context-name">Output (this turn)</span>
+          <span class="ai-panel__context-num">{{ aiContext.usage.value.outputTokens.toLocaleString() }}</span>
+        </li>
+      </ul>
+    </details>
 
     <div ref="messagesEl" class="ai-panel__messages">
       <div v-if="ai.messages.value.length === 0" class="ai-panel__empty">
@@ -666,14 +670,58 @@ function newChat() {
 .ai-tool-enter-from, .ai-tool-leave-to { opacity: 0; transform: translate(-50%, 8px); }
 
 .ai-panel__context {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
   border-bottom: 1px solid var(--border-primary);
   background: var(--bg-secondary);
   font-size: 11px;
   color: var(--text-muted);
+}
+.ai-panel__context-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.ai-panel__context-summary::-webkit-details-marker { display: none; }
+.ai-panel__context-seg {
+  height: 100%;
+  transition: width 220ms ease;
+}
+.ai-panel__context-breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 4px 12px 10px 12px;
+  display: grid;
+  gap: 4px;
+  background: var(--bg-tertiary);
+}
+.ai-panel__context-breakdown li {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+}
+.ai-panel__context-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.ai-panel__context-num {
+  font-family: var(--code-font-family, monospace);
+  color: var(--text-secondary, var(--text-primary));
+}
+.ai-panel__context-pct {
+  font-family: var(--code-font-family, monospace);
+  color: var(--text-muted);
+  min-width: 42px;
+  text-align: right;
+}
+.ai-panel__context-extra .ai-panel__context-name {
+  grid-column: 2;
+  opacity: 0.7;
+  font-style: italic;
 }
 .ai-panel__context-bar {
   flex: 1;

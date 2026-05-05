@@ -29,8 +29,15 @@ fn parse_claude(v: &serde_json::Value) -> Option<AiResponseChunk> {
         "stream_event" => parse_stream_event(v.get("event")?),
         "result" => {
             let session_id = v.get("session_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
-            let usage = v.get("usage").cloned();
-            Some(AiResponseChunk::Done { session_id, usage })
+            // Combine `usage` and `modelUsage` (which carries `contextWindow`)
+            // into a single payload so the frontend parser can read both.
+            let mut usage = v.get("usage").cloned().unwrap_or_else(|| serde_json::json!({}));
+            if let Some(mu) = v.get("modelUsage").or_else(|| v.get("model_usage")) {
+                if let Some(obj) = usage.as_object_mut() {
+                    obj.insert("modelUsage".to_string(), mu.clone());
+                }
+            }
+            Some(AiResponseChunk::Done { session_id, usage: Some(usage) })
         }
         _ => None,
     }
