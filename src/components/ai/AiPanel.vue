@@ -276,6 +276,27 @@ watch(() => ai.messages.value.length, () => {
   }, 0);
 });
 
+// Localised instructions injected into the preamble when pins are present.
+// Tells the AI in the user's editor language that the request applies to
+// the attached fragments specifically, not the whole document.
+const PIN_SCOPE_INSTRUCTIONS: Record<string, { header: (n: number) => string; rule: string; reply: string }> = {
+  en: {
+    header: (n) => `The user attached ${n} fragment(s) below.`,
+    rule: 'Unless the user explicitly says otherwise, treat the user\'s request as applying to THESE fragments specifically — not the whole document. Apply transformations / translations / edits to the attached fragments only.',
+    reply: 'Reply in the same language as the user\'s most recent message.',
+  },
+  pl: {
+    header: (n) => `Użytkownik załączył poniżej ${n} fragment(ów).`,
+    rule: 'Jeśli użytkownik wyraźnie nie zaznaczy inaczej, traktuj jego polecenie jako odnoszące się DO TYCH fragmentów — nie do całego dokumentu. Wszelkie przekształcenia / tłumaczenia / edycje stosuj tylko do załączonych fragmentów.',
+    reply: 'Odpowiadaj w tym samym języku co ostatnia wiadomość użytkownika.',
+  },
+  'zh-CN': {
+    header: (n) => `用户在下方附加了 ${n} 个片段。`,
+    rule: '除非用户明确说明，否则将用户的请求视为仅针对这些片段，而不是整个文档。所有转换/翻译/编辑只应用于附加的片段。',
+    reply: '请使用与用户最近一条消息相同的语言回复。',
+  },
+};
+
 function buildPreamble(): string {
   let selSection = 'Selection: none';
   if (pinnedSelections.value.length > 0 && includePinned.value) {
@@ -283,7 +304,16 @@ function buildPreamble(): string {
       const truncated = p.text.length > 4000 ? p.text.slice(0, 4000) + '…' : p.text;
       return `Pinned #${i + 1}:\n---\n${truncated}\n---`;
     });
-    selSection = `The user pinned ${pinnedSelections.value.length} fragment(s) for context:\n\n${blocks.join('\n\n')}`;
+    const localeKey = (typeof navigator !== 'undefined' && (localStorage.getItem('mermark-locale') ?? 'en')) || 'en';
+    const ins = PIN_SCOPE_INSTRUCTIONS[localeKey] ?? PIN_SCOPE_INSTRUCTIONS.en;
+    const n = pinnedSelections.value.length;
+    selSection = [
+      ins.header(n),
+      ins.rule,
+      ins.reply,
+      '',
+      blocks.join('\n\n'),
+    ].join('\n');
   } else if (props.selectionRange) {
     selSection = `Selection: yes (${props.selectionRange.start}-${props.selectionRange.end})`;
   }
