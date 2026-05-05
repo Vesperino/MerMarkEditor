@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, watchEffect } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
 import { htmlToMarkdown } from '../../utils/markdown-converter';
 import { useI18n } from '../../i18n';
 import { useSettings, type CliKind } from '../../composables/useSettings';
@@ -149,8 +149,22 @@ const sideStyle = computed(() => {
     : { right: '0', left: 'auto' };
 });
 
+function onGlobalKeydown(e: KeyboardEvent) {
+  // Esc closes the panel UNLESS the user is editing the composer (avoid losing input).
+  if (e.key === 'Escape' && !fullscreen.value) {
+    const target = e.target as HTMLElement | null;
+    const isInput = target?.tagName === 'TEXTAREA' || target?.tagName === 'INPUT';
+    if (!isInput) emit('close');
+  }
+  if (e.key === 'Escape' && fullscreen.value) {
+    fullscreen.value = false;
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('keydown', onGlobalKeydown);
   if (props.docPath) {
+    ai.bindDoc(props.docPath);
     await Promise.all([
       session.loadFor(props.docPath),
       access.loadFor(props.docPath),
@@ -159,11 +173,15 @@ onMounted(async () => {
   }
 });
 
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeydown);
+});
+
 watch(() => props.docPath, async (p) => {
   if (p) {
+    ai.bindDoc(p);
     await session.loadFor(p);
     await access.loadFor(p);
-    ai.clearMessages();
   }
 });
 
@@ -360,7 +378,7 @@ function newChat() {
           <svg v-if="!fullscreen" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/></svg>
           <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6"/></svg>
         </button>
-        <button class="ai-panel__icon-btn ai-panel__close" @click="emit('close')" :title="t.aiClose">
+        <button class="ai-panel__icon-btn ai-panel__close" @click="emit('close')" :title="`${t.aiClose} (Esc)`">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>

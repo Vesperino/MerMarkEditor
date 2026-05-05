@@ -20,6 +20,12 @@ describe('useAi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     lastHandler = null;
+    // Reset module-scope state between tests.
+    const { messages, clearMessages } = useAi();
+    clearMessages();
+    // Ensure the messages ref is truly empty (clearMessages also removes
+    // the localStorage entry for the current docPath).
+    messages.value = [];
     if (!('randomUUID' in crypto)) {
       Object.defineProperty(crypto, 'randomUUID', {
         value: () => 'test-uuid',

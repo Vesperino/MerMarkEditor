@@ -513,17 +513,22 @@ function toggleAiPanel() {
 }
 
 function onAiApplyContent(content: string) {
-  // Replace TipTap content via the existing setEditorContent helper.
+  // Replace TipTap content via the existing setEditorContent helper,
+  // then auto-open the DiffPreview modal so the user sees what changed.
   setEditorContent(content);
+  nextTick(() => {
+    if (canShowDiff.value) openDiffPreview();
+  });
 }
 
 function onAiShowDiff(_orig: string, candidate: string) {
-  // Reuse the existing diff infrastructure: load the candidate as the
-  // active doc's "incoming" version and let the user open the diff.
-  // The simplest reliable hook is to write the candidate into the editor
-  // immediately — the existing change-tracking + DiffPreview machinery
-  // will display the difference vs the on-disk original.
+  // Write the candidate into the editor so the existing change-tracking
+  // machinery computes the diff vs the on-disk original, then surface
+  // the DiffPreview modal immediately.
   setEditorContent(candidate);
+  nextTick(() => {
+    if (canShowDiff.value) openDiffPreview();
+  });
 }
 
 // Compute panel inputs from the active tab.

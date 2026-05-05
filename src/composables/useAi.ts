@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap } from '../services/aiCommands';
 import { useAiContext } from './useAiContext';
 
@@ -9,7 +9,47 @@ export interface AiMessage {
   done: boolean;
 }
 
+// ---- Persistence helpers ----
+const STORAGE_PREFIX = 'mermark-ai-chat:';
+const MAX_PERSISTED = 100;
+
+function storageKey(docPath: string): string {
+  return STORAGE_PREFIX + docPath;
+}
+
+function loadMessages(docPath: string): AiMessage[] {
+  if (!docPath) return [];
+  try {
+    const raw = localStorage.getItem(storageKey(docPath));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as AiMessage[];
+    return Array.isArray(parsed) ? parsed.slice(-MAX_PERSISTED) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMessages(docPath: string, msgs: AiMessage[]) {
+  if (!docPath) return;
+  try {
+    const trimmed = msgs.slice(-MAX_PERSISTED);
+    localStorage.setItem(storageKey(docPath), JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('[useAi] persist failed:', e);
+  }
+}
+
+// ---- Module-scope reactive state (shared across all consumers) ----
 const bypassEnabled = ref(false); // runtime-only — not persisted
+const messages = ref<AiMessage[]>([]);
+const isSending = ref(false);
+const inFlightRequestId = ref<string | null>(null);
+const docPathRef = ref<string>('');
+
+// Persist on every change (deep watch).
+watch(messages, (m) => {
+  if (docPathRef.value) saveMessages(docPathRef.value, m);
+}, { deep: true });
 
 export interface SendOpts {
   cli: CliKind;
@@ -25,10 +65,12 @@ export interface SendOpts {
   onToolDenied?: (tool: string, reason: string) => void;
 }
 
+function bindDoc(docPath: string) {
+  docPathRef.value = docPath;
+  messages.value = loadMessages(docPath);
+}
+
 export function useAi() {
-  const messages = ref<AiMessage[]>([]);
-  const inFlightRequestId = ref<string | null>(null);
-  const isSending = ref(false);
   const aiContext = useAiContext();
 
   async function send(opts: SendOpts) {
@@ -119,7 +161,10 @@ export function useAi() {
     }
   }
 
-  function clearMessages() { messages.value = []; }
+  function clearMessages() {
+    messages.value = [];
+    if (docPathRef.value) localStorage.removeItem(storageKey(docPathRef.value));
+  }
 
-  return { messages, isSending, inFlightRequestId, send, cancel, clearMessages, bypassEnabled, aiContext };
+  return { messages, isSending, inFlightRequestId, send, cancel, clearMessages, bypassEnabled, aiContext, bindDoc };
 }
