@@ -47,7 +47,7 @@
 
 ## Asystent AI lokalnie
 
-MerMark posiada wbudowany panel AI oparty o Twoje własne instalacje CLI `claude` i/lub `codex`. Wszystko działa lokalnie, na Twoim koncie — żadnego pośrednika, żadnej telemetrii, żadnych dodatkowych kluczy API.
+Jeśli już płacisz za **Claude Code** albo **OpenAI Codex** — albo oba — MerMark wpina ten abonament prosto do edytora. Panel AI rozmawia z CLI `claude` i `codex` które masz już zalogowane, więc każde zapytanie idzie przez konto za które już płacisz. Żadnego klucza API do generowania. Żadnego drugiego rachunku. Żadnego pośrednika między tobą a dostawcą.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/ai-panel-overview.png" alt="Panel AI — przegląd" />
@@ -55,17 +55,32 @@ MerMark posiada wbudowany panel AI oparty o Twoje własne instalacje CLI `claude
   <em>Panel AI zadokowany przy edytorze — wybór modelu, lista wątków, przypięte fragmenty i pasek użycia kontekstu na żywo</em>
 </p>
 
-### Co naprawdę potrafi
+### Korzystaj z abonamentu który już masz
 
-- **Edytuje twój markdown bezpośrednio** — "przepisz tę sekcję bardziej przyjaznym tonem", "wyciągnij action items na listę", "przetłumacz notatki ze spotkania na angielski". AI zapisuje nową treść wprost na dysk (atomicznie, przez `.mermark-ai.tmp`), file watcher przeładowuje edytor, a snapshot zostaje zrobiony jako pierwszy — jeden klik **Cofnij** wycofuje zmianę.
-- **Czyta z autoryzowanych folderów** — wskaż w access map folder projektu i AI przeczyta dowolny plik wewnątrz: notatki z wczoraj, glosariusz, style guide. Tylko ścieżki które dodałeś są widoczne.
-- **Modyfikuje sąsiednie pliki** — write paths w access map pozwalają AI tworzyć i aktualizować inne pliki: rozdzielić długi dokument, wygenerować podsumowanie obok źródła, zbudować plik TOC dla folderu.
-- **Przeszukuje sieć** — włącz przełącznik narzędzia `network` i model pobiera świeże informacje.
-- **Uruchamia komendy shell** — opcjonalnie przez przełącznik `bash` gdy chcesz żeby AI przeszukało folder notatek, uruchomiło build albo dowolne zadanie terminalowe. Domyślnie wyłączone.
+- **Claude Code lub Codex na planie Pro/Plus** — MerMark używa tego loginu, bez dodatkowego konta.
+- **Brak tokenu API do zarządzania** — CLI obsługuje auth, MerMark nigdy nie widzi twoich kluczy.
+- **Bezpośrednio do dostawcy** — zapytania idą z twojej maszyny prosto do Anthropic lub OpenAI; nic po drodze.
+- **Brak telemetrii** — z edytora nie wycieka nic poza wywołaniem CLI które sam mógłbyś uruchomić w terminalu.
+- **Zmiana dostawcy per turę** — jeden czat na Claude, następny na Codex; oba skonfigurowane w jednym panelu.
 
-### Wielokrotne zaznaczenia + załączniki obrazów
+### Co potrafi
 
-Przypnij jeden lub więcej zaznaczonych fragmentów — Visual *i* Code view — a AI dostanie tylko te fragmenty, nie cały dokument. Wyłącz **Send** żeby zachować piny widoczne bez wysyłania. Wyślij zrzut ekranu do modelu wklejając (`Ctrl+V`), przeciągając do panelu, lub wybierając pliki (png / jpg / jpeg / gif / webp / bmp). Zarówno Claude jak i Codex widzą obraz.
+- **Edytuje twój markdown bezpośrednio** — "przepisz tę sekcję przyjaźniej", "wyciągnij action items", "przetłumacz na angielski". Zapisuje wprost na dysk atomicznie; edytor sam się przeładowuje.
+- **Czyta z autoryzowanych folderów** — wskaż folder projektu w access map i AI zobaczy notatki z wczoraj, glosariusz, style guide.
+- **Modyfikuje sąsiednie pliki** — rozdziela długi dokument, generuje podsumowanie obok źródła, buduje plik TOC dla folderu.
+- **Przeszukuje sieć** — włącz przełącznik `network` gdy potrzebujesz świeżych informacji.
+- **Uruchamia komendy shell** — opcjonalny przełącznik `bash` do grepowania notatek, uruchamiania builda, czegokolwiek z terminala. Domyślnie wyłączone.
+- **Auto-snapshot przy każdym zapisie AI** — jeden klik **Cofnij** jeśli wynik nie jest tym co chciałeś.
+
+### Wielokrotne zaznaczenia i załączniki obrazów
+
+- Przypnij jeden lub więcej zaznaczonych fragmentów — Visual *i* Code view.
+- AI dostaje tylko te fragmenty, nie cały dokument.
+- Wyłącz **Send** żeby zachować piny widoczne bez wysyłania.
+- Wklej zrzut (`Ctrl+V`), przeciągnij obraz, lub wybierz z dysku.
+- 8 MB na obraz, png / jpg / gif / webp / bmp.
+- Zarówno Claude jak i Codex widzą obraz.
+- Wysłane obrazy zostają w historii czatu jako miniatury — pamiętasz co przekazałeś.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png" alt="Pinowanie wielu fragmentów" />
@@ -87,7 +102,10 @@ Przypnij jeden lub więcej zaznaczonych fragmentów — Visual *i* Code view —
 
 ### Wywołania narzędzi widoczne w czacie
 
-Gdy model używa narzędzia — bash, file read, file write, web fetch, codex shell — wywołanie pojawia się jako kreskowany chip w transkrypcie z nazwą narzędzia i jednolinijkowym podglądem argumentów. Kliknij chip aby rozwinąć pełny wywołanie w pretty-printed JSON.
+- Każde narzędzie wywołane przez model pojawia się jako kreskowany chip w transkrypcie.
+- Chip nosi nazwę narzędzia i jednolinijkowy podgląd argumentów.
+- Klik rozwija pretty-printed JSON pełnego wywołania.
+- Pokrywa Read, Edit, Write, Bash, WebFetch, codex shell — wszystko.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/tool-chips.png" alt="Chipy wywołań narzędzi" />
@@ -95,13 +113,20 @@ Gdy model używa narzędzia — bash, file read, file write, web fetch, codex sh
   <em>Każde narzędzie którego używa AI (Read, Edit, Write, Bash, WebFetch, ...) widoczne jako rozwijalny chip</em>
 </p>
 
-### Wątki per dokument z pełnym przywracaniem kontekstu
+### Wątki per dokument z przywracaniem kontekstu
 
-Każdy dokument ma własną historię wątków; **+** archiwizuje aktualny czat i zaczyna nowy. Do 50 wątków na dokument, zapisane w `localStorage`. Kliknij stary czat z listy a panel automatycznie przełączy Claude ↔ Codex i przywróci model + reasoning effort z którego ostatnio korzystałeś — kontynuacja rozmowy zachowuje się tak jak ostatnim razem.
+- Każdy dokument ma własną przewijalną historię wątków.
+- **+** archiwizuje aktualny czat i zaczyna nowy.
+- Do 50 wątków na dokument, zapisane w `localStorage`.
+- Otwarcie starego wątku przywraca CLI, model i reasoning effort z których korzystałeś.
 
-### Bezpieczeństwo, audyt i kontrola dostępu per dokument
+### Bezpieczeństwo, audyt, kontrola dostępu per dokument
 
-Snapshoty przed edycją są tworzone automatycznie przy każdym zapisie AI, z rotacyjną retencją (przypięte + N najnowszych, domyślnie 3) i jednym kliknięciem **Cofnij**. Per-dokument access map ogranicza wszystko czego model może dotknąć: read paths, write paths, przełączniki narzędzi (file read / file write / bash / network) — dodawaj pliki przez **+ File** lub całe foldery przez **+ Folder**. Wskaźnik w status barze pokazuje zielony / czerwony / mrugający czerwony (bypass on) — zawsze wiesz w jakim stanie jest panel.
+- Per-dokument access map: wprost określone read paths, write paths, przełączniki narzędzi.
+- Dodawaj pliki przez **+ File**, całe foldery przez **+ Folder**.
+- Snapshoty przed edycją auto-rotowane (domyślnie 3 + przypięte), jeden klik **Cofnij**.
+- Status bar dot: zielony / czerwony / mrugający czerwony (bypass on).
+- Append-only audit log każdej akcji AI, podgląd w Settings.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/access-map.png" alt="Edytor access map" />
@@ -117,7 +142,13 @@ Snapshoty przed edycją są tworzone automatycznie przy każdym zapisie AI, z ro
 
 ### Dwóch dostawców, jeden panel
 
-Przełączaj `claude` i `codex` z headera czatu. Domyślne ustawienia per CLI utrzymują się (ostatni model, ostatni effort). Streaming tokenów, segmentowy pasek użycia kontekstu, klikalne linki, skrót wysyłania (`Ctrl+Enter` / `Cmd+Enter`), minimalizacja do zakładki + fullscreen. Pełna lista funkcji w [RELEASE_NOTES.md](RELEASE_NOTES.md).
+- Przełączaj `claude` / `codex` z headera czatu.
+- Domyślne ustawienia per CLI utrzymują się (ostatni model, ostatni effort).
+- Streaming tokenów z thinking-indicatorem dopóki pierwszy chunk nie dotrze.
+- Segmentowy pasek użycia kontekstu — input, cache, free — pobierany z usage zwracanego przez CLI.
+- Klikalne linki otwierają się przez dialog potwierdzania zewnętrznych linków edytora.
+- Skrót wysyłania: `Ctrl+Enter` (Win/Linux), `Cmd+Enter` (macOS).
+- Minimalizacja do bocznej zakładki, fullscreen, zamknięcie — wszystko w headerze panelu.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/streaming-context.png" alt="Streaming i pasek kontekstu" />
@@ -130,6 +161,8 @@ Przełączaj `claude` i `codex` z headera czatu. Domyślne ustawienia per CLI ut
   <br>
   <em>Ustawienia → AI — health instalacji i autentykacji, viewer audit logu, runtime bypass toggle</em>
 </p>
+
+Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawieszonych sesjach, multi-window-safe streamingiem i izolacją sesji per CLI — żyje w [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ---
 
@@ -162,7 +195,7 @@ Przełączaj `claude` i `codex` z headera czatu. Domyślne ustawienia per CLI ut
 - **Jasny/Ciemny motyw** - Komfort dla oczu
 - **Licznik znaków i słów** - Śledź postępy
 - **Automatyczny zapis** - Nigdy nie stracisz pracy
-- **Dwujęzyczny interfejs** - Polski i angielski
+- **Trójjęzyczny interfejs** - polski, angielski i chiński
 - **Modal skrótów klawiszowych** - Szybki podgląd wszystkich skrótów (`Ctrl+/`)
 
 ### Zaawansowane funkcje
