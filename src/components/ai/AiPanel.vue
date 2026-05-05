@@ -253,13 +253,17 @@ onMounted(async () => {
     toolbarObserver.observe(tb);
   }
   window.addEventListener('resize', measureToolbar);
+  // Always bind so unsaved tabs reset the in-memory thread store and stop
+  // showing a previous doc's chat history.
+  ai.bindDoc(props.docPath || '');
   if (props.docPath) {
-    ai.bindDoc(props.docPath);
     await Promise.all([
       session.loadFor(props.docPath),
       access.loadFor(props.docPath),
       health.checkAll().catch(() => {}),
     ]);
+  } else {
+    health.checkAll().catch(() => {});
   }
 });
 
@@ -271,8 +275,10 @@ onUnmounted(() => {
 });
 
 watch(() => props.docPath, async (p) => {
+  // Always re-bind: switching to an unsaved tab must clear the previous
+  // doc's threads from the panel, not leave them stuck.
+  ai.bindDoc(p || '');
   if (p) {
-    ai.bindDoc(p);
     await session.loadFor(p);
     await access.loadFor(p);
   }

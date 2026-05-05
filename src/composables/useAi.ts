@@ -139,6 +139,13 @@ export interface SendOpts {
 
 function bindDoc(docPath: string) {
   docPathRef.value = docPath;
+  // Unsaved doc (empty path) — keep the in-memory store fresh so the user
+  // doesn't see another doc's thread leaking in. Persistence kicks in once
+  // the doc is saved and bindDoc is called again with the real path.
+  if (!docPath) {
+    store.value = emptyStore();
+    return;
+  }
   store.value = loadStore(docPath);
   // If the loaded store has no active thread but has threads, pick the most recent.
   if (!store.value.activeId && store.value.threads.length > 0) {
