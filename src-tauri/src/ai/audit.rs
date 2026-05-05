@@ -35,7 +35,10 @@ pub fn read(
     let reader = BufReader::new(f);
     let mut out = Vec::new();
     for line in reader.lines() {
-        let line = line.map_err(|e| e.to_string())?;
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue, // skip malformed bytes (e.g. torn write), match spec intent
+        };
         if line.trim().is_empty() {
             continue;
         }
