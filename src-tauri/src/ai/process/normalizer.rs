@@ -125,6 +125,11 @@ fn parse_codex_stateful(
         "item.completed" => {
             let item = v.get("item")?;
             let item_type = item.get("type").and_then(|t| t.as_str()).unwrap_or("");
+            let request_id = item
+                .get("id")
+                .and_then(|i| i.as_str())
+                .unwrap_or("")
+                .to_string();
             match item_type {
                 "agent_message" => {
                     let text = item.get("text").and_then(|t| t.as_str()).unwrap_or("");
@@ -145,12 +150,50 @@ fn parse_codex_stateful(
                         .or_else(|| item.get("args"))
                         .cloned()
                         .unwrap_or(serde_json::json!({}));
-                    let request_id = item
-                        .get("id")
-                        .and_then(|i| i.as_str())
+                    Some(AiResponseChunk::ToolRequest { tool, args, request_id })
+                }
+                // PowerShell / bash / arbitrary shell invocations.
+                "command_execution" => {
+                    let command = item
+                        .get("command")
+                        .and_then(|c| c.as_str())
                         .unwrap_or("")
                         .to_string();
-                    Some(AiResponseChunk::ToolRequest { tool, args, request_id })
+                    Some(AiResponseChunk::ToolRequest {
+                        tool: "Shell".into(),
+                        args: serde_json::json!({ "command": command }),
+                        request_id,
+                    })
+                }
+                // Web search: query lives either at top level or inside action.
+                "web_search" => {
+                    let query = item
+                        .get("query")
+                        .and_then(|q| q.as_str())
+                        .filter(|s| !s.is_empty())
+                        .or_else(|| {
+                            item.get("action")
+                                .and_then(|a| a.get("query"))
+                                .and_then(|q| q.as_str())
+                        })
+                        .unwrap_or("")
+                        .to_string();
+                    Some(AiResponseChunk::ToolRequest {
+                        tool: "WebSearch".into(),
+                        args: serde_json::json!({ "query": query }),
+                        request_id,
+                    })
+                }
+                // Codex announces apply_patch as a function_call already; if
+                // future versions surface it as its own item.type, treat it
+                // as an Edit tool here.
+                "apply_patch" | "file_change" => {
+                    let path = item.get("path").and_then(|p| p.as_str()).unwrap_or("").to_string();
+                    Some(AiResponseChunk::ToolRequest {
+                        tool: "Edit".into(),
+                        args: serde_json::json!({ "path": path }),
+                        request_id,
+                    })
                 }
                 _ => None,
             }
@@ -275,6 +318,33 @@ mod tests {
             AiResponseChunk::ToolRequest { tool, request_id, .. } => {
                 assert_eq!(tool, "shell");
                 assert_eq!(request_id, "f1");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_command_execution_emits_shell_tool_request() {
+        let mut state = CodexParserState::default();
+        let line = r#"{"type":"item.completed","item":{"id":"i3","type":"command_execution","command":"powershell -Command \"Get-Content x\"","exit_code":0,"status":"completed"}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::ToolRequest { tool, args, request_id } => {
+                assert_eq!(tool, "Shell");
+                assert_eq!(request_id, "i3");
+                assert!(args.get("command").and_then(|c| c.as_str()).unwrap_or("").contains("Get-Content"));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_web_search_emits_websearch_tool_request_with_query_from_action() {
+        let mut state = CodexParserState::default();
+        let line = r#"{"type":"item.completed","item":{"id":"ws1","type":"web_search","query":"","action":{"type":"search","query":"funny gif tenor"}}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::ToolRequest { tool, args, .. } => {
+                assert_eq!(tool, "WebSearch");
+                assert_eq!(args.get("query").and_then(|q| q.as_str()), Some("funny gif tenor"));
             }
             _ => panic!("wrong variant"),
         }
