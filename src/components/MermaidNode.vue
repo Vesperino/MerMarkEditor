@@ -364,9 +364,9 @@ watch(editCode, () => {
           </div>
           <div class="editor-preview-pane" :style="{ flex: `0 0 ${100 - splitRatio}%` }">
             <div class="editor-preview-toolbar">
-              <button @click="previewZoomOut" class="btn-zoom" title="Zoom out">−</button>
+              <button @click="previewZoomOut" class="btn-zoom" :title="t.zoomOut">−</button>
               <span class="zoom-level">{{ previewZoomPercent }}%</span>
-              <button @click="previewZoomIn" class="btn-zoom" title="Zoom in">+</button>
+              <button @click="previewZoomIn" class="btn-zoom" :title="t.zoomIn">+</button>
               <button @click="previewResetZoom" class="btn-zoom-text">{{ t.reset }}</button>
               <button @click="handlePreviewFitToView" class="btn-zoom-text">{{ t.fit }}</button>
               <div v-if="previewError" class="preview-error-inline">{{ previewError }}</div>
