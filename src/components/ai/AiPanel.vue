@@ -40,6 +40,11 @@ const inputValue = ref('');
 const pendingTool = ref<{ tool: string; args: unknown } | null>(null);
 const requestStartHash = ref<string>('');
 
+// Large doc truncation
+const LARGE_DOC_THRESHOLD = 200 * 1024;
+const sendFullDocOverride = ref(false);
+const docTooLarge = computed(() => props.docContent.length > LARGE_DOC_THRESHOLD);
+
 const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
   if (health.cache.value.claude?.ok) out.push('claude');
@@ -91,6 +96,9 @@ function buildPreamble(): string {
     `  \`\`\`mermark-replace ... \`\`\`  (full new content of the active doc, or selection replacement)`,
     `  \`\`\`mermark-patch ... \`\`\`    (unified diff against the current doc)`,
   ];
+  if (docTooLarge.value && !sendFullDocOverride.value) {
+    lines.push('', `Note: the active document is large (${props.docContent.length} bytes). When reading the file, focus on the first 200KB unless instructed otherwise.`);
+  }
   return lines.join('\n');
 }
 
@@ -179,6 +187,13 @@ async function onSnapshotRestored(content: string) {
     </div>
 
     <footer class="ai-panel__footer">
+      <div v-if="docTooLarge" class="ai-large-doc-banner">
+        <span>Document is large ({{ Math.round(props.docContent.length / 1024) }} KB).</span>
+        <label>
+          <input type="checkbox" v-model="sendFullDocOverride" />
+          Send full document anyway
+        </label>
+      </div>
       <textarea v-model="inputValue" rows="3" :placeholder="t.aiSendButton" />
       <div class="ai-panel__actions">
         <button v-if="ai.isSending.value" @click="onCancel">{{ t.aiCancelButton }}</button>
@@ -243,4 +258,15 @@ async function onSnapshotRestored(content: string) {
   box-sizing: border-box;
 }
 .ai-panel__actions { display: flex; justify-content: flex-end; }
+.ai-large-doc-banner {
+  font-size: 12px;
+  background: var(--warn-bg, #fef3c7);
+  color: var(--warn-text, #92400e);
+  padding: 6px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 </style>
