@@ -82,6 +82,9 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'toggle-split-view', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1120, needsEditor: false, labelKey: 'splitView' },
   { id: 'toggle-diff', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1130, needsEditor: false, labelKey: 'changes' },
   { id: 'compare-tabs', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1140, needsEditor: false, labelKey: 'compareTabs' },
+
+  // AI toggle
+  { id: 'ai-toggle', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1200, needsEditor: false, labelKey: 'aiToggleTooltip' },
 ];
 
 export function getItemDef(id: string): ToolbarItemDef | undefined {

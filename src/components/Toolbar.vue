@@ -16,6 +16,7 @@ const props = defineProps<{
   canShowDiff?: boolean;
   canCompareTabs?: boolean;
   tocActive?: boolean;
+  aiActive?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,6 +33,7 @@ const emit = defineEmits<{
   showShortcuts: [];
   showSettings: [];
   toggleToc: [];
+  toggleAi: [];
 }>();
 
 // Determine if a separator should be inserted before this item
@@ -76,6 +78,7 @@ const needsSpacerBefore = (index: number) => {
           :can-show-diff="props.canShowDiff"
           :can-compare-tabs="props.canCompareTabs"
           :toc-active="props.tocActive"
+          :ai-active="props.aiActive"
           dropdown-direction="down"
           @new-file="emit('newFile')"
           @open-file="emit('openFile')"
@@ -90,6 +93,7 @@ const needsSpacerBefore = (index: number) => {
           @show-shortcuts="emit('showShortcuts')"
           @show-settings="emit('showSettings')"
           @toggle-toc="emit('toggleToc')"
+          @toggle-ai="emit('toggleAi')"
         />
       </template>
     </div>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useToolbarActions } from '../composables/useToolbarActions';
 import RecentFilesDropdown from './RecentFilesDropdown.vue';
+import AiToolbarButton from './ai/AiToolbarButton.vue';
 
 const props = defineProps<{
   itemId: string;
@@ -12,6 +13,7 @@ const props = defineProps<{
   canShowDiff?: boolean;
   canCompareTabs?: boolean;
   tocActive?: boolean;
+  aiActive?: boolean;
   dropdownDirection?: 'down' | 'up' | 'right';
 }>();
 
@@ -29,6 +31,7 @@ const emit = defineEmits<{
   showShortcuts: [];
   showSettings: [];
   toggleToc: [];
+  toggleAi: [];
 }>();
 
 const {
@@ -492,6 +495,11 @@ const showLabel = (id: string) => {
     </svg>
     <span v-if="showLabel(itemId)">{{ t.compareTabs }}</span>
   </button>
+
+  <!-- AI toggle -->
+  <template v-else-if="itemId === 'ai-toggle'">
+    <AiToolbarButton :active="props.aiActive ?? false" @toggle="emit('toggleAi')" />
+  </template>
 </template>
 
 <style scoped>
