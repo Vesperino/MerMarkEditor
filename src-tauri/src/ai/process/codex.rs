@@ -60,7 +60,11 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         cmd.arg("exec")
             .arg("--json")
             .arg("--skip-git-repo-check")
-            .arg("--cd").arg(&req.work_dir);
+            .arg("--cd").arg(&req.work_dir)
+            // Mark the working dir as writable. Without this, codex's
+            // workspace-write sandbox treats the cd directory as read-only
+            // and rejects apply_patch with "writing outside of the project".
+            .arg("--add-dir").arg(&req.work_dir);
         if let Some(model) = &req.model {
             cmd.arg("--model").arg(model);
         }

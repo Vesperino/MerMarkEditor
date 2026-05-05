@@ -79,6 +79,7 @@ fn spawn_pump(
             // Codex needs cross-line state to attach the thread_id (sent at
             // stream start) to the Done chunk (emitted at stream end).
             let mut codex_state = normalizer::CodexParserState::default();
+            let mut done_emitted = false;
             while let Ok(Some(line)) = lines.next_line().await {
                 eprintln!("[ai stdout] {}", line);
                 let parsed = match cli {
@@ -87,6 +88,9 @@ fn spawn_pump(
                 };
                 match parsed {
                     Some(chunk) => {
+                        if matches!(chunk, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
+                            done_emitted = true;
+                        }
                         eprintln!("[ai chunk] {:?}", chunk);
                         let _ = app_for_stdout.emit_to(label_for_stdout.as_str(), &event_for_stdout, chunk);
                     }
@@ -95,33 +99,46 @@ fn spawn_pump(
                         eprintln!("[ai stdout] (valid JSON, no chunk)");
                     }
                     None => {
-                        eprintln!("[ai stdout] UNPARSED");
-                        let _ = app_for_stdout.emit_to(
-                            label_for_stdout.as_str(),
-                            &event_for_stdout,
-                            AiResponseChunk::Error {
-                                message: format!("[unparsed stdout] {}", line),
-                                exit_code: None,
-                            },
-                        );
+                        eprintln!("[ai stdout] UNPARSED: {}", line);
                     }
                 }
             }
             eprintln!("[ai stdout] EOF for req_id={}", req_id_for_stdout);
+            // Process closed without finalising — synthesise an Error so the
+            // frontend's `await completion` doesn't hang. Codex sometimes
+            // does this when its sandbox setup fails on Windows.
+            if !done_emitted {
+                eprintln!("[ai stdout] no Done/Error emitted before EOF — synthesising error");
+                let _ = app_for_stdout.emit_to(
+                    label_for_stdout.as_str(),
+                    &event_for_stdout,
+                    AiResponseChunk::Error {
+                        message: "AI process exited without finalising the turn (check console for details).".into(),
+                        exit_code: None,
+                    },
+                );
+            }
         });
     }
     if let Some(err) = stderr {
         tokio::spawn(async move {
+            // Codex routes diagnostic traces (sandbox refresh, tool routing,
+            // INFO/ERROR telemetry) through stderr while real conversation
+            // status stays in stdout. Emitting every stderr line as an Error
+            // chunk turned every codex turn into a UI error bubble. We only
+            // log to the dev console here; if the child exits non-zero with
+            // no Done chunk in stdout, the frontend's promise simply
+            // resolves on EOF without a fake error message — much cleaner.
+            //
+            // Claude emits its fatal errors as JSON `result` events on
+            // stdout, so the same policy applies.
             let mut lines = BufReader::new(err).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 eprintln!("[ai stderr] {}", line);
-                let _ = app_for_stderr.emit_to(
-                    label_for_stderr.as_str(),
-                    &event_for_stderr,
-                    AiResponseChunk::Error { message: line, exit_code: None },
-                );
             }
             eprintln!("[ai stderr] EOF");
+            // Suppress unused-binding warnings for the moved captures.
+            let _ = (&app_for_stderr, &event_for_stderr, &label_for_stderr);
         });
     }
 }
