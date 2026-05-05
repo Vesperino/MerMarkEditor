@@ -58,8 +58,8 @@ function basename(p: string): string {
   <div class="ai-access-editor">
     <section class="ai-access-section">
       <div class="ai-access-section__head">
-        <h5>Allowed tools</h5>
-        <small>What the AI can do on your behalf</small>
+        <h5>{{ t.aiAccessAllowedToolsTitle }}</h5>
+        <small>{{ t.aiAccessAllowedToolsDesc }}</small>
       </div>
       <ul class="ai-access-tools">
         <li v-for="tool in TOOLS" :key="tool.key" class="ai-access-tool" :class="{ 'ai-access-tool--on': local.tools[tool.key], 'ai-access-tool--warn': tool.warn && local.tools[tool.key] }">
@@ -86,7 +86,7 @@ function basename(p: string): string {
 
     <section class="ai-access-section">
       <div class="ai-access-section__head">
-        <h5>Readable files</h5>
+        <h5>{{ t.aiAccessReadableFiles }}</h5>
         <span class="ai-access-add-group">
           <button class="ai-access-add" @click="addPath('readPaths')">+ File</button>
           <button class="ai-access-add" @click="addFolder('readPaths')">+ Folder</button>
@@ -96,7 +96,7 @@ function basename(p: string): string {
         <li v-for="(p, i) in local.readPaths" :key="p">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
           <span class="ai-access-path__name" :title="p">{{ basename(p) }}</span>
-          <button class="ai-access-path__rm" @click="removePath('readPaths', i)" title="Remove">×</button>
+          <button class="ai-access-path__rm" @click="removePath('readPaths', i)" :title="t.aiRemove">×</button>
         </li>
       </ul>
       <p v-else class="ai-access-paths__empty">No files. Click + Add.</p>
@@ -104,7 +104,7 @@ function basename(p: string): string {
 
     <section class="ai-access-section">
       <div class="ai-access-section__head">
-        <h5>Writable files</h5>
+        <h5>{{ t.aiAccessWritableFiles }}</h5>
         <span class="ai-access-add-group">
           <button class="ai-access-add" @click="addPath('writePaths')">+ File</button>
           <button class="ai-access-add" @click="addFolder('writePaths')">+ Folder</button>
@@ -114,7 +114,7 @@ function basename(p: string): string {
         <li v-for="(p, i) in local.writePaths" :key="p">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           <span class="ai-access-path__name" :title="p">{{ basename(p) }}</span>
-          <button class="ai-access-path__rm" @click="removePath('writePaths', i)" title="Remove">×</button>
+          <button class="ai-access-path__rm" @click="removePath('writePaths', i)" :title="t.aiRemove">×</button>
         </li>
       </ul>
       <p v-else class="ai-access-paths__empty">No files. Click + Add.</p>

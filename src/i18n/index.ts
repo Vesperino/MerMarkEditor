@@ -388,6 +388,17 @@ export interface Translations {
   aiSnapshotUnpin: string;
   aiSnapshotExport: string;
   aiSnapshotDeleteTooltip: string;
+  aiRemove: string;
+  aiThinking: string;
+  aiAccessAllowedToolsTitle: string;
+  aiAccessAllowedToolsDesc: string;
+  aiAccessReadableFiles: string;
+  aiAccessWritableFiles: string;
+  aiToolFullArgs: string;
+  aiSettingsCliHeading: string;
+  aiSettingsEffortHeading: string;
+  aiSettingsCopyAudit: string;
+  aiSettingsModelIdPlaceholder: string;
   collapseSidebar: string;
   expandSidebar: string;
 }

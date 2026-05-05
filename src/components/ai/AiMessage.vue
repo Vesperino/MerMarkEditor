@@ -193,7 +193,7 @@ function formatToolPreviewValue(value: unknown): string {
       <span class="ai-msg__tool-args">{{ toolPreview }}</span>
     </summary>
     <div class="ai-msg__tool-details">
-      <span class="ai-msg__tool-details-label">Full arguments</span>
+      <span class="ai-msg__tool-details-label">{{ t.aiToolFullArgs }}</span>
       <pre class="ai-msg__tool-args-full">{{ prettyToolArgs }}</pre>
     </div>
   </details>
@@ -238,11 +238,11 @@ function formatToolPreviewValue(value: unknown): string {
       'ai-msg--err': !!message.error,
     }"
   >
-    <div v-if="isThinking" class="ai-msg__thinking" aria-label="Thinking">
+    <div v-if="isThinking" class="ai-msg__thinking" :aria-label="t.aiThinking">
       <span class="ai-msg__thinking-dot" />
       <span class="ai-msg__thinking-dot" />
       <span class="ai-msg__thinking-dot" />
-      <span class="ai-msg__thinking-text">Thinking…</span>
+      <span class="ai-msg__thinking-text">{{ t.aiThinking }}…</span>
     </div>
     <div v-else class="ai-msg__text">
       <template v-for="(block, i) in blocks" :key="i">

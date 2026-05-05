@@ -131,7 +131,7 @@ function onCustomModelInput(e: Event) {
         type="text"
         :value="customModelInput"
         @input="onCustomModelInput"
-        placeholder="model id"
+        :placeholder="t.aiSettingsModelIdPlaceholder"
         :title="modelTitle"
       />
       <select

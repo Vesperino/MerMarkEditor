@@ -129,7 +129,7 @@ async function copyAudit() {
     </section>
 
     <section class="ai-settings-section">
-      <h4>CLI</h4>
+      <h4>{{ t.aiSettingsCliHeading }}</h4>
       <div v-for="cli in (['claude', 'codex'] as CliKind[])" :key="cli" class="ai-cli-row">
         <div class="ai-cli-name-col">
           <span class="ai-cli-name">{{ cli === 'claude' ? t.aiCliStatusClaude : t.aiCliStatusCodex }}</span>
@@ -181,7 +181,7 @@ async function copyAudit() {
             type="text"
             :value="customClaude"
             @input="pickCustom('claude', ($event.target as HTMLInputElement).value)"
-            placeholder="model id"
+            :placeholder="t.aiSettingsModelIdPlaceholder"
           />
         </div>
       </label>
@@ -199,14 +199,14 @@ async function copyAudit() {
             type="text"
             :value="customCodex"
             @input="pickCustom('codex', ($event.target as HTMLInputElement).value)"
-            placeholder="model id"
+            :placeholder="t.aiSettingsModelIdPlaceholder"
           />
         </div>
       </label>
     </section>
 
     <section class="ai-settings-section">
-      <h4>Effort</h4>
+      <h4>{{ t.aiSettingsEffortHeading }}</h4>
       <label class="ai-inline-label">
         {{ t.aiCliStatusClaude }}
         <select :value="settings.ai.effortClaude" @change="setAiEffortClaude(($event.target as HTMLSelectElement).value)">
@@ -277,7 +277,7 @@ async function copyAudit() {
         </table>
         <div class="ai-audit-actions">
           <button class="ai-btn" @click="clearAudit">{{ t.aiAuditClear }}</button>
-          <button class="ai-btn" @click="copyAudit">Copy</button>
+          <button class="ai-btn" @click="copyAudit">{{ t.aiSettingsCopyAudit }}</button>
         </div>
       </details>
     </section>
