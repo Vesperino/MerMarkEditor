@@ -64,15 +64,71 @@ const visibleText = computed(() => {
 // Tokenise the visible text into plain text segments and clickable links.
 // Detects markdown links [label](url) and bare URLs (http/https).
 type Segment = { kind: 'text' | 'link'; text: string; url?: string };
+type Row = Segment[][];
+type Block =
+  | { kind: 'text'; segments: Segment[] }
+  | { kind: 'table'; header: Row; rows: Row[] };
+
 const MD_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 const URL_RE = /\bhttps?:\/\/[^\s<>()\[\]"]+[^\s<>()\[\].,!?:;'"]/g;
+const TABLE_ROW_RE = /^\s*\|.*\|\s*$/;
+const TABLE_SEP_RE = /^\s*\|[\s:|-]+\|\s*$/;
 
-const segments = computed<Segment[]>(() => {
-  const text = visibleText.value;
+// Split visible text into a sequence of text and table blocks.
+// A table is recognised only once it is "closed" — i.e. followed by a
+// non-pipe / blank line, or the stream is done. Mid-stream incomplete tables
+// stay rendered as raw text so users see chunks land naturally.
+const blocks = computed<Block[]>(() => parseBlocks(visibleText.value, !!props.message.done));
+
+function parseBlocks(text: string, done: boolean): Block[] {
+  if (!text) return [];
+  const lines = text.split('\n');
+  const out: Block[] = [];
+  let buf: string[] = [];
+
+  const flushText = () => {
+    if (buf.length === 0) return;
+    out.push({ kind: 'text', segments: textToSegments(buf.join('\n')) });
+    buf = [];
+  };
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (TABLE_ROW_RE.test(line) && i + 1 < lines.length && TABLE_SEP_RE.test(lines[i + 1])) {
+      const headerLine = line;
+      let j = i + 2;
+      const rowLines: string[] = [];
+      while (j < lines.length && TABLE_ROW_RE.test(lines[j])) {
+        rowLines.push(lines[j]);
+        j++;
+      }
+      const closed = j < lines.length || done;
+      if (closed) {
+        flushText();
+        out.push({
+          kind: 'table',
+          header: splitRow(headerLine).map(textToSegments),
+          rows: rowLines.map(r => splitRow(r).map(textToSegments)),
+        });
+        i = j;
+        continue;
+      }
+    }
+    buf.push(line);
+    i++;
+  }
+  flushText();
+  return out;
+}
+
+function splitRow(line: string): string[] {
+  return line.trim().replace(/^\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim());
+}
+
+function textToSegments(text: string): Segment[] {
   if (!text) return [];
   const out: Segment[] = [];
-  // First pass: replace markdown links with placeholder tokens that we can
-  // safely scan for bare URLs around without re-matching the embedded URL.
   type MdHit = { start: number; end: number; label: string; url: string };
   const mdHits: MdHit[] = [];
   let m: RegExpExecArray | null;
@@ -80,18 +136,15 @@ const segments = computed<Segment[]>(() => {
   while ((m = MD_LINK_RE.exec(text)) !== null) {
     mdHits.push({ start: m.index, end: m.index + m[0].length, label: m[1], url: m[2] });
   }
-  // Walk the text in order. For ranges between markdown hits, also extract
-  // bare URLs.
   let cursor = 0;
   for (const hit of mdHits) {
-    const between = text.slice(cursor, hit.start);
-    pushTextWithBareUrls(out, between);
+    pushTextWithBareUrls(out, text.slice(cursor, hit.start));
     out.push({ kind: 'link', text: hit.label, url: hit.url });
     cursor = hit.end;
   }
   pushTextWithBareUrls(out, text.slice(cursor));
   return out;
-});
+}
 
 function pushTextWithBareUrls(out: Segment[], chunk: string) {
   if (!chunk) return;
@@ -166,13 +219,45 @@ function formatToolPreviewValue(value: unknown): string {
       <span class="ai-msg__thinking-dot" />
       <span class="ai-msg__thinking-text">Thinking…</span>
     </div>
-    <pre v-else class="ai-msg__text"><template v-for="(seg, i) in segments" :key="i"><a
-        v-if="seg.kind === 'link'"
-        class="ai-msg__link"
-        :href="seg.url"
-        :title="seg.url"
-        @click="onLink(seg.url, $event)"
-      >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template></pre>
+    <div v-else class="ai-msg__text">
+      <template v-for="(block, i) in blocks" :key="i">
+        <table v-if="block.kind === 'table'" class="ai-msg__table">
+          <thead>
+            <tr>
+              <th v-for="(cell, c) in block.header" :key="c">
+                <template v-for="(seg, s) in cell" :key="s"><a
+                  v-if="seg.kind === 'link'"
+                  class="ai-msg__link"
+                  :href="seg.url"
+                  :title="seg.url"
+                  @click="onLink(seg.url, $event)"
+                >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, r) in block.rows" :key="r">
+              <td v-for="(cell, c) in row" :key="c">
+                <template v-for="(seg, s) in cell" :key="s"><a
+                  v-if="seg.kind === 'link'"
+                  class="ai-msg__link"
+                  :href="seg.url"
+                  :title="seg.url"
+                  @click="onLink(seg.url, $event)"
+                >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <span v-else class="ai-msg__text-block"><template v-for="(seg, s) in block.segments" :key="s"><a
+          v-if="seg.kind === 'link'"
+          class="ai-msg__link"
+          :href="seg.url"
+          :title="seg.url"
+          @click="onLink(seg.url, $event)"
+        >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template></span>
+      </template>
+    </div>
     <div v-if="message.error" class="ai-msg__error">{{ message.error }}</div>
   </div>
 </template>
@@ -185,6 +270,12 @@ function formatToolPreviewValue(value: unknown): string {
   font-size: 13px;
   line-height: 1.45;
   word-break: break-word;
+  /* Parent .ai-panel__messages is a scroll container (flex column, overflow:
+     auto). Without flex-shrink: 0, items compress when an expanded chip
+     pushes total height past the container — sibling chips overlap on top
+     of the open one. Locking shrink keeps each message at its natural
+     height; the container scrolls instead. */
+  flex-shrink: 0;
 }
 .ai-msg--user {
   background: var(--active-bg);
@@ -205,9 +296,39 @@ function formatToolPreviewValue(value: unknown): string {
   border: 1px solid var(--error-border, rgba(239, 68, 68, 0.3));
 }
 .ai-msg__text {
-  white-space: pre-wrap;
   margin: 0;
   font-family: inherit;
+}
+/* Each text block preserves source whitespace/newlines like the old <pre>. */
+.ai-msg__text-block {
+  white-space: pre-wrap;
+}
+/* Markdown table rendering — inherits theme colours. */
+.ai-msg__table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ai-msg__table th,
+.ai-msg__table td {
+  border: 1px solid var(--border-primary);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-msg__table th {
+  background: var(--bg-secondary, var(--bg-tertiary));
+  font-weight: 600;
+}
+.ai-msg__table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--bg-secondary, var(--bg-tertiary)) 40%, transparent);
 }
 .ai-msg__link {
   color: var(--link-color, var(--primary));
@@ -264,11 +385,17 @@ function formatToolPreviewValue(value: unknown): string {
   border-radius: 6px;
   border: 1px dashed var(--border-primary);
   font-family: var(--code-font-family, monospace);
-  display: grid;
-  grid-template-rows: auto;
+  /* IMPORTANT: keep display as block. Chromium (Tauri WebView2) refuses to
+     toggle <details> when it has display: grid or display: flex (issue
+     #1245622). Native block layout is what makes summary's click work.
+     Also: do NOT set overflow: hidden here — Chromium does not auto-grow
+     a <details> element to fit its expanded children when overflow is
+     clipped, so the panel renders but is invisibly clipped to summary
+     height. Border-radius clipping for the open-state corners is handled
+     on the inner pieces instead. */
+  display: block;
   min-height: 30px;
   box-sizing: border-box;
-  overflow: hidden;
   position: relative;
 }
 /* Native open state stretches the chip when its details panel is visible. */
@@ -276,7 +403,6 @@ function formatToolPreviewValue(value: unknown): string {
   align-self: stretch;
   width: 100%;
   max-width: 100%;
-  grid-template-rows: auto minmax(0, auto);
 }
 .ai-msg__tool-row {
   display: flex;
@@ -330,6 +456,13 @@ function formatToolPreviewValue(value: unknown): string {
   box-sizing: border-box;
   display: block;
   overflow: hidden;
+}
+/* Round the bottom corners on the inner panel so the chip looks coherent
+   without needing overflow:hidden on <details> (which breaks expansion in
+   Chromium WebView2). */
+.ai-msg--tool[open] > .ai-msg__tool-details {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 .ai-msg__tool-details-label {
   display: block;

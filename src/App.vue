@@ -547,7 +547,16 @@ const aiDocContent = computed(() => getEditorContent() ?? '');
 // Re-evaluate selection on every render tick so the AI panel sees the
 // current editor/code-view selection.
 const aiSelectionTick = ref(0);
-const _bumpSelectionTick = () => { aiSelectionTick.value++; };
+// Editor selection cannot change because of clicks/keys inside the AI panel.
+// Bumping the tick on every mouseup forces an AiPanel re-render between
+// mouseup and click, which Chromium uses as the trigger for native <details>
+// toggle — the re-render races the toggle and the chip refuses to open.
+// Gate so the tick only fires when the event happens outside the AI panel.
+const _bumpSelectionTick = (e?: Event) => {
+  const target = e?.target as HTMLElement | null;
+  if (target?.closest && target.closest('.ai-panel')) return;
+  aiSelectionTick.value++;
+};
 if (typeof document !== 'undefined') {
   document.addEventListener('selectionchange', _bumpSelectionTick);
   document.addEventListener('keyup', _bumpSelectionTick);
