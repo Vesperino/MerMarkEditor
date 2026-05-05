@@ -131,8 +131,9 @@ function formatToolPreviewValue(value: unknown): string {
     :class="{ 'ai-msg--tool-expanded': toolExpanded }"
   >
     <button
+      type="button"
       class="ai-msg__tool-row"
-      @click="toolExpanded = !toolExpanded"
+      @click.stop="toolExpanded = !toolExpanded"
       :title="toolExpanded ? 'Click to collapse' : 'Click to view full arguments'"
     >
       <svg class="ai-msg__tool-chevron" :class="{ 'ai-msg__tool-chevron--open': toolExpanded }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -268,7 +269,6 @@ function formatToolPreviewValue(value: unknown): string {
   border-radius: 6px;
   border: 1px dashed var(--border-primary);
   font-family: var(--code-font-family, monospace);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 30px;
@@ -298,7 +298,9 @@ function formatToolPreviewValue(value: unknown): string {
   min-height: 30px;
   line-height: 1.35;
   box-sizing: border-box;
+  pointer-events: auto;
 }
+.ai-msg__tool-row > * { pointer-events: none; }
 .ai-msg__tool-row:hover { background: var(--hover-bg, rgba(0,0,0,0.04)); }
 .ai-msg__tool-chevron {
   flex-shrink: 0;
