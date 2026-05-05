@@ -548,7 +548,6 @@ if (typeof document !== 'undefined') {
   document.addEventListener('mouseup', _bumpSelectionTick);
 }
 const aiSelectionRange = computed<{ start: number; end: number } | null>(() => {
-  // Touch the tick so the computed re-runs on selection events.
   aiSelectionTick.value;
   if (codeView.value) {
     const ta = codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | undefined;
@@ -562,6 +561,26 @@ const aiSelectionRange = computed<{ start: number; end: number } | null>(() => {
   const { from, to } = ed.state.selection;
   if (from === to) return null;
   return { start: from, end: to };
+});
+
+// Extract the actual selected TEXT directly from the active editor — avoids
+// the buggy 'slice docMarkdown by range' approximation, since TipTap PM
+// positions do not map 1:1 to markdown char offsets, and code-view content
+// may diverge from htmlToMarkdown(visual).
+const aiSelectionText = computed<string>(() => {
+  aiSelectionTick.value;
+  if (codeView.value) {
+    const ta = codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | undefined;
+    if (!ta) return '';
+    const { selectionStart, selectionEnd, value } = ta;
+    if (selectionStart === selectionEnd) return '';
+    return value.slice(selectionStart, selectionEnd);
+  }
+  const ed = editorInstance.value;
+  if (!ed) return '';
+  const { from, to } = ed.state.selection;
+  if (from === to) return '';
+  return ed.state.doc.textBetween(from, to, '\n\n', '\n');
 });
 const aiWorkDir = computed(() => {
   const p = activeTab.value?.filePath;
@@ -1318,6 +1337,7 @@ onUnmounted(async () => {
       :doc-path="aiDocPath"
       :doc-content="aiDocContent"
       :selection-range="aiSelectionRange"
+      :selection-text="aiSelectionText"
       :work-dir="aiWorkDir"
       @close="aiPanelOpen = false"
       @apply-content="onAiApplyContent"

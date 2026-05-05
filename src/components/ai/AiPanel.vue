@@ -21,6 +21,7 @@ const props = defineProps<{
   docPath: string;
   docContent: string;
   selectionRange: { start: number; end: number } | null;
+  selectionText?: string;
   workDir: string;
 }>();
 
@@ -106,12 +107,16 @@ const docMarkdown = computed(() => {
 
 const docTooLarge = computed(() => docMarkdown.value.length > LARGE_DOC_THRESHOLD);
 
-// Read live selection text from props.docContent + selectionRange.
+// Live selection text: pull straight from App.vue (it knows whether visual
+// or code-view editor is active and slices accordingly). Falls back to range
+// slicing only if selectionText prop is not wired.
 const liveSelectionText = computed<string | null>(() => {
+  if (typeof props.selectionText === 'string') {
+    const t = props.selectionText.trim();
+    return t.length > 0 ? t : null;
+  }
   const range = props.selectionRange;
   if (!range) return null;
-  // selectionRange is a TipTap doc range (char offsets in markdown after
-  // htmlToMarkdown). Cheap approximation: slice docMarkdown.
   const md = docMarkdown.value;
   if (!md) return null;
   const start = Math.max(0, Math.min(md.length, range.start));
