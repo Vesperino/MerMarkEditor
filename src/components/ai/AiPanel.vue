@@ -38,6 +38,7 @@ const apply = useAiApply();
 const selectedCli = ref<CliKind>(settings.value.ai.defaultCli);
 const inputValue = ref('');
 const pendingTool = ref<{ tool: string; args: unknown } | null>(null);
+const requestStartHash = ref<string>('');
 
 const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
@@ -101,6 +102,10 @@ async function onSend() {
   if (!inputValue.value.trim() || !access.current.value) return;
   const prompt = inputValue.value;
   inputValue.value = '';
+
+  // Capture pre-send hash for concurrent-edit detection.
+  requestStartHash.value = await session.sha1Hex(props.docContent);
+
   const final = await ai.send({
     cli: selectedCli.value,
     sessionId: session.current.value?.sessionId ?? null,
@@ -123,6 +128,15 @@ async function onSend() {
 
   const parsed = parseAiOutput(final.text);
   if (parsed.kind !== 'plain') {
+    // Concurrent edit check: did the doc change while AI was thinking?
+    const nowHash = await session.sha1Hex(props.docContent);
+    if (nowHash !== requestStartHash.value) {
+      const choice = window.confirm(
+        'Document changed during the AI request. Apply the suggested changes anyway?'
+      );
+      if (!choice) return;
+    }
+
     const result = await apply.prepare(parsed, {
       docPath: props.docPath,
       currentContent: props.docContent,
