@@ -1,5 +1,17 @@
 ## New Features
 
+- **AI assistant integration (local CLIs)** — chat with `claude` or `codex` directly inside MerMark Editor:
+  - Slide-in chat panel (left/right anchor configurable in Settings → AI)
+  - Auto-context: AI sees the active document path, current selection, and per-doc access map
+  - Suggested edits land via the existing `DiffPreview` flow with snapshot + `.tmp` safety
+  - Per-document snapshot history (rotation = pinned + N newest, default 3) with restore / pin / export / delete
+  - Settings tab with health-check for both CLIs, install / re-check / authenticate links, runtime bypass toggle, audit log viewer
+  - First-run tooltip shows where to disable AI; default is **on**
+  - Per-document access map (read paths / write paths / tool toggles) constrains what the AI can do; bypass removes per-action confirmations within the access-map limits
+  - Recovery modal: if `.mermark-ai.tmp` is found at doc open, choose Restore / Discard / Show diff
+  - Concurrent-edit detection during AI requests
+  - Multi-window streaming events scoped to the originating window
+  - Statusbar AI indicator shows green / red / blinking-red (bypass on)
 - **Resizable mermaid editor split** — drag the divider between code and preview panes in the fullscreen mermaid editor to adjust their sizes (#51)
 - **Mermaid default scale** — new diagrams now render at 25% by default
 - **Customizable Layout** — toolbar items can now be moved between three zones: **Top Toolbar**, **Bottom Status Bar**, and **Left Sidebar** via Settings > Layout (#43)
