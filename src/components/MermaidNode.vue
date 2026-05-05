@@ -208,12 +208,13 @@ const renderMermaid = async () => {
       .replace(/__BR__/g, '<br/>')
       .replace(/\\n/g, '<br/>');
     const { svg } = await mermaid.render(id, codeForRender);
+    if (!containerRef.value) return;
     containerRef.value.innerHTML = svg;
     // Apply current size to rendered SVG
     applySvgSize();
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t.value.diagramError;
-    containerRef.value.innerHTML = "";
+    if (containerRef.value) containerRef.value.innerHTML = "";
   }
 };
 
