@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
-use uuid::Uuid;
 
 use crate::ai::audit;
 use crate::ai::types::{AccessMap, AiResponseChunk, AuditEntry, CliKind};
@@ -32,8 +31,8 @@ pub async fn spawn(
     window_label: String,
     registry: tauri::State<'_, ChildRegistry>,
     req: AiSendRequest,
+    request_id: String,
 ) -> Result<String, String> {
-    let request_id = Uuid::new_v4().to_string();
     let child = match req.cli {
         CliKind::Claude => claude::spawn(&req)?,
         CliKind::Codex => codex::spawn(&req)?,
@@ -76,11 +75,11 @@ fn spawn_pump(
                 match normalizer::parse_line(cli, &line) {
                     Some(chunk) => { let _ = app_for_stdout.emit_to(label_for_stdout.as_str(), &event_for_stdout, chunk); }
                     None if line.trim().is_empty() => {}
+                    None if normalizer::is_valid_json(&line) => {
+                        // Valid JSON but no chunk to emit — silent (e.g. message_start, content_block_stop).
+                    }
                     None => {
-                        // Unparseable stdout line — surface as Error so the UI is
-                        // not silent on CLI version drift / unknown envelopes.
-                        // In production these are rare; if they spam the UI we
-                        // can downgrade to a debug-only log.
+                        // Truly unparseable line — surface as Error so we notice CLI version drift.
                         let _ = app_for_stdout.emit_to(
                             label_for_stdout.as_str(),
                             &event_for_stdout,

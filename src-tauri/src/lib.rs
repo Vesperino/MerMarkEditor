@@ -251,8 +251,9 @@ async fn ai_send(
     window: tauri::Window,
     registry: tauri::State<'_, ai::process::ChildRegistry>,
     req: ai::process::AiSendRequest,
+    request_id: String,
 ) -> Result<String, String> {
-    ai::process::spawn(app, window.label().to_string(), registry, req).await
+    ai::process::spawn(app, window.label().to_string(), registry, req, request_id).await
 }
 
 #[tauri::command]

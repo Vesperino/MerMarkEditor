@@ -20,6 +20,12 @@ describe('useAi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     lastHandler = null;
+    if (!('randomUUID' in crypto)) {
+      Object.defineProperty(crypto, 'randomUUID', {
+        value: () => 'test-uuid',
+        configurable: true,
+      });
+    }
   });
 
   it('appends user + assistant messages and accumulates streamed text', async () => {
@@ -44,5 +50,6 @@ describe('useAi', () => {
     expect(messages.value[1].role).toBe('assistant');
     expect(messages.value[1].text).toBe('Hello');
     expect(messages.value[1].done).toBe(true);
+    expect(aiCommands.send).toHaveBeenCalledWith(expect.any(Object), expect.any(String));
   });
 });

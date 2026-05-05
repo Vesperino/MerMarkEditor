@@ -12,45 +12,64 @@ pub fn parse_line(cli: CliKind, line: &str) -> Option<AiResponseChunk> {
     }
 }
 
+/// True if a line is parseable JSON (regardless of whether we extract a chunk from it).
+pub fn is_valid_json(line: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(line).is_ok()
+}
+
 fn parse_claude(v: &serde_json::Value) -> Option<AiResponseChunk> {
     let kind = v.get("type")?.as_str()?;
     match kind {
-        // System init carries session_id but no user-visible content. Skip.
-        // Hook system messages are noise.
+        // System / hook noise — drop.
         "system" => None,
-        // Rate limit events are noise.
+        // Rate limit events — drop.
         "rate_limit_event" => None,
-        "assistant" => {
-            // Real envelope: message.content is an array of {type, text} or {type:"tool_use", ...}
-            let message = v.get("message")?;
-            let content = message.get("content")?.as_array()?;
-            // Walk the array; emit text chunks for {type:"text"}, tool_request for {type:"tool_use"}.
-            // For now we collect the FIRST significant chunk (most stream-json deltas are single-content).
-            for item in content {
-                let item_type = item.get("type")?.as_str()?;
-                match item_type {
-                    "text" => {
-                        let text = item.get("text").and_then(|t| t.as_str()).unwrap_or("");
-                        if !text.is_empty() {
-                            return Some(AiResponseChunk::Text { content: text.to_string() });
-                        }
-                    }
-                    "tool_use" => {
-                        let tool = item.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string();
-                        let args = item.get("input").cloned().unwrap_or(serde_json::json!({}));
-                        let request_id = item.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
-                        return Some(AiResponseChunk::ToolRequest { tool, args, request_id });
-                    }
-                    _ => continue,
-                }
-            }
-            None
-        }
+        // Cumulative assistant snapshot — already streamed via deltas, drop.
+        "assistant" => None,
+        "stream_event" => parse_stream_event(v.get("event")?),
         "result" => {
             let session_id = v.get("session_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
             let usage = v.get("usage").cloned();
             Some(AiResponseChunk::Done { session_id, usage })
         }
+        _ => None,
+    }
+}
+
+fn parse_stream_event(ev: &serde_json::Value) -> Option<AiResponseChunk> {
+    let event_type = ev.get("type")?.as_str()?;
+    match event_type {
+        "content_block_delta" => {
+            let delta = ev.get("delta")?;
+            let delta_type = delta.get("type")?.as_str()?;
+            match delta_type {
+                "text_delta" => {
+                    let text = delta.get("text").and_then(|t| t.as_str()).unwrap_or("");
+                    if text.is_empty() {
+                        None
+                    } else {
+                        Some(AiResponseChunk::Text { content: text.to_string() })
+                    }
+                }
+                _ => None, // input_json_delta and others — drop for MVP
+            }
+        }
+        "content_block_start" => {
+            // Detect tool_use start. Surface a tool_request stub.
+            let block = ev.get("content_block")?;
+            if block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
+                let tool = block.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string();
+                let request_id = block.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
+                Some(AiResponseChunk::ToolRequest {
+                    tool,
+                    args: serde_json::json!({}),
+                    request_id,
+                })
+            } else {
+                None
+            }
+        }
+        // Other stream events (message_start, content_block_stop, message_delta, message_stop) — drop.
         _ => None,
     }
 }
@@ -89,30 +108,23 @@ mod tests {
     }
 
     #[test]
-    fn claude_assistant_text_chunk_extracted_from_message_content() {
-        let line = r#"{"type":"assistant","message":{"model":"claude-opus-4-7","content":[{"type":"text","text":"hello"}]},"session_id":"s1"}"#;
+    fn claude_stream_event_text_delta_extracted() {
+        let line = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}}"#;
         let out = parse_line(CliKind::Claude, line).unwrap();
         assert!(matches!(out, AiResponseChunk::Text { content } if content == "hello"));
     }
 
     #[test]
-    fn claude_assistant_tool_use_extracted_from_message_content() {
-        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"},"id":"abc"}]},"session_id":"s1"}"#;
-        let out = parse_line(CliKind::Claude, line).unwrap();
-        match out {
-            AiResponseChunk::ToolRequest { tool, request_id, .. } => {
-                assert_eq!(tool, "Bash");
-                assert_eq!(request_id, "abc");
-            }
-            _ => panic!("wrong variant"),
-        }
+    fn claude_assistant_event_is_dropped_with_partial_messages() {
+        // The cumulative assistant event would duplicate what we already streamed via deltas.
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]},"session_id":"s1"}"#;
+        assert!(parse_line(CliKind::Claude, line).is_none());
     }
 
     #[test]
     fn claude_result_event_emits_done_with_session_id() {
         let line = r#"{"type":"result","subtype":"success","result":"ok","session_id":"s2","duration_ms":2594}"#;
-        let out = parse_line(CliKind::Claude, line).unwrap();
-        match out {
+        match parse_line(CliKind::Claude, line).unwrap() {
             AiResponseChunk::Done { session_id, .. } => assert_eq!(session_id, "s2"),
             _ => panic!("wrong variant"),
         }
@@ -127,6 +139,12 @@ mod tests {
     #[test]
     fn claude_rate_limit_event_is_dropped() {
         let line = r#"{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}"#;
+        assert!(parse_line(CliKind::Claude, line).is_none());
+    }
+
+    #[test]
+    fn claude_stream_event_message_start_is_dropped() {
+        let line = r#"{"type":"stream_event","event":{"type":"message_start","message":{}}}"#;
         assert!(parse_line(CliKind::Claude, line).is_none());
     }
 

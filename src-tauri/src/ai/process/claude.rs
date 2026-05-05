@@ -24,6 +24,7 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         .arg(&req.prompt)
         .arg("--output-format").arg("stream-json")
         .arg("--verbose")  // REQUIRED for stream-json to actually emit
+        .arg("--include-partial-messages")  // emits content_block_delta token deltas
         .arg("--append-system-prompt").arg(&req.preamble);
     if let Some(model) = &req.model {
         cmd.arg("--model").arg(model);

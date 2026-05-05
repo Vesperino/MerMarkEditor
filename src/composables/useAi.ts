@@ -35,6 +35,39 @@ export function useAi() {
     const assistant: AiMessage = { role: 'assistant', text: '', done: false };
     messages.value.push(assistant);
 
+    // Generate request_id locally so we can subscribe BEFORE the backend
+    // starts emitting (fixes listener race for fast CLI responses).
+    const requestId = crypto.randomUUID();
+    inFlightRequestId.value = requestId;
+
+    let resolveCompletion!: () => void;
+    const completion = new Promise<void>((r) => { resolveCompletion = r; });
+
+    // Subscribe FIRST.
+    const unlisten = await aiCommands.onStream(requestId, (chunk: AiResponseChunk) => {
+      switch (chunk.kind) {
+        case 'text':
+          assistant.text += chunk.content;
+          break;
+        case 'tool_request':
+          opts.onToolRequest?.(chunk.tool, chunk.args, chunk.requestId);
+          break;
+        case 'tool_denied':
+          opts.onToolDenied?.(chunk.tool, chunk.reason);
+          break;
+        case 'done':
+          assistant.done = true;
+          opts.onSessionId?.(chunk.sessionId);
+          resolveCompletion();
+          break;
+        case 'error':
+          assistant.error = chunk.message;
+          assistant.done = true;
+          resolveCompletion();
+          break;
+      }
+    });
+
     const req: AiSendRequest = {
       cli: opts.cli,
       sessionId: opts.sessionId,
@@ -46,38 +79,15 @@ export function useAi() {
       workDir: opts.workDir,
     };
 
-    let unlisten: (() => void) | null = null;
     try {
-      const requestId = await aiCommands.send(req);
-      inFlightRequestId.value = requestId;
-      let resolveCompletion!: () => void;
-      const completion = new Promise<void>(r => { resolveCompletion = r; });
-      unlisten = await aiCommands.onStream(requestId, (chunk: AiResponseChunk) => {
-        switch (chunk.kind) {
-          case 'text':
-            assistant.text += chunk.content;
-            break;
-          case 'tool_request':
-            opts.onToolRequest?.(chunk.tool, chunk.args, chunk.requestId);
-            break;
-          case 'tool_denied':
-            opts.onToolDenied?.(chunk.tool, chunk.reason);
-            break;
-          case 'done':
-            assistant.done = true;
-            opts.onSessionId?.(chunk.sessionId);
-            resolveCompletion();
-            break;
-          case 'error':
-            assistant.error = chunk.message;
-            assistant.done = true;
-            resolveCompletion();
-            break;
-        }
-      });
+      // Now spawn — listener is already attached.
+      await aiCommands.send(req, requestId);
       await completion;
+    } catch (err) {
+      assistant.error = (err as Error)?.message ?? String(err);
+      assistant.done = true;
     } finally {
-      if (unlisten) unlisten();
+      unlisten();
       inFlightRequestId.value = null;
       isSending.value = false;
     }

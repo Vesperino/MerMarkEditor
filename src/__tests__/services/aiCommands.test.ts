@@ -23,7 +23,7 @@ describe('aiCommands', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('send forwards the request payload as `req`', async () => {
+  it('send forwards the request payload as `req` and requestId', async () => {
     (invoke as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue('req-123');
     await aiCommands.send({
       cli: 'claude',
@@ -34,7 +34,7 @@ describe('aiCommands', () => {
       accessMap: { readPaths: ['/x'], writePaths: ['/x'], tools: { bash: false, network: false, fileRead: false, fileWrite: false } },
       bypass: false,
       workDir: '/x',
-    });
-    expect(invoke).toHaveBeenCalledWith('ai_send', expect.objectContaining({ req: expect.any(Object) }));
+    }, 'req-id');
+    expect(invoke).toHaveBeenCalledWith('ai_send', expect.objectContaining({ req: expect.any(Object), requestId: 'req-id' }));
   });
 });

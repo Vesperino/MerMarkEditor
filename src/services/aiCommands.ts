@@ -71,7 +71,7 @@ export type AiResponseChunk =
 export const aiCommands = {
   healthCheck: (cli: CliKind) => invoke<HealthStatus>('ai_health_check', { cli }),
 
-  send: (req: AiSendRequest) => invoke<string>('ai_send', { req }),
+  send: (req: AiSendRequest, requestId: string) => invoke<string>('ai_send', { req, requestId }),
   cancel: (requestId: string) => invoke<void>('ai_cancel', { requestId }),
 
   accessLoad: (docPath: string) => invoke<AccessMap>('ai_access_load', { docPath }),
