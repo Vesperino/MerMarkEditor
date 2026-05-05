@@ -301,9 +301,26 @@ function onKeydownComposer(e: KeyboardEvent) {
 }
 
 function newChat() {
-  ai.clearMessages();
+  ai.startNewThread();
   session.startNew();
   aiContext.reset(selectedCli.value);
+}
+
+function onSelectThread(id: string) {
+  ai.selectThread(id);
+  // Reset session+context — selecting an old thread starts a fresh CLI session
+  // because our sessions store only tracks one mapping per doc. Resume via
+  // sessionId could be wired later if the thread carries it.
+  const t = ai.threads.value.find(x => x.id === id);
+  if (t?.sessionId) {
+    // Best-effort: tell session-store about it. (Sessions composable currently
+    // loads from doc path; deeper wiring is a Sub-2/3 concern.)
+  }
+  aiContext.reset(selectedCli.value);
+}
+
+function onDeleteThread(id: string) {
+  ai.deleteThread(id);
 }
 </script>
 
@@ -356,6 +373,25 @@ function newChat() {
       </div>
 
       <div class="ai-panel__actions">
+        <details class="ai-panel__threads">
+          <summary class="ai-panel__icon-btn" :title="`${ai.threads.value.length} chat(s)`">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
+          </summary>
+          <ul class="ai-panel__threads-list">
+            <li v-if="ai.threads.value.length === 0" class="ai-panel__threads-empty">No chats yet</li>
+            <li
+              v-for="th in [...ai.threads.value].sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))"
+              :key="th.id"
+              class="ai-panel__thread-item"
+              :class="{ 'ai-panel__thread-item--active': th.id === ai.activeThreadId.value }"
+              @click="onSelectThread(th.id)"
+            >
+              <span class="ai-panel__thread-title">{{ th.title }}</span>
+              <span class="ai-panel__thread-meta">{{ new Date(th.updatedAt).toLocaleString() }} · {{ th.messages.length }}</span>
+              <button class="ai-panel__thread-del" @click.stop="onDeleteThread(th.id)" title="Delete chat">×</button>
+            </li>
+          </ul>
+        </details>
         <button class="ai-panel__icon-btn" @click="newChat" :title="t.aiNewChat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
@@ -548,6 +584,80 @@ function newChat() {
   background: var(--hover-bg);
   color: var(--text-primary);
 }
+
+/* Threads dropdown */
+.ai-panel__threads {
+  position: relative;
+}
+.ai-panel__threads > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.ai-panel__threads > summary::-webkit-details-marker { display: none; }
+.ai-panel__threads-list {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  box-shadow: var(--shadow-dropdown, var(--shadow-lg));
+  min-width: 240px;
+  max-width: 360px;
+  max-height: 340px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.ai-panel__threads-empty {
+  padding: 10px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+.ai-panel__thread-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.ai-panel__thread-item:hover { background: var(--hover-bg); }
+.ai-panel__thread-item--active { background: var(--active-bg); color: var(--active-text); }
+.ai-panel__thread-title {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-panel__thread-meta {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--code-font-family, monospace);
+}
+.ai-panel__thread-del {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.ai-panel__thread-del:hover { color: var(--danger); background: var(--hover-bg); }
 
 .ai-panel__messages {
   flex: 1;

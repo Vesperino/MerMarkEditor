@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap } from '../services/aiCommands';
 import { useAiContext } from './useAiContext';
 
@@ -9,46 +9,109 @@ export interface AiMessage {
   done: boolean;
 }
 
+export interface AiThread {
+  id: string;
+  /** First user prompt (truncated) — used as the visible thread title. */
+  title: string;
+  /** Optional CLI session-id captured from the Done event. */
+  sessionId: string | null;
+  cli: CliKind | null;
+  createdAt: string;
+  updatedAt: string;
+  messages: AiMessage[];
+}
+
+interface ThreadStore {
+  version: 1;
+  activeId: string | null;
+  threads: AiThread[];
+}
+
 // ---- Persistence helpers ----
-const STORAGE_PREFIX = 'mermark-ai-chat:';
-const MAX_PERSISTED = 100;
+const STORAGE_PREFIX = 'mermark-ai-threads:';
+const MAX_THREADS_PER_DOC = 50;
+const MAX_MESSAGES_PER_THREAD = 200;
+const TITLE_MAX = 60;
 
 function storageKey(docPath: string): string {
   return STORAGE_PREFIX + docPath;
 }
 
-function loadMessages(docPath: string): AiMessage[] {
-  if (!docPath) return [];
-  try {
-    const raw = localStorage.getItem(storageKey(docPath));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as AiMessage[];
-    return Array.isArray(parsed) ? parsed.slice(-MAX_PERSISTED) : [];
-  } catch {
-    return [];
-  }
+function emptyStore(): ThreadStore {
+  return { version: 1, activeId: null, threads: [] };
 }
 
-function saveMessages(docPath: string, msgs: AiMessage[]) {
+function loadStore(docPath: string): ThreadStore {
+  if (!docPath) return emptyStore();
+  try {
+    const raw = localStorage.getItem(storageKey(docPath));
+    if (!raw) return emptyStore();
+    const parsed = JSON.parse(raw) as ThreadStore;
+    if (parsed && parsed.version === 1 && Array.isArray(parsed.threads)) {
+      return parsed;
+    }
+  } catch {
+    // fall through
+  }
+  return emptyStore();
+}
+
+function saveStore(docPath: string, store: ThreadStore) {
   if (!docPath) return;
   try {
-    const trimmed = msgs.slice(-MAX_PERSISTED);
+    // Trim each thread's messages and the global thread count.
+    const trimmed: ThreadStore = {
+      version: 1,
+      activeId: store.activeId,
+      threads: store.threads
+        .slice(-MAX_THREADS_PER_DOC)
+        .map(t => ({ ...t, messages: t.messages.slice(-MAX_MESSAGES_PER_THREAD) })),
+    };
     localStorage.setItem(storageKey(docPath), JSON.stringify(trimmed));
   } catch (e) {
     console.error('[useAi] persist failed:', e);
   }
 }
 
+function deriveTitle(msgs: AiMessage[]): string {
+  const first = msgs.find(m => m.role === 'user');
+  if (!first) return 'New chat';
+  const t = first.text.trim().replace(/\s+/g, ' ');
+  return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX - 1) + '…' : t || 'New chat';
+}
+
+function newThread(): AiThread {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    title: 'New chat',
+    sessionId: null,
+    cli: null,
+    createdAt: now,
+    updatedAt: now,
+    messages: [],
+  };
+}
+
 // ---- Module-scope reactive state (shared across all consumers) ----
 const bypassEnabled = ref(false); // runtime-only — not persisted
-const messages = ref<AiMessage[]>([]);
+const docPathRef = ref<string>('');
+const store = ref<ThreadStore>(emptyStore());
 const isSending = ref(false);
 const inFlightRequestId = ref<string | null>(null);
-const docPathRef = ref<string>('');
 
-// Persist on every change (deep watch).
-watch(messages, (m) => {
-  if (docPathRef.value) saveMessages(docPathRef.value, m);
+const activeThread = computed<AiThread | null>(() => {
+  if (!store.value.activeId) return null;
+  return store.value.threads.find(t => t.id === store.value.activeId) ?? null;
+});
+
+// Backward-compatible `messages` ref that the panel binds to: returns the
+// active thread's messages or an empty array. Mutations go via helpers below.
+const messages = computed<AiMessage[]>(() => activeThread.value?.messages ?? []);
+
+// Persist on every change.
+watch(store, (s) => {
+  if (docPathRef.value) saveStore(docPathRef.value, s);
 }, { deep: true });
 
 export interface SendOpts {
@@ -67,7 +130,63 @@ export interface SendOpts {
 
 function bindDoc(docPath: string) {
   docPathRef.value = docPath;
-  messages.value = loadMessages(docPath);
+  store.value = loadStore(docPath);
+  // If the loaded store has no active thread but has threads, pick the most recent.
+  if (!store.value.activeId && store.value.threads.length > 0) {
+    const sorted = [...store.value.threads].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    store.value.activeId = sorted[0].id;
+  }
+  // If no threads at all, leave activeId null — startNewThread() lazily creates one on first send.
+}
+
+function ensureActiveThread(): AiThread {
+  if (activeThread.value) return activeThread.value;
+  const t = newThread();
+  store.value.threads.push(t);
+  store.value.activeId = t.id;
+  return t;
+}
+
+function pushMessage(msg: AiMessage) {
+  const t = ensureActiveThread();
+  t.messages.push(msg);
+  t.updatedAt = new Date().toISOString();
+  if (t.title === 'New chat' && msg.role === 'user') {
+    t.title = deriveTitle(t.messages);
+  }
+}
+
+function getAssistantInActive(idx: number): AiMessage | undefined {
+  const t = activeThread.value;
+  if (!t) return undefined;
+  return t.messages[idx];
+}
+
+/** Archive current thread (no-op if empty), start a fresh one. */
+function startNewThread() {
+  // If there's an empty unused thread, just reuse it.
+  const cur = activeThread.value;
+  if (cur && cur.messages.length === 0) return;
+  const t = newThread();
+  store.value.threads.push(t);
+  store.value.activeId = t.id;
+}
+
+function selectThread(id: string) {
+  if (store.value.threads.some(t => t.id === id)) {
+    store.value.activeId = id;
+  }
+}
+
+function deleteThread(id: string) {
+  store.value.threads = store.value.threads.filter(t => t.id !== id);
+  if (store.value.activeId === id) {
+    store.value.activeId = store.value.threads[store.value.threads.length - 1]?.id ?? null;
+  }
+}
+
+function clearAllThreads() {
+  store.value = emptyStore();
 }
 
 export function useAi() {
@@ -77,17 +196,14 @@ export function useAi() {
     if (isSending.value) throw new Error('A send is already in flight');
     isSending.value = true;
     console.log('[useAi] send start', { cli: opts.cli, model: opts.model, effort: opts.effort });
-    messages.value.push({ role: 'user', text: opts.prompt, done: true });
-    messages.value.push({ role: 'assistant', text: '', done: false });
-    // CRITICAL: mutate via array index so Vue's reactive proxy sees the change.
-    // The local `assistant` reference would point to the raw object, not the
-    // proxy Vue created when the array was made reactive — direct mutations on
-    // it would not trigger reactivity and the UI would stay empty.
-    const assistantIdx = messages.value.length - 1;
-    const getAssistant = () => messages.value[assistantIdx];
 
-    // Generate request_id locally so we can subscribe BEFORE the backend
-    // starts emitting (fixes listener race for fast CLI responses).
+    pushMessage({ role: 'user', text: opts.prompt, done: true });
+    pushMessage({ role: 'assistant', text: '', done: false });
+    const t = ensureActiveThread();
+    t.cli = opts.cli;
+    const assistantIdx = t.messages.length - 1;
+    const getAssistant = () => getAssistantInActive(assistantIdx)!;
+
     const requestId = crypto.randomUUID();
     inFlightRequestId.value = requestId;
     console.log('[useAi] requestId generated:', requestId);
@@ -95,10 +211,10 @@ export function useAi() {
     let resolveCompletion!: () => void;
     const completion = new Promise<void>((r) => { resolveCompletion = r; });
 
-    // Subscribe FIRST.
     const unlisten = await aiCommands.onStream(requestId, (chunk: AiResponseChunk) => {
       console.log('[useAi] chunk:', chunk);
       const a = getAssistant();
+      if (!a) return;
       switch (chunk.kind) {
         case 'text':
           a.text += chunk.content;
@@ -112,6 +228,10 @@ export function useAi() {
         case 'done':
           a.done = true;
           aiContext.record(opts.cli, chunk.usage);
+          if (chunk.sessionId) {
+            const tt = activeThread.value;
+            if (tt) tt.sessionId = chunk.sessionId;
+          }
           opts.onSessionId?.(chunk.sessionId);
           resolveCompletion();
           break;
@@ -137,16 +257,17 @@ export function useAi() {
     };
 
     try {
-      // Now spawn — listener is already attached.
       const returnedId = await aiCommands.send(req, requestId);
       console.log('[useAi] backend ack returned id:', returnedId);
       await completion;
-      console.log('[useAi] completion resolved, assistant.text length:', getAssistant().text.length);
+      console.log('[useAi] completion resolved, assistant.text length:', getAssistant()?.text.length ?? 0);
     } catch (err) {
       console.error('[useAi] send error:', err);
       const a = getAssistant();
-      a.error = (err as Error)?.message ?? String(err);
-      a.done = true;
+      if (a) {
+        a.error = (err as Error)?.message ?? String(err);
+        a.done = true;
+      }
     } finally {
       unlisten();
       inFlightRequestId.value = null;
@@ -161,10 +282,32 @@ export function useAi() {
     }
   }
 
+  /**
+   * Backwards-compatible no-op kept for callers that used `clearMessages()` to
+   * mean "drop the current chat". The new semantic is: archive (do nothing) +
+   * start a new thread. Use deleteThread/clearAllThreads for actual removal.
+   */
   function clearMessages() {
-    messages.value = [];
-    if (docPathRef.value) localStorage.removeItem(storageKey(docPathRef.value));
+    startNewThread();
   }
 
-  return { messages, isSending, inFlightRequestId, send, cancel, clearMessages, bypassEnabled, aiContext, bindDoc };
+  return {
+    messages,
+    isSending,
+    inFlightRequestId,
+    send,
+    cancel,
+    clearMessages,
+    bypassEnabled,
+    aiContext,
+    bindDoc,
+    // Thread management
+    threads: computed(() => store.value.threads),
+    activeThread,
+    activeThreadId: computed(() => store.value.activeId),
+    startNewThread,
+    selectThread,
+    deleteThread,
+    clearAllThreads,
+  };
 }
