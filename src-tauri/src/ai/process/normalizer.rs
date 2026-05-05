@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::ai::types::{AiResponseChunk, CliKind};
 
 /// Per-stream parser state for codex (which needs to remember `thread_id`
@@ -5,6 +6,23 @@ use crate::ai::types::{AiResponseChunk, CliKind};
 #[derive(Debug, Default)]
 pub struct CodexParserState {
     pub thread_id: Option<String>,
+}
+
+/// Per-stream parser state for claude. Tool calls arrive as a
+/// `content_block_start` (carries name + id) followed by zero or more
+/// `content_block_delta` events with `input_json_delta` chunks that
+/// concatenate into the final JSON arguments, terminated by
+/// `content_block_stop`. We buffer per content-block index until stop.
+#[derive(Debug, Default)]
+pub struct ClaudeParserState {
+    pub tools: HashMap<i64, ToolBuf>,
+}
+
+#[derive(Debug, Default)]
+pub struct ToolBuf {
+    pub name: String,
+    pub request_id: String,
+    pub json_buf: String,
 }
 
 /// Parse a single line of CLI output into zero or one normalized chunks.
@@ -25,12 +43,24 @@ pub fn parse_line_codex(state: &mut CodexParserState, line: &str) -> Option<AiRe
     parse_codex_stateful(state, &v)
 }
 
+/// Claude-specific stateful entry point (buffers tool-call arguments across
+/// `input_json_delta` events).
+pub fn parse_line_claude(state: &mut ClaudeParserState, line: &str) -> Option<AiResponseChunk> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    parse_claude_stateful(state, &v)
+}
+
 /// True if a line is parseable JSON (regardless of whether we extract a chunk from it).
 pub fn is_valid_json(line: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(line).is_ok()
 }
 
 fn parse_claude(v: &serde_json::Value) -> Option<AiResponseChunk> {
+    let mut state = ClaudeParserState::default();
+    parse_claude_stateful(&mut state, v)
+}
+
+fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -> Option<AiResponseChunk> {
     let kind = v.get("type")?.as_str()?;
     match kind {
         // System / hook noise — drop.
@@ -39,7 +69,7 @@ fn parse_claude(v: &serde_json::Value) -> Option<AiResponseChunk> {
         "rate_limit_event" => None,
         // Cumulative assistant snapshot — already streamed via deltas, drop.
         "assistant" => None,
-        "stream_event" => parse_stream_event(v.get("event")?),
+        "stream_event" => parse_stream_event(state, v.get("event")?),
         "result" => {
             let session_id = v.get("session_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
             // Combine `usage` and `modelUsage` (which carries `contextWindow`)
@@ -56,8 +86,9 @@ fn parse_claude(v: &serde_json::Value) -> Option<AiResponseChunk> {
     }
 }
 
-fn parse_stream_event(ev: &serde_json::Value) -> Option<AiResponseChunk> {
+fn parse_stream_event(state: &mut ClaudeParserState, ev: &serde_json::Value) -> Option<AiResponseChunk> {
     let event_type = ev.get("type")?.as_str()?;
+    let index = ev.get("index").and_then(|i| i.as_i64()).unwrap_or(-1);
     match event_type {
         "content_block_delta" => {
             let delta = ev.get("delta")?;
@@ -71,25 +102,53 @@ fn parse_stream_event(ev: &serde_json::Value) -> Option<AiResponseChunk> {
                         Some(AiResponseChunk::Text { content: text.to_string() })
                     }
                 }
-                _ => None, // input_json_delta and others — drop for MVP
+                "input_json_delta" => {
+                    // Buffer the partial JSON until content_block_stop.
+                    let partial = delta.get("partial_json").and_then(|p| p.as_str()).unwrap_or("");
+                    if let Some(buf) = state.tools.get_mut(&index) {
+                        buf.json_buf.push_str(partial);
+                    }
+                    None
+                }
+                _ => None,
             }
         }
         "content_block_start" => {
-            // Detect tool_use start. Surface a tool_request stub.
             let block = ev.get("content_block")?;
             if block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
-                let tool = block.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string();
+                let name = block.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string();
                 let request_id = block.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
-                Some(AiResponseChunk::ToolRequest {
-                    tool,
-                    args: serde_json::json!({}),
-                    request_id,
-                })
-            } else {
-                None
+                // If `input` is already complete (rare — usually empty here),
+                // seed json_buf with its serialised form so stop emits real args.
+                let initial = block
+                    .get("input")
+                    .and_then(|input| serde_json::to_string(input).ok())
+                    .filter(|s| s != "{}" && s != "null")
+                    .unwrap_or_default();
+                state.tools.insert(
+                    index,
+                    ToolBuf { name, request_id, json_buf: initial },
+                );
             }
+            None
         }
-        // Other stream events (message_start, content_block_stop, message_delta, message_stop) — drop.
+        "content_block_stop" => {
+            // Emit the buffered tool call (if any) for this index.
+            if let Some(buf) = state.tools.remove(&index) {
+                let args = if buf.json_buf.is_empty() {
+                    serde_json::json!({})
+                } else {
+                    serde_json::from_str(&buf.json_buf).unwrap_or_else(|_| serde_json::json!({"_raw": buf.json_buf}))
+                };
+                return Some(AiResponseChunk::ToolRequest {
+                    tool: buf.name,
+                    args,
+                    request_id: buf.request_id,
+                });
+            }
+            None
+        }
+        // message_start, message_delta, message_stop — drop.
         _ => None,
     }
 }
@@ -319,6 +378,39 @@ mod tests {
                 assert_eq!(tool, "shell");
                 assert_eq!(request_id, "f1");
             }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn claude_tool_use_buffers_input_json_delta_and_emits_on_stop() {
+        let mut state = ClaudeParserState::default();
+        // Tool starts at index 1 with name "Read" and id "tool-1".
+        let start = r#"{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tool-1","name":"Read","input":{}}}}"#;
+        assert!(parse_line_claude(&mut state, start).is_none());
+        // Two partial_json chunks accumulate into the final args.
+        let d1 = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\":"}}}"#;
+        let d2 = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"/tmp/x.md\"}"}}}"#;
+        assert!(parse_line_claude(&mut state, d1).is_none());
+        assert!(parse_line_claude(&mut state, d2).is_none());
+        // content_block_stop emits the assembled ToolRequest.
+        let stop = r#"{"type":"stream_event","event":{"type":"content_block_stop","index":1}}"#;
+        match parse_line_claude(&mut state, stop).unwrap() {
+            AiResponseChunk::ToolRequest { tool, args, request_id } => {
+                assert_eq!(tool, "Read");
+                assert_eq!(request_id, "tool-1");
+                assert_eq!(args.get("file_path").and_then(|v| v.as_str()), Some("/tmp/x.md"));
+            }
+            _ => panic!("expected ToolRequest"),
+        }
+    }
+
+    #[test]
+    fn claude_text_delta_still_works_in_stateful_parser() {
+        let mut state = ClaudeParserState::default();
+        let line = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}}"#;
+        match parse_line_claude(&mut state, line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "hi"),
             _ => panic!("wrong variant"),
         }
     }

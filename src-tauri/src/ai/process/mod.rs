@@ -76,15 +76,17 @@ fn spawn_pump(
     if let Some(out) = stdout {
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
-            // Codex needs cross-line state to attach the thread_id (sent at
-            // stream start) to the Done chunk (emitted at stream end).
+            // Both CLIs need cross-line state. Codex caches `thread_id` for the
+            // final Done chunk; claude buffers `input_json_delta` slices into
+            // the final tool-call arguments emitted on `content_block_stop`.
             let mut codex_state = normalizer::CodexParserState::default();
+            let mut claude_state = normalizer::ClaudeParserState::default();
             let mut done_emitted = false;
             while let Ok(Some(line)) = lines.next_line().await {
                 eprintln!("[ai stdout] {}", line);
                 let parsed = match cli {
                     CliKind::Codex => normalizer::parse_line_codex(&mut codex_state, &line),
-                    CliKind::Claude => normalizer::parse_line(cli, &line),
+                    CliKind::Claude => normalizer::parse_line_claude(&mut claude_state, &line),
                 };
                 match parsed {
                     Some(chunk) => {

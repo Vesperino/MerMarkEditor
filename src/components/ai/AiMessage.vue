@@ -224,7 +224,7 @@ function onLink(url: string | undefined, e: MouseEvent) {
 
 /* Tool usage entry */
 .ai-msg--tool {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   align-self: flex-start;
   background: var(--bg-tertiary);
@@ -238,10 +238,11 @@ function onLink(url: string | undefined, e: MouseEvent) {
 }
 .ai-msg--tool-expanded {
   align-self: stretch;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
 }
 .ai-msg__tool-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   background: transparent;
@@ -250,7 +251,7 @@ function onLink(url: string | undefined, e: MouseEvent) {
   font: inherit;
   padding: 4px 8px;
   cursor: pointer;
-  width: 100%;
+  width: auto;
   text-align: left;
 }
 .ai-msg__tool-row:hover { background: var(--hover-bg, rgba(0,0,0,0.04)); }
