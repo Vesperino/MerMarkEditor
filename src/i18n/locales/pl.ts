@@ -383,7 +383,7 @@ const pl: Translations = {
   aiSnapshotExport: 'Eksport',
   aiSnapshotDeleteTooltip: 'Usuń',
   aiRemove: 'Usuń',
-  aiThinking: 'Myślenie',
+  aiThinking: 'Myślę',
   aiAccessAllowedToolsTitle: 'Dozwolone narzędzia',
   aiAccessAllowedToolsDesc: 'Co AI może zrobić w twoim imieniu',
   aiAccessReadableFiles: 'Pliki do odczytu',
