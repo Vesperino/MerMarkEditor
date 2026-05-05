@@ -23,7 +23,11 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     cmd.arg("-p")
         .arg(&req.prompt)
         .arg("--output-format").arg("stream-json")
+        .arg("--verbose")  // REQUIRED for stream-json to actually emit
         .arg("--append-system-prompt").arg(&req.preamble);
+    if let Some(model) = &req.model {
+        cmd.arg("--model").arg(model);
+    }
     if let Some(sid) = &req.session_id {
         cmd.arg("--resume").arg(sid);
     }

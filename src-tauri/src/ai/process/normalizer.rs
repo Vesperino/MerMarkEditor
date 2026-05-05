@@ -13,25 +13,40 @@ pub fn parse_line(cli: CliKind, line: &str) -> Option<AiResponseChunk> {
 }
 
 fn parse_claude(v: &serde_json::Value) -> Option<AiResponseChunk> {
-    // Claude stream-json envelope shape: { "type": "...", ... }.
-    // Real keys to confirm during integration testing — see Task B2 step 1.
     let kind = v.get("type")?.as_str()?;
     match kind {
-        "assistant" | "message" | "content_block_delta" => {
-            let text = v.get("delta")
-                .and_then(|d| d.get("text"))
-                .and_then(|t| t.as_str())
-                .or_else(|| v.get("content").and_then(|c| c.as_str()))
-                .unwrap_or("");
-            if text.is_empty() { None } else { Some(AiResponseChunk::Text { content: text.to_string() }) }
+        // System init carries session_id but no user-visible content. Skip.
+        // Hook system messages are noise.
+        "system" => None,
+        // Rate limit events are noise.
+        "rate_limit_event" => None,
+        "assistant" => {
+            // Real envelope: message.content is an array of {type, text} or {type:"tool_use", ...}
+            let message = v.get("message")?;
+            let content = message.get("content")?.as_array()?;
+            // Walk the array; emit text chunks for {type:"text"}, tool_request for {type:"tool_use"}.
+            // For now we collect the FIRST significant chunk (most stream-json deltas are single-content).
+            for item in content {
+                let item_type = item.get("type")?.as_str()?;
+                match item_type {
+                    "text" => {
+                        let text = item.get("text").and_then(|t| t.as_str()).unwrap_or("");
+                        if !text.is_empty() {
+                            return Some(AiResponseChunk::Text { content: text.to_string() });
+                        }
+                    }
+                    "tool_use" => {
+                        let tool = item.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string();
+                        let args = item.get("input").cloned().unwrap_or(serde_json::json!({}));
+                        let request_id = item.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
+                        return Some(AiResponseChunk::ToolRequest { tool, args, request_id });
+                    }
+                    _ => continue,
+                }
+            }
+            None
         }
-        "tool_use" => {
-            let tool = v.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string();
-            let args = v.get("input").cloned().unwrap_or(serde_json::json!({}));
-            let request_id = v.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
-            Some(AiResponseChunk::ToolRequest { tool, args, request_id })
-        }
-        "result" | "done" => {
+        "result" => {
             let session_id = v.get("session_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
             let usage = v.get("usage").cloned();
             Some(AiResponseChunk::Done { session_id, usage })
@@ -74,15 +89,15 @@ mod tests {
     }
 
     #[test]
-    fn claude_text_chunk_extracts_delta_text() {
-        let line = r#"{"type":"content_block_delta","delta":{"text":"hello"}}"#;
+    fn claude_assistant_text_chunk_extracted_from_message_content() {
+        let line = r#"{"type":"assistant","message":{"model":"claude-opus-4-7","content":[{"type":"text","text":"hello"}]},"session_id":"s1"}"#;
         let out = parse_line(CliKind::Claude, line).unwrap();
         assert!(matches!(out, AiResponseChunk::Text { content } if content == "hello"));
     }
 
     #[test]
-    fn claude_tool_use_becomes_tool_request() {
-        let line = r#"{"type":"tool_use","name":"Bash","input":{"command":"ls"},"id":"abc"}"#;
+    fn claude_assistant_tool_use_extracted_from_message_content() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"},"id":"abc"}]},"session_id":"s1"}"#;
         let out = parse_line(CliKind::Claude, line).unwrap();
         match out {
             AiResponseChunk::ToolRequest { tool, request_id, .. } => {
@@ -91,6 +106,28 @@ mod tests {
             }
             _ => panic!("wrong variant"),
         }
+    }
+
+    #[test]
+    fn claude_result_event_emits_done_with_session_id() {
+        let line = r#"{"type":"result","subtype":"success","result":"ok","session_id":"s2","duration_ms":2594}"#;
+        let out = parse_line(CliKind::Claude, line).unwrap();
+        match out {
+            AiResponseChunk::Done { session_id, .. } => assert_eq!(session_id, "s2"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn claude_system_init_is_dropped() {
+        let line = r#"{"type":"system","subtype":"init","session_id":"s1","cwd":"/foo"}"#;
+        assert!(parse_line(CliKind::Claude, line).is_none());
+    }
+
+    #[test]
+    fn claude_rate_limit_event_is_dropped() {
+        let line = r#"{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}"#;
+        assert!(parse_line(CliKind::Claude, line).is_none());
     }
 
     #[test]
