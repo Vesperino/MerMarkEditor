@@ -665,7 +665,10 @@ function onDeleteThread(id: string) {
             <button class="ai-panel__pin-rm" @click="removePin(p.id)" title="Remove this pin">×</button>
           </li>
         </ul>
-        <pre v-else-if="liveSelectionText" class="ai-panel__pinned-preview">{{ liveSelectionText }}</pre>
+        <div v-if="liveSelectionText" class="ai-panel__pin-live">
+          <span class="ai-panel__pin-live-label">Live selection (click + Pin to attach)</span>
+          <pre class="ai-panel__pinned-preview ai-panel__pinned-preview--live">{{ liveSelectionText }}</pre>
+        </div>
       </div>
       <textarea
         v-model="inputValue"
@@ -1343,6 +1346,25 @@ function onDeleteThread(id: string) {
   border-radius: 3px;
 }
 .ai-panel__pin-rm:hover { color: var(--danger); background: var(--hover-bg); }
+
+.ai-panel__pin-live {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-primary);
+}
+.ai-panel__pin-live-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ai-panel__pinned-preview--live {
+  border-left-color: var(--text-faint);
+  border-left-style: dashed;
+}
 
 /* Attachment inspector modal */
 .ai-attach-modal {
