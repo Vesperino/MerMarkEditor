@@ -21,6 +21,7 @@
 //!    This is acceptable behaviour but should be documented for B2 follow-up.
 
 use std::process::Stdio;
+use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, Command};
 use crate::ai::process::AiSendRequest;
 use crate::ai::types::AccessMapTools;
@@ -28,12 +29,19 @@ use crate::ai::cli;
 
 const CMD: &str = "codex";
 
-pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
+/// Spawn `codex exec` (or `codex exec resume`) and feed the prompt over stdin.
+///
+/// We pass `-` as the positional PROMPT and pipe stdin because (a) prompts
+/// contain newlines, and on Windows Rust 1.77+ rejects newline-bearing args
+/// passed to a `.cmd`/`.bat` shim (CVE-2024-24576 patch — "batch file
+/// arguments are invalid"); (b) stdin is the documented escape hatch for
+/// codex when "instructions are read from stdin".
+pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     let mut cmd = Command::new(cli::resolve(CMD));
 
     if let Some(sid) = &req.session_id {
-        // Resume path: `codex exec resume <session_id> [PROMPT]`
-        // Note: --sandbox and --cd are NOT supported on the resume subcommand;
+        // Resume: `codex exec resume <session_id> -`
+        // --sandbox and --cd are NOT supported on the resume subcommand —
         // codex reuses the persisted session configuration.
         cmd.arg("exec")
             .arg("--json")
@@ -42,9 +50,9 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         if req.bypass {
             cmd.arg("--dangerously-bypass-approvals-and-sandbox");
         }
-        cmd.arg(format!("{}\n\n{}", req.preamble, req.prompt));
+        cmd.arg("-");
     } else {
-        // New session path: `codex exec --json --cd <workdir> [--model <id>] --sandbox <mode> [--dangerously-bypass-approvals-and-sandbox] -- <prompt>`
+        // New session: `codex exec --json --cd <workdir> [--model <id>] [-c model_reasoning_effort=<>] --sandbox <mode> [--dangerously-...] -- -`
         cmd.arg("exec")
             .arg("--json")
             .arg("--cd").arg(&req.work_dir);
@@ -58,14 +66,28 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         if req.bypass {
             cmd.arg("--dangerously-bypass-approvals-and-sandbox");
         }
-        cmd.arg("--").arg(format!("{}\n\n{}", req.preamble, req.prompt));
+        cmd.arg("--").arg("-");
     }
 
-    cmd.stdin(Stdio::null())
+    cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     eprintln!("[ai codex spawn] args={:?}", cmd.as_std().get_args().collect::<Vec<_>>());
-    cmd.spawn().map_err(|e| { eprintln!("[ai codex spawn] ERROR: {}", e); e.to_string() })
+
+    let mut child = cmd.spawn().map_err(|e| {
+        eprintln!("[ai codex spawn] ERROR: {}", e);
+        e.to_string()
+    })?;
+
+    let payload = format!("{}\n\n{}", req.preamble, req.prompt);
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(payload.as_bytes())
+            .await
+            .map_err(|e| format!("codex stdin write failed: {}", e))?;
+        let _ = stdin.shutdown().await;
+    }
+    Ok(child)
 }
 
 fn sandbox_mode(tools: &AccessMapTools, bypass: bool) -> &'static str {
