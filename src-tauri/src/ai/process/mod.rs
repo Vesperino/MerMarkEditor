@@ -68,8 +68,22 @@ fn spawn_pump(
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                if let Some(chunk) = normalizer::parse_line(cli, &line) {
-                    let _ = app_for_stdout.emit(&event_for_stdout, chunk);
+                match normalizer::parse_line(cli, &line) {
+                    Some(chunk) => { let _ = app_for_stdout.emit(&event_for_stdout, chunk); }
+                    None if line.trim().is_empty() => {}
+                    None => {
+                        // Unparseable stdout line — surface as Error so the UI is
+                        // not silent on CLI version drift / unknown envelopes.
+                        // In production these are rare; if they spam the UI we
+                        // can downgrade to a debug-only log.
+                        let _ = app_for_stdout.emit(
+                            &event_for_stdout,
+                            AiResponseChunk::Error {
+                                message: format!("[unparsed stdout] {}", line),
+                                exit_code: None,
+                            },
+                        );
+                    }
                 }
             }
         });
