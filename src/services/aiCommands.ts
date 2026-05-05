@@ -53,6 +53,7 @@ export interface AuditEntry {
 export interface AiSendRequest {
   cli: CliKind;
   sessionId: string | null;
+  model: string | null;
   prompt: string;
   preamble: string;
   accessMap: AccessMap;

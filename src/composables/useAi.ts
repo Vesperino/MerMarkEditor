@@ -13,6 +13,7 @@ const bypassEnabled = ref(false); // runtime-only — not persisted
 export interface SendOpts {
   cli: CliKind;
   sessionId: string | null;
+  model: string | null;
   prompt: string;
   preamble: string;
   accessMap: AccessMap;
@@ -37,6 +38,7 @@ export function useAi() {
     const req: AiSendRequest = {
       cli: opts.cli,
       sessionId: opts.sessionId,
+      model: opts.model,
       prompt: opts.prompt,
       preamble: opts.preamble,
       accessMap: opts.accessMap,

@@ -11,6 +11,8 @@ export type PanelSide = 'left' | 'right';
 export interface AiSettings {
   enabled: boolean;
   defaultCli: CliKind;
+  defaultModelClaude: string;
+  defaultModelCodex: string;
   snapshotsKeep: number;
   hasSeenFirstRun: boolean;
   panelSide: PanelSide;
@@ -141,6 +143,8 @@ function getDefaultSettings(): AppSettings {
     ai: {
       enabled: true,
       defaultCli: 'claude',
+      defaultModelClaude: 'claude-sonnet-4-5',
+      defaultModelCodex: 'gpt-5',
       snapshotsKeep: 3,
       hasSeenFirstRun: false,
       panelSide: 'right',
@@ -237,6 +241,8 @@ export function useSettings() {
 
   const setAiEnabled = (v: boolean) => { settings.value.ai.enabled = v; };
   const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
+  const setAiDefaultModelClaude = (v: string) => { settings.value.ai.defaultModelClaude = v; };
+  const setAiDefaultModelCodex = (v: string) => { settings.value.ai.defaultModelCodex = v; };
   const setAiSnapshotsKeep = (v: number) => {
     settings.value.ai.snapshotsKeep = Math.max(1, Math.floor(v));
   };
@@ -263,6 +269,8 @@ export function useSettings() {
     toggleShowLineNumbers,
     setAiEnabled,
     setAiDefaultCli,
+    setAiDefaultModelClaude,
+    setAiDefaultModelCodex,
     setAiSnapshotsKeep,
     setAiHasSeenFirstRun,
     setAiPanelSide,

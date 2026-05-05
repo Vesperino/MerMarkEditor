@@ -43,11 +43,14 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         }
         cmd.arg(format!("{}\n\n{}", req.preamble, req.prompt));
     } else {
-        // New session path: `codex exec --json --cd <workdir> --sandbox <mode> [--dangerously-bypass-approvals-and-sandbox] -- <prompt>`
+        // New session path: `codex exec --json --cd <workdir> [--model <id>] --sandbox <mode> [--dangerously-bypass-approvals-and-sandbox] -- <prompt>`
         cmd.arg("exec")
             .arg("--json")
-            .arg("--cd").arg(&req.work_dir)
-            .arg("--sandbox").arg(sandbox_mode(&req.access_map.tools, req.bypass));
+            .arg("--cd").arg(&req.work_dir);
+        if let Some(model) = &req.model {
+            cmd.arg("--model").arg(model);
+        }
+        cmd.arg("--sandbox").arg(sandbox_mode(&req.access_map.tools, req.bypass));
         if req.bypass {
             cmd.arg("--dangerously-bypass-approvals-and-sandbox");
         }
