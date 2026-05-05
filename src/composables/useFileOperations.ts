@@ -4,6 +4,7 @@ import { readTextFile, writeTextFile, rename, remove } from '@tauri-apps/plugin-
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding } from '../utils/markdown-converter';
+import { aiCommands } from '../services/aiCommands';
 import type { Tab } from './useTabs';
 import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS, TIMING } from '../constants';
 
@@ -252,13 +253,22 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
 
   const saveFileAs = async (): Promise<void> => {
     try {
+      const oldPath = currentFile.value;
       const filePath = await save({
         filters: [{ name: 'Markdown', extensions: ['md'] }],
-        defaultPath: currentFile.value?.split(/[/\\]/).pop() || 'dokument.md',
+        defaultPath: oldPath?.split(/[/\\]/).pop() || 'dokument.md',
       });
 
       if (filePath) {
         await writeAndUpdateTab(filePath);
+        // Migrate AI metadata (sessions, access map, snapshots) to the new path.
+        if (oldPath && oldPath !== filePath) {
+          await Promise.all([
+            aiCommands.sessionMigrate(oldPath, filePath),
+            aiCommands.accessMigrate(oldPath, filePath),
+            aiCommands.snapshotMigrate(oldPath, filePath),
+          ]).catch(() => {}); // best-effort; don't fail save on AI metadata errors
+        }
       }
     } catch (error) {
       console.error('Error saving file:', error);
