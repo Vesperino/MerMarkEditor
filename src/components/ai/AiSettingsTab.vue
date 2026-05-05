@@ -6,12 +6,15 @@ import { useSettings, type CliKind, type PanelSide } from '../../composables/use
 import { useAi } from '../../composables/useAi';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
+import { CLAUDE_MODELS, CODEX_MODELS } from '../../composables/useAiModels';
 
 const { t } = useI18n();
 const {
   settings,
   setAiEnabled,
   setAiDefaultCli,
+  setAiDefaultModelClaude,
+  setAiDefaultModelCodex,
   setAiSnapshotsKeep,
   setAiPanelSide,
   setAiHasSeenFirstRun,
@@ -112,6 +115,22 @@ async function openInstall(cli: CliKind) {
         >
           <option value="claude">Claude</option>
           <option value="codex">Codex</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="ai-settings-section">
+      <h4>{{ t.aiModel }}</h4>
+      <label class="ai-inline-label">
+        {{ t.aiCliStatusClaude }}
+        <select :value="settings.ai.defaultModelClaude" @change="setAiDefaultModelClaude(($event.target as HTMLSelectElement).value)">
+          <option v-for="m in CLAUDE_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </select>
+      </label>
+      <label class="ai-inline-label" style="margin-top: 8px;">
+        {{ t.aiCliStatusCodex }}
+        <select :value="settings.ai.defaultModelCodex" @change="setAiDefaultModelCodex(($event.target as HTMLSelectElement).value)">
+          <option v-for="m in CODEX_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
         </select>
       </label>
     </section>

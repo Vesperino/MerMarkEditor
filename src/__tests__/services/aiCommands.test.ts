@@ -28,6 +28,7 @@ describe('aiCommands', () => {
     await aiCommands.send({
       cli: 'claude',
       sessionId: null,
+      model: null,
       prompt: 'hi',
       preamble: 'you are',
       accessMap: { readPaths: ['/x'], writePaths: ['/x'], tools: { bash: false, network: false, fileRead: false, fileWrite: false } },

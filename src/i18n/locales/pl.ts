@@ -322,6 +322,12 @@ const pl: Translations = {
   aiResetFirstRun: 'Pokaż dymek pierwszego uruchomienia',
   aiSnapshotsKeepHelper: 'Najnowsze snapshoty są zachowywane; przypięte snapshoty zawsze pozostają.',
   aiAuditEmpty: 'Brak wpisów audytu.',
+  aiFullscreen: 'Pełny ekran',
+  aiExitFullscreen: 'Wyjdź z pełnego ekranu',
+  aiClose: 'Zamknij',
+  aiModel: 'Model',
+  aiEmptyHint: 'Zapytaj o cokolwiek dotyczącego tego dokumentu.',
+  aiEmptyKeyHint: 'Ctrl+Enter aby wysłać.',
 };
 
 export default pl;

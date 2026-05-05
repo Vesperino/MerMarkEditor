@@ -328,6 +328,12 @@ export interface Translations {
   aiResetFirstRun: string;
   aiSnapshotsKeepHelper: string;
   aiAuditEmpty: string;
+  aiFullscreen: string;
+  aiExitFullscreen: string;
+  aiClose: string;
+  aiModel: string;
+  aiEmptyHint: string;
+  aiEmptyKeyHint: string;
 }
 
 const translations: Record<Locale, Translations> = {

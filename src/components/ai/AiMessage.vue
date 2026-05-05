@@ -39,20 +39,53 @@ const isAssistant = computed(() => props.message.role === 'assistant');
 
 <style scoped>
 .ai-msg {
-  padding: 8px 12px;
-  border-radius: 6px;
-  margin-bottom: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
   max-width: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
 }
-.ai-msg--user { background: var(--ai-user-bg, #eef2ff); }
-.ai-msg--assistant { background: var(--ai-assistant-bg, #f8fafc); }
-.ai-msg--err { border: 1px solid #ef4444; }
+.ai-msg--user {
+  background: var(--active-bg);
+  color: var(--active-text);
+  align-self: flex-end;
+  max-width: 88%;
+}
+.ai-msg--assistant {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  align-self: flex-start;
+  max-width: 92%;
+  border: 1px solid var(--border-primary);
+}
+.ai-msg--err {
+  background: var(--error-bg, rgba(239, 68, 68, 0.08));
+  color: var(--error-color, #dc2626);
+  border: 1px solid var(--error-border, rgba(239, 68, 68, 0.3));
+}
 .ai-msg__text {
   white-space: pre-wrap;
   margin: 0;
   font-family: inherit;
-  font-size: 13px;
 }
-.ai-msg__error { color: #ef4444; font-size: 12px; margin-top: 4px; }
-.ai-msg__actions { display: flex; gap: 6px; margin-top: 6px; }
+.ai-msg__error { font-size: 12px; margin-top: 6px; }
+.ai-msg__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-primary);
+}
+.ai-msg__actions button {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+.ai-msg__actions button:hover { background: var(--hover-bg); }
 </style>

@@ -322,6 +322,12 @@ const zhCN: Translations = {
   aiResetFirstRun: '再次显示首次运行提示',
   aiSnapshotsKeepHelper: '保留最新的快照；置顶的快照始终保留。',
   aiAuditEmpty: '暂无审计记录。',
+  aiFullscreen: '全屏',
+  aiExitFullscreen: '退出全屏',
+  aiClose: '关闭',
+  aiModel: '模型',
+  aiEmptyHint: '随时向我提问关于此文档的问题。',
+  aiEmptyKeyHint: 'Ctrl+Enter 发送。',
 };
 
 export default zhCN;

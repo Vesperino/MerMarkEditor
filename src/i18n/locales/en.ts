@@ -322,6 +322,12 @@ const en: Translations = {
   aiResetFirstRun: 'Show first-run tooltip again',
   aiSnapshotsKeepHelper: 'Most recent snapshots are kept; pinned snapshots are always kept.',
   aiAuditEmpty: 'No audit entries yet.',
+  aiFullscreen: 'Fullscreen',
+  aiExitFullscreen: 'Exit fullscreen',
+  aiClose: 'Close',
+  aiModel: 'Model',
+  aiEmptyHint: 'Ask me anything about this document.',
+  aiEmptyKeyHint: 'Ctrl+Enter to send.',
 };
 
 export default en;

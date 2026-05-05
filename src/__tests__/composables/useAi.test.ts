@@ -27,7 +27,7 @@ describe('useAi', () => {
 
     const { send, messages } = useAi();
     const promise = send({
-      cli: 'claude', sessionId: null, prompt: 'hi', preamble: 'p',
+      cli: 'claude', sessionId: null, model: null, prompt: 'hi', preamble: 'p',
       accessMap: { readPaths: [], writePaths: [], tools: { bash: false, network: false, fileRead: false, fileWrite: false } },
       workDir: '/x',
     });
