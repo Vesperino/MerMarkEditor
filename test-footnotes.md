@@ -102,13 +102,13 @@ Same odwołania mogą pojawić się wszędzie, gdzie dozwolony jest tekst inline
 [^1]: Ta linia zostaje jako literalny tekst — bloki kodu wyłączają parsowanie przypisów.
 ```
 
-### 4.3 Sekcja bez przypisów
+### 4.3 无脚注的段落
 
-Dokument bez żadnych odwołań i definicji renderuje się normalnie, bez doklejonej sekcji przypisów.
+不含任何引用与定义的文档会正常渲染，不会附加脚注小节。
 
 ---
 
-## 5. GFM kontra Pandoc
+## 5. GFM 对比 Pandoc
 
 | Funkcja                          | GFM      | Pandoc   |
 |----------------------------------|:--------:|:--------:|
@@ -117,7 +117,7 @@ Dokument bez żadnych odwołań i definicji renderuje się normalnie, bez doklej
 | Wieloakapitowe przypisy          | ograniczone | ✓     |
 | Status                           | rozszerzenie | rozszerzenie |
 
-Dla przenośności między rendererami trzymaj się przypisów referencyjnych z etykietami nazwanymi i kontynuacjami wciętymi 4 spacjami.
+为在不同渲染器间保持可移植性，请坚持使用带命名标签的引用式脚注，并以 4 个空格缩进续行。
 
 ---
 

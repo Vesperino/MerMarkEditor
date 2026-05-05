@@ -124,6 +124,14 @@ const liveSelectionText = computed<string | null>(() => {
   return md.slice(start, end).trim();
 });
 
+// Hide the live preview when it duplicates an existing pin — no point
+// showing the same content twice once the user already pinned it.
+const showLiveSelection = computed<boolean>(() => {
+  const t = liveSelectionText.value;
+  if (!t) return false;
+  return !pinnedSelections.value.some(p => p.text === t);
+});
+
 function pinCurrentSelection() {
   const t = liveSelectionText.value;
   if (!t) return;
@@ -675,7 +683,7 @@ function onDeleteThread(id: string) {
         Document is large ({{ Math.round(docMarkdown.length / 1024) }} KB).
         <label><input type="checkbox" v-model="sendFullDocOverride" /> Send full document</label>
       </div>
-      <div v-if="pinnedSelections.length > 0 || liveSelectionText" class="ai-panel__pinned">
+      <div v-if="pinnedSelections.length > 0 || showLiveSelection" class="ai-panel__pinned">
         <div class="ai-panel__pinned-head">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 10.76A2 2 0 0 1 8 9V3h8v6a2 2 0 0 1-1 1.76l-1 .58a2 2 0 0 0-1 1.76V17H10v-3.93a2 2 0 0 0-1-1.74l-1-.57z"/></svg>
           <span class="ai-panel__pinned-label">
@@ -685,7 +693,7 @@ function onDeleteThread(id: string) {
             <input type="checkbox" v-model="includePinned" />
             <span>Send</span>
           </label>
-          <button v-if="liveSelectionText" class="ai-panel__pinned-action" @click="pinCurrentSelection">+ Pin</button>
+          <button v-if="showLiveSelection" class="ai-panel__pinned-action" @click="pinCurrentSelection">+ Pin</button>
           <button v-if="pinnedSelections.length > 0" class="ai-panel__pinned-action ai-panel__pinned-action--clear" @click="clearAllPins" title="Clear all pinned selections">Clear all</button>
         </div>
         <ul v-if="pinnedSelections.length > 0" class="ai-panel__pin-list">
@@ -695,7 +703,7 @@ function onDeleteThread(id: string) {
             <button class="ai-panel__pin-rm" @click="removePin(p.id)" title="Remove this pin">×</button>
           </li>
         </ul>
-        <div v-if="liveSelectionText" class="ai-panel__pin-live">
+        <div v-if="showLiveSelection" class="ai-panel__pin-live">
           <span class="ai-panel__pin-live-label">Live selection (click + Pin to attach)</span>
           <pre class="ai-panel__pinned-preview ai-panel__pinned-preview--live">{{ liveSelectionText }}</pre>
         </div>
