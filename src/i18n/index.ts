@@ -323,6 +323,11 @@ export interface Translations {
   aiTmpRecoveryDiscard: string;
   aiTmpRecoveryShowDiff: string;
   aiToggleTooltip: string;
+  aiStatusLoading: string;
+  aiStatusUnknown: string;
+  aiResetFirstRun: string;
+  aiSnapshotsKeepHelper: string;
+  aiAuditEmpty: string;
 }
 
 const translations: Record<Locale, Translations> = {

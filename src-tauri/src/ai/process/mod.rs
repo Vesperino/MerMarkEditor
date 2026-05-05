@@ -42,7 +42,7 @@ pub async fn spawn(
         session_id: req.session_id.clone(),
         cli: req.cli,
         action: "send".into(),
-        args: serde_json::json!({ "request_id": request_id, "bypass": req.bypass }),
+        args: serde_json::json!({ "request_id": request_id, "bypass": req.bypass, "cli_name": req.cli.as_str() }),
         result: serde_json::json!({}),
         exit_code: None,
     })?;

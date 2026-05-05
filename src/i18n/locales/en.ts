@@ -317,6 +317,11 @@ const en: Translations = {
   aiTmpRecoveryDiscard: 'Discard',
   aiTmpRecoveryShowDiff: 'Show diff',
   aiToggleTooltip: 'Toggle AI assistant',
+  aiStatusLoading: 'Checking…',
+  aiStatusUnknown: 'Unknown — click Re-check',
+  aiResetFirstRun: 'Show first-run tooltip again',
+  aiSnapshotsKeepHelper: 'Most recent snapshots are kept; pinned snapshots are always kept.',
+  aiAuditEmpty: 'No audit entries yet.',
 };
 
 export default en;

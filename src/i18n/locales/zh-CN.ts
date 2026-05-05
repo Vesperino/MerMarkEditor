@@ -317,6 +317,11 @@ const zhCN: Translations = {
   aiTmpRecoveryDiscard: '丢弃',
   aiTmpRecoveryShowDiff: '显示差异',
   aiToggleTooltip: '切换 AI 助手',
+  aiStatusLoading: '检查中…',
+  aiStatusUnknown: '未知 — 点击重新检查',
+  aiResetFirstRun: '再次显示首次运行提示',
+  aiSnapshotsKeepHelper: '保留最新的快照；置顶的快照始终保留。',
+  aiAuditEmpty: '暂无审计记录。',
 };
 
 export default zhCN;

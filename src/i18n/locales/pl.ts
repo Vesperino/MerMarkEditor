@@ -317,6 +317,11 @@ const pl: Translations = {
   aiTmpRecoveryDiscard: 'Odrzuć',
   aiTmpRecoveryShowDiff: 'Pokaż diff',
   aiToggleTooltip: 'Przełącz asystenta AI',
+  aiStatusLoading: 'Sprawdzanie…',
+  aiStatusUnknown: 'Nieznany — kliknij Sprawdź ponownie',
+  aiResetFirstRun: 'Pokaż dymek pierwszego uruchomienia',
+  aiSnapshotsKeepHelper: 'Najnowsze snapshoty są zachowywane; przypięte snapshoty zawsze pozostają.',
+  aiAuditEmpty: 'Brak wpisów audytu.',
 };
 
 export default pl;
