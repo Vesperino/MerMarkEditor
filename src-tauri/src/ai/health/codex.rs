@@ -17,6 +17,7 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 use crate::ai::types::HealthStatus;
+use crate::ai::cli;
 
 const CMD: &str = "codex";
 
@@ -70,7 +71,7 @@ async fn run_capture(
     timeout_secs: u64,
 ) -> Result<(bool, String, String), String> {
     let fut = async {
-        let out = Command::new(CMD)
+        let out = Command::new(cli::resolve(CMD))
             .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

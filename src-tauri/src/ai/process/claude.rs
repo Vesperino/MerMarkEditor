@@ -15,11 +15,12 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 use crate::ai::process::AiSendRequest;
 use crate::ai::types::AccessMapTools;
+use crate::ai::cli;
 
 const CMD: &str = "claude";
 
 pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
-    let mut cmd = Command::new(CMD);
+    let mut cmd = Command::new(cli::resolve(CMD));
     cmd.arg("-p")
         .arg(&req.prompt)
         .arg("--output-format").arg("stream-json")

@@ -24,11 +24,12 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 use crate::ai::process::AiSendRequest;
 use crate::ai::types::AccessMapTools;
+use crate::ai::cli;
 
 const CMD: &str = "codex";
 
 pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
-    let mut cmd = Command::new(CMD);
+    let mut cmd = Command::new(cli::resolve(CMD));
 
     if let Some(sid) = &req.session_id {
         // Resume path: `codex exec resume <session_id> [PROMPT]`

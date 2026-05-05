@@ -5,6 +5,7 @@
 
 pub mod types;
 pub mod paths;
+pub mod cli;
 pub mod audit;
 pub mod access_map;
 pub mod sessions;
