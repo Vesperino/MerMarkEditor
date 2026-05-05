@@ -1002,8 +1002,13 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
 }
 
 .fullscreen-content :deep(svg) {
-  max-width: none;
-  height: auto;
+  /* Override the inline width/max-width that applySvgSize sets to render the
+     diagram at 25/50/75/100 % inside the document. In fullscreen we want a
+     1:1 SVG that the zoom transform can scale up cleanly without compounding
+     a 4x downscale (which produced blurry output at 600 % zoom). */
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
 }
 
 /* ========== Print Styles ========== */
