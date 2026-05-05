@@ -337,6 +337,40 @@ export interface Translations {
   aiModel: string;
   aiEmptyHint: string;
   aiEmptyKeyHint: string;
+  aiEffort: string;
+  aiRevertSnapshot: string;
+  aiMinimizeToTab: string;
+  aiRestorePanel: string;
+  aiAttachImage: string;
+  aiComposerPlaceholder: string;
+  aiWorkingPlease: string;
+  aiConnecting: string;
+  aiDocNotSavedTitle: string;
+  aiDocNotSavedHint: string;
+  aiPinSendLabel: string;
+  aiPinClearAll: string;
+  aiPinClearAllTooltip: string;
+  aiPinRemoveTooltip: string;
+  aiPinLiveLabel: string;
+  aiPinNotPinned: string;
+  aiPinAdd: string;
+  aiPinCount: (n: number) => string;
+  aiImageClear: string;
+  aiImageClearAllTooltip: string;
+  aiImagePreviewHint: string;
+  aiImageRemoveTooltip: string;
+  aiImagesAttached: (n: number) => string;
+  aiThreadCount: (n: number) => string;
+  aiThreadEmpty: string;
+  aiThreadDelete: string;
+  aiAttachmentCount: (n: number) => string;
+  aiSentAttachmentLabel: (n: number) => string;
+  aiSentAttachmentHint: string;
+  aiSentAttachmentTooltip: (n: number) => string;
+  aiSentImagesLabel: (n: number) => string;
+  aiToolChipTooltip: string;
+  collapseSidebar: string;
+  expandSidebar: string;
 }
 
 const translations: Record<Locale, Translations> = {

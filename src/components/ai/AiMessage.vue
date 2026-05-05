@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from '../../i18n';
 import type { AiMessage } from '../../composables/useAi';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   message: AiMessage;
@@ -182,7 +185,7 @@ function formatToolPreviewValue(value: unknown): string {
   >
     <summary
       class="ai-msg__tool-row"
-      title="Click to show or hide full arguments"
+      :title="t.aiToolChipTooltip"
     >
       <svg class="ai-msg__tool-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
@@ -202,18 +205,18 @@ function formatToolPreviewValue(value: unknown): string {
       v-if="(message.attachments ?? []).length > 0"
       class="ai-msg ai-msg--attachment"
       @click="emit('showAttachment', message.attachments ?? [])"
-      :title="`Click to view ${(message.attachments ?? []).length} attached fragment(s)`"
+      :title="t.aiSentAttachmentTooltip((message.attachments ?? []).length)"
     >
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      <span class="ai-msg__att-label">Sent {{ (message.attachments ?? []).length }} attached fragment{{ (message.attachments ?? []).length === 1 ? '' : 's' }}</span>
-      <span class="ai-msg__att-hint">click to view</span>
+      <span class="ai-msg__att-label">{{ t.aiSentAttachmentLabel((message.attachments ?? []).length) }}</span>
+      <span class="ai-msg__att-hint">{{ t.aiSentAttachmentHint }}</span>
     </button>
     <div
       v-if="(message.imageAttachments ?? []).length > 0"
       class="ai-msg ai-msg--image-attachment"
     >
       <span class="ai-msg__img-att-label">
-        Sent {{ (message.imageAttachments ?? []).length }} image{{ (message.imageAttachments ?? []).length === 1 ? '' : 's' }}
+        {{ t.aiSentImagesLabel((message.imageAttachments ?? []).length) }}
       </span>
       <ul class="ai-msg__img-att-list">
         <li v-for="(img, idx) in message.imageAttachments" :key="idx" class="ai-msg__img-att-item" :title="img.name">

@@ -2,11 +2,13 @@
 import { useLayoutConfig } from '../composables/useLayoutConfig';
 import { useToolbarActions } from '../composables/useToolbarActions';
 import { useSettings } from '../composables/useSettings';
+import { useI18n } from '../i18n';
 import ToolbarItemRenderer from './ToolbarItemRenderer.vue';
 
 const { itemsForZone } = useLayoutConfig();
 const { closeDropdowns } = useToolbarActions();
 const { settings, toggleLeftBarExpanded } = useSettings();
+const { t } = useI18n();
 
 const leftBarItems = itemsForZone('leftbar');
 
@@ -75,8 +77,8 @@ const emit = defineEmits<{
     </template>
     <button
       class="left-bar__expand-toggle"
-      :title="settings.leftBarExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
-      :aria-label="settings.leftBarExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
+      :title="settings.leftBarExpanded ? t.collapseSidebar : t.expandSidebar"
+      :aria-label="settings.leftBarExpanded ? t.collapseSidebar : t.expandSidebar"
       @click="toggleLeftBarExpanded"
     >
       <svg

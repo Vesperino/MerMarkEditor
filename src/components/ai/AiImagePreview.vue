@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../../i18n';
+
+const { t } = useI18n();
+
 defineProps<{
   src: string;
   name: string;
@@ -12,7 +16,7 @@ defineEmits<{
 <template>
   <Teleport to="body">
     <div class="ai-image-preview" @click.self="$emit('close')">
-      <button class="ai-image-preview__close" @click="$emit('close')" title="Close (Esc)">×</button>
+      <button class="ai-image-preview__close" @click="$emit('close')" :title="`${t.aiClose} (Esc)`">×</button>
       <img :src="src" :alt="name" />
       <div class="ai-image-preview__caption">{{ name }}</div>
     </div>

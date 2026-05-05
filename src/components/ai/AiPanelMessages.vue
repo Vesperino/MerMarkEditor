@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import AiMessage from './AiMessage.vue';
+import { useI18n } from '../../i18n';
 import { parseAiOutput } from '../../composables/useAiOutputParser';
 import type { AiMessage as AiMessageType, AttachedPin } from '../../composables/useAi';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   messages: AiMessageType[];
@@ -49,7 +52,7 @@ function messageHasFence(text: string): boolean {
       <span class="ai-msg__thinking-dot" />
       <span class="ai-msg__thinking-dot" />
       <span class="ai-msg__thinking-dot" />
-      <span>AI is working… please wait</span>
+      <span>{{ t.aiWorkingPlease }}</span>
     </div>
   </div>
 </template>

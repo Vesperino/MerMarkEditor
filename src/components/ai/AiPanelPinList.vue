@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../../i18n';
 import type { PinnedItem } from '../../composables/useAiPinnedSelections';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   pins: PinnedItem[];
@@ -30,24 +33,24 @@ function onToggle(e: Event) {
     <div class="ai-panel__pinned-head">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 10.76A2 2 0 0 1 8 9V3h8v6a2 2 0 0 1-1 1.76l-1 .58a2 2 0 0 0-1 1.76V17H10v-3.93a2 2 0 0 0-1-1.74l-1-.57z"/></svg>
       <span class="ai-panel__pinned-label">
-        {{ pins.length > 0 ? `${pins.length} pinned` : 'Selection (not pinned)' }}
+        {{ pins.length > 0 ? t.aiPinCount(pins.length) : t.aiPinNotPinned }}
       </span>
       <label v-if="pins.length > 0" class="ai-panel__pinned-toggle">
         <input type="checkbox" :checked="includePinned" @change="onToggle" />
-        <span>Send</span>
+        <span>{{ t.aiPinSendLabel }}</span>
       </label>
-      <button v-if="showLive" class="ai-panel__pinned-action" @click="emit('pin')">+ Pin</button>
-      <button v-if="pins.length > 0" class="ai-panel__pinned-action ai-panel__pinned-action--clear" @click="emit('clearAll')" title="Clear all pinned selections">Clear all</button>
+      <button v-if="showLive" class="ai-panel__pinned-action" @click="emit('pin')">{{ t.aiPinAdd }}</button>
+      <button v-if="pins.length > 0" class="ai-panel__pinned-action ai-panel__pinned-action--clear" @click="emit('clearAll')" :title="t.aiPinClearAllTooltip">{{ t.aiPinClearAll }}</button>
     </div>
     <ul v-if="pins.length > 0" class="ai-panel__pin-list">
       <li v-for="(p, i) in pins" :key="p.id" class="ai-panel__pin-item">
         <span class="ai-panel__pin-num">#{{ i + 1 }}</span>
         <span class="ai-panel__pin-text" :title="p.text">{{ previewOf(p.text) }}</span>
-        <button class="ai-panel__pin-rm" @click="emit('remove', p.id)" title="Remove this pin">×</button>
+        <button class="ai-panel__pin-rm" @click="emit('remove', p.id)" :title="t.aiPinRemoveTooltip">×</button>
       </li>
     </ul>
     <div v-if="showLive" class="ai-panel__pin-live">
-      <span class="ai-panel__pin-live-label">Live selection (click + Pin to attach)</span>
+      <span class="ai-panel__pin-live-label">{{ t.aiPinLiveLabel }}</span>
       <pre class="ai-panel__pinned-preview ai-panel__pinned-preview--live">{{ liveText }}</pre>
     </div>
   </div>

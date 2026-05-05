@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../../i18n';
 import type { PendingImage } from '../../composables/useAiPendingImages';
+
+const { t } = useI18n();
 
 defineProps<{
   images: PendingImage[];
@@ -17,16 +20,16 @@ defineEmits<{
     <div class="ai-panel__images-head">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <span class="ai-panel__images-label">
-        {{ images.length }} image{{ images.length === 1 ? '' : 's' }} attached
+        {{ t.aiImagesAttached(images.length) }}
       </span>
-      <button class="ai-panel__pinned-action ai-panel__pinned-action--clear" @click="$emit('clear')" title="Remove all">Clear</button>
+      <button class="ai-panel__pinned-action ai-panel__pinned-action--clear" @click="$emit('clear')" :title="t.aiImageClearAllTooltip">{{ t.aiImageClear }}</button>
     </div>
     <ul class="ai-panel__images-list">
       <li v-for="img in images" :key="img.id" class="ai-panel__image-thumb">
-        <button class="ai-panel__image-thumb-btn" @click="$emit('preview', img)" :title="`${img.name} — click to preview`">
+        <button class="ai-panel__image-thumb-btn" @click="$emit('preview', img)" :title="`${img.name} — ${t.aiImagePreviewHint}`">
           <img :src="img.blobUrl" :alt="img.name" />
         </button>
-        <button class="ai-panel__image-rm" @click="$emit('remove', img.id)" title="Remove this image">×</button>
+        <button class="ai-panel__image-rm" @click="$emit('remove', img.id)" :title="t.aiImageRemoveTooltip">×</button>
       </li>
     </ul>
   </div>

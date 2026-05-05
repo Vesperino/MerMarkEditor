@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../../i18n';
+
+const { t } = useI18n();
+
 defineProps<{
   side: 'left' | 'right';
   style?: Record<string, string>;
@@ -15,7 +19,7 @@ defineEmits<{
     :class="{ 'ai-panel-tab--left': side === 'left' }"
     :style="style"
     @click="$emit('restore')"
-    title="Restore AI panel"
+    :title="t.aiRestorePanel"
   >
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <rect x="4" y="6" width="16" height="14" rx="3"/>

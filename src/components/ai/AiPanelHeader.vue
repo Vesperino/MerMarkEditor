@@ -3,7 +3,10 @@ import { computed } from 'vue';
 import type { CliKind } from '../../services/aiCommands';
 import { CUSTOM_MODEL_SENTINEL } from '../../composables/useAiModels';
 import AiPanelThreadDropdown from './AiPanelThreadDropdown.vue';
+import { useI18n } from '../../i18n';
 import type { AiThread } from '../../composables/useAi';
+
+const { t } = useI18n();
 
 interface ModelOption { id: string; label: string; custom?: boolean }
 interface EffortOption { id: string; label: string }
@@ -87,7 +90,7 @@ function onCustomModelInput(e: Event) {
         <strong>{{ titleText }}</strong>
       </div>
       <div class="ai-panel__window-controls">
-        <button class="ai-panel__win-btn" @click="emit('minimize')" title="Minimize to tab">
+        <button class="ai-panel__win-btn" @click="emit('minimize')" :title="t.aiMinimizeToTab">
           <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="8" width="8" height="1" fill="currentColor"/></svg>
         </button>
         <button class="ai-panel__win-btn" @click="emit('toggleFullscreen')" :title="fullscreen ? exitFullscreenTitle : fullscreenTitle">
@@ -135,7 +138,7 @@ function onCustomModelInput(e: Event) {
         :value="effort"
         @change="emit('update:effort', ($event.target as HTMLSelectElement).value)"
         class="ai-panel__select"
-        title="Effort"
+        :title="t.aiEffort"
       >
         <option v-for="e in effortOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
       </select>
@@ -145,7 +148,7 @@ function onCustomModelInput(e: Event) {
       <button
         class="ai-panel__icon-btn"
         @click="emit('revert')"
-        title="Revert to last snapshot before AI edit"
+        :title="t.aiRevertSnapshot"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
       </button>

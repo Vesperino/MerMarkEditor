@@ -3,9 +3,12 @@ import AiPanelPinList from './AiPanelPinList.vue';
 import AiPanelImageStrip from './AiPanelImageStrip.vue';
 import AiAccessMapEditor from './AiAccessMapEditor.vue';
 import AiSnapshotList from './AiSnapshotList.vue';
+import { useI18n } from '../../i18n';
 import type { PendingImage } from '../../composables/useAiPendingImages';
 import type { PinnedItem } from '../../composables/useAiPinnedSelections';
 import type { AccessMap } from '../../services/aiCommands';
+
+const { t } = useI18n();
 
 defineProps<{
   inputValue: string;
@@ -101,7 +104,7 @@ function onOverrideToggle(e: Event) {
       :value="inputValue"
       @input="onInput"
       class="ai-panel__input"
-      :placeholder="cliConnected ? 'Type a message… (paste images with Ctrl+V)' : authRequiredHint"
+      :placeholder="cliConnected ? t.aiComposerPlaceholder : authRequiredHint"
       :disabled="!cliConnected"
       rows="3"
       @keydown="onKeydown"
@@ -109,7 +112,7 @@ function onOverrideToggle(e: Event) {
     />
 
     <div class="ai-panel__composer-actions">
-      <button class="ai-panel__btn ai-panel__btn--icon" @click="emit('pickImage')" :disabled="!cliConnected" title="Attach image">
+      <button class="ai-panel__btn ai-panel__btn--icon" @click="emit('pickImage')" :disabled="!cliConnected" :title="t.aiAttachImage">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       </button>
       <span class="ai-panel__hint">{{ emptyKeyHint }}</span>

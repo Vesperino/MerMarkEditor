@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useI18n } from '../../i18n';
+
+const { t } = useI18n();
 
 interface Thread {
   id: string;
@@ -31,11 +34,11 @@ const sortedThreads = computed(() =>
 
 <template>
   <details class="ai-panel__threads" ref="detailsRef">
-    <summary class="ai-panel__icon-btn" :title="`${threads.length} chat(s)`">
+    <summary class="ai-panel__icon-btn" :title="t.aiThreadCount(threads.length)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
     </summary>
     <ul class="ai-panel__threads-list">
-      <li v-if="threads.length === 0" class="ai-panel__threads-empty">No chats yet</li>
+      <li v-if="threads.length === 0" class="ai-panel__threads-empty">{{ t.aiThreadEmpty }}</li>
       <li
         v-for="th in sortedThreads"
         :key="th.id"
@@ -45,7 +48,7 @@ const sortedThreads = computed(() =>
       >
         <span class="ai-panel__thread-title">{{ th.title }}</span>
         <span class="ai-panel__thread-meta">{{ new Date(th.updatedAt).toLocaleString() }} · {{ th.messages.length }}</span>
-        <button class="ai-panel__thread-del" @click.stop="emit('delete', th.id)" title="Delete chat">×</button>
+        <button class="ai-panel__thread-del" @click.stop="emit('delete', th.id)" :title="t.aiThreadDelete">×</button>
       </li>
     </ul>
   </details>

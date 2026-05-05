@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../../i18n';
+
+const { t } = useI18n();
+
 defineProps<{
   pins: Array<{ id: string; text: string }>;
 }>();
@@ -12,8 +16,8 @@ defineEmits<{
   <div class="ai-attach-modal" @click.self="$emit('close')">
     <div class="ai-attach-modal__panel">
       <header class="ai-attach-modal__head">
-        <strong>{{ pins.length }} attached fragment{{ pins.length === 1 ? '' : 's' }}</strong>
-        <button @click="$emit('close')" class="ai-attach-modal__close" title="Close">×</button>
+        <strong>{{ t.aiAttachmentCount(pins.length) }}</strong>
+        <button @click="$emit('close')" class="ai-attach-modal__close" :title="t.aiClose">×</button>
       </header>
       <div class="ai-attach-modal__body">
         <div v-for="(p, i) in pins" :key="p.id" class="ai-attach-modal__item">
