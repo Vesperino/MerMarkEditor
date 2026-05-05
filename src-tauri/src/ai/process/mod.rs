@@ -76,9 +76,16 @@ fn spawn_pump(
     if let Some(out) = stdout {
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
+            // Codex needs cross-line state to attach the thread_id (sent at
+            // stream start) to the Done chunk (emitted at stream end).
+            let mut codex_state = normalizer::CodexParserState::default();
             while let Ok(Some(line)) = lines.next_line().await {
                 eprintln!("[ai stdout] {}", line);
-                match normalizer::parse_line(cli, &line) {
+                let parsed = match cli {
+                    CliKind::Codex => normalizer::parse_line_codex(&mut codex_state, &line),
+                    CliKind::Claude => normalizer::parse_line(cli, &line),
+                };
+                match parsed {
                     Some(chunk) => {
                         eprintln!("[ai chunk] {:?}", chunk);
                         let _ = app_for_stdout.emit_to(label_for_stdout.as_str(), &event_for_stdout, chunk);
@@ -121,6 +128,26 @@ fn spawn_pump(
 
 pub fn cancel(registry: &ChildRegistry, request_id: &str) {
     if let Some(mut child) = registry.take(request_id) {
-        let _ = child.start_kill();
+        kill_tree(&mut child);
     }
+}
+
+/// Cross-platform "kill the spawned process AND its descendants". On Windows
+/// the immediate child is often a `cmd.exe` shim wrapping `node` (npm
+/// installers do this for codex/claude); `child.start_kill()` only terminates
+/// the shim and orphans the real worker. `taskkill /T /F /PID <id>` walks the
+/// process tree and force-kills each member, which actually stops generation.
+pub fn kill_tree(child: &mut tokio::process::Child) {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(pid) = child.id() {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/T", "/F", "/PID", &pid.to_string()])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            return;
+        }
+    }
+    let _ = child.start_kill();
 }

@@ -22,7 +22,7 @@ impl ChildRegistry {
     pub fn kill_all(&self) {
         let mut g = self.inner.lock().unwrap();
         for (_, mut child) in g.drain() {
-            let _ = child.start_kill();
+            crate::ai::process::kill_tree(&mut child);
         }
     }
 }

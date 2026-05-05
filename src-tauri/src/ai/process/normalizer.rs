@@ -1,5 +1,12 @@
 use crate::ai::types::{AiResponseChunk, CliKind};
 
+/// Per-stream parser state for codex (which needs to remember `thread_id`
+/// across lines to attach it to the final Done chunk).
+#[derive(Debug, Default)]
+pub struct CodexParserState {
+    pub thread_id: Option<String>,
+}
+
 /// Parse a single line of CLI output into zero or one normalized chunks.
 /// Unknown / non-JSON lines return None (callers should keep them as raw text
 /// only if no JSON parsing succeeds for the entire stream — handled in the
@@ -10,6 +17,12 @@ pub fn parse_line(cli: CliKind, line: &str) -> Option<AiResponseChunk> {
         CliKind::Claude => parse_claude(&v),
         CliKind::Codex => parse_codex(&v),
     }
+}
+
+/// Codex-specific stateful entry point (preserves `thread_id` across lines).
+pub fn parse_line_codex(state: &mut CodexParserState, line: &str) -> Option<AiResponseChunk> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    parse_codex_stateful(state, &v)
 }
 
 /// True if a line is parseable JSON (regardless of whether we extract a chunk from it).
@@ -81,24 +94,84 @@ fn parse_stream_event(ev: &serde_json::Value) -> Option<AiResponseChunk> {
     }
 }
 
+/// Stateless codex parser kept for backward compatibility / older envelope
+/// shapes; the canonical stateful flow is `parse_codex_stateful`.
 fn parse_codex(v: &serde_json::Value) -> Option<AiResponseChunk> {
-    // Codex --json envelope shape: confirm during integration testing.
-    // Conservative defaults below; refine once real fixtures are captured.
+    let mut state = CodexParserState::default();
+    parse_codex_stateful(&mut state, v)
+}
+
+/// Codex --json envelope (verified against codex-cli 0.128.0):
+///   - `thread.started`   { thread_id }            → cache thread_id
+///   - `turn.started`                              → drop
+///   - `item.started`     { item }                 → drop
+///   - `item.updated`     { item }                 → drop (no text deltas yet)
+///   - `item.completed`   { item: agent_message } → Text (full message)
+///   - `item.completed`   { item: function_call } → ToolRequest
+///   - `item.completed`   { item: reasoning }      → drop
+///   - `turn.completed`   { usage }                → Done (with cached thread_id)
+fn parse_codex_stateful(
+    state: &mut CodexParserState,
+    v: &serde_json::Value,
+) -> Option<AiResponseChunk> {
     let kind = v.get("type").and_then(|t| t.as_str())?;
     match kind {
+        "thread.started" => {
+            if let Some(tid) = v.get("thread_id").and_then(|t| t.as_str()) {
+                state.thread_id = Some(tid.to_string());
+            }
+            None
+        }
+        "item.completed" => {
+            let item = v.get("item")?;
+            let item_type = item.get("type").and_then(|t| t.as_str()).unwrap_or("");
+            match item_type {
+                "agent_message" => {
+                    let text = item.get("text").and_then(|t| t.as_str()).unwrap_or("");
+                    if text.is_empty() {
+                        None
+                    } else {
+                        Some(AiResponseChunk::Text { content: text.to_string() })
+                    }
+                }
+                "function_call" => {
+                    let tool = item
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("exec")
+                        .to_string();
+                    let args = item
+                        .get("arguments")
+                        .or_else(|| item.get("args"))
+                        .cloned()
+                        .unwrap_or(serde_json::json!({}));
+                    let request_id = item
+                        .get("id")
+                        .and_then(|i| i.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    Some(AiResponseChunk::ToolRequest { tool, args, request_id })
+                }
+                _ => None,
+            }
+        }
+        "turn.completed" => {
+            let session_id = state.thread_id.clone().unwrap_or_default();
+            let usage = v.get("usage").cloned();
+            Some(AiResponseChunk::Done { session_id, usage })
+        }
+        // Legacy envelope shapes still tolerated.
         "text" | "message" | "delta" => {
-            let text = v.get("text").or_else(|| v.get("content")).and_then(|t| t.as_str()).unwrap_or("");
-            if text.is_empty() { None } else { Some(AiResponseChunk::Text { content: text.to_string() }) }
-        }
-        "tool_call" | "exec" => {
-            let tool = v.get("name").and_then(|n| n.as_str()).unwrap_or("exec").to_string();
-            let args = v.get("args").cloned().unwrap_or(serde_json::json!({}));
-            let request_id = v.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
-            Some(AiResponseChunk::ToolRequest { tool, args, request_id })
-        }
-        "session_id" => {
-            let session_id = v.get("value").and_then(|s| s.as_str()).unwrap_or("").to_string();
-            Some(AiResponseChunk::Done { session_id, usage: None })
+            let text = v
+                .get("text")
+                .or_else(|| v.get("content"))
+                .and_then(|t| t.as_str())
+                .unwrap_or("");
+            if text.is_empty() {
+                None
+            } else {
+                Some(AiResponseChunk::Text { content: text.to_string() })
+            }
         }
         _ => None,
     }
@@ -160,5 +233,57 @@ mod tests {
         let line = r#"{"type":"text","text":"hello"}"#;
         let out = parse_line(CliKind::Codex, line).unwrap();
         assert!(matches!(out, AiResponseChunk::Text { content } if content == "hello"));
+    }
+
+    #[test]
+    fn codex_thread_started_caches_thread_id_and_emits_no_chunk() {
+        let mut state = CodexParserState::default();
+        let line = r#"{"type":"thread.started","thread_id":"abc-123"}"#;
+        assert!(parse_line_codex(&mut state, line).is_none());
+        assert_eq!(state.thread_id.as_deref(), Some("abc-123"));
+    }
+
+    #[test]
+    fn codex_item_completed_agent_message_emits_text() {
+        let mut state = CodexParserState::default();
+        let line = r#"{"type":"item.completed","item":{"id":"i0","type":"agent_message","text":"hello world"}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "hello world"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_turn_completed_emits_done_with_cached_thread_id() {
+        let mut state = CodexParserState::default();
+        parse_line_codex(&mut state, r#"{"type":"thread.started","thread_id":"t-9"}"#);
+        let line = r#"{"type":"turn.completed","usage":{"input_tokens":10}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::Done { session_id, usage } => {
+                assert_eq!(session_id, "t-9");
+                assert!(usage.is_some());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_item_completed_function_call_emits_tool_request() {
+        let mut state = CodexParserState::default();
+        let line = r#"{"type":"item.completed","item":{"id":"f1","type":"function_call","name":"shell","arguments":{"cmd":"ls"}}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::ToolRequest { tool, request_id, .. } => {
+                assert_eq!(tool, "shell");
+                assert_eq!(request_id, "f1");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_turn_started_and_item_started_drop() {
+        let mut state = CodexParserState::default();
+        assert!(parse_line_codex(&mut state, r#"{"type":"turn.started"}"#).is_none());
+        assert!(parse_line_codex(&mut state, r#"{"type":"item.started","item":{"type":"agent_message"}}"#).is_none());
     }
 }
