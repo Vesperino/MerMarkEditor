@@ -13,7 +13,6 @@ import { modelsFor, effortsFor, CUSTOM_MODEL_SENTINEL } from '../../composables/
 import AiMessage from './AiMessage.vue';
 import AiSnapshotList from './AiSnapshotList.vue';
 import AiAccessMapEditor from './AiAccessMapEditor.vue';
-import AiToolConfirmModal from './AiToolConfirmModal.vue';
 import { useAiContext } from '../../composables/useAiContext';
 
 const props = defineProps<{
@@ -52,8 +51,12 @@ const selectedEffort = ref<string>(
 );
 const customModelInput = ref<string>('');
 const inputValue = ref('');
-const pendingTool = ref<{ tool: string; args: unknown } | null>(null);
 const fullscreen = ref(false);
+// Tool activity ribbon: AI emits a tool_request, we surface it for ~3s as a
+// small inline indicator so the user sees what's happening. The actual
+// permission gate lives in the spawned CLI (--permission-mode + --allowedTools).
+const toolActivity = ref<string | null>(null);
+let toolActivityTimer: number | null = null;
 const messagesEl = ref<HTMLElement | null>(null);
 
 // Large doc truncation
@@ -224,8 +227,10 @@ async function onSend() {
         docContent: docMarkdown.value,
       });
     },
-    onToolRequest: (tool, args) => {
-      pendingTool.value = { tool, args };
+    onToolRequest: (tool) => {
+      toolActivity.value = tool;
+      if (toolActivityTimer != null) window.clearTimeout(toolActivityTimer);
+      toolActivityTimer = window.setTimeout(() => { toolActivity.value = null; }, 3000);
     },
   });
 
@@ -415,13 +420,12 @@ function newChat() {
       <AiSnapshotList :doc-path="props.docPath" @restored="onSnapshotRestored" />
     </footer>
 
-    <AiToolConfirmModal
-      v-if="pendingTool"
-      :tool="pendingTool.tool"
-      :args="pendingTool.args"
-      @allow="pendingTool = null"
-      @deny="pendingTool = null"
-    />
+    <Transition name="ai-tool">
+      <div v-if="toolActivity" class="ai-panel__tool-toast">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        <span>AI used {{ toolActivity }}</span>
+      </div>
+    </Transition>
   </aside>
 </template>
 
@@ -621,6 +625,27 @@ function newChat() {
   user-select: none;
 }
 .ai-panel__details > summary:hover { color: var(--text-primary); }
+
+.ai-panel__tool-toast {
+  position: absolute;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  font-size: 12px;
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  z-index: 5;
+}
+.ai-tool-enter-active, .ai-tool-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
+.ai-tool-enter-from, .ai-tool-leave-to { opacity: 0; transform: translate(-50%, 8px); }
 
 .ai-panel__context {
   display: flex;
