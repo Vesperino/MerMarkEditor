@@ -74,15 +74,15 @@ Przypnij jeden lub więcej zaznaczonych fragmentów — Visual *i* Code view —
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-attach.png" alt="Załączniki obrazów" />
-  <br>
-  <em>Załączaj obrazy przez wklejanie, drag &amp; drop lub picker plików — chipy z miniaturami klikalnymi do podglądu</em>
-</p>
-
-<p align="center">
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png" alt="Miniatury obrazów w historii czatu" />
   <br>
   <em>Wysłane obrazy zostają w historii czatu jako miniatury — pamiętasz dokładnie co przekazałeś modelowi</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments-with-screen-effect.png" alt="Przypięte fragmenty + załączony zrzut — efekt po AI" />
+  <br>
+  <em>End-to-end: trzy przypięte paragrafy + załączony screenshot + jedno polecenie — AI przepisuje tekst i opisuje obraz w jednej turze</em>
 </p>
 
 ### Wywołania narzędzi widoczne w czacie
@@ -98,12 +98,6 @@ Gdy model używa narzędzia — bash, file read, file write, web fetch, codex sh
 ### Wątki per dokument z pełnym przywracaniem kontekstu
 
 Każdy dokument ma własną historię wątków; **+** archiwizuje aktualny czat i zaczyna nowy. Do 50 wątków na dokument, zapisane w `localStorage`. Kliknij stary czat z listy a panel automatycznie przełączy Claude ↔ Codex i przywróci model + reasoning effort z którego ostatnio korzystałeś — kontynuacja rozmowy zachowuje się tak jak ostatnim razem.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/thread-restore.png" alt="Przywracanie wątku" />
-  <br>
-  <em>Otwórz ponownie wątek a panel przywróci CLI, model i effort z których korzystałeś wcześniej</em>
-</p>
 
 ### Bezpieczeństwo, audyt i kontrola dostępu per dokument
 

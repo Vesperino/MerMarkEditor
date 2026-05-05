@@ -74,15 +74,15 @@ Pin one or more highlighted fragments — Visual *and* Code view — and the AI 
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-attach.png" alt="Image attachments" />
-  <br>
-  <em>Attach images via paste, drag & drop, or the file picker — chips with click-to-preview thumbnails</em>
-</p>
-
-<p align="center">
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png" alt="Image thumbs in chat history" />
   <br>
   <em>Sent images stay in chat history as thumbnails so you remember what was passed to the model</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments-with-screen-effect.png" alt="Pinned fragments + attached screenshot — AI rewrite result" />
+  <br>
+  <em>End-to-end: three pinned paragraphs + an attached screenshot + one prompt — the AI rewrites the text and captions the image in a single turn</em>
 </p>
 
 ### Tool calls visible in the chat
@@ -98,12 +98,6 @@ When the model uses a tool — bash, file read, file write, web fetch, codex she
 ### Per-document threads, with full context restore
 
 Every doc has its own thread history; **+** archives the current chat and starts fresh. Up to 50 threads per document, persisted in `localStorage`. Click an old chat from the dropdown and the panel automatically switches Claude ↔ Codex, restores the model and reasoning effort you were last using, so continuing the conversation behaves the same way it did last time.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/thread-restore.png" alt="Thread restore" />
-  <br>
-  <em>Reopen a thread and the panel restores the CLI, model and effort you were using before</em>
-</p>
 
 ### Safety, auditability, and per-doc access control
 

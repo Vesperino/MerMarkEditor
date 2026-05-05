@@ -13,19 +13,19 @@ MerMark Editor now ships with a full **local AI assistant** powered by your own 
 - **Run shell commands** — opt-in via the `bash` tool toggle when you want the AI to grep your notes folder, count files, run a build, or any other terminal task. Default off.
 - **See exactly what you point at** — pin one or more highlighted fragments (Visual *and* Code view), the live selection, or the whole document. The AI gets just those, not your entire vault.
 
-  ![Multi-pin attachments](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/multi-pin.png)
+  ![Multi-pin attachments](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png)
 
 - **Multi-fragment selection workflow** — highlight a paragraph, click **+ Pin**, scroll, highlight another, **+ Pin** again. The composer shows a numbered scrollable list of every pinned fragment with a per-item × to drop one and a **Clear all** to wipe the strip. Toggle **Send** off to keep the pins visible without sending them this turn.
 
-  ![Pinning multiple fragments](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png)
-
 - **Send images to the model** — paste a screenshot directly into the composer (`Ctrl+V`), drag an image file into the panel, or click the image button next to **Send** to pick one or more files (png / jpg / jpeg / gif / webp / bmp). Each attachment shows as a thumbnail chip; click to open a fullscreen preview, × to remove. Up to 8 MB per image. Both Claude and Codex see the image.
-
-  ![Image attachments — paste / drag-drop / file picker](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-attach.png)
 
 - **Image preview in chat history** — once you send a turn with images, the chat shows a thumbnail chip with the filename so you remember exactly what you sent. The thumbnails survive scrolling and thread switches; after a full app restart the filename remains as a placeholder chip (blob URLs do not survive page reloads).
 
   ![Image thumbs preserved in chat history](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png)
+
+- **Pins + image + AI edit, end-to-end** — three highlighted paragraphs pinned, a screenshot attached for context, one prompt sent. The model rewrites the pinned text and the captioned image inline.
+
+  ![Pinned fragments + attached screenshot — final result after AI rewrite](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments-with-screen-effect.png)
 
 ## How context reaches the model
 
@@ -49,8 +49,6 @@ MerMark Editor now ships with a full **local AI assistant** powered by your own 
 
 - **Per-document threads** — every doc gets its own scrollable thread history; **+** archives the current chat and starts fresh. Up to 50 threads / doc, persisted in `localStorage`.
 - **Reopen a thread, pick up where you left off** — thread history now records the last CLI / model / effort used. Click an old chat from the threads dropdown and the panel automatically switches Claude ↔ Codex, restores the model and reasoning effort you were using, so continuing the conversation behaves the same way it did last time.
-
-  ![Resume a thread with its original CLI and model](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/thread-restore.png)
 - **Inline tool history** — when the model calls a tool (web fetch, bash, file read, file write, etc.) the call appears as a dashed chip in the transcript with the tool name and a one-line preview of the arguments. Click the chip to expand a pretty-printed JSON view of the full call; click again to collapse.
 
   ![Tool call chips with expandable arguments](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/tool-chips.png)
@@ -81,7 +79,10 @@ MerMark Editor now ships with a full **local AI assistant** powered by your own 
 - **Customizable Layout** — toolbar items move between **Top Toolbar**, **Bottom Status Bar**, and **Left Sidebar** via Settings → Layout (#43); drag & drop, hide, reorder, persisted across restarts.
 - **Expandable left sidebar** — toggle the chevron at the bottom of the left bar to widen it from a 40 px icon strip to a 168 px column with text labels next to every icon (VS Code style). State persists across restarts. The AI button label was being truncated in the narrow strip; now it just hides until the bar is expanded.
 
-  ![Left sidebar — collapsed and expanded](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/leftbar-expand.png)
+  <p>
+    <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/leftbar-expand-closed.png" alt="Left sidebar — collapsed (40 px icon strip)" width="48%" />
+    <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/leftbar-expand.png" alt="Left sidebar — expanded (168 px with labels)" width="48%" />
+  </p>
 
 - **Layout zone guards** — items that don't fit the narrow left sidebar (Statistics, Heading dropdown, Open file) refuse to drop there; the drop indicator vanishes over the disallowed zone and the matching move-to button is disabled with an explanatory tooltip. Open file is also pinned to the top toolbar (the bottom status bar broke its dropdown anchoring). Saved layouts that already placed an item in a now-disallowed zone are auto-migrated back to the item's default zone on load.
 - **Page break support** — `---` page breaks render correctly in Visual view and PDF export (#45).

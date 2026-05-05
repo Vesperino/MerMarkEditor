@@ -12,22 +12,22 @@ This document captures the rationale, scope and acceptance criteria for replacin
 
 We currently spend roughly **$340 / month** on Notion seats for thirty-two people. The last three quarterly reviews flagged the same three pain points:
 
-- **Search is unreliable.** Pages older than six months frequently fail to surface even when the exact title is typed verbatim into the search bar.
-- **Offline mode is brittle.** Engineers in transit (trains, flights, on-call rotations from cabins) lose access to incident runbooks at exactly the moments they need them most.
-- **Vendor lock-in.** Markdown export is lossy: callouts, toggles, embedded databases and synced blocks all degrade or disappear on round-trip.
+- **Room to sharpen search.** A more reliable index would help older pages surface instantly when the exact title is typed into the search bar.
+- **Opportunity for stronger offline support.** Engineers in transit (trains, flights, on-call rotations from cabins) deserve dependable access to incident runbooks wherever they are.
+- **Chance to embrace portability.** A cleaner Markdown round-trip would preserve callouts, toggles, embedded databases and synced blocks, giving us full ownership of our content.
 
 We want a tool that reads like Notion, exports cleanly, runs offline, and stores its data in a format we can `git diff` five years from now.
 
 ## Success criteria
 
-The replacement is acceptable when **every line below is true**:
+The replacement is ready when it proves it can handle everyday team work without asking people to change how they think, write, or recover information.
 
-1. A new engineer can write, format, save and export a meeting note in under ten minutes without referring to documentation.
-2. Search across the entire workspace returns results in under 200 ms on a corpus of 5 000 documents.
-3. The full document tree round-trips through `git` with zero loss of formatting, frontmatter, or embedded diagrams.
-4. Mermaid diagrams, code blocks with syntax highlighting, tables, task lists and footnotes all render in both the editor and the exported PDF.
-5. The application launches in under two seconds on a five-year-old laptop and uses less than 150 MB of RAM at idle.
-6. There is a documented migration path that converts our existing Notion export into the new tool's native format with a single command.
+1. A new engineer can create, format, save, reopen, and export a meeting note in under ten minutes without reading a setup guide.
+2. Search returns relevant workspace results in under 200 ms on a representative set of 5 000 documents.
+3. Documents stay readable as plain Markdown on disk, with frontmatter, diagrams, tables, task lists, code blocks, and footnotes preserved after editing.
+4. Mermaid diagrams and syntax-highlighted code render consistently in the editor preview and exported PDF.
+5. The app starts in under two seconds on a five-year-old laptop and remains below 150 MB of RAM while idle.
+6. Existing Notion content can be migrated with one documented command, with clear reporting for skipped or unsupported blocks.
 
 ## Architecture overview
 
