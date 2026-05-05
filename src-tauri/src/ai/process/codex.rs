@@ -40,11 +40,12 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     let mut cmd = Command::new(cli::resolve(CMD));
 
     if let Some(sid) = &req.session_id {
-        // Resume: `codex exec resume <session_id> -`
+        // Resume: `codex exec resume --skip-git-repo-check <session_id> -`
         // --sandbox and --cd are NOT supported on the resume subcommand —
         // codex reuses the persisted session configuration.
         cmd.arg("exec")
             .arg("--json")
+            .arg("--skip-git-repo-check")
             .arg("resume")
             .arg(sid);
         if req.bypass {
@@ -52,9 +53,13 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         }
         cmd.arg("-");
     } else {
-        // New session: `codex exec --json --cd <workdir> [--model <id>] [-c model_reasoning_effort=<>] --sandbox <mode> [--dangerously-...] -- -`
+        // New session: `codex exec --json --skip-git-repo-check --cd <workdir> [--model] [-c effort] --sandbox <mode> [--dangerously-...] -- -`
+        // --skip-git-repo-check: MerMark users typically edit notes outside git
+        // repos (Downloads, Documents, etc.); without it codex aborts with
+        // "Not inside a trusted directory".
         cmd.arg("exec")
             .arg("--json")
+            .arg("--skip-git-repo-check")
             .arg("--cd").arg(&req.work_dir);
         if let Some(model) = &req.model {
             cmd.arg("--model").arg(model);
