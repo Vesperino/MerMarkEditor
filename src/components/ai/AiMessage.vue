@@ -268,12 +268,16 @@ function formatToolPreviewValue(value: unknown): string {
   border-radius: 6px;
   border: 1px dashed var(--border-primary);
   font-family: var(--code-font-family, monospace);
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 30px;
+  box-sizing: border-box;
 }
-.ai-msg--tool-expanded {
+/* Higher specificity — `.ai-msg.ai-msg--tool-expanded` beats both
+   `.ai-msg--tool` and `.ai-msg` regardless of source order, so the chip
+   reliably stretches when its details panel is open. */
+.ai-msg.ai-msg--tool-expanded {
   align-self: stretch;
   width: 100%;
   max-width: 100%;
@@ -324,6 +328,9 @@ function formatToolPreviewValue(value: unknown): string {
   border-top: 1px dashed var(--border-primary);
   background: var(--bg-secondary, var(--bg-tertiary));
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
 }
 .ai-msg__tool-details-label {
   display: block;
@@ -346,8 +353,10 @@ function formatToolPreviewValue(value: unknown): string {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: normal;
-  max-height: none;
-  overflow: visible;
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 320px;
+  overflow: auto;
   min-height: 32px;
 }
 
