@@ -1296,6 +1296,7 @@ onUnmounted(async () => {
       @close="aiPanelOpen = false"
       @apply-content="onAiApplyContent"
       @show-diff="onAiShowDiff"
+      @link-click="handleLinkClick"
     />
 
     <!-- AI First-run tooltip (auto-shows once) -->

@@ -7,6 +7,10 @@ const props = defineProps<{
   hasFence: boolean;
 }>();
 
+const emit = defineEmits<{
+  linkClick: [url: string];
+}>();
+
 const isTool = computed(() => props.message.role === 'tool');
 const isAssistant = computed(() => props.message.role === 'assistant');
 // Show typing indicator while waiting for first text chunk.
@@ -22,6 +26,57 @@ const visibleText = computed(() => {
   if (!props.hasFence) return t;
   return t.replace(FENCE_RE, '').trim();
 });
+
+// Tokenise the visible text into plain text segments and clickable links.
+// Detects markdown links [label](url) and bare URLs (http/https).
+type Segment = { kind: 'text' | 'link'; text: string; url?: string };
+const MD_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const URL_RE = /\bhttps?:\/\/[^\s<>()\[\]"]+[^\s<>()\[\].,!?:;'"]/g;
+
+const segments = computed<Segment[]>(() => {
+  const text = visibleText.value;
+  if (!text) return [];
+  const out: Segment[] = [];
+  // First pass: replace markdown links with placeholder tokens that we can
+  // safely scan for bare URLs around without re-matching the embedded URL.
+  type MdHit = { start: number; end: number; label: string; url: string };
+  const mdHits: MdHit[] = [];
+  let m: RegExpExecArray | null;
+  MD_LINK_RE.lastIndex = 0;
+  while ((m = MD_LINK_RE.exec(text)) !== null) {
+    mdHits.push({ start: m.index, end: m.index + m[0].length, label: m[1], url: m[2] });
+  }
+  // Walk the text in order. For ranges between markdown hits, also extract
+  // bare URLs.
+  let cursor = 0;
+  for (const hit of mdHits) {
+    const between = text.slice(cursor, hit.start);
+    pushTextWithBareUrls(out, between);
+    out.push({ kind: 'link', text: hit.label, url: hit.url });
+    cursor = hit.end;
+  }
+  pushTextWithBareUrls(out, text.slice(cursor));
+  return out;
+});
+
+function pushTextWithBareUrls(out: Segment[], chunk: string) {
+  if (!chunk) return;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  URL_RE.lastIndex = 0;
+  while ((m = URL_RE.exec(chunk)) !== null) {
+    if (m.index > last) out.push({ kind: 'text', text: chunk.slice(last, m.index) });
+    out.push({ kind: 'link', text: m[0], url: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < chunk.length) out.push({ kind: 'text', text: chunk.slice(last) });
+}
+
+function onLink(url: string | undefined, e: MouseEvent) {
+  if (!url) return;
+  e.preventDefault();
+  emit('linkClick', url);
+}
 </script>
 
 <template>
@@ -45,7 +100,13 @@ const visibleText = computed(() => {
       <span class="ai-msg__thinking-dot" />
       <span class="ai-msg__thinking-text">Thinking…</span>
     </div>
-    <pre v-else class="ai-msg__text">{{ visibleText }}</pre>
+    <pre v-else class="ai-msg__text"><template v-for="(seg, i) in segments" :key="i"><a
+        v-if="seg.kind === 'link'"
+        class="ai-msg__link"
+        :href="seg.url"
+        :title="seg.url"
+        @click="onLink(seg.url, $event)"
+      >{{ seg.text }}</a><template v-else>{{ seg.text }}</template></template></pre>
     <div v-if="message.error" class="ai-msg__error">{{ message.error }}</div>
   </div>
 </template>
@@ -81,6 +142,18 @@ const visibleText = computed(() => {
   white-space: pre-wrap;
   margin: 0;
   font-family: inherit;
+}
+.ai-msg__link {
+  color: var(--link-color, var(--primary));
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  word-break: break-all;
+}
+.ai-msg__link:hover {
+  color: var(--link-hover, var(--primary-hover, var(--primary)));
+  text-decoration-thickness: 2px;
 }
 .ai-msg__error { font-size: 12px; margin-top: 6px; }
 

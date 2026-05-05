@@ -28,6 +28,7 @@ const emit = defineEmits<{
   close: [];
   applyContent: [content: string];
   showDiff: [orig: string, candidate: string];
+  linkClick: [url: string];
 }>();
 
 const { t } = useI18n();
@@ -525,6 +526,7 @@ function onDeleteThread(id: string) {
         :key="i"
         :message="m"
         :has-fence="m.role === 'assistant' && m.done && messageHasFence(m.text)"
+        @link-click="(url: string) => emit('linkClick', url)"
       />
       <div v-if="ai.isSending.value" class="ai-panel__processing">
         <span class="ai-msg__thinking-dot" />
