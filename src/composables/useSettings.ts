@@ -5,6 +5,16 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type ThemeMode = 'light' | 'dark';
 export type CodeThemeMode = 'dark' | 'white';
+export type CliKind = 'claude' | 'codex';
+export type PanelSide = 'left' | 'right';
+
+export interface AiSettings {
+  enabled: boolean;
+  defaultCli: CliKind;
+  snapshotsKeep: number;
+  hasSeenFirstRun: boolean;
+  panelSide: PanelSide;
+}
 
 export interface FontPreset {
   id: string;
@@ -54,6 +64,7 @@ export interface AppSettings {
   spellcheck: boolean;
   expandTabs: boolean;
   showLineNumbers: boolean;
+  ai: AiSettings;
 }
 
 const STORAGE_KEY = 'mermark-settings';
@@ -102,6 +113,9 @@ function loadSettings(): AppSettings {
       if (parsed.codeTheme && !['dark', 'white'].includes(parsed.codeTheme)) {
         parsed.codeTheme = getDefaultSettings().codeTheme;
       }
+      if (parsed.ai && typeof parsed.ai.snapshotsKeep === 'number') {
+        parsed.ai.snapshotsKeep = Math.max(1, Math.floor(parsed.ai.snapshotsKeep));
+      }
       return { ...getDefaultSettings(), ...parsed };
     }
   } catch (error) {
@@ -124,6 +138,13 @@ function getDefaultSettings(): AppSettings {
     spellcheck: false,
     expandTabs: false,
     showLineNumbers: false,
+    ai: {
+      enabled: true,
+      defaultCli: 'claude',
+      snapshotsKeep: 3,
+      hasSeenFirstRun: false,
+      panelSide: 'right',
+    },
   };
 }
 
@@ -214,6 +235,14 @@ export function useSettings() {
     settings.value.showLineNumbers = !settings.value.showLineNumbers;
   };
 
+  const setAiEnabled = (v: boolean) => { settings.value.ai.enabled = v; };
+  const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
+  const setAiSnapshotsKeep = (v: number) => {
+    settings.value.ai.snapshotsKeep = Math.max(1, Math.floor(v));
+  };
+  const setAiHasSeenFirstRun = (v: boolean) => { settings.value.ai.hasSeenFirstRun = v; };
+  const setAiPanelSide = (v: PanelSide) => { settings.value.ai.panelSide = v; };
+
   return {
     settings,
     setAutoSave,
@@ -232,6 +261,11 @@ export function useSettings() {
     setExpandTabs,
     setShowLineNumbers,
     toggleShowLineNumbers,
+    setAiEnabled,
+    setAiDefaultCli,
+    setAiSnapshotsKeep,
+    setAiHasSeenFirstRun,
+    setAiPanelSide,
   };
 }
 

@@ -270,6 +270,59 @@ export interface Translations {
   clearRecentFiles: string;
   noRecentFiles: string;
   restoreSession: string;
+
+  // AI
+  aiTabLabel: string;
+  aiEnableLabel: string;
+  aiDefaultCli: string;
+  aiPanelSide: string;
+  aiPanelSideLeft: string;
+  aiPanelSideRight: string;
+  aiSnapshotsKeep: string;
+  aiOpenSnapshotsFolder: string;
+  aiBypassLabel: string;
+  aiBypassHelper: string;
+  aiCliStatusClaude: string;
+  aiCliStatusCodex: string;
+  aiStatusOk: (account: string) => string;
+  aiStatusBinaryMissing: string;
+  aiStatusAuthRequired: string;
+  aiInstall: string;
+  aiAuthenticate: string;
+  aiRecheck: string;
+  aiAuditLog: string;
+  aiAuditClear: string;
+  aiAuditExport: string;
+  aiFirstRunTitle: string;
+  aiFirstRunBody: string;
+  aiFirstRunOk: string;
+  aiFirstRunOpenSettings: string;
+  aiPanelTitle: string;
+  aiSendButton: string;
+  aiCancelButton: string;
+  aiNewChat: string;
+  aiHistory: string;
+  aiHistoryRestore: string;
+  aiHistoryPin: string;
+  aiHistoryUnpin: string;
+  aiHistoryExport: string;
+  aiHistoryDelete: string;
+  aiAccessMapTitle: string;
+  aiAccessReadPaths: string;
+  aiAccessWritePaths: string;
+  aiAccessTools: string;
+  aiAccessToolBash: string;
+  aiAccessToolNetwork: string;
+  aiAccessToolFileRead: string;
+  aiAccessToolFileWrite: string;
+  aiToolConfirmTitle: string;
+  aiToolConfirmAllow: string;
+  aiToolConfirmDeny: string;
+  aiTmpRecoveryTitle: string;
+  aiTmpRecoveryRestore: string;
+  aiTmpRecoveryDiscard: string;
+  aiTmpRecoveryShowDiff: string;
+  aiToggleTooltip: string;
 }
 
 const translations: Record<Locale, Translations> = {
