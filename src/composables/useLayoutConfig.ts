@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue';
-import { TOOLBAR_ITEMS, type ToolbarZone } from '../data/toolbarItems';
+import { TOOLBAR_ITEMS, getItemDef, type ToolbarZone } from '../data/toolbarItems';
 
 export type LayoutZone = ToolbarZone | 'hidden';
 
@@ -41,6 +41,19 @@ function loadConfig(): LayoutConfig {
         // Remove placements for items no longer in registry
         const registryIds = new Set(TOOLBAR_ITEMS.map(i => i.id));
         parsed.placements = parsed.placements.filter(p => registryIds.has(p.id));
+        // Migration: if a saved placement lands in a zone that's now
+        // disallowed for that item (e.g. stats was previously dropped into
+        // leftbar before the restriction existed), move it back to its
+        // registered defaultZone.
+        for (const p of parsed.placements) {
+          if (p.zone !== 'hidden') {
+            const def = getItemDef(p.id);
+            if (def?.disallowedZones?.includes(p.zone as ToolbarZone)) {
+              p.zone = def.defaultZone;
+              p.order = def.defaultOrder;
+            }
+          }
+        }
         return parsed;
       }
     }
@@ -66,6 +79,15 @@ watch(layoutConfig, (newConfig) => {
   saveConfig(newConfig);
 }, { deep: true });
 
+/** True when the given item is allowed in the given zone. 'hidden' is always
+ *  allowed; non-toolbar zones are checked against the item's disallowedZones. */
+export function isZoneAllowedForItem(itemId: string, zone: LayoutZone): boolean {
+  if (zone === 'hidden') return true;
+  const def = getItemDef(itemId);
+  if (!def?.disallowedZones?.length) return true;
+  return !def.disallowedZones.includes(zone);
+}
+
 export function useLayoutConfig() {
   function itemsForZone(zone: LayoutZone) {
     return computed(() =>
@@ -76,6 +98,7 @@ export function useLayoutConfig() {
   }
 
   function moveItem(itemId: string, toZone: LayoutZone): void {
+    if (!isZoneAllowedForItem(itemId, toZone)) return;
     const placement = layoutConfig.value.placements.find(p => p.id === itemId);
     if (placement) {
       // Get max order in target zone and add after it
@@ -88,6 +111,9 @@ export function useLayoutConfig() {
 
   function reorderItems(zone: LayoutZone, orderedIds: string[]): void {
     orderedIds.forEach((id, index) => {
+      // Reject items that aren't allowed in this zone — leaves their existing
+      // placement untouched so a stray drop into a disallowed zone is a no-op.
+      if (!isZoneAllowedForItem(id, zone)) return;
       const placement = layoutConfig.value.placements.find(p => p.id === id);
       if (placement) {
         placement.zone = zone;
@@ -135,5 +161,6 @@ export function useLayoutConfig() {
     resetToDefaults,
     hasStatusBarItems,
     hasLeftBarItems,
+    isZoneAllowedForItem,
   };
 }

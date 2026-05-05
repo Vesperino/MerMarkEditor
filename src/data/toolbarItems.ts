@@ -22,12 +22,15 @@ export interface ToolbarItemDef {
   defaultOrder: number;
   needsEditor: boolean;
   labelKey: string;
+  /** Zones the item refuses to be placed in (drag/drop + move buttons).
+   *  'hidden' is always allowed regardless of this list. */
+  disallowedZones?: ToolbarZone[];
 }
 
 export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   // File operations
   { id: 'new-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 10, needsEditor: false, labelKey: 'new' },
-  { id: 'open-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 20, needsEditor: false, labelKey: 'open' },
+  { id: 'open-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 20, needsEditor: false, labelKey: 'open', disallowedZones: ['leftbar', 'statusbar'] },
   { id: 'save-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 30, needsEditor: false, labelKey: 'save' },
   { id: 'save-file-as', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 40, needsEditor: false, labelKey: 'saveAs' },
   { id: 'export-pdf', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 50, needsEditor: false, labelKey: 'exportPdf' },
@@ -39,7 +42,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'redo', category: 'edit-history', defaultZone: 'toolbar', defaultOrder: 110, needsEditor: true, labelKey: 'redo' },
 
   // Headings
-  { id: 'heading-select', category: 'headings', defaultZone: 'toolbar', defaultOrder: 200, needsEditor: true, labelKey: 'heading' },
+  { id: 'heading-select', category: 'headings', defaultZone: 'toolbar', defaultOrder: 200, needsEditor: true, labelKey: 'heading', disallowedZones: ['leftbar'] },
 
   // Text formatting
   { id: 'bold', category: 'text-format', defaultZone: 'toolbar', defaultOrder: 300, needsEditor: true, labelKey: 'bold' },
@@ -70,8 +73,11 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   // Footnote
   { id: 'footnote', category: 'footnote', defaultZone: 'toolbar', defaultOrder: 850, needsEditor: true, labelKey: 'footnote' },
 
-  // Stats (characters + words + tokens as single movable group)
-  { id: 'stats', category: 'stats', defaultZone: 'toolbar', defaultOrder: 900, needsEditor: false, labelKey: 'stats' },
+  // Stats (characters + words + tokens as single movable group).
+  // Disallow leftbar — narrow vertical column truncates the multi-segment
+  // counter and the dropdown anchoring breaks. Top toolbar / bottom status bar
+  // only.
+  { id: 'stats', category: 'stats', defaultZone: 'toolbar', defaultOrder: 900, needsEditor: false, labelKey: 'stats', disallowedZones: ['leftbar'] },
 
   // Zoom
   { id: 'zoom-controls', category: 'zoom', defaultZone: 'toolbar', defaultOrder: 1000, needsEditor: false, labelKey: 'zoom' },

@@ -30,6 +30,7 @@ const {
   moveItem,
   reorderItems,
   resetToDefaults: resetLayoutDefaults,
+  isZoneAllowedForItem,
 } = useLayoutConfig();
 
 // Separate system fonts into non-mono (for editor) and mono (for code)
@@ -74,6 +75,11 @@ const allZoneKeys: LayoutZone[] = ['toolbar', 'statusbar', 'leftbar', 'hidden'];
 
 function getOtherZones(currentZone: LayoutZone): LayoutZone[] {
   return allZoneKeys.filter(z => z !== currentZone);
+}
+
+/** True when the candidate zone accepts this item (drag/drop + move buttons). */
+function canPlaceItemIn(itemId: string, zone: LayoutZone): boolean {
+  return isZoneAllowedForItem(itemId, zone);
 }
 
 function moveItemTo(itemId: string, targetZone: LayoutZone) {
@@ -166,8 +172,12 @@ function onPointerMove(ev: PointerEvent) {
     ghostEl.style.top = `${ev.clientY - ghostOffsetY}px`;
   }
 
-  // Hit-test zones
-  const hitZone = getZoneAtPoint(ev.clientX, ev.clientY);
+  // Hit-test zones — but reject zones that disallow this item so the user
+  // doesn't see a fake drop indicator over a forbidden target.
+  const rawHit = getZoneAtPoint(ev.clientX, ev.clientY);
+  const hitZone = rawHit && dragItemId.value && !canPlaceItemIn(dragItemId.value, rawHit)
+    ? null
+    : rawHit;
   dropTargetZone.value = hitZone;
 
   // Show drop indicator
@@ -190,7 +200,10 @@ function onPointerUp(ev: PointerEvent) {
   document.removeEventListener('pointerup', onPointerUp);
 
   if (isDragging.value && dragItemId.value && dragSourceZone.value) {
-    const targetZone = getZoneAtPoint(ev.clientX, ev.clientY);
+    const rawTarget = getZoneAtPoint(ev.clientX, ev.clientY);
+    const targetZone = rawTarget && !canPlaceItemIn(dragItemId.value, rawTarget)
+      ? null
+      : rawTarget;
 
     if (targetZone) {
       const zoneEl = zoneRefs.value[targetZone];
@@ -704,7 +717,10 @@ onUnmounted(() => {
                       v-for="tz in getOtherZones(zoneConfig.zone)"
                       :key="tz"
                       class="layout-move-btn"
-                      :title="`${t.moveTo} ${t[zoneLabelMap[tz]]}`"
+                      :title="canPlaceItemIn(item.id, tz)
+                        ? `${t.moveTo} ${t[zoneLabelMap[tz]]}`
+                        : `${t[zoneLabelMap[tz]]} — not allowed for this item`"
+                      :disabled="!canPlaceItemIn(item.id, tz)"
                       @click="moveItemTo(item.id, tz)"
                     >
                       <!-- Arrow icons per zone type -->
