@@ -25,6 +25,8 @@ import TableOfContents from './components/TableOfContents.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
+import AiPanel from './components/ai/AiPanel.vue';
+import AiFirstRunTooltip from './components/ai/AiFirstRunTooltip.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import FileConflictModal from './components/FileConflictModal.vue';
 
@@ -501,6 +503,45 @@ const showShortcutsModal = ref(false);
 
 // ============ Settings Modal ============
 const showSettingsModal = ref(false);
+
+// ============ AI Panel ============
+const aiPanelOpen = ref(false);
+
+function toggleAiPanel() {
+  aiPanelOpen.value = !aiPanelOpen.value;
+}
+
+function onAiApplyContent(content: string) {
+  // Replace TipTap content via the existing setEditorContent helper.
+  setEditorContent(content);
+}
+
+function onAiShowDiff(_orig: string, candidate: string) {
+  // Reuse the existing diff infrastructure: load the candidate as the
+  // active doc's "incoming" version and let the user open the diff.
+  // The simplest reliable hook is to write the candidate into the editor
+  // immediately — the existing change-tracking + DiffPreview machinery
+  // will display the difference vs the on-disk original.
+  setEditorContent(candidate);
+}
+
+// Compute panel inputs from the active tab.
+const aiDocPath = computed(() => activeTab.value?.filePath ?? '');
+const aiDocContent = computed(() => getEditorContent() ?? '');
+const aiSelectionRange = computed<{ start: number; end: number } | null>(() => {
+  const ed = editorInstance.value;
+  if (!ed) return null;
+  const { from, to } = ed.state.selection;
+  if (from === to) return null;
+  return { start: from, end: to };
+});
+const aiWorkDir = computed(() => {
+  const p = activeTab.value?.filePath;
+  if (!p) return '';
+  // Strip the filename to get the directory; works for both / and \ separators.
+  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  return idx >= 0 ? p.slice(0, idx) : p;
+});
 
 // ============ What's New Modal ============
 const showWhatsNewModal = ref(false);
@@ -1030,6 +1071,7 @@ onUnmounted(async () => {
       :can-show-diff="canShowDiff"
       :can-compare-tabs="canCompareTabs"
       :toc-active="showTocPanel"
+      :ai-active="aiPanelOpen"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @open-recent="openFileWithCrossWindowCheck"
@@ -1043,6 +1085,7 @@ onUnmounted(async () => {
       @show-shortcuts="showShortcutsModal = true"
       @show-settings="showSettingsModal = true"
       @toggle-toc="toggleTocPanel"
+      @toggle-ai="toggleAiPanel"
     />
 
     <!-- Main content area with optional left bar -->
@@ -1056,9 +1099,10 @@ onUnmounted(async () => {
         :can-show-diff="canShowDiff"
         :can-compare-tabs="canCompareTabs"
         :toc-active="showTocPanel"
+        :ai-active="aiPanelOpen"
         @new-file="newFile"
         @open-file="openFileWithCrossWindowDialog"
-      @open-recent="openFileWithCrossWindowCheck"
+        @open-recent="openFileWithCrossWindowCheck"
         @save-file="saveFile"
         @save-file-as="saveFileAs"
         @export-pdf="exportPdf"
@@ -1069,6 +1113,7 @@ onUnmounted(async () => {
         @show-shortcuts="showShortcutsModal = true"
         @show-settings="showSettingsModal = true"
         @toggle-toc="toggleTocPanel"
+        @toggle-ai="toggleAiPanel"
       />
 
       <!-- Editor area with optional TOC sidebar -->
@@ -1116,6 +1161,7 @@ onUnmounted(async () => {
       :can-show-diff="canShowDiff"
       :can-compare-tabs="canCompareTabs"
       :toc-active="showTocPanel"
+      :ai-active="aiPanelOpen"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @open-recent="openFileWithCrossWindowCheck"
@@ -1129,6 +1175,7 @@ onUnmounted(async () => {
       @show-shortcuts="showShortcutsModal = true"
       @show-settings="showSettingsModal = true"
       @toggle-toc="toggleTocPanel"
+      @toggle-ai="toggleAiPanel"
     />
 
     <!-- Loading Overlay -->
@@ -1197,6 +1244,22 @@ onUnmounted(async () => {
       @close="showSettingsModal = false"
       @show-whats-new="showSettingsModal = false; showWhatsNewModal = true"
     />
+
+    <!-- AI Assistant Panel (slide-in chat) -->
+    <AiPanel
+      v-if="aiPanelOpen"
+      :open="aiPanelOpen"
+      :doc-path="aiDocPath"
+      :doc-content="aiDocContent"
+      :selection-range="aiSelectionRange"
+      :work-dir="aiWorkDir"
+      @close="aiPanelOpen = false"
+      @apply-content="onAiApplyContent"
+      @show-diff="onAiShowDiff"
+    />
+
+    <!-- AI First-run tooltip (auto-shows once) -->
+    <AiFirstRunTooltip @open-settings="showSettingsModal = true" />
 
     <!-- What's New Modal -->
     <WhatsNewModal
