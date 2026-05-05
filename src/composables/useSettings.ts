@@ -68,6 +68,8 @@ export interface AppSettings {
   spellcheck: boolean;
   expandTabs: boolean;
   showLineNumbers: boolean;
+  /** When true, the vertical left toolbar widens to show text labels next to icons. */
+  leftBarExpanded: boolean;
   ai: AiSettings;
 }
 
@@ -146,6 +148,7 @@ function getDefaultSettings(): AppSettings {
     spellcheck: false,
     expandTabs: false,
     showLineNumbers: false,
+    leftBarExpanded: false,
     ai: {
       enabled: true,
       defaultCli: 'claude',
@@ -247,6 +250,9 @@ export function useSettings() {
     settings.value.showLineNumbers = !settings.value.showLineNumbers;
   };
 
+  const setLeftBarExpanded = (v: boolean) => { settings.value.leftBarExpanded = v; };
+  const toggleLeftBarExpanded = () => { settings.value.leftBarExpanded = !settings.value.leftBarExpanded; };
+
   const setAiEnabled = (v: boolean) => { settings.value.ai.enabled = v; };
   const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
   const setAiDefaultModelClaude = (v: string) => { settings.value.ai.defaultModelClaude = v; };
@@ -277,6 +283,8 @@ export function useSettings() {
     setExpandTabs,
     setShowLineNumbers,
     toggleShowLineNumbers,
+    setLeftBarExpanded,
+    toggleLeftBarExpanded,
     setAiEnabled,
     setAiDefaultCli,
     setAiDefaultModelClaude,

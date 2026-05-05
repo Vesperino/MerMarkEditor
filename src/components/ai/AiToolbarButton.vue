@@ -1,16 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from '../../i18n';
 
-defineProps<{ active: boolean }>();
+const props = defineProps<{
+  active: boolean;
+  vertical?: boolean;
+  expanded?: boolean;
+}>();
 const emit = defineEmits<{ toggle: [] }>();
 
 const { t } = useI18n();
+
+// In a vertical (left-bar) toolbar, hide the label unless the bar is in
+// expanded mode — keeps the 40 px column from clipping the AI text.
+const showLabel = computed(() => !props.vertical || !!props.expanded);
 </script>
 
 <template>
   <button
     class="ai-toolbar-btn"
-    :class="{ 'ai-toolbar-btn--active': active }"
+    :class="{
+      'ai-toolbar-btn--active': active,
+      'ai-toolbar-btn--icon-only': !showLabel,
+    }"
     :title="t.aiToggleTooltip"
     :aria-label="t.aiToggleTooltip"
     @click="emit('toggle')"
@@ -30,7 +42,7 @@ const { t } = useI18n();
       <line x1="20" y1="11" x2="22" y2="11"/>
       <line x1="20" y1="14" x2="22" y2="14"/>
     </svg>
-    <span class="ai-toolbar-btn__label">AI</span>
+    <span v-if="showLabel" class="ai-toolbar-btn__label">AI</span>
   </button>
 </template>
 
@@ -61,5 +73,8 @@ const { t } = useI18n();
 .ai-toolbar-btn__label {
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+.ai-toolbar-btn--icon-only {
+  padding: 6px 8px;
 }
 </style>
