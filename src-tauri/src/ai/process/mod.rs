@@ -160,11 +160,12 @@ pub fn kill_tree(child: &mut tokio::process::Child) {
     #[cfg(target_os = "windows")]
     {
         if let Some(pid) = child.id() {
-            let _ = std::process::Command::new("taskkill")
-                .args(["/T", "/F", "/PID", &pid.to_string()])
+            let mut tk = std::process::Command::new("taskkill");
+            tk.args(["/T", "/F", "/PID", &pid.to_string()])
                 .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
+                .stderr(std::process::Stdio::null());
+            crate::ai::cli::hide_console_std(&mut tk);
+            let _ = tk.status();
             return;
         }
     }

@@ -58,6 +58,7 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         cmd.stdin(Stdio::null());
     }
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cli::hide_console(&mut cmd);
 
     eprintln!(
         "[ai claude spawn] cwd={} images={} args={:?}",

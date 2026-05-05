@@ -71,10 +71,12 @@ async fn run_capture(
     timeout_secs: u64,
 ) -> Result<(bool, String, String), String> {
     let fut = async {
-        let out = Command::new(cli::resolve(CMD))
-            .args(args)
+        let mut cmd = Command::new(cli::resolve(CMD));
+        cmd.args(args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::piped());
+        cli::hide_console(&mut cmd);
+        let out = cmd
             .output()
             .await
             .map_err(|e| e.to_string())?;

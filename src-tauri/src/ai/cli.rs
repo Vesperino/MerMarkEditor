@@ -18,3 +18,27 @@ pub fn resolve(name: &str) -> OsString {
         .map(|p| p.into_os_string())
         .unwrap_or_else(|_| OsString::from(name))
 }
+
+/// Suppress the console window that Windows pops up for every spawned CLI
+/// child (taskkill, claude.cmd, codex.cmd, …) by setting `CREATE_NO_WINDOW`.
+/// On macOS / Linux this is a no-op — there's no equivalent flickering window
+/// to hide and the call compiles away under `cfg`.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+pub fn hide_console(cmd: &mut tokio::process::Command) -> &mut tokio::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
+pub fn hide_console_std(cmd: &mut std::process::Command) -> &mut std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}

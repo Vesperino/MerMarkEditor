@@ -95,6 +95,7 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    cli::hide_console(&mut cmd);
     eprintln!("[ai codex spawn] args={:?}", cmd.as_std().get_args().collect::<Vec<_>>());
 
     let mut child = cmd.spawn().map_err(|e| {
