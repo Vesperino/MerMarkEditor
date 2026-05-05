@@ -9,7 +9,7 @@ import { useAiAccessMap } from '../../composables/useAiAccessMap';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiApply } from '../../composables/useAiApply';
 import { parseAiOutput } from '../../composables/useAiOutputParser';
-import { modelsFor } from '../../composables/useAiModels';
+import { modelsFor, effortsFor } from '../../composables/useAiModels';
 import AiMessage from './AiMessage.vue';
 import AiSnapshotList from './AiSnapshotList.vue';
 import AiAccessMapEditor from './AiAccessMapEditor.vue';
@@ -30,7 +30,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { settings } = useSettings();
+const { settings, setAiDefaultCli, setAiDefaultModelClaude, setAiDefaultModelCodex, setAiEffortClaude, setAiEffortCodex } = useSettings();
 const ai = useAi();
 const session = useAiSession();
 const access = useAiAccessMap();
@@ -42,6 +42,11 @@ const selectedModel = ref<string>(
   selectedCli.value === 'claude'
     ? settings.value.ai.defaultModelClaude
     : settings.value.ai.defaultModelCodex
+);
+const selectedEffort = ref<string>(
+  selectedCli.value === 'claude'
+    ? settings.value.ai.effortClaude
+    : settings.value.ai.effortCodex
 );
 const inputValue = ref('');
 const pendingTool = ref<{ tool: string; args: unknown } | null>(null);
@@ -71,12 +76,27 @@ const availableClis = computed<CliKind[]>(() => {
 });
 
 const modelOptions = computed(() => modelsFor(selectedCli.value));
+const effortOptions = computed(() => effortsFor(selectedCli.value));
 const cliConnected = computed(() => health.cache.value[selectedCli.value]?.ok ?? false);
 
 watch(selectedCli, (cli) => {
+  setAiDefaultCli(cli);
   selectedModel.value = cli === 'claude'
     ? settings.value.ai.defaultModelClaude
     : settings.value.ai.defaultModelCodex;
+  selectedEffort.value = cli === 'claude'
+    ? settings.value.ai.effortClaude
+    : settings.value.ai.effortCodex;
+});
+
+watch(selectedModel, (m) => {
+  if (selectedCli.value === 'claude') setAiDefaultModelClaude(m);
+  else setAiDefaultModelCodex(m);
+});
+
+watch(selectedEffort, (e) => {
+  if (selectedCli.value === 'claude') setAiEffortClaude(e);
+  else setAiEffortCodex(e);
 });
 
 const sideStyle = computed(() => {
@@ -151,6 +171,7 @@ async function onSend() {
     cli: selectedCli.value,
     sessionId: session.current.value?.sessionId ?? null,
     model: selectedModel.value,
+    effort: selectedEffort.value,
     prompt,
     preamble: buildPreamble(),
     accessMap: access.current.value,
@@ -265,6 +286,9 @@ function newChat() {
         </select>
         <select v-model="selectedModel" class="ai-panel__select ai-panel__select--model" :title="t.aiModel">
           <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </select>
+        <select v-model="selectedEffort" class="ai-panel__select" :title="'Effort'">
+          <option v-for="e in effortOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
         </select>
       </div>
 

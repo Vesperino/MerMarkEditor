@@ -5,6 +5,11 @@ export interface AiModelOption {
   label: string;
 }
 
+export interface AiEffortOption {
+  id: string;
+  label: string;
+}
+
 export const CLAUDE_MODELS: AiModelOption[] = [
   { id: 'claude-opus-4-5', label: 'Opus 4.5' },
   { id: 'claude-sonnet-4-5', label: 'Sonnet 4.5' },
@@ -21,6 +26,24 @@ export const CODEX_MODELS: AiModelOption[] = [
   { id: 'o4-mini', label: 'o4 mini' },
 ];
 
+export const CLAUDE_EFFORTS: AiEffortOption[] = [
+  { id: 'low', label: 'Low' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'high', label: 'High' },
+  { id: 'xhigh', label: 'Extra high' },
+  { id: 'max', label: 'Max' },
+];
+
+export const CODEX_EFFORTS: AiEffortOption[] = [
+  { id: 'low', label: 'Low' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'high', label: 'High' },
+];
+
 export function modelsFor(cli: CliKind): AiModelOption[] {
   return cli === 'claude' ? CLAUDE_MODELS : CODEX_MODELS;
+}
+
+export function effortsFor(cli: CliKind): AiEffortOption[] {
+  return cli === 'claude' ? CLAUDE_EFFORTS : CODEX_EFFORTS;
 }

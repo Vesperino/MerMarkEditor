@@ -54,6 +54,7 @@ export interface AiSendRequest {
   cli: CliKind;
   sessionId: string | null;
   model: string | null;
+  effort: string | null;
   prompt: string;
   preamble: string;
   accessMap: AccessMap;

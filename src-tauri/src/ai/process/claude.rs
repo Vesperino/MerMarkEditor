@@ -29,6 +29,9 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     if let Some(model) = &req.model {
         cmd.arg("--model").arg(model);
     }
+    if let Some(effort) = &req.effort {
+        cmd.arg("--effort").arg(effort);
+    }
     if let Some(sid) = &req.session_id {
         cmd.arg("--resume").arg(sid);
     }

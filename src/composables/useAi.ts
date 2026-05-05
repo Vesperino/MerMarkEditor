@@ -14,6 +14,7 @@ export interface SendOpts {
   cli: CliKind;
   sessionId: string | null;
   model: string | null;
+  effort: string | null;
   prompt: string;
   preamble: string;
   accessMap: AccessMap;
@@ -72,6 +73,7 @@ export function useAi() {
       cli: opts.cli,
       sessionId: opts.sessionId,
       model: opts.model,
+      effort: opts.effort,
       prompt: opts.prompt,
       preamble: opts.preamble,
       accessMap: opts.accessMap,

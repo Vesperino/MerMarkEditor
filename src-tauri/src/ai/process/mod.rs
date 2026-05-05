@@ -19,6 +19,7 @@ pub struct AiSendRequest {
     pub cli: CliKind,
     pub session_id: Option<String>,
     pub model: Option<String>,
+    pub effort: Option<String>,
     pub prompt: String,
     pub preamble: String,
     pub access_map: AccessMap,

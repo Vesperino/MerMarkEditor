@@ -50,6 +50,9 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         if let Some(model) = &req.model {
             cmd.arg("--model").arg(model);
         }
+        if let Some(effort) = &req.effort {
+            cmd.arg("-c").arg(format!("model_reasoning_effort={}", effort));
+        }
         cmd.arg("--sandbox").arg(sandbox_mode(&req.access_map.tools, req.bypass));
         if req.bypass {
             cmd.arg("--dangerously-bypass-approvals-and-sandbox");

@@ -29,6 +29,7 @@ describe('aiCommands', () => {
       cli: 'claude',
       sessionId: null,
       model: null,
+      effort: null,
       prompt: 'hi',
       preamble: 'you are',
       accessMap: { readPaths: ['/x'], writePaths: ['/x'], tools: { bash: false, network: false, fileRead: false, fileWrite: false } },

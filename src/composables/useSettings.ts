@@ -13,6 +13,8 @@ export interface AiSettings {
   defaultCli: CliKind;
   defaultModelClaude: string;
   defaultModelCodex: string;
+  effortClaude: string;
+  effortCodex: string;
   snapshotsKeep: number;
   hasSeenFirstRun: boolean;
   panelSide: PanelSide;
@@ -118,7 +120,11 @@ function loadSettings(): AppSettings {
       if (parsed.ai && typeof parsed.ai.snapshotsKeep === 'number') {
         parsed.ai.snapshotsKeep = Math.max(1, Math.floor(parsed.ai.snapshotsKeep));
       }
-      return { ...getDefaultSettings(), ...parsed };
+      const defaults = getDefaultSettings();
+      // Deep-merge the ai field so new fields added in updates get their defaults
+      // even when localStorage holds an older partial ai object.
+      const mergedAi = { ...defaults.ai, ...(parsed.ai ?? {}) };
+      return { ...defaults, ...parsed, ai: mergedAi };
     }
   } catch (error) {
     console.error('Error loading settings:', error);
@@ -143,8 +149,10 @@ function getDefaultSettings(): AppSettings {
     ai: {
       enabled: true,
       defaultCli: 'claude',
-      defaultModelClaude: 'claude-sonnet-4-5',
+      defaultModelClaude: 'claude-opus-4-5',
       defaultModelCodex: 'gpt-5',
+      effortClaude: 'high',
+      effortCodex: 'high',
       snapshotsKeep: 3,
       hasSeenFirstRun: false,
       panelSide: 'right',
@@ -243,6 +251,8 @@ export function useSettings() {
   const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
   const setAiDefaultModelClaude = (v: string) => { settings.value.ai.defaultModelClaude = v; };
   const setAiDefaultModelCodex = (v: string) => { settings.value.ai.defaultModelCodex = v; };
+  const setAiEffortClaude = (v: string) => { settings.value.ai.effortClaude = v; };
+  const setAiEffortCodex = (v: string) => { settings.value.ai.effortCodex = v; };
   const setAiSnapshotsKeep = (v: number) => {
     settings.value.ai.snapshotsKeep = Math.max(1, Math.floor(v));
   };
@@ -271,6 +281,8 @@ export function useSettings() {
     setAiDefaultCli,
     setAiDefaultModelClaude,
     setAiDefaultModelCodex,
+    setAiEffortClaude,
+    setAiEffortCodex,
     setAiSnapshotsKeep,
     setAiHasSeenFirstRun,
     setAiPanelSide,

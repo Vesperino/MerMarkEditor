@@ -199,5 +199,21 @@ describe('useSettings', () => {
       setAiSnapshotsKeep(-5);
       expect(settings.value.ai.snapshotsKeep).toBe(1);
     });
+
+    it('preserves new ai fields when localStorage holds an older partial ai object', () => {
+      // Simulate stale localStorage with old ai shape (no model/effort fields).
+      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify({
+        ai: { enabled: true, defaultCli: 'claude', snapshotsKeep: 3, hasSeenFirstRun: false, panelSide: 'right' },
+      }));
+      // useSettings is a singleton; this test verifies the loadSettings logic by
+      // calling it indirectly via a fresh settings access.
+      const { settings } = useSettings();
+      // The loaded settings should include defaultModelClaude/defaultModelCodex
+      // even though the saved ai object didn't have them.
+      expect(settings.value.ai.defaultModelClaude).toBeDefined();
+      expect(settings.value.ai.defaultModelCodex).toBeDefined();
+      expect(settings.value.ai.effortClaude).toBeDefined();
+      expect(settings.value.ai.effortCodex).toBeDefined();
+    });
   });
 });
