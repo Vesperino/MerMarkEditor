@@ -4,6 +4,28 @@
 **Status:** Draft
 **Last reviewed:** 2026-04-30
 
+## Market scan — self-hosted Notion alternatives (May 2026)
+
+Quick competitive landscape pulled from public 2026 round-ups. Use as reference when scoping migrator + feature parity.
+
+| Tool | Storage model | Notable strength | Gap vs. our needs |
+|---|---|---|---|
+| AppFlowy | Local-first, Rust backend | Project mgmt + wiki + databases | Heavier than thin shell goal |
+| Outline | Postgres, server-rendered | Markdown is internal format → clean export | Server-only, not offline-first |
+| AFFiNE | Local + sync | Docs, whiteboards, mind maps | Block format diverges from plain MD |
+| SiYuan | Local-first SQLite | Block linking, flashcards, built-in AI | Custom block JSON, harder `git diff` |
+| Logseq | Plain MD / Org files | Privacy + outline-first | No WYSIWYG by default |
+| Memos | Self-hosted, MD | Lightweight notes, sharing | Note-stream, not doc workspace |
+
+Takeaway: only Logseq + Memos store plain Markdown on disk, both lack WYSIWYG depth we want. MerMark's niche = TipTap WYSIWYG over plain `.md` files + local AI. No direct competitor occupies that exact slot.
+
+Sources:
+- [10+ Best Open Source Notion Alternatives in 2026 — openalternative.co](https://openalternative.co/alternatives/notion)
+- [7 Best Self-Hosted Notion Alternatives in 2026 — vps.us](https://vps.us/blog/self-hosted-alternatives-to-notion/)
+- [Self-Hosting Guide to Alternatives: Notion — selfh.st](https://selfh.st/alternatives/notion/)
+- [5 Open-Source Alternatives to Notion — docmost.com](https://docmost.com/blog/open-source-notion-alternatives/)
+- [5 open-source alternatives to Notion for 2026 — XWiki](https://xwiki.com/en/Blog/open-source-Notion-alternatives/)
+
 This document captures the rationale, scope and acceptance criteria for replacing our team's Notion workspace with a self-hosted alternative. It exists so anyone joining the project mid-quarter can ramp up in fifteen minutes instead of pinging four people on Slack.
 
 ---
@@ -49,6 +71,9 @@ The model is intentionally boring: every document is a Markdown file on the loca
 
 | Sub-project | Owner | Target | Status |
 |---|---|---|---|
+| Project kickoff + RFC #1 | Vesperino | 2026-Q1 | Shipped |
+| Markdown round-trip spec | Vesperino | 2026-Q1 | Shipped |
+| Tauri shell prototype | Vesperino | 2026-Q1 | Shipped |
 | Editor — visual + code views | Vesperino | 2026-Q2 | Shipped (v0.2.0) |
 | Local AI panel | Vesperino | 2026-Q2 | Shipped (v0.2.0) |
 | Cross-document search | TBD | 2026-Q3 | Planning |
