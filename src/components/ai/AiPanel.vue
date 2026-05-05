@@ -49,27 +49,6 @@ const selectedEffort = ref<string>(
     : settings.value.ai.effortCodex
 );
 const customModelInput = ref<string>('');
-
-const isCustomModel = computed(() => {
-  const opts = modelOptions.value;
-  return !opts.some(o => o.id === selectedModel.value && !o.custom);
-});
-
-watchEffect(() => {
-  if (isCustomModel.value && !customModelInput.value) {
-    customModelInput.value = selectedModel.value;
-  }
-});
-
-function onSelectModel(id: string) {
-  if (id === CUSTOM_MODEL_SENTINEL) {
-    customModelInput.value = customModelInput.value || selectedModel.value;
-    selectedModel.value = customModelInput.value || '';
-  } else {
-    selectedModel.value = id;
-  }
-}
-
 const inputValue = ref('');
 const pendingTool = ref<{ tool: string; args: unknown } | null>(null);
 const fullscreen = ref(false);
@@ -100,6 +79,26 @@ const availableClis = computed<CliKind[]>(() => {
 const modelOptions = computed(() => modelsFor(selectedCli.value));
 const effortOptions = computed(() => effortsFor(selectedCli.value));
 const cliConnected = computed(() => health.cache.value[selectedCli.value]?.ok ?? false);
+
+const isCustomModel = computed(() => {
+  const opts = modelOptions.value;
+  return !opts.some(o => o.id === selectedModel.value && !o.custom);
+});
+
+watchEffect(() => {
+  if (isCustomModel.value && !customModelInput.value) {
+    customModelInput.value = selectedModel.value;
+  }
+});
+
+function onSelectModel(id: string) {
+  if (id === CUSTOM_MODEL_SENTINEL) {
+    customModelInput.value = customModelInput.value || selectedModel.value;
+    selectedModel.value = customModelInput.value || '';
+  } else {
+    selectedModel.value = id;
+  }
+}
 
 watch(selectedCli, (cli) => {
   setAiDefaultCli(cli);
