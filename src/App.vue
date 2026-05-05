@@ -538,7 +538,25 @@ function onAiShowDiff(_orig: string, candidate: string) {
 // Compute panel inputs from the active tab.
 const aiDocPath = computed(() => activeTab.value?.filePath ?? '');
 const aiDocContent = computed(() => getEditorContent() ?? '');
+// Re-evaluate selection on every render tick so the AI panel sees the
+// current editor/code-view selection.
+const aiSelectionTick = ref(0);
+const _bumpSelectionTick = () => { aiSelectionTick.value++; };
+if (typeof document !== 'undefined') {
+  document.addEventListener('selectionchange', _bumpSelectionTick);
+  document.addEventListener('keyup', _bumpSelectionTick);
+  document.addEventListener('mouseup', _bumpSelectionTick);
+}
 const aiSelectionRange = computed<{ start: number; end: number } | null>(() => {
+  // Touch the tick so the computed re-runs on selection events.
+  aiSelectionTick.value;
+  if (codeView.value) {
+    const ta = codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | undefined;
+    if (!ta) return null;
+    const { selectionStart, selectionEnd } = ta;
+    if (selectionStart === selectionEnd) return null;
+    return { start: selectionStart, end: selectionEnd };
+  }
   const ed = editorInstance.value;
   if (!ed) return null;
   const { from, to } = ed.state.selection;

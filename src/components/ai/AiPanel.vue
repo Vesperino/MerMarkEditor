@@ -40,10 +40,11 @@ const health = useAiHealth();
 useAiApply(); // kept for potential future restoration of fence flow
 const aiContext = useAiContext();
 
-// Pinned selection: snapshot of editor selection that persists across focus
-// changes. The user pins explicitly (or auto-pin happens when sending while
-// a selection is live), can preview the text, and can clear it.
-const pinnedSelection = ref<{ text: string; startedAt: string } | null>(null);
+// Pinned selections: array of snapshots from editor (TipTap or CodeEditor).
+// Each pin survives focus changes. User can add multiple, scroll list,
+// remove individual, or clear all.
+interface PinnedItem { id: string; text: string; createdAt: string; }
+const pinnedSelections = ref<PinnedItem[]>([]);
 const includePinned = ref<boolean>(true);
 
 // Unsaved document flag: when docPath is empty, we can't do file edits.
@@ -121,20 +122,33 @@ const liveSelectionText = computed<string | null>(() => {
 function pinCurrentSelection() {
   const t = liveSelectionText.value;
   if (!t) return;
-  pinnedSelection.value = { text: t, startedAt: new Date().toISOString() };
+  // Skip duplicates (same text already pinned).
+  if (pinnedSelections.value.some(p => p.text === t)) return;
+  pinnedSelections.value.push({
+    id: crypto.randomUUID(),
+    text: t,
+    createdAt: new Date().toISOString(),
+  });
   includePinned.value = true;
 }
 
-function clearPinned() {
-  pinnedSelection.value = null;
+function removePin(id: string) {
+  pinnedSelections.value = pinnedSelections.value.filter(p => p.id !== id);
 }
 
-const pinnedPreview = computed<string>(() => {
-  const p = pinnedSelection.value;
-  if (!p) return '';
-  const max = 240;
-  return p.text.length > max ? p.text.slice(0, max) + '…' : p.text;
-});
+function clearAllPins() {
+  pinnedSelections.value = [];
+}
+
+function previewOf(text: string, max = 100): string {
+  return text.length > max ? text.slice(0, max) + '…' : text;
+}
+
+// Attachment inspector modal (click on attachment block in chat).
+const attachmentModal = ref<Array<{ id: string; text: string }> | null>(null);
+function onShowAttachment(pins: Array<{ id: string; text: string }>) {
+  attachmentModal.value = pins;
+}
 
 const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
@@ -259,10 +273,12 @@ watch(() => ai.messages.value.length, () => {
 
 function buildPreamble(): string {
   let selSection = 'Selection: none';
-  if (pinnedSelection.value && includePinned.value) {
-    const txt = pinnedSelection.value.text;
-    const truncated = txt.length > 4000 ? txt.slice(0, 4000) + '…' : txt;
-    selSection = `Pinned selection (the user explicitly attached this fragment for context):\n---\n${truncated}\n---`;
+  if (pinnedSelections.value.length > 0 && includePinned.value) {
+    const blocks = pinnedSelections.value.map((p, i) => {
+      const truncated = p.text.length > 4000 ? p.text.slice(0, 4000) + '…' : p.text;
+      return `Pinned #${i + 1}:\n---\n${truncated}\n---`;
+    });
+    selSection = `The user pinned ${pinnedSelections.value.length} fragment(s) for context:\n\n${blocks.join('\n\n')}`;
   } else if (props.selectionRange) {
     selSection = `Selection: yes (${props.selectionRange.start}-${props.selectionRange.end})`;
   }
@@ -300,12 +316,22 @@ async function onSend() {
   if (!inputValue.value.trim() || !access.current.value) return;
 
   // Auto-pin live selection at send time so user sees what we're sending.
-  if (!pinnedSelection.value && liveSelectionText.value) {
+  if (pinnedSelections.value.length === 0 && liveSelectionText.value) {
     pinCurrentSelection();
   }
 
+  // Snapshot pins for THIS turn so subsequent edits don't change history.
+  const sentPins = (includePinned.value && pinnedSelections.value.length > 0)
+    ? pinnedSelections.value.map(p => ({ id: p.id, text: p.text }))
+    : [];
+
   const prompt = inputValue.value;
   inputValue.value = '';
+
+  // Push an attachment marker into the chat so user sees what was sent.
+  if (sentPins.length > 0) {
+    ai.pushAttachment(sentPins);
+  }
 
   // Pre-send snapshot from DISK (skipped for unsaved docs).
   if (!docNeedsSave.value) {
@@ -599,6 +625,7 @@ function onDeleteThread(id: string) {
         :message="m"
         :has-fence="m.role === 'assistant' && m.done && messageHasFence(m.text)"
         @link-click="(url: string) => emit('linkClick', url)"
+        @show-attachment="onShowAttachment"
       />
       <div v-if="ai.isSending.value" class="ai-panel__processing">
         <span class="ai-msg__thinking-dot" />
@@ -613,18 +640,27 @@ function onDeleteThread(id: string) {
         Document is large ({{ Math.round(docMarkdown.length / 1024) }} KB).
         <label><input type="checkbox" v-model="sendFullDocOverride" /> Send full document</label>
       </div>
-      <div v-if="pinnedSelection || liveSelectionText" class="ai-panel__pinned">
+      <div v-if="pinnedSelections.length > 0 || liveSelectionText" class="ai-panel__pinned">
         <div class="ai-panel__pinned-head">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 10.76A2 2 0 0 1 8 9V3h8v6a2 2 0 0 1-1 1.76l-1 .58a2 2 0 0 0-1 1.76V17H10v-3.93a2 2 0 0 0-1-1.74l-1-.57z"/></svg>
-          <span class="ai-panel__pinned-label">{{ pinnedSelection ? 'Pinned selection' : 'Selection (not pinned)' }}</span>
-          <label v-if="pinnedSelection" class="ai-panel__pinned-toggle">
+          <span class="ai-panel__pinned-label">
+            {{ pinnedSelections.length > 0 ? `${pinnedSelections.length} pinned` : 'Selection (not pinned)' }}
+          </span>
+          <label v-if="pinnedSelections.length > 0" class="ai-panel__pinned-toggle">
             <input type="checkbox" v-model="includePinned" />
             <span>Send</span>
           </label>
-          <button v-if="!pinnedSelection && liveSelectionText" class="ai-panel__pinned-action" @click="pinCurrentSelection">Pin</button>
-          <button v-if="pinnedSelection" class="ai-panel__pinned-action" @click="clearPinned" title="Clear pinned selection">×</button>
+          <button v-if="liveSelectionText" class="ai-panel__pinned-action" @click="pinCurrentSelection">+ Pin</button>
+          <button v-if="pinnedSelections.length > 0" class="ai-panel__pinned-action ai-panel__pinned-action--clear" @click="clearAllPins" title="Clear all pinned selections">Clear all</button>
         </div>
-        <pre class="ai-panel__pinned-preview">{{ pinnedSelection ? pinnedPreview : (liveSelectionText ?? '') }}</pre>
+        <ul v-if="pinnedSelections.length > 0" class="ai-panel__pin-list">
+          <li v-for="(p, i) in pinnedSelections" :key="p.id" class="ai-panel__pin-item">
+            <span class="ai-panel__pin-num">#{{ i + 1 }}</span>
+            <span class="ai-panel__pin-text" :title="p.text">{{ previewOf(p.text) }}</span>
+            <button class="ai-panel__pin-rm" @click="removePin(p.id)" title="Remove this pin">×</button>
+          </li>
+        </ul>
+        <pre v-else-if="liveSelectionText" class="ai-panel__pinned-preview">{{ liveSelectionText }}</pre>
       </div>
       <textarea
         v-model="inputValue"
@@ -656,6 +692,21 @@ function onDeleteThread(id: string) {
         <span>AI used {{ toolActivity }}</span>
       </div>
     </Transition>
+
+    <div v-if="attachmentModal" class="ai-attach-modal" @click.self="attachmentModal = null">
+      <div class="ai-attach-modal__panel">
+        <header class="ai-attach-modal__head">
+          <strong>{{ attachmentModal.length }} attached fragment{{ attachmentModal.length === 1 ? '' : 's' }}</strong>
+          <button @click="attachmentModal = null" class="ai-attach-modal__close" title="Close">×</button>
+        </header>
+        <div class="ai-attach-modal__body">
+          <div v-for="(p, i) in attachmentModal" :key="p.id" class="ai-attach-modal__item">
+            <div class="ai-attach-modal__item-head">#{{ i + 1 }}</div>
+            <pre class="ai-attach-modal__item-text">{{ p.text }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
   </aside>
 </template>
 
@@ -1232,5 +1283,133 @@ function onDeleteThread(id: string) {
   overflow-y: auto;
   color: var(--text-primary);
   border-left: 3px solid var(--primary);
+}
+.ai-panel__pinned-action--clear {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.ai-panel__pinned-action--clear:hover {
+  background: var(--danger);
+  color: #fff;
+  filter: none;
+}
+.ai-panel__pin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ai-panel__pin-item {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  font-size: 11px;
+  border-left: 3px solid var(--primary);
+}
+.ai-panel__pin-num {
+  font-weight: 700;
+  color: var(--primary);
+  font-family: var(--code-font-family, monospace);
+}
+.ai-panel__pin-text {
+  font-family: var(--code-font-family, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+.ai-panel__pin-rm {
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.ai-panel__pin-rm:hover { color: var(--danger); background: var(--hover-bg); }
+
+/* Attachment inspector modal */
+.ai-attach-modal {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg, rgba(0,0,0,0.5));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.ai-attach-modal__panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  width: min(640px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.ai-attach-modal__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+.ai-attach-modal__head strong { flex: 1; }
+.ai-attach-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 6px;
+  border-radius: 4px;
+}
+.ai-attach-modal__close:hover { background: var(--hover-bg); color: var(--text-primary); }
+.ai-attach-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ai-attach-modal__item {
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ai-attach-modal__item-head {
+  background: var(--bg-tertiary);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  font-family: var(--code-font-family, monospace);
+}
+.ai-attach-modal__item-text {
+  margin: 0;
+  padding: 10px;
+  background: var(--bg-secondary);
+  font-size: 12px;
+  font-family: var(--code-font-family, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
 }
 </style>

@@ -2,11 +2,18 @@ import { ref, computed, watch } from 'vue';
 import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap } from '../services/aiCommands';
 import { useAiContext } from './useAiContext';
 
+export interface AttachedPin {
+  id: string;
+  text: string;
+}
+
 export interface AiMessage {
-  role: 'user' | 'assistant' | 'tool';
+  role: 'user' | 'assistant' | 'tool' | 'attachment';
   text: string;
   /** When role === 'tool', this carries the tool name. */
   tool?: string;
+  /** When role === 'attachment', the pins sent with the next user prompt. */
+  attachments?: AttachedPin[];
   error?: string;
   done: boolean;
 }
@@ -191,6 +198,16 @@ function clearAllThreads() {
   store.value = emptyStore();
 }
 
+function pushAttachment(pins: AttachedPin[]) {
+  if (!pins.length) return;
+  pushMessage({
+    role: 'attachment',
+    text: pins.map(p => p.text).join('\n\n---\n\n'),
+    attachments: pins,
+    done: true,
+  });
+}
+
 export function useAi() {
   const aiContext = useAiContext();
 
@@ -312,6 +329,7 @@ export function useAi() {
     send,
     cancel,
     clearMessages,
+    pushAttachment,
     bypassEnabled,
     aiContext,
     bindDoc,

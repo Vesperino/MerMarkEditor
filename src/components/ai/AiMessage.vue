@@ -9,9 +9,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   linkClick: [url: string];
+  showAttachment: [pins: NonNullable<AiMessage['attachments']>];
 }>();
 
 const isTool = computed(() => props.message.role === 'tool');
+const isAttachment = computed(() => props.message.role === 'attachment');
 const isAssistant = computed(() => props.message.role === 'assistant');
 // Show typing indicator while waiting for first text chunk.
 const isThinking = computed(
@@ -85,6 +87,16 @@ function onLink(url: string | undefined, e: MouseEvent) {
     <span class="ai-msg__tool-label">{{ message.tool }}</span>
     <span class="ai-msg__tool-args" :title="message.text">{{ message.text }}</span>
   </div>
+  <button
+    v-else-if="isAttachment"
+    class="ai-msg ai-msg--attachment"
+    @click="emit('showAttachment', message.attachments ?? [])"
+    :title="`Click to view ${(message.attachments ?? []).length} attached fragment(s)`"
+  >
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+    <span class="ai-msg__att-label">Sent {{ (message.attachments ?? []).length }} attached fragment{{ (message.attachments ?? []).length === 1 ? '' : 's' }}</span>
+    <span class="ai-msg__att-hint">click to view</span>
+  </button>
   <div
     v-else
     class="ai-msg"
@@ -208,4 +220,24 @@ function onLink(url: string | undefined, e: MouseEvent) {
   min-width: 0;
   opacity: 0.75;
 }
+
+/* Attachment marker — click to inspect what was sent */
+.ai-msg--attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-end;
+  background: var(--active-bg);
+  color: var(--active-text);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--active-border, var(--primary));
+  cursor: pointer;
+  transition: filter 100ms ease;
+  font-family: inherit;
+}
+.ai-msg--attachment:hover { filter: brightness(0.95); }
+.ai-msg__att-label { font-weight: 600; }
+.ai-msg__att-hint { opacity: 0.65; font-style: italic; }
 </style>
