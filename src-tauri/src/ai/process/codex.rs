@@ -39,7 +39,15 @@ const CMD: &str = "codex";
 pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     let mut cmd = Command::new(cli::resolve(CMD));
 
-    if let Some(sid) = &req.session_id {
+    // codex `exec resume` does not surface `-i <FILE>`. If the user attached
+    // images to this turn, we MUST take the new-session path so the images
+    // actually reach the model. The conversation context is lost (codex
+    // limitation), but a silent drop is worse — the user explicitly asked
+    // the model to look at the image.
+    let force_new_session = !req.images.is_empty();
+    let resume_sid = if force_new_session { None } else { req.session_id.as_ref() };
+
+    if let Some(sid) = resume_sid {
         // Resume: `codex exec resume --skip-git-repo-check <session_id> -`
         // --sandbox and --cd are NOT supported on the resume subcommand —
         // codex reuses the persisted session configuration.

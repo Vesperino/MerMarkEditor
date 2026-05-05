@@ -7,6 +7,13 @@ export interface AttachedPin {
   text: string;
 }
 
+export interface AttachedImage {
+  name: string;
+  /** In-memory object URL for thumbnail rendering. Cleared on persist (storage
+   *  cleanup) since blob: URLs do not survive page reloads. */
+  blobUrl?: string;
+}
+
 export interface AiMessage {
   role: 'user' | 'assistant' | 'tool' | 'attachment';
   text: string;
@@ -14,6 +21,8 @@ export interface AiMessage {
   tool?: string;
   /** When role === 'attachment', the pins sent with the next user prompt. */
   attachments?: AttachedPin[];
+  /** When role === 'attachment', the images sent with the next user prompt. */
+  imageAttachments?: AttachedImage[];
   error?: string;
   done: boolean;
 }
@@ -25,6 +34,9 @@ export interface AiThread {
   /** Optional CLI session-id captured from the Done event. */
   sessionId: string | null;
   cli: CliKind | null;
+  /** Last model + effort used in this thread — restored on thread select. */
+  model: string | null;
+  effort: string | null;
   createdAt: string;
   updatedAt: string;
   messages: AiMessage[];
@@ -57,6 +69,11 @@ function loadStore(docPath: string): ThreadStore {
     if (!raw) return emptyStore();
     const parsed = JSON.parse(raw) as ThreadStore;
     if (parsed && parsed.version === 1 && Array.isArray(parsed.threads)) {
+      // Migrate threads from older versions that lacked model/effort fields.
+      for (const t of parsed.threads) {
+        if (t.model === undefined) t.model = null;
+        if (t.effort === undefined) t.effort = null;
+      }
       return parsed;
     }
   } catch {
@@ -69,12 +86,21 @@ function saveStore(docPath: string, store: ThreadStore) {
   if (!docPath) return;
   try {
     // Trim each thread's messages and the global thread count.
+    // Strip blob: URLs from image attachments — they're invalid after page
+    // reload, leaving the filename for the placeholder render path.
     const trimmed: ThreadStore = {
       version: 1,
       activeId: store.activeId,
       threads: store.threads
         .slice(-MAX_THREADS_PER_DOC)
-        .map(t => ({ ...t, messages: t.messages.slice(-MAX_MESSAGES_PER_THREAD) })),
+        .map(t => ({
+          ...t,
+          messages: t.messages
+            .slice(-MAX_MESSAGES_PER_THREAD)
+            .map(m => m.imageAttachments
+              ? { ...m, imageAttachments: m.imageAttachments.map(({ name }) => ({ name })) }
+              : m),
+        })),
     };
     localStorage.setItem(storageKey(docPath), JSON.stringify(trimmed));
   } catch (e) {
@@ -96,6 +122,8 @@ function newThread(): AiThread {
     title: 'New chat',
     sessionId: null,
     cli: null,
+    model: null,
+    effort: null,
     createdAt: now,
     updatedAt: now,
     messages: [],
@@ -207,12 +235,16 @@ function clearAllThreads() {
   store.value = emptyStore();
 }
 
-function pushAttachment(pins: AttachedPin[]) {
-  if (!pins.length) return;
+function pushAttachment(opts: AttachedPin[] | { pins?: AttachedPin[]; images?: AttachedImage[] }) {
+  // Backward-compat: accept a bare pin array.
+  const pins = Array.isArray(opts) ? opts : (opts.pins ?? []);
+  const images = Array.isArray(opts) ? [] : (opts.images ?? []);
+  if (!pins.length && !images.length) return;
   pushMessage({
     role: 'attachment',
     text: pins.map(p => p.text).join('\n\n---\n\n'),
-    attachments: pins,
+    attachments: pins.length ? pins : undefined,
+    imageAttachments: images.length ? images : undefined,
     done: true,
   });
 }
@@ -223,24 +255,23 @@ export function useAi() {
   async function send(opts: SendOpts) {
     if (isSending.value) throw new Error('A send is already in flight');
     isSending.value = true;
-    console.log('[useAi] send start', { cli: opts.cli, model: opts.model, effort: opts.effort });
 
     pushMessage({ role: 'user', text: opts.prompt, done: true });
     pushMessage({ role: 'assistant', text: '', done: false });
     const t = ensureActiveThread();
     t.cli = opts.cli;
+    t.model = opts.model;
+    t.effort = opts.effort;
     const assistantIdx = t.messages.length - 1;
     const getAssistant = () => getAssistantInActive(assistantIdx)!;
 
     const requestId = crypto.randomUUID();
     inFlightRequestId.value = requestId;
-    console.log('[useAi] requestId generated:', requestId);
 
     let resolveCompletion!: () => void;
     const completion = new Promise<void>((r) => { resolveCompletion = r; });
 
     const unlisten = await aiCommands.onStream(requestId, (chunk: AiResponseChunk) => {
-      console.log('[useAi] chunk:', chunk);
       const a = getAssistant();
       if (!a) return;
       switch (chunk.kind) {
@@ -282,7 +313,6 @@ export function useAi() {
           break;
       }
     });
-    console.log('[useAi] listener registered for', requestId);
 
     const req: AiSendRequest = {
       cli: opts.cli,
@@ -298,10 +328,8 @@ export function useAi() {
     };
 
     try {
-      const returnedId = await aiCommands.send(req, requestId);
-      console.log('[useAi] backend ack returned id:', returnedId);
+      await aiCommands.send(req, requestId);
       await completion;
-      console.log('[useAi] completion resolved, assistant.text length:', getAssistant()?.text.length ?? 0);
     } catch (err) {
       console.error('[useAi] send error:', err);
       const a = getAssistant();

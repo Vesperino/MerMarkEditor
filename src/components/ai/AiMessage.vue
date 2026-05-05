@@ -194,16 +194,38 @@ function formatToolPreviewValue(value: unknown): string {
       <pre class="ai-msg__tool-args-full">{{ prettyToolArgs }}</pre>
     </div>
   </details>
-  <button
+  <div
     v-else-if="isAttachment"
-    class="ai-msg ai-msg--attachment"
-    @click="emit('showAttachment', message.attachments ?? [])"
-    :title="`Click to view ${(message.attachments ?? []).length} attached fragment(s)`"
+    class="ai-msg ai-msg--attachment-wrap"
   >
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-    <span class="ai-msg__att-label">Sent {{ (message.attachments ?? []).length }} attached fragment{{ (message.attachments ?? []).length === 1 ? '' : 's' }}</span>
-    <span class="ai-msg__att-hint">click to view</span>
-  </button>
+    <button
+      v-if="(message.attachments ?? []).length > 0"
+      class="ai-msg ai-msg--attachment"
+      @click="emit('showAttachment', message.attachments ?? [])"
+      :title="`Click to view ${(message.attachments ?? []).length} attached fragment(s)`"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      <span class="ai-msg__att-label">Sent {{ (message.attachments ?? []).length }} attached fragment{{ (message.attachments ?? []).length === 1 ? '' : 's' }}</span>
+      <span class="ai-msg__att-hint">click to view</span>
+    </button>
+    <div
+      v-if="(message.imageAttachments ?? []).length > 0"
+      class="ai-msg ai-msg--image-attachment"
+    >
+      <span class="ai-msg__img-att-label">
+        Sent {{ (message.imageAttachments ?? []).length }} image{{ (message.imageAttachments ?? []).length === 1 ? '' : 's' }}
+      </span>
+      <ul class="ai-msg__img-att-list">
+        <li v-for="(img, idx) in message.imageAttachments" :key="idx" class="ai-msg__img-att-item" :title="img.name">
+          <img v-if="img.blobUrl" :src="img.blobUrl" :alt="img.name" class="ai-msg__img-att-thumb" />
+          <span v-else class="ai-msg__img-att-placeholder" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </span>
+          <span class="ai-msg__img-att-name">{{ img.name }}</span>
+        </li>
+      </ul>
+    </div>
+  </div>
   <div
     v-else
     class="ai-msg"
@@ -512,4 +534,85 @@ function formatToolPreviewValue(value: unknown): string {
 .ai-msg--attachment:hover { filter: brightness(0.95); }
 .ai-msg__att-label { font-weight: 600; }
 .ai-msg__att-hint { opacity: 0.65; font-style: italic; }
+
+/* Wrapper for stacked attachment chips (pins + images) on the user side */
+.ai-msg--attachment-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: flex-end;
+  align-items: flex-end;
+  padding: 0;
+  background: transparent;
+  border: none;
+  max-width: 92%;
+}
+
+/* Image attachment chip */
+.ai-msg--image-attachment {
+  align-self: flex-end;
+  background: var(--active-bg);
+  color: var(--active-text);
+  border: 1px dashed var(--active-border, var(--primary));
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+.ai-msg__img-att-label {
+  font-weight: 600;
+  opacity: 0.85;
+}
+.ai-msg__img-att-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-msg__img-att-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 96px;
+}
+.ai-msg__img-att-thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  padding: 2px;
+  box-sizing: border-box;
+}
+.ai-msg__img-att-placeholder {
+  width: 96px;
+  height: 96px;
+  border-radius: 4px;
+  border: 1px dashed var(--border-primary);
+  background: var(--bg-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.ai-msg__img-att-name {
+  font-family: var(--code-font-family, monospace);
+  font-size: 10px;
+  max-width: 96px;
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.2;
+  opacity: 0.75;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 </style>

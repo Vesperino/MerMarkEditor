@@ -21,7 +21,6 @@ async function onRestore(id: string) {
   if (restoring.value) return;
   restoring.value = id;
   try {
-    console.log('[AiSnapshotList] restoring snapshot', id);
     const content = await snapshots.restore(id);
     emit('restored', content);
     // Force reload of the list so any state drift between calls is reset.

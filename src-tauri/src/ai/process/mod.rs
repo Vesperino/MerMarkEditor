@@ -77,7 +77,7 @@ fn spawn_pump(
     let app_for_stderr = app;
     let event_for_stderr = event;
     let label_for_stderr = window_label;
-    let req_id_for_stdout = request_id.clone();
+    let _req_id_for_stdout = request_id.clone();
     if let Some(out) = stdout {
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
@@ -88,7 +88,6 @@ fn spawn_pump(
             let mut claude_state = normalizer::ClaudeParserState::default();
             let mut done_emitted = false;
             while let Ok(Some(line)) = lines.next_line().await {
-                eprintln!("[ai stdout] {}", line);
                 let parsed = match cli {
                     CliKind::Codex => normalizer::parse_line_codex(&mut codex_state, &line),
                     CliKind::Claude => normalizer::parse_line_claude(&mut claude_state, &line),
@@ -98,24 +97,21 @@ fn spawn_pump(
                         if matches!(chunk, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
                             done_emitted = true;
                         }
-                        eprintln!("[ai chunk] {:?}", chunk);
                         let _ = app_for_stdout.emit_to(label_for_stdout.as_str(), &event_for_stdout, chunk);
                     }
                     None if line.trim().is_empty() => {}
-                    None if normalizer::is_valid_json(&line) => {
-                        eprintln!("[ai stdout] (valid JSON, no chunk)");
-                    }
+                    None if normalizer::is_valid_json(&line) => {}
                     None => {
+                        // Unparsed non-empty non-JSON: surface for diagnosis.
                         eprintln!("[ai stdout] UNPARSED: {}", line);
                     }
                 }
             }
-            eprintln!("[ai stdout] EOF for req_id={}", req_id_for_stdout);
             // Process closed without finalising — synthesise an Error so the
             // frontend's `await completion` doesn't hang. Codex sometimes
             // does this when its sandbox setup fails on Windows.
             if !done_emitted {
-                eprintln!("[ai stdout] no Done/Error emitted before EOF — synthesising error");
+                eprintln!("[ai] child exited without Done/Error — synthesising error");
                 let _ = app_for_stdout.emit_to(
                     label_for_stdout.as_str(),
                     &event_for_stdout,
@@ -132,18 +128,17 @@ fn spawn_pump(
             // Codex routes diagnostic traces (sandbox refresh, tool routing,
             // INFO/ERROR telemetry) through stderr while real conversation
             // status stays in stdout. Emitting every stderr line as an Error
-            // chunk turned every codex turn into a UI error bubble. We only
-            // log to the dev console here; if the child exits non-zero with
-            // no Done chunk in stdout, the frontend's promise simply
-            // resolves on EOF without a fake error message — much cleaner.
+            // chunk turned every codex turn into a UI error bubble. Stderr is
+            // mirrored to the dev console only in debug builds; in release
+            // we drain silently.
             //
             // Claude emits its fatal errors as JSON `result` events on
             // stdout, so the same policy applies.
             let mut lines = BufReader::new(err).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                eprintln!("[ai stderr] {}", line);
+            while let Ok(Some(_line)) = lines.next_line().await {
+                #[cfg(debug_assertions)]
+                eprintln!("[ai stderr] {}", _line);
             }
-            eprintln!("[ai stderr] EOF");
             // Suppress unused-binding warnings for the moved captures.
             let _ = (&app_for_stderr, &event_for_stderr, &label_for_stderr);
         });
