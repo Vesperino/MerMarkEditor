@@ -34,8 +34,13 @@ export function useAi() {
     isSending.value = true;
     console.log('[useAi] send start', { cli: opts.cli, model: opts.model, effort: opts.effort });
     messages.value.push({ role: 'user', text: opts.prompt, done: true });
-    const assistant: AiMessage = { role: 'assistant', text: '', done: false };
-    messages.value.push(assistant);
+    messages.value.push({ role: 'assistant', text: '', done: false });
+    // CRITICAL: mutate via array index so Vue's reactive proxy sees the change.
+    // The local `assistant` reference would point to the raw object, not the
+    // proxy Vue created when the array was made reactive — direct mutations on
+    // it would not trigger reactivity and the UI would stay empty.
+    const assistantIdx = messages.value.length - 1;
+    const getAssistant = () => messages.value[assistantIdx];
 
     // Generate request_id locally so we can subscribe BEFORE the backend
     // starts emitting (fixes listener race for fast CLI responses).
@@ -49,9 +54,10 @@ export function useAi() {
     // Subscribe FIRST.
     const unlisten = await aiCommands.onStream(requestId, (chunk: AiResponseChunk) => {
       console.log('[useAi] chunk:', chunk);
+      const a = getAssistant();
       switch (chunk.kind) {
         case 'text':
-          assistant.text += chunk.content;
+          a.text += chunk.content;
           break;
         case 'tool_request':
           opts.onToolRequest?.(chunk.tool, chunk.args, chunk.requestId);
@@ -60,13 +66,13 @@ export function useAi() {
           opts.onToolDenied?.(chunk.tool, chunk.reason);
           break;
         case 'done':
-          assistant.done = true;
+          a.done = true;
           opts.onSessionId?.(chunk.sessionId);
           resolveCompletion();
           break;
         case 'error':
-          assistant.error = chunk.message;
-          assistant.done = true;
+          a.error = chunk.message;
+          a.done = true;
           resolveCompletion();
           break;
       }
@@ -90,17 +96,18 @@ export function useAi() {
       const returnedId = await aiCommands.send(req, requestId);
       console.log('[useAi] backend ack returned id:', returnedId);
       await completion;
-      console.log('[useAi] completion resolved, assistant.text length:', assistant.text.length);
+      console.log('[useAi] completion resolved, assistant.text length:', getAssistant().text.length);
     } catch (err) {
       console.error('[useAi] send error:', err);
-      assistant.error = (err as Error)?.message ?? String(err);
-      assistant.done = true;
+      const a = getAssistant();
+      a.error = (err as Error)?.message ?? String(err);
+      a.done = true;
     } finally {
       unlisten();
       inFlightRequestId.value = null;
       isSending.value = false;
     }
-    return assistant;
+    return getAssistant();
   }
 
   async function cancel() {
