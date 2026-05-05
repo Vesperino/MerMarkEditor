@@ -21,7 +21,7 @@ const isAssistant = computed(() => props.message.role === 'assistant');
 // expanded view is readable.
 const toolExpanded = ref(false);
 const prettyToolArgs = computed(() => {
-  if (!isTool.value || !props.message.text) return '';
+  if (!isTool.value || !props.message.text.trim()) return 'No arguments captured for this tool call.';
   try {
     const parsed = JSON.parse(props.message.text);
     return JSON.stringify(parsed, null, 2);
@@ -138,9 +138,12 @@ function formatToolPreviewValue(value: unknown): string {
       <svg class="ai-msg__tool-chevron" :class="{ 'ai-msg__tool-chevron--open': toolExpanded }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       <span class="ai-msg__tool-label">{{ toolName }}</span>
-      <span v-if="!toolExpanded" class="ai-msg__tool-args">{{ toolPreview }}</span>
+      <span class="ai-msg__tool-args">{{ toolPreview }}</span>
     </button>
-    <pre v-if="toolExpanded" class="ai-msg__tool-args-full">{{ prettyToolArgs }}</pre>
+    <div v-if="toolExpanded" class="ai-msg__tool-details">
+      <span class="ai-msg__tool-details-label">Full arguments</span>
+      <pre class="ai-msg__tool-args-full">{{ prettyToolArgs }}</pre>
+    </div>
   </div>
   <button
     v-else-if="isAttachment"
@@ -273,6 +276,7 @@ function formatToolPreviewValue(value: unknown): string {
 .ai-msg--tool-expanded {
   align-self: stretch;
   width: 100%;
+  max-width: 100%;
 }
 .ai-msg__tool-row {
   display: flex;
@@ -309,23 +313,42 @@ function formatToolPreviewValue(value: unknown): string {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  max-width: min(52ch, 100%);
+  flex: 1;
+  max-width: 100%;
   opacity: 0.7;
   color: var(--text-muted);
   line-height: inherit;
 }
-.ai-msg__tool-args-full {
-  margin: 0;
+.ai-msg__tool-details {
   padding: 8px 10px;
   border-top: 1px dashed var(--border-primary);
   background: var(--bg-secondary, var(--bg-tertiary));
+  min-width: 0;
+}
+.ai-msg__tool-details-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 600;
+}
+.ai-msg__tool-args-full {
+  display: block;
+  margin: 0;
+  padding: 8px;
+  border-radius: 4px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-primary);
   color: var(--text-primary);
   font-size: 11px;
   line-height: 1.45;
   white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 320px;
-  overflow: auto;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  max-height: none;
+  overflow: visible;
+  min-height: 32px;
 }
 
 /* Attachment marker — click to inspect what was sent */
