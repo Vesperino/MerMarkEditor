@@ -14,6 +14,7 @@ import AiMessage from './AiMessage.vue';
 import AiSnapshotList from './AiSnapshotList.vue';
 import AiAccessMapEditor from './AiAccessMapEditor.vue';
 import AiToolConfirmModal from './AiToolConfirmModal.vue';
+import { useAiContext } from '../../composables/useAiContext';
 
 const props = defineProps<{
   open: boolean;
@@ -36,6 +37,7 @@ const session = useAiSession();
 const access = useAiAccessMap();
 const health = useAiHealth();
 const apply = useAiApply();
+const aiContext = useAiContext();
 
 const selectedCli = ref<CliKind>(settings.value.ai.defaultCli);
 const selectedModel = ref<string>(
@@ -108,6 +110,7 @@ watch(selectedCli, (cli) => {
   selectedEffort.value = cli === 'claude'
     ? settings.value.ai.effortClaude
     : settings.value.ai.effortCodex;
+  aiContext.reset(cli);
 });
 
 watch(selectedModel, (m) => {
@@ -118,6 +121,22 @@ watch(selectedModel, (m) => {
 watch(selectedEffort, (e) => {
   if (selectedCli.value === 'claude') setAiEffortClaude(e);
   else setAiEffortCodex(e);
+});
+
+const fillClass = computed(() =>
+  aiContext.fractionPct.value >= 80 ? 'ai-panel__context-fill--warn' : ''
+);
+
+const contextTooltip = computed(() => {
+  const u = aiContext.usage.value;
+  if (u.empty) return '';
+  return [
+    `Input: ${u.inputTokens.toLocaleString()}`,
+    `Cache create: ${u.cacheCreationTokens.toLocaleString()}`,
+    `Cache read: ${u.cacheReadTokens.toLocaleString()}`,
+    `Output: ${u.outputTokens.toLocaleString()}`,
+    `Window: ${u.contextWindow.toLocaleString()}`,
+  ].join('\n');
 });
 
 const sideStyle = computed(() => {
@@ -276,6 +295,7 @@ function onKeydownComposer(e: KeyboardEvent) {
 function newChat() {
   ai.clearMessages();
   session.startNew();
+  aiContext.reset(selectedCli.value);
 }
 </script>
 
@@ -340,6 +360,15 @@ function newChat() {
         </button>
       </div>
     </header>
+
+    <div v-if="!aiContext.usage.value.empty" class="ai-panel__context">
+      <div class="ai-panel__context-bar">
+        <div class="ai-panel__context-fill" :class="fillClass" :style="{ width: aiContext.fractionPct.value + '%' }" />
+      </div>
+      <span class="ai-panel__context-label" :title="contextTooltip">
+        {{ aiContext.usageLabel.value }}
+      </span>
+    </div>
 
     <div ref="messagesEl" class="ai-panel__messages">
       <div v-if="ai.messages.value.length === 0" class="ai-panel__empty">
@@ -592,4 +621,35 @@ function newChat() {
   user-select: none;
 }
 .ai-panel__details > summary:hover { color: var(--text-primary); }
+
+.ai-panel__context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ai-panel__context-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ai-panel__context-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 220ms ease;
+}
+.ai-panel__context-fill.ai-panel__context-fill--warn {
+  background: var(--danger);
+}
+.ai-panel__context-label {
+  font-family: var(--code-font-family, monospace);
+  white-space: nowrap;
+  cursor: help;
+}
 </style>

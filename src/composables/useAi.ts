@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap } from '../services/aiCommands';
+import { useAiContext } from './useAiContext';
 
 export interface AiMessage {
   role: 'user' | 'assistant';
@@ -28,6 +29,7 @@ export function useAi() {
   const messages = ref<AiMessage[]>([]);
   const inFlightRequestId = ref<string | null>(null);
   const isSending = ref(false);
+  const aiContext = useAiContext();
 
   async function send(opts: SendOpts) {
     if (isSending.value) throw new Error('A send is already in flight');
@@ -67,6 +69,7 @@ export function useAi() {
           break;
         case 'done':
           a.done = true;
+          aiContext.record(opts.cli, chunk.usage);
           opts.onSessionId?.(chunk.sessionId);
           resolveCompletion();
           break;
@@ -118,5 +121,5 @@ export function useAi() {
 
   function clearMessages() { messages.value = []; }
 
-  return { messages, isSending, inFlightRequestId, send, cancel, clearMessages, bypassEnabled };
+  return { messages, isSending, inFlightRequestId, send, cancel, clearMessages, bypassEnabled, aiContext };
 }
