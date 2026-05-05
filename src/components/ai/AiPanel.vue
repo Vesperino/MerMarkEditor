@@ -40,6 +40,15 @@ const health = useAiHealth();
 useAiApply(); // kept for potential future restoration of fence flow
 const aiContext = useAiContext();
 
+// Pinned selection: snapshot of editor selection that persists across focus
+// changes. The user pins explicitly (or auto-pin happens when sending while
+// a selection is live), can preview the text, and can clear it.
+const pinnedSelection = ref<{ text: string; startedAt: string } | null>(null);
+const includePinned = ref<boolean>(true);
+
+// Unsaved document flag: when docPath is empty, we can't do file edits.
+const docNeedsSave = computed<boolean>(() => !props.docPath || props.docPath.trim() === '');
+
 const selectedCli = ref<CliKind>(settings.value.ai.defaultCli);
 const selectedModel = ref<string>(
   selectedCli.value === 'claude'
@@ -95,6 +104,37 @@ const docMarkdown = computed(() => {
 });
 
 const docTooLarge = computed(() => docMarkdown.value.length > LARGE_DOC_THRESHOLD);
+
+// Read live selection text from props.docContent + selectionRange.
+const liveSelectionText = computed<string | null>(() => {
+  const range = props.selectionRange;
+  if (!range) return null;
+  // selectionRange is a TipTap doc range (char offsets in markdown after
+  // htmlToMarkdown). Cheap approximation: slice docMarkdown.
+  const md = docMarkdown.value;
+  if (!md) return null;
+  const start = Math.max(0, Math.min(md.length, range.start));
+  const end = Math.max(start, Math.min(md.length, range.end));
+  return md.slice(start, end).trim();
+});
+
+function pinCurrentSelection() {
+  const t = liveSelectionText.value;
+  if (!t) return;
+  pinnedSelection.value = { text: t, startedAt: new Date().toISOString() };
+  includePinned.value = true;
+}
+
+function clearPinned() {
+  pinnedSelection.value = null;
+}
+
+const pinnedPreview = computed<string>(() => {
+  const p = pinnedSelection.value;
+  if (!p) return '';
+  const max = 240;
+  return p.text.length > max ? p.text.slice(0, max) + '…' : p.text;
+});
 
 const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
@@ -218,17 +258,23 @@ watch(() => ai.messages.value.length, () => {
 });
 
 function buildPreamble(): string {
-  const sel = props.selectionRange
-    ? `Selection: yes (${props.selectionRange.start}-${props.selectionRange.end})`
-    : 'Selection: none';
+  let selSection = 'Selection: none';
+  if (pinnedSelection.value && includePinned.value) {
+    const txt = pinnedSelection.value.text;
+    const truncated = txt.length > 4000 ? txt.slice(0, 4000) + '…' : txt;
+    selSection = `Pinned selection (the user explicitly attached this fragment for context):\n---\n${truncated}\n---`;
+  } else if (props.selectionRange) {
+    selSection = `Selection: yes (${props.selectionRange.start}-${props.selectionRange.end})`;
+  }
   const am = access.current.value;
   const tools = am
     ? Object.entries(am.tools).filter(([, v]) => v).map(([k]) => k).join(',') || 'none'
     : 'unknown';
+  const activeFileLine = props.docPath ? `Active file: ${props.docPath}` : 'Active file: (unsaved — no edits possible until user saves)';
   const lines = [
     `You are an AI assistant integrated into the MerMark editor.`,
-    `Active file: ${props.docPath}`,
-    sel,
+    activeFileLine,
+    selSection,
     `Read paths: ${am?.readPaths.join(', ') ?? props.docPath}`,
     `Write paths: ${am?.writePaths.join(', ') ?? props.docPath}`,
     `Allowed tools: ${tools}`,
@@ -237,6 +283,9 @@ function buildPreamble(): string {
     ``,
     `For chat-only answers (questions about the file, summaries, suggestions), respond as plain text without editing the file.`,
   ];
+  if (docNeedsSave.value) {
+    lines.push('', 'IMPORTANT: The document is not saved yet — do NOT try to use file Edit / Write tools. Answer in chat only.');
+  }
   if (docTooLarge.value && !sendFullDocOverride.value) {
     lines.push('', `Note: the active document is large (${docMarkdown.value.length} bytes). Focus on the first 200KB unless instructed otherwise.`);
   }
@@ -249,21 +298,29 @@ function messageHasFence(text: string): boolean {
 
 async function onSend() {
   if (!inputValue.value.trim() || !access.current.value) return;
+
+  // Auto-pin live selection at send time so user sees what we're sending.
+  if (!pinnedSelection.value && liveSelectionText.value) {
+    pinCurrentSelection();
+  }
+
   const prompt = inputValue.value;
   inputValue.value = '';
 
-  // Pre-send snapshot from DISK (not from editor HTML — file is the truth).
-  try {
-    const { readTextFile } = await import('@tauri-apps/plugin-fs');
-    const onDiskBefore = await readTextFile(props.docPath);
-    await aiCommands.snapshotCreate(
-      props.docPath,
-      onDiskBefore,
-      session.current.value?.sessionId ?? null,
-      settings.value.ai.snapshotsKeep,
-    );
-  } catch (e) {
-    console.warn('[AiPanel] pre-send snapshot failed (continuing anyway):', e);
+  // Pre-send snapshot from DISK (skipped for unsaved docs).
+  if (!docNeedsSave.value) {
+    try {
+      const { readTextFile } = await import('@tauri-apps/plugin-fs');
+      const onDiskBefore = await readTextFile(props.docPath);
+      await aiCommands.snapshotCreate(
+        props.docPath,
+        onDiskBefore,
+        session.current.value?.sessionId ?? null,
+        settings.value.ai.snapshotsKeep,
+      );
+    } catch (e) {
+      console.warn('[AiPanel] pre-send snapshot failed (continuing anyway):', e);
+    }
   }
 
   const final = await ai.send({
@@ -523,6 +580,14 @@ function onDeleteThread(id: string) {
       <span>Connecting to AI CLI…</span>
     </div>
 
+    <div v-if="docNeedsSave" class="ai-panel__unsaved">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div class="ai-panel__unsaved-body">
+        <strong>Document not saved yet</strong>
+        <span>AI can still answer questions, but file edits and snapshots need a saved path.</span>
+      </div>
+    </div>
+
     <div ref="messagesEl" class="ai-panel__messages">
       <div v-if="ai.messages.value.length === 0 && !anyHealthLoading" class="ai-panel__empty">
         <p>{{ cliConnected ? t.aiEmptyHint : t.aiStatusAuthRequired }}</p>
@@ -547,6 +612,19 @@ function onDeleteThread(id: string) {
       <div v-if="docTooLarge" class="ai-panel__warn">
         Document is large ({{ Math.round(docMarkdown.length / 1024) }} KB).
         <label><input type="checkbox" v-model="sendFullDocOverride" /> Send full document</label>
+      </div>
+      <div v-if="pinnedSelection || liveSelectionText" class="ai-panel__pinned">
+        <div class="ai-panel__pinned-head">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 10.76A2 2 0 0 1 8 9V3h8v6a2 2 0 0 1-1 1.76l-1 .58a2 2 0 0 0-1 1.76V17H10v-3.93a2 2 0 0 0-1-1.74l-1-.57z"/></svg>
+          <span class="ai-panel__pinned-label">{{ pinnedSelection ? 'Pinned selection' : 'Selection (not pinned)' }}</span>
+          <label v-if="pinnedSelection" class="ai-panel__pinned-toggle">
+            <input type="checkbox" v-model="includePinned" />
+            <span>Send</span>
+          </label>
+          <button v-if="!pinnedSelection && liveSelectionText" class="ai-panel__pinned-action" @click="pinCurrentSelection">Pin</button>
+          <button v-if="pinnedSelection" class="ai-panel__pinned-action" @click="clearPinned" title="Clear pinned selection">×</button>
+        </div>
+        <pre class="ai-panel__pinned-preview">{{ pinnedSelection ? pinnedPreview : (liveSelectionText ?? '') }}</pre>
       </div>
       <textarea
         v-model="inputValue"
@@ -1081,5 +1159,78 @@ function onDeleteThread(id: string) {
   font-family: var(--code-font-family, monospace);
   white-space: nowrap;
   cursor: help;
+}
+
+/* Unsaved document banner */
+.ai-panel__unsaved {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--diff-removed-bg, #fef3c7);
+  color: var(--split-toggle-color, #b45309);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-primary);
+}
+.ai-panel__unsaved svg { flex-shrink: 0; margin-top: 1px; }
+.ai-panel__unsaved-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-panel__unsaved-body strong { font-weight: 600; }
+
+/* Pinned selection chip */
+.ai-panel__pinned {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.ai-panel__pinned-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--text-secondary, var(--text-muted));
+}
+.ai-panel__pinned-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ai-panel__pinned-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ai-panel__pinned-action {
+  padding: 2px 10px;
+  font-size: 11px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: auto;
+}
+.ai-panel__pinned-action:hover { filter: brightness(1.1); }
+.ai-panel__pinned-preview {
+  background: var(--bg-tertiary);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--code-font-family, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  color: var(--text-primary);
+  border-left: 3px solid var(--primary);
 }
 </style>
