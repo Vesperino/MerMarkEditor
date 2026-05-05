@@ -319,7 +319,16 @@ async function revertLastSnapshot() {
   }
 }
 
-async function onSnapshotRestored(content: string) { emit('applyContent', content); }
+async function onSnapshotRestored(content: string) {
+  try {
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+    await writeTextFile(props.docPath, content);
+    emit('applyContent', content);
+  } catch (e) {
+    console.error('[AiPanel] snapshot restore write failed:', e);
+    window.alert(`Restore failed: ${(e as Error).message}`);
+  }
+}
 
 function onKeydownComposer(e: KeyboardEvent) {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -361,7 +370,21 @@ function onDeleteThread(id: string) {
     @click="minimized = false"
     title="Restore AI panel"
   >
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v1H7a4 4 0 0 0-4 4v3a4 4 0 0 0 2 3.46V20a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.54A4 4 0 0 0 21 13v-3a4 4 0 0 0-4-4h-2V5a3 3 0 0 0-3-3z"/></svg>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Robot head -->
+      <rect x="4" y="6" width="16" height="14" rx="3"/>
+      <circle cx="9" cy="13" r="1.3" fill="currentColor"/>
+      <circle cx="15" cy="13" r="1.3" fill="currentColor"/>
+      <line x1="9" y1="17" x2="15" y2="17"/>
+      <!-- Antenna -->
+      <line x1="12" y1="3" x2="12" y2="6"/>
+      <circle cx="12" cy="2.5" r="1" fill="currentColor"/>
+      <!-- Side ears -->
+      <line x1="2" y1="11" x2="4" y2="11"/>
+      <line x1="2" y1="14" x2="4" y2="14"/>
+      <line x1="20" y1="11" x2="22" y2="11"/>
+      <line x1="20" y1="14" x2="22" y2="14"/>
+    </svg>
     <span>AI</span>
   </button>
   <aside
@@ -503,6 +526,12 @@ function onDeleteThread(id: string) {
         :message="m"
         :has-fence="m.role === 'assistant' && m.done && messageHasFence(m.text)"
       />
+      <div v-if="ai.isSending.value" class="ai-panel__processing">
+        <span class="ai-msg__thinking-dot" />
+        <span class="ai-msg__thinking-dot" />
+        <span class="ai-msg__thinking-dot" />
+        <span>AI is working… please wait</span>
+      </div>
     </div>
 
     <footer class="ai-panel__composer">
@@ -680,19 +709,23 @@ function onDeleteThread(id: string) {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 10px 6px;
+  padding: 14px 8px;
   background: var(--bg-primary);
   color: var(--primary);
   border: 1px solid var(--border-primary);
   border-right: none;
   border-radius: 8px 0 0 8px;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
   z-index: 100;
   box-shadow: var(--shadow-sm);
   transition: background 100ms ease, transform 100ms ease;
+}
+.ai-panel-tab svg {
+  display: block;
+  margin-bottom: 2px;
 }
 .ai-panel-tab:hover {
   background: var(--hover-bg);
@@ -936,6 +969,35 @@ function onDeleteThread(id: string) {
 }
 .ai-tool-enter-active, .ai-tool-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
 .ai-tool-enter-from, .ai-tool-leave-to { opacity: 0; transform: translate(-50%, 8px); }
+
+.ai-panel__processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.ai-panel__processing > span:first-child,
+.ai-panel__processing > span:nth-child(2),
+.ai-panel__processing > span:nth-child(3) {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: ai-msg-bounce 1.2s infinite ease-in-out both;
+}
+.ai-panel__processing > span:nth-child(1) { animation-delay: 0s; }
+.ai-panel__processing > span:nth-child(2) { animation-delay: 0.15s; }
+.ai-panel__processing > span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-msg-bounce {
+  0%, 80%, 100% { opacity: .3; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1); }
+}
 
 .ai-panel__context {
   border-bottom: 1px solid var(--border-primary);

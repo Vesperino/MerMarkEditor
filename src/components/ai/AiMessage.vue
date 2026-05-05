@@ -7,6 +7,7 @@ const props = defineProps<{
   hasFence: boolean;
 }>();
 
+const isTool = computed(() => props.message.role === 'tool');
 const isAssistant = computed(() => props.message.role === 'assistant');
 // Show typing indicator while waiting for first text chunk.
 const isThinking = computed(
@@ -24,7 +25,13 @@ const visibleText = computed(() => {
 </script>
 
 <template>
+  <div v-if="isTool" class="ai-msg ai-msg--tool">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+    <span class="ai-msg__tool-label">{{ message.tool }}</span>
+    <span class="ai-msg__tool-args" :title="message.text">{{ message.text }}</span>
+  </div>
   <div
+    v-else
     class="ai-msg"
     :class="{
       'ai-msg--user': !isAssistant,
@@ -102,5 +109,30 @@ const visibleText = computed(() => {
 @keyframes ai-msg-bounce {
   0%, 80%, 100% { opacity: .3; transform: scale(0.7); }
   40% { opacity: 1; transform: scale(1); }
+}
+
+/* Tool usage entry */
+.ai-msg--tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px dashed var(--border-primary);
+  font-family: var(--code-font-family, monospace);
+  max-width: 100%;
+}
+.ai-msg__tool-label { font-weight: 600; color: var(--primary); }
+.ai-msg__tool-args {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  opacity: 0.75;
 }
 </style>

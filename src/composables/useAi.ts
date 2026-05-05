@@ -3,8 +3,10 @@ import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, typ
 import { useAiContext } from './useAiContext';
 
 export interface AiMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   text: string;
+  /** When role === 'tool', this carries the tool name. */
+  tool?: string;
   error?: string;
   done: boolean;
 }
@@ -219,9 +221,21 @@ export function useAi() {
         case 'text':
           a.text += chunk.content;
           break;
-        case 'tool_request':
+        case 'tool_request': {
+          // Append a permanent tool entry into the chat history.
+          const t = activeThread.value;
+          if (t) {
+            t.messages.push({
+              role: 'tool',
+              text: typeof chunk.args === 'object' ? JSON.stringify(chunk.args) : String(chunk.args ?? ''),
+              tool: chunk.tool,
+              done: true,
+            });
+            t.updatedAt = new Date().toISOString();
+          }
           opts.onToolRequest?.(chunk.tool, chunk.args, chunk.requestId);
           break;
+        }
         case 'tool_denied':
           opts.onToolDenied?.(chunk.tool, chunk.reason);
           break;
