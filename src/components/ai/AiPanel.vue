@@ -84,6 +84,7 @@ const availableClis = computed<CliKind[]>(() => {
 const modelOptions = computed(() => modelsFor(selectedCli.value));
 const effortOptions = computed(() => effortsFor(selectedCli.value));
 const cliConnected = computed(() => health.cache.value[selectedCli.value]?.ok ?? false);
+const anyHealthLoading = computed(() => health.loading.value.claude || health.loading.value.codex);
 
 const isCustomModel = computed(() => {
   const opts = modelOptions.value;
@@ -397,8 +398,13 @@ function newChat() {
       </ul>
     </details>
 
+    <div v-if="anyHealthLoading" class="ai-panel__connecting">
+      <span class="ai-panel__spinner" aria-hidden="true" />
+      <span>Connecting to AI CLI…</span>
+    </div>
+
     <div ref="messagesEl" class="ai-panel__messages">
-      <div v-if="ai.messages.value.length === 0" class="ai-panel__empty">
+      <div v-if="ai.messages.value.length === 0 && !anyHealthLoading" class="ai-panel__empty">
         <p>{{ cliConnected ? t.aiEmptyHint : t.aiStatusAuthRequired }}</p>
         <p class="ai-panel__empty-hint">{{ t.aiEmptyKeyHint }}</p>
       </div>
@@ -560,6 +566,29 @@ function newChat() {
   font-size: 12px;
   color: var(--text-muted);
   margin-top: 6px;
+}
+
+.ai-panel__connecting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ai-panel__spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-primary);
+  border-top-color: var(--primary);
+  animation: ai-spin 0.8s linear infinite;
+}
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
 }
 
 .ai-panel__composer {

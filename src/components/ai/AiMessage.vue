@@ -16,6 +16,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const isAssistant = computed(() => props.message.role === 'assistant');
+// Show typing indicator while waiting for first text chunk.
+const isThinking = computed(
+  () => isAssistant.value && !props.message.done && props.message.text === '' && !props.message.error
+);
 </script>
 
 <template>
@@ -27,7 +31,13 @@ const isAssistant = computed(() => props.message.role === 'assistant');
       'ai-msg--err': !!message.error,
     }"
   >
-    <pre class="ai-msg__text">{{ message.text }}</pre>
+    <div v-if="isThinking" class="ai-msg__thinking" aria-label="Thinking">
+      <span class="ai-msg__thinking-dot" />
+      <span class="ai-msg__thinking-dot" />
+      <span class="ai-msg__thinking-dot" />
+      <span class="ai-msg__thinking-text">Thinking…</span>
+    </div>
+    <pre v-else class="ai-msg__text">{{ message.text }}</pre>
     <div v-if="message.error" class="ai-msg__error">{{ message.error }}</div>
     <div v-if="isAssistant && message.done && hasFence" class="ai-msg__actions">
       <button @click="emit('showDiff')">Diff</button>
@@ -88,4 +98,31 @@ const isAssistant = computed(() => props.message.role === 'assistant');
   transition: background 100ms ease;
 }
 .ai-msg__actions button:hover { background: var(--hover-bg); }
+
+/* Typing indicator while waiting for first chunk */
+.ai-msg__thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-msg__thinking-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: ai-msg-bounce 1.2s infinite ease-in-out both;
+}
+.ai-msg__thinking-dot:nth-child(1) { animation-delay: 0s; }
+.ai-msg__thinking-dot:nth-child(2) { animation-delay: 0.15s; }
+.ai-msg__thinking-dot:nth-child(3) { animation-delay: 0.3s; }
+.ai-msg__thinking-text {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+@keyframes ai-msg-bounce {
+  0%, 80%, 100% { opacity: .3; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1); }
+}
 </style>

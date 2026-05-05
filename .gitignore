@@ -38,3 +38,12 @@ test-results/
 
 # Local planning / brainstorm docs (superpowers workflow output)
 docs/superpowers/
+
+# Local Claude Code workspace + worktrees
+.claude/
+
+# Playwright MCP run artifacts
+.playwright-mcp/
+
+# Local screenshots used during manual testing
+line-numbers-*.png
