@@ -146,6 +146,105 @@ async fn transfer_tab_to_window(
     Ok(())
 }
 
+// ============== AI commands (storage + health) ==============
+
+use ai::types::{AccessMap, AuditEntry, CliKind, HealthStatus, SessionMapping, SnapshotIndexEntry};
+
+#[tauri::command]
+async fn ai_health_check(cli: CliKind) -> HealthStatus {
+    ai::health::check(cli).await
+}
+
+#[tauri::command]
+fn ai_access_load(app: tauri::AppHandle, doc_path: String) -> Result<AccessMap, String> {
+    ai::access_map::load(&app, &doc_path)
+}
+
+#[tauri::command]
+fn ai_access_save(app: tauri::AppHandle, doc_path: String, map: AccessMap) -> Result<(), String> {
+    ai::access_map::save(&app, &doc_path, &map)
+}
+
+#[tauri::command]
+fn ai_access_migrate(app: tauri::AppHandle, old_path: String, new_path: String) -> Result<(), String> {
+    ai::access_map::migrate(&app, &old_path, &new_path)
+}
+
+#[tauri::command]
+fn ai_session_get(app: tauri::AppHandle, doc_path: String) -> Result<Option<SessionMapping>, String> {
+    ai::sessions::get(&app, &doc_path)
+}
+
+#[tauri::command]
+fn ai_session_upsert(app: tauri::AppHandle, mapping: SessionMapping) -> Result<(), String> {
+    ai::sessions::upsert(&app, mapping)
+}
+
+#[tauri::command]
+fn ai_session_remove(app: tauri::AppHandle, doc_path: String) -> Result<(), String> {
+    ai::sessions::remove(&app, &doc_path)
+}
+
+#[tauri::command]
+fn ai_session_migrate(app: tauri::AppHandle, old_path: String, new_path: String) -> Result<(), String> {
+    ai::sessions::migrate(&app, &old_path, &new_path)
+}
+
+#[tauri::command]
+fn ai_session_recover_by_hash(app: tauri::AppHandle, content_hash: String, cli: CliKind) -> Result<Option<SessionMapping>, String> {
+    ai::sessions::recover_by_hash(&app, &content_hash, cli)
+}
+
+#[tauri::command]
+fn ai_snapshot_list(app: tauri::AppHandle, doc_path: String) -> Result<Vec<SnapshotIndexEntry>, String> {
+    ai::snapshots::list(&app, &doc_path)
+}
+
+#[tauri::command]
+fn ai_snapshot_create(app: tauri::AppHandle, doc_path: String, content: String, source_session_id: Option<String>, keep: usize) -> Result<SnapshotIndexEntry, String> {
+    ai::snapshots::create(&app, &doc_path, &content, source_session_id, keep)
+}
+
+#[tauri::command]
+fn ai_snapshot_restore(app: tauri::AppHandle, doc_path: String, id: String) -> Result<String, String> {
+    ai::snapshots::restore(&app, &doc_path, &id)
+}
+
+#[tauri::command]
+fn ai_snapshot_set_pinned(app: tauri::AppHandle, doc_path: String, id: String, pinned: bool) -> Result<(), String> {
+    ai::snapshots::set_pinned(&app, &doc_path, &id, pinned)
+}
+
+#[tauri::command]
+fn ai_snapshot_delete(app: tauri::AppHandle, doc_path: String, id: String) -> Result<(), String> {
+    ai::snapshots::delete(&app, &doc_path, &id)
+}
+
+#[tauri::command]
+fn ai_snapshot_export(app: tauri::AppHandle, doc_path: String, id: String, dest: String) -> Result<(), String> {
+    ai::snapshots::export(&app, &doc_path, &id, std::path::Path::new(&dest))
+}
+
+#[tauri::command]
+fn ai_snapshot_migrate(app: tauri::AppHandle, old_path: String, new_path: String) -> Result<(), String> {
+    ai::snapshots::migrate(&app, &old_path, &new_path)
+}
+
+#[tauri::command]
+fn ai_audit_append(app: tauri::AppHandle, entry: AuditEntry) -> Result<(), String> {
+    ai::audit::append(&app, entry)
+}
+
+#[tauri::command]
+fn ai_audit_read(app: tauri::AppHandle, since: Option<String>, until: Option<String>) -> Result<Vec<AuditEntry>, String> {
+    ai::audit::read(&app, since.as_deref(), until.as_deref())
+}
+
+#[tauri::command]
+fn ai_audit_clear(app: tauri::AppHandle) -> Result<(), String> {
+    ai::audit::clear(&app)
+}
+
 /// List all font family names installed on the system.
 /// Returns a sorted, deduplicated list of font family names.
 #[tauri::command]
@@ -227,6 +326,7 @@ pub fn run() {
         }))
         .manage(OpenFileState(Mutex::new(None)))
         .manage(OpenFilesRegistry(Mutex::new(HashMap::new())))
+        .manage(ai::process::ChildRegistry::new())
         .invoke_handler(tauri::generate_handler![
             get_open_file_path,
             create_new_window,
@@ -238,7 +338,26 @@ pub fn run() {
             unregister_window_files,
             check_file_open,
             focus_window_with_file,
-            list_system_fonts
+            list_system_fonts,
+            ai_health_check,
+            ai_access_load,
+            ai_access_save,
+            ai_access_migrate,
+            ai_session_get,
+            ai_session_upsert,
+            ai_session_remove,
+            ai_session_migrate,
+            ai_session_recover_by_hash,
+            ai_snapshot_list,
+            ai_snapshot_create,
+            ai_snapshot_restore,
+            ai_snapshot_set_pinned,
+            ai_snapshot_delete,
+            ai_snapshot_export,
+            ai_snapshot_migrate,
+            ai_audit_append,
+            ai_audit_read,
+            ai_audit_clear
         ])
         .setup(|app| {
             // Check for CLI arguments (file association on first launch)
