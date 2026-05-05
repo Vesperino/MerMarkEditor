@@ -245,6 +245,20 @@ fn ai_audit_clear(app: tauri::AppHandle) -> Result<(), String> {
     ai::audit::clear(&app)
 }
 
+#[tauri::command]
+async fn ai_send(
+    app: tauri::AppHandle,
+    registry: tauri::State<'_, ai::process::ChildRegistry>,
+    req: ai::process::AiSendRequest,
+) -> Result<String, String> {
+    ai::process::spawn(app, registry, req).await
+}
+
+#[tauri::command]
+fn ai_cancel(registry: tauri::State<'_, ai::process::ChildRegistry>, request_id: String) {
+    ai::process::cancel(&registry, &request_id);
+}
+
 /// List all font family names installed on the system.
 /// Returns a sorted, deduplicated list of font family names.
 #[tauri::command]
@@ -357,7 +371,9 @@ pub fn run() {
             ai_snapshot_migrate,
             ai_audit_append,
             ai_audit_read,
-            ai_audit_clear
+            ai_audit_clear,
+            ai_send,
+            ai_cancel
         ])
         .setup(|app| {
             // Check for CLI arguments (file association on first launch)
@@ -382,6 +398,11 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             match event {
+                RunEvent::ExitRequested { .. } => {
+                    if let Some(reg) = app.try_state::<ai::process::ChildRegistry>() {
+                        reg.kill_all();
+                    }
+                }
                 #[cfg(target_os = "macos")]
                 RunEvent::Opened { urls } => {
                     // macOS: Finder double-click on already-running app dispatches
