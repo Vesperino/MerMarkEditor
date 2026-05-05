@@ -19,6 +19,13 @@ async function addPath(target: 'readPaths' | 'writePaths') {
   emitUpdate();
 }
 
+async function addFolder(target: 'readPaths' | 'writePaths') {
+  const sel = await openDialog({ directory: true, multiple: false });
+  if (!sel || Array.isArray(sel)) return;
+  if (!local.value[target].includes(sel)) local.value[target].push(sel);
+  emitUpdate();
+}
+
 function removePath(target: 'readPaths' | 'writePaths', i: number) {
   local.value[target].splice(i, 1);
   emitUpdate();
@@ -77,7 +84,10 @@ function basename(p: string): string {
     <section class="ai-access-section">
       <div class="ai-access-section__head">
         <h5>Readable files</h5>
-        <button class="ai-access-add" @click="addPath('readPaths')">+ Add</button>
+        <span class="ai-access-add-group">
+          <button class="ai-access-add" @click="addPath('readPaths')">+ File</button>
+          <button class="ai-access-add" @click="addFolder('readPaths')">+ Folder</button>
+        </span>
       </div>
       <ul v-if="local.readPaths.length > 0" class="ai-access-paths">
         <li v-for="(p, i) in local.readPaths" :key="p">
@@ -92,7 +102,10 @@ function basename(p: string): string {
     <section class="ai-access-section">
       <div class="ai-access-section__head">
         <h5>Writable files</h5>
-        <button class="ai-access-add" @click="addPath('writePaths')">+ Add</button>
+        <span class="ai-access-add-group">
+          <button class="ai-access-add" @click="addPath('writePaths')">+ File</button>
+          <button class="ai-access-add" @click="addFolder('writePaths')">+ Folder</button>
+        </span>
       </div>
       <ul v-if="local.writePaths.length > 0" class="ai-access-paths">
         <li v-for="(p, i) in local.writePaths" :key="p">
@@ -127,8 +140,12 @@ function basename(p: string): string {
   color: var(--text-muted);
   margin-left: auto;
 }
-.ai-access-add {
+.ai-access-add-group {
   margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+}
+.ai-access-add {
   padding: 3px 10px;
   font-size: 11px;
   background: var(--bg-primary);

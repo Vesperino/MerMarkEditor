@@ -397,10 +397,17 @@ function onDeleteThread(id: string) {
     <header class="ai-panel__header">
       <div class="ai-panel__title-row">
         <div class="ai-panel__title-group">
-          <svg class="ai-panel__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v1H7a4 4 0 0 0-4 4v3a4 4 0 0 0 2 3.46V20a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.54A4 4 0 0 0 21 13v-3a4 4 0 0 0-4-4h-2V5a3 3 0 0 0-3-3z"/>
-            <circle cx="9" cy="13" r="1"/>
-            <circle cx="15" cy="13" r="1"/>
+          <svg class="ai-panel__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="6" width="16" height="14" rx="3"/>
+            <circle cx="9" cy="13" r="1.3" fill="currentColor"/>
+            <circle cx="15" cy="13" r="1.3" fill="currentColor"/>
+            <line x1="9" y1="17" x2="15" y2="17"/>
+            <line x1="12" y1="3" x2="12" y2="6"/>
+            <circle cx="12" cy="2.5" r="1" fill="currentColor"/>
+            <line x1="2" y1="11" x2="4" y2="11"/>
+            <line x1="2" y1="14" x2="4" y2="14"/>
+            <line x1="20" y1="11" x2="22" y2="11"/>
+            <line x1="20" y1="14" x2="22" y2="14"/>
           </svg>
           <strong>{{ t.aiPanelTitle }}</strong>
         </div>

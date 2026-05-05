@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch, computed } from 'vue';
+import { onMounted, watch, computed, ref } from 'vue';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { useAiSnapshots } from '../../composables/useAiSnapshots';
 
@@ -15,9 +15,23 @@ const sortedItems = computed(() =>
   [...snapshots.items.value].sort((a, b) => b.ts.localeCompare(a.ts))
 );
 
+const restoring = ref<string | null>(null);
+
 async function onRestore(id: string) {
-  const content = await snapshots.restore(id);
-  emit('restored', content);
+  if (restoring.value) return;
+  restoring.value = id;
+  try {
+    console.log('[AiSnapshotList] restoring snapshot', id);
+    const content = await snapshots.restore(id);
+    emit('restored', content);
+    // Force reload of the list so any state drift between calls is reset.
+    await snapshots.loadFor(props.docPath);
+  } catch (e) {
+    console.error('[AiSnapshotList] restore failed:', e);
+    window.alert(`Restore failed: ${(e as Error).message}`);
+  } finally {
+    restoring.value = null;
+  }
 }
 
 async function onExport(id: string) {
@@ -66,9 +80,14 @@ function formatBytes(n: number): string {
           <span v-if="item.pinned" class="ai-snap-card__pin" title="Pinned — won't be auto-rotated">📌</span>
         </div>
         <div class="ai-snap-card__actions">
-          <button class="ai-snap-card__btn ai-snap-card__btn--primary" @click="onRestore(item.id)" title="Restore this version into editor + disk">
+          <button
+            class="ai-snap-card__btn ai-snap-card__btn--primary"
+            :disabled="restoring !== null"
+            @click="onRestore(item.id)"
+            title="Restore this version into editor + disk"
+          >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
-            Restore
+            {{ restoring === item.id ? 'Restoring…' : 'Restore' }}
           </button>
           <button class="ai-snap-card__btn" @click="snapshots.setPinned(item.id, !item.pinned)" :title="item.pinned ? 'Unpin' : 'Pin to protect from rotation'">
             {{ item.pinned ? 'Unpin' : 'Pin' }}

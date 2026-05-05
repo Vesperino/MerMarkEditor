@@ -515,6 +515,14 @@ function toggleAiPanel() {
 function onAiApplyContent(content: string) {
   // Reload-only — no auto-diff (revert flow already matches disk).
   setEditorContent(content);
+  // Mark editor state as "saved" so the next file-watcher fire (we just
+  // wrote the file ourselves) does not pop a conflict modal that blocks
+  // subsequent Restore clicks.
+  const tab = activeTab.value;
+  if (tab && typeof tab === 'object' && 'originalMarkdown' in tab) {
+    (tab as { originalMarkdown: string | null; hasChanges: boolean }).originalMarkdown = content;
+    (tab as { originalMarkdown: string | null; hasChanges: boolean }).hasChanges = false;
+  }
 }
 
 function onAiShowDiff(_orig: string, candidate: string) {
