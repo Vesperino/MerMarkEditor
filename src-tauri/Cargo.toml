@@ -30,3 +30,4 @@ sha1 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 which = "7"
+base64 = "0.22"

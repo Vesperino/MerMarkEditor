@@ -42,7 +42,7 @@ pub async fn spawn(
     eprintln!("[ai] spawn cli={:?} req_id={} session={:?} model={:?} effort={:?} bypass={} window={}",
         req.cli, request_id, req.session_id, req.model, req.effort, req.bypass, window_label);
     let child = match req.cli {
-        CliKind::Claude => claude::spawn(&req)?,
+        CliKind::Claude => claude::spawn(&req).await?,
         CliKind::Codex => codex::spawn(&req).await?,
     };
     eprintln!("[ai] child spawned for req_id={}", request_id);
