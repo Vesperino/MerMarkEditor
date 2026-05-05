@@ -28,6 +28,7 @@ pub struct AiSendRequest {
 
 pub async fn spawn(
     app: AppHandle,
+    window_label: String,
     registry: tauri::State<'_, ChildRegistry>,
     req: AiSendRequest,
 ) -> Result<String, String> {
@@ -45,12 +46,13 @@ pub async fn spawn(
         result: serde_json::json!({}),
         exit_code: None,
     })?;
-    spawn_pump(app, registry.inner(), request_id.clone(), req.cli, child);
+    spawn_pump(app, window_label, registry.inner(), request_id.clone(), req.cli, child);
     Ok(request_id)
 }
 
 fn spawn_pump(
     app: AppHandle,
+    window_label: String,
     registry: &ChildRegistry,
     request_id: String,
     cli: CliKind,
@@ -62,21 +64,24 @@ fn spawn_pump(
     let event = format!("ai:stream:{}", request_id);
     let app_for_stdout = app.clone();
     let event_for_stdout = event.clone();
+    let label_for_stdout = window_label.clone();
     let app_for_stderr = app;
     let event_for_stderr = event;
+    let label_for_stderr = window_label;
     if let Some(out) = stdout {
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 match normalizer::parse_line(cli, &line) {
-                    Some(chunk) => { let _ = app_for_stdout.emit(&event_for_stdout, chunk); }
+                    Some(chunk) => { let _ = app_for_stdout.emit_to(label_for_stdout.as_str(), &event_for_stdout, chunk); }
                     None if line.trim().is_empty() => {}
                     None => {
                         // Unparseable stdout line — surface as Error so the UI is
                         // not silent on CLI version drift / unknown envelopes.
                         // In production these are rare; if they spam the UI we
                         // can downgrade to a debug-only log.
-                        let _ = app_for_stdout.emit(
+                        let _ = app_for_stdout.emit_to(
+                            label_for_stdout.as_str(),
                             &event_for_stdout,
                             AiResponseChunk::Error {
                                 message: format!("[unparsed stdout] {}", line),
@@ -92,7 +97,8 @@ fn spawn_pump(
         tokio::spawn(async move {
             let mut lines = BufReader::new(err).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                let _ = app_for_stderr.emit(
+                let _ = app_for_stderr.emit_to(
+                    label_for_stderr.as_str(),
                     &event_for_stderr,
                     AiResponseChunk::Error { message: line, exit_code: None },
                 );

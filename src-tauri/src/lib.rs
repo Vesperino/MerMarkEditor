@@ -248,10 +248,11 @@ fn ai_audit_clear(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn ai_send(
     app: tauri::AppHandle,
+    window: tauri::Window,
     registry: tauri::State<'_, ai::process::ChildRegistry>,
     req: ai::process::AiSendRequest,
 ) -> Result<String, String> {
-    ai::process::spawn(app, registry, req).await
+    ai::process::spawn(app, window.label().to_string(), registry, req).await
 }
 
 #[tauri::command]
