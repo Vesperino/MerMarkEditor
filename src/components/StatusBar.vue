@@ -2,6 +2,7 @@
 import { useLayoutConfig } from '../composables/useLayoutConfig';
 import { useToolbarActions } from '../composables/useToolbarActions';
 import ToolbarItemRenderer from './ToolbarItemRenderer.vue';
+import AiStatusbarIndicator from './ai/AiStatusbarIndicator.vue';
 
 const { itemsForZone } = useLayoutConfig();
 const { closeDropdowns } = useToolbarActions();
@@ -62,6 +63,7 @@ const emit = defineEmits<{
         @toggle-toc="emit('toggleToc')"
       />
     </template>
+    <AiStatusbarIndicator />
   </div>
 </template>
 
