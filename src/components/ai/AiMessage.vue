@@ -269,10 +269,12 @@ function formatToolPreviewValue(value: unknown): string {
   border-radius: 6px;
   border: 1px dashed var(--border-primary);
   font-family: var(--code-font-family, monospace);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto;
   min-height: 30px;
   box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
 }
 /* Higher specificity — `.ai-msg.ai-msg--tool-expanded` beats both
    `.ai-msg--tool` and `.ai-msg` regardless of source order, so the chip
@@ -281,6 +283,7 @@ function formatToolPreviewValue(value: unknown): string {
   align-self: stretch;
   width: 100%;
   max-width: 100%;
+  grid-template-rows: auto minmax(0, auto);
 }
 .ai-msg__tool-row {
   display: flex;
@@ -333,6 +336,7 @@ function formatToolPreviewValue(value: unknown): string {
   width: 100%;
   box-sizing: border-box;
   display: block;
+  overflow: hidden;
 }
 .ai-msg__tool-details-label {
   display: block;
@@ -357,8 +361,9 @@ function formatToolPreviewValue(value: unknown): string {
   word-break: normal;
   width: 100%;
   box-sizing: border-box;
-  max-height: 320px;
-  overflow: auto;
+  max-height: min(360px, 45vh);
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 32px;
 }
 
