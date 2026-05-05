@@ -44,7 +44,8 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    cmd.spawn().map_err(|e| e.to_string())
+    eprintln!("[ai claude spawn] cwd={} args={:?}", req.work_dir, cmd.as_std().get_args().collect::<Vec<_>>());
+    cmd.spawn().map_err(|e| { eprintln!("[ai claude spawn] ERROR: {}", e); e.to_string() })
 }
 
 fn allowed_tools(tools: &AccessMapTools) -> String {

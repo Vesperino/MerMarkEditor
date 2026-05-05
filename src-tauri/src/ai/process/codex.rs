@@ -63,7 +63,8 @@ pub fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    cmd.spawn().map_err(|e| e.to_string())
+    eprintln!("[ai codex spawn] args={:?}", cmd.as_std().get_args().collect::<Vec<_>>());
+    cmd.spawn().map_err(|e| { eprintln!("[ai codex spawn] ERROR: {}", e); e.to_string() })
 }
 
 fn sandbox_mode(tools: &AccessMapTools, bypass: bool) -> &'static str {

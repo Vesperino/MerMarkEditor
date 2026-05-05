@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { htmlToMarkdown } from '../../utils/markdown-converter';
 import { useI18n } from '../../i18n';
 import { useSettings, type CliKind } from '../../composables/useSettings';
@@ -9,7 +9,7 @@ import { useAiAccessMap } from '../../composables/useAiAccessMap';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiApply } from '../../composables/useAiApply';
 import { parseAiOutput } from '../../composables/useAiOutputParser';
-import { modelsFor, effortsFor } from '../../composables/useAiModels';
+import { modelsFor, effortsFor, CUSTOM_MODEL_SENTINEL } from '../../composables/useAiModels';
 import AiMessage from './AiMessage.vue';
 import AiSnapshotList from './AiSnapshotList.vue';
 import AiAccessMapEditor from './AiAccessMapEditor.vue';
@@ -48,6 +48,28 @@ const selectedEffort = ref<string>(
     ? settings.value.ai.effortClaude
     : settings.value.ai.effortCodex
 );
+const customModelInput = ref<string>('');
+
+const isCustomModel = computed(() => {
+  const opts = modelOptions.value;
+  return !opts.some(o => o.id === selectedModel.value && !o.custom);
+});
+
+watchEffect(() => {
+  if (isCustomModel.value && !customModelInput.value) {
+    customModelInput.value = selectedModel.value;
+  }
+});
+
+function onSelectModel(id: string) {
+  if (id === CUSTOM_MODEL_SENTINEL) {
+    customModelInput.value = customModelInput.value || selectedModel.value;
+    selectedModel.value = customModelInput.value || '';
+  } else {
+    selectedModel.value = id;
+  }
+}
+
 const inputValue = ref('');
 const pendingTool = ref<{ tool: string; args: unknown } | null>(null);
 const fullscreen = ref(false);
@@ -284,9 +306,23 @@ function newChat() {
         <select v-model="selectedCli" class="ai-panel__select" :title="t.aiDefaultCli">
           <option v-for="c in availableClis" :key="c" :value="c">{{ c === 'claude' ? 'Claude' : 'Codex' }}</option>
         </select>
-        <select v-model="selectedModel" class="ai-panel__select ai-panel__select--model" :title="t.aiModel">
+        <select
+          class="ai-panel__select ai-panel__select--model"
+          :value="isCustomModel ? CUSTOM_MODEL_SENTINEL : selectedModel"
+          @change="onSelectModel(($event.target as HTMLSelectElement).value)"
+          :title="t.aiModel"
+        >
           <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
         </select>
+        <input
+          v-if="isCustomModel"
+          class="ai-panel__select ai-panel__select--custom"
+          type="text"
+          :value="customModelInput"
+          @input="customModelInput = ($event.target as HTMLInputElement).value; selectedModel = customModelInput"
+          placeholder="model id"
+          :title="t.aiModel"
+        />
         <select v-model="selectedEffort" class="ai-panel__select" :title="'Effort'">
           <option v-for="e in effortOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
         </select>
@@ -430,6 +466,7 @@ function newChat() {
 .ai-panel__select--model {
   min-width: 110px;
 }
+.ai-panel__select--custom { min-width: 130px; }
 .ai-panel__actions {
   display: flex;
   gap: 4px;

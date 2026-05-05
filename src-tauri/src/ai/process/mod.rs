@@ -34,10 +34,13 @@ pub async fn spawn(
     req: AiSendRequest,
     request_id: String,
 ) -> Result<String, String> {
+    eprintln!("[ai] spawn cli={:?} req_id={} session={:?} model={:?} effort={:?} bypass={} window={}",
+        req.cli, request_id, req.session_id, req.model, req.effort, req.bypass, window_label);
     let child = match req.cli {
         CliKind::Claude => claude::spawn(&req)?,
         CliKind::Codex => codex::spawn(&req)?,
     };
+    eprintln!("[ai] child spawned for req_id={}", request_id);
     audit::append(&app, AuditEntry {
         ts: audit::now_iso(),
         session_id: req.session_id.clone(),
@@ -69,18 +72,23 @@ fn spawn_pump(
     let app_for_stderr = app;
     let event_for_stderr = event;
     let label_for_stderr = window_label;
+    let req_id_for_stdout = request_id.clone();
     if let Some(out) = stdout {
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
             while let Ok(Some(line)) = lines.next_line().await {
+                eprintln!("[ai stdout] {}", line);
                 match normalizer::parse_line(cli, &line) {
-                    Some(chunk) => { let _ = app_for_stdout.emit_to(label_for_stdout.as_str(), &event_for_stdout, chunk); }
+                    Some(chunk) => {
+                        eprintln!("[ai chunk] {:?}", chunk);
+                        let _ = app_for_stdout.emit_to(label_for_stdout.as_str(), &event_for_stdout, chunk);
+                    }
                     None if line.trim().is_empty() => {}
                     None if normalizer::is_valid_json(&line) => {
-                        // Valid JSON but no chunk to emit — silent (e.g. message_start, content_block_stop).
+                        eprintln!("[ai stdout] (valid JSON, no chunk)");
                     }
                     None => {
-                        // Truly unparseable line — surface as Error so we notice CLI version drift.
+                        eprintln!("[ai stdout] UNPARSED");
                         let _ = app_for_stdout.emit_to(
                             label_for_stdout.as_str(),
                             &event_for_stdout,
@@ -92,18 +100,21 @@ fn spawn_pump(
                     }
                 }
             }
+            eprintln!("[ai stdout] EOF for req_id={}", req_id_for_stdout);
         });
     }
     if let Some(err) = stderr {
         tokio::spawn(async move {
             let mut lines = BufReader::new(err).lines();
             while let Ok(Some(line)) = lines.next_line().await {
+                eprintln!("[ai stderr] {}", line);
                 let _ = app_for_stderr.emit_to(
                     label_for_stderr.as_str(),
                     &event_for_stderr,
                     AiResponseChunk::Error { message: line, exit_code: None },
                 );
             }
+            eprintln!("[ai stderr] EOF");
         });
     }
 }

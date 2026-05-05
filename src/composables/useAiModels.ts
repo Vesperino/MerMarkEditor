@@ -3,6 +3,7 @@ import type { CliKind } from '../services/aiCommands';
 export interface AiModelOption {
   id: string;
   label: string;
+  custom?: boolean;
 }
 
 export interface AiEffortOption {
@@ -10,20 +11,37 @@ export interface AiEffortOption {
   label: string;
 }
 
+export const CUSTOM_MODEL_SENTINEL = '__custom__';
+
 export const CLAUDE_MODELS: AiModelOption[] = [
+  // Aliases — auto-resolve to the latest of each tier; safest default.
+  { id: 'opus', label: 'Opus (latest alias)' },
+  { id: 'sonnet', label: 'Sonnet (latest alias)' },
+  { id: 'haiku', label: 'Haiku (latest alias)' },
+  // Specific Opus versions (newest first).
+  { id: 'claude-opus-4-7', label: 'Opus 4.7' },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6' },
   { id: 'claude-opus-4-5', label: 'Opus 4.5' },
+  // Specific Sonnet versions.
+  { id: 'claude-sonnet-4-7', label: 'Sonnet 4.7' },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
   { id: 'claude-sonnet-4-5', label: 'Sonnet 4.5' },
+  // Specific Haiku versions.
+  { id: 'claude-haiku-4-7', label: 'Haiku 4.7' },
+  { id: 'claude-haiku-4-6', label: 'Haiku 4.6' },
   { id: 'claude-haiku-4-5', label: 'Haiku 4.5' },
-  { id: 'opus', label: 'Opus (latest)' },
-  { id: 'sonnet', label: 'Sonnet (latest)' },
-  { id: 'haiku', label: 'Haiku (latest)' },
+  // Custom escape hatch.
+  { id: CUSTOM_MODEL_SENTINEL, label: 'Custom…', custom: true },
 ];
 
 export const CODEX_MODELS: AiModelOption[] = [
+  { id: 'gpt-5.5', label: 'GPT-5.5' },
+  { id: 'gpt-5.4', label: 'GPT-5.4' },
   { id: 'gpt-5', label: 'GPT-5' },
   { id: 'gpt-5-mini', label: 'GPT-5 mini' },
   { id: 'o3', label: 'o3' },
-  { id: 'o4-mini', label: 'o4 mini' },
+  { id: 'o4-mini', label: 'o4-mini' },
+  { id: CUSTOM_MODEL_SENTINEL, label: 'Custom…', custom: true },
 ];
 
 export const CLAUDE_EFFORTS: AiEffortOption[] = [

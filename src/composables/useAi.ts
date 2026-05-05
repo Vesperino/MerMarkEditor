@@ -32,6 +32,7 @@ export function useAi() {
   async function send(opts: SendOpts) {
     if (isSending.value) throw new Error('A send is already in flight');
     isSending.value = true;
+    console.log('[useAi] send start', { cli: opts.cli, model: opts.model, effort: opts.effort });
     messages.value.push({ role: 'user', text: opts.prompt, done: true });
     const assistant: AiMessage = { role: 'assistant', text: '', done: false };
     messages.value.push(assistant);
@@ -40,12 +41,14 @@ export function useAi() {
     // starts emitting (fixes listener race for fast CLI responses).
     const requestId = crypto.randomUUID();
     inFlightRequestId.value = requestId;
+    console.log('[useAi] requestId generated:', requestId);
 
     let resolveCompletion!: () => void;
     const completion = new Promise<void>((r) => { resolveCompletion = r; });
 
     // Subscribe FIRST.
     const unlisten = await aiCommands.onStream(requestId, (chunk: AiResponseChunk) => {
+      console.log('[useAi] chunk:', chunk);
       switch (chunk.kind) {
         case 'text':
           assistant.text += chunk.content;
@@ -68,6 +71,7 @@ export function useAi() {
           break;
       }
     });
+    console.log('[useAi] listener registered for', requestId);
 
     const req: AiSendRequest = {
       cli: opts.cli,
@@ -83,9 +87,12 @@ export function useAi() {
 
     try {
       // Now spawn — listener is already attached.
-      await aiCommands.send(req, requestId);
+      const returnedId = await aiCommands.send(req, requestId);
+      console.log('[useAi] backend ack returned id:', returnedId);
       await completion;
+      console.log('[useAi] completion resolved, assistant.text length:', assistant.text.length);
     } catch (err) {
+      console.error('[useAi] send error:', err);
       assistant.error = (err as Error)?.message ?? String(err);
       assistant.done = true;
     } finally {

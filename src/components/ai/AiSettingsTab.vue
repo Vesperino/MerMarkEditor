@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useI18n } from '../../i18n';
 import { useSettings, type CliKind, type PanelSide } from '../../composables/useSettings';
 import { useAi } from '../../composables/useAi';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
-import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS } from '../../composables/useAiModels';
+import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS, CUSTOM_MODEL_SENTINEL } from '../../composables/useAiModels';
 
 const { t } = useI18n();
 const {
@@ -25,12 +25,17 @@ const { check, cache, loading } = useAiHealth();
 const { bypassEnabled } = useAi();
 const { entries: auditEntries, load: loadAudit, clear: clearAudit } = useAiAudit();
 
+const customClaude = ref<string>('');
+const customCodex = ref<string>('');
+
 onMounted(async () => {
   await Promise.allSettled([
     check('claude'),
     check('codex'),
     loadAudit(),
   ]);
+  if (isCustom('claude')) customClaude.value = settings.value.ai.defaultModelClaude;
+  if (isCustom('codex')) customCodex.value = settings.value.ai.defaultModelCodex;
 });
 
 async function recheck(cli: CliKind) {
@@ -68,6 +73,45 @@ const installUrl: Record<CliKind, string> = {
 
 async function openInstall(cli: CliKind) {
   await openExternal(installUrl[cli]);
+}
+
+function isCustom(cli: 'claude' | 'codex'): boolean {
+  const cur = cli === 'claude' ? settings.value.ai.defaultModelClaude : settings.value.ai.defaultModelCodex;
+  const list = cli === 'claude' ? CLAUDE_MODELS : CODEX_MODELS;
+  return !list.some(o => o.id === cur && !o.custom);
+}
+
+function pickModel(cli: 'claude' | 'codex', id: string) {
+  if (id === CUSTOM_MODEL_SENTINEL) {
+    if (cli === 'claude') {
+      const v = customClaude.value || settings.value.ai.defaultModelClaude;
+      customClaude.value = v;
+      setAiDefaultModelClaude(v);
+    } else {
+      const v = customCodex.value || settings.value.ai.defaultModelCodex;
+      customCodex.value = v;
+      setAiDefaultModelCodex(v);
+    }
+  } else {
+    if (cli === 'claude') setAiDefaultModelClaude(id);
+    else setAiDefaultModelCodex(id);
+  }
+}
+
+function pickCustom(cli: 'claude' | 'codex', v: string) {
+  if (cli === 'claude') {
+    customClaude.value = v;
+    setAiDefaultModelClaude(v);
+  } else {
+    customCodex.value = v;
+    setAiDefaultModelCodex(v);
+  }
+}
+
+async function copyAudit() {
+  const last = auditEntries.value.slice(-50);
+  const text = last.map(e => `${e.ts} ${e.cli} ${e.action} args=${JSON.stringify(e.args)}`).join('\n');
+  await navigator.clipboard.writeText(text);
 }
 </script>
 
@@ -125,15 +169,39 @@ async function openInstall(cli: CliKind) {
       <h4>{{ t.aiModel }}</h4>
       <label class="ai-inline-label">
         {{ t.aiCliStatusClaude }}
-        <select :value="settings.ai.defaultModelClaude" @change="setAiDefaultModelClaude(($event.target as HTMLSelectElement).value)">
-          <option v-for="m in CLAUDE_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </select>
+        <div class="ai-inline-control">
+          <select
+            :value="isCustom('claude') ? CUSTOM_MODEL_SENTINEL : settings.ai.defaultModelClaude"
+            @change="pickModel('claude', ($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="m in CLAUDE_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <input
+            v-if="isCustom('claude')"
+            type="text"
+            :value="customClaude"
+            @input="pickCustom('claude', ($event.target as HTMLInputElement).value)"
+            placeholder="model id"
+          />
+        </div>
       </label>
       <label class="ai-inline-label" style="margin-top: 8px;">
         {{ t.aiCliStatusCodex }}
-        <select :value="settings.ai.defaultModelCodex" @change="setAiDefaultModelCodex(($event.target as HTMLSelectElement).value)">
-          <option v-for="m in CODEX_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </select>
+        <div class="ai-inline-control">
+          <select
+            :value="isCustom('codex') ? CUSTOM_MODEL_SENTINEL : settings.ai.defaultModelCodex"
+            @change="pickModel('codex', ($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="m in CODEX_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <input
+            v-if="isCustom('codex')"
+            type="text"
+            :value="customCodex"
+            @input="pickCustom('codex', ($event.target as HTMLInputElement).value)"
+            placeholder="model id"
+          />
+        </div>
       </label>
     </section>
 
@@ -209,6 +277,7 @@ async function openInstall(cli: CliKind) {
         </table>
         <div class="ai-audit-actions">
           <button class="ai-btn" @click="clearAudit">{{ t.aiAuditClear }}</button>
+          <button class="ai-btn" @click="copyAudit">Copy</button>
         </div>
       </details>
     </section>
@@ -265,6 +334,16 @@ async function openInstall(cli: CliKind) {
   font-size: 13px;
   color: var(--text-secondary);
 }
+
+/* Inline control: wraps select + optional custom text input */
+.ai-inline-control {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+}
+.ai-inline-control select { min-width: 160px; }
+.ai-inline-control input[type="text"] { flex: 1; min-width: 140px; }
 
 /* Unified input/select styling */
 .ai-settings select,
