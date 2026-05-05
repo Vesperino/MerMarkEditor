@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::ai::types::{AiResponseChunk, CliKind};
+use crate::ai::types::AiResponseChunk;
 
 /// Per-stream parser state for codex (which needs to remember `thread_id`
 /// across lines to attach it to the final Done chunk).
@@ -25,18 +25,6 @@ pub struct ToolBuf {
     pub json_buf: String,
 }
 
-/// Parse a single line of CLI output into zero or one normalized chunks.
-/// Unknown / non-JSON lines return None (callers should keep them as raw text
-/// only if no JSON parsing succeeds for the entire stream — handled in the
-/// per-CLI parser).
-pub fn parse_line(cli: CliKind, line: &str) -> Option<AiResponseChunk> {
-    let v: serde_json::Value = serde_json::from_str(line).ok()?;
-    match cli {
-        CliKind::Claude => parse_claude(&v),
-        CliKind::Codex => parse_codex(&v),
-    }
-}
-
 /// Codex-specific stateful entry point (preserves `thread_id` across lines).
 pub fn parse_line_codex(state: &mut CodexParserState, line: &str) -> Option<AiResponseChunk> {
     let v: serde_json::Value = serde_json::from_str(line).ok()?;
@@ -53,11 +41,6 @@ pub fn parse_line_claude(state: &mut ClaudeParserState, line: &str) -> Option<Ai
 /// True if a line is parseable JSON (regardless of whether we extract a chunk from it).
 pub fn is_valid_json(line: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(line).is_ok()
-}
-
-fn parse_claude(v: &serde_json::Value) -> Option<AiResponseChunk> {
-    let mut state = ClaudeParserState::default();
-    parse_claude_stateful(&mut state, v)
 }
 
 fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -> Option<AiResponseChunk> {
@@ -151,13 +134,6 @@ fn parse_stream_event(state: &mut ClaudeParserState, ev: &serde_json::Value) -> 
         // message_start, message_delta, message_stop — drop.
         _ => None,
     }
-}
-
-/// Stateless codex parser kept for backward compatibility / older envelope
-/// shapes; the canonical stateful flow is `parse_codex_stateful`.
-fn parse_codex(v: &serde_json::Value) -> Option<AiResponseChunk> {
-    let mut state = CodexParserState::default();
-    parse_codex_stateful(&mut state, v)
 }
 
 /// Codex --json envelope (verified against codex-cli 0.128.0):
@@ -283,16 +259,19 @@ fn parse_codex_stateful(
 mod tests {
     use super::*;
 
+    fn fresh_claude() -> ClaudeParserState { ClaudeParserState::default() }
+    fn fresh_codex() -> CodexParserState { CodexParserState::default() }
+
     #[test]
     fn unparseable_line_returns_none() {
-        assert!(parse_line(CliKind::Claude, "not json").is_none());
-        assert!(parse_line(CliKind::Codex, "{}").is_none());
+        assert!(parse_line_claude(&mut fresh_claude(), "not json").is_none());
+        assert!(parse_line_codex(&mut fresh_codex(), "{}").is_none());
     }
 
     #[test]
     fn claude_stream_event_text_delta_extracted() {
         let line = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}}"#;
-        let out = parse_line(CliKind::Claude, line).unwrap();
+        let out = parse_line_claude(&mut fresh_claude(), line).unwrap();
         assert!(matches!(out, AiResponseChunk::Text { content } if content == "hello"));
     }
 
@@ -300,13 +279,13 @@ mod tests {
     fn claude_assistant_event_is_dropped_with_partial_messages() {
         // The cumulative assistant event would duplicate what we already streamed via deltas.
         let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]},"session_id":"s1"}"#;
-        assert!(parse_line(CliKind::Claude, line).is_none());
+        assert!(parse_line_claude(&mut fresh_claude(), line).is_none());
     }
 
     #[test]
     fn claude_result_event_emits_done_with_session_id() {
         let line = r#"{"type":"result","subtype":"success","result":"ok","session_id":"s2","duration_ms":2594}"#;
-        match parse_line(CliKind::Claude, line).unwrap() {
+        match parse_line_claude(&mut fresh_claude(), line).unwrap() {
             AiResponseChunk::Done { session_id, .. } => assert_eq!(session_id, "s2"),
             _ => panic!("wrong variant"),
         }
@@ -315,25 +294,25 @@ mod tests {
     #[test]
     fn claude_system_init_is_dropped() {
         let line = r#"{"type":"system","subtype":"init","session_id":"s1","cwd":"/foo"}"#;
-        assert!(parse_line(CliKind::Claude, line).is_none());
+        assert!(parse_line_claude(&mut fresh_claude(), line).is_none());
     }
 
     #[test]
     fn claude_rate_limit_event_is_dropped() {
         let line = r#"{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}"#;
-        assert!(parse_line(CliKind::Claude, line).is_none());
+        assert!(parse_line_claude(&mut fresh_claude(), line).is_none());
     }
 
     #[test]
     fn claude_stream_event_message_start_is_dropped() {
         let line = r#"{"type":"stream_event","event":{"type":"message_start","message":{}}}"#;
-        assert!(parse_line(CliKind::Claude, line).is_none());
+        assert!(parse_line_claude(&mut fresh_claude(), line).is_none());
     }
 
     #[test]
     fn codex_text_chunk_extracts_text_field() {
         let line = r#"{"type":"text","text":"hello"}"#;
-        let out = parse_line(CliKind::Codex, line).unwrap();
+        let out = parse_line_codex(&mut fresh_codex(), line).unwrap();
         assert!(matches!(out, AiResponseChunk::Text { content } if content == "hello"));
     }
 
