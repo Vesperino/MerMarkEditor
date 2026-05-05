@@ -222,37 +222,39 @@ function onLink(url: string | undefined, e: MouseEvent) {
   40% { opacity: 1; transform: scale(1); }
 }
 
-/* Tool usage entry */
+/* Tool usage entry — width hugs content (collapsed) and only stretches when
+   the JSON dump is open. */
 .ai-msg--tool {
-  display: inline-flex;
-  flex-direction: column;
   align-self: flex-start;
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
+  width: fit-content;
+  max-width: 100%;
+  background: var(--bg-secondary, var(--bg-tertiary));
+  color: var(--text-secondary);
   font-size: 11px;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px dashed var(--border-primary);
   font-family: var(--code-font-family, monospace);
-  max-width: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .ai-msg--tool-expanded {
   align-self: stretch;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
 }
 .ai-msg__tool-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
   background: transparent;
   border: none;
   color: inherit;
   font: inherit;
-  padding: 4px 8px;
+  padding: 5px 10px;
   cursor: pointer;
-  width: auto;
   text-align: left;
+  width: 100%;
+  min-width: 0;
 }
 .ai-msg__tool-row:hover { background: var(--hover-bg, rgba(0,0,0,0.04)); }
 .ai-msg__tool-chevron {
@@ -261,14 +263,19 @@ function onLink(url: string | undefined, e: MouseEvent) {
   opacity: 0.6;
 }
 .ai-msg__tool-chevron--open { transform: rotate(90deg); }
-.ai-msg__tool-label { font-weight: 600; color: var(--primary); }
+.ai-msg__tool-label {
+  font-weight: 600;
+  color: var(--primary);
+  flex-shrink: 0;
+}
 .ai-msg__tool-args {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
   min-width: 0;
-  opacity: 0.75;
+  max-width: 28ch;
+  opacity: 0.7;
+  color: var(--text-muted);
 }
 .ai-msg__tool-args-full {
   margin: 0;
