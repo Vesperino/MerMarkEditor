@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { writeTextFile, exists, readTextFile, remove } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { htmlToMarkdown, detectLineEnding, applyLineEnding } from './utils/markdown-converter';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
@@ -27,6 +27,7 @@ import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
 import AiPanel from './components/ai/AiPanel.vue';
 import AiFirstRunTooltip from './components/ai/AiFirstRunTooltip.vue';
+import AiTmpRecoveryModal from './components/ai/AiTmpRecoveryModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import FileConflictModal from './components/FileConflictModal.vue';
 
@@ -542,6 +543,44 @@ const aiWorkDir = computed(() => {
   const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
   return idx >= 0 ? p.slice(0, idx) : p;
 });
+
+// ============ AI Tmp Recovery ============
+const tmpRecovery = ref<{ tmpPath: string; content: string; modifiedAt: string } | null>(null);
+
+watch(() => activeTab.value?.filePath, async (path) => {
+  if (!path) { tmpRecovery.value = null; return; }
+  const tmpPath = `${path}.mermark-ai.tmp`;
+  try {
+    if (await exists(tmpPath)) {
+      const content = await readTextFile(tmpPath);
+      tmpRecovery.value = { tmpPath, content, modifiedAt: new Date().toISOString() };
+    } else {
+      tmpRecovery.value = null;
+    }
+  } catch {
+    tmpRecovery.value = null;
+  }
+});
+
+async function onTmpRestore() {
+  if (!tmpRecovery.value) return;
+  setEditorContent(tmpRecovery.value.content);
+  try { await remove(tmpRecovery.value.tmpPath); } catch { /* best-effort */ }
+  tmpRecovery.value = null;
+}
+
+async function onTmpDiscard() {
+  if (!tmpRecovery.value) return;
+  try { await remove(tmpRecovery.value.tmpPath); } catch { /* best-effort */ }
+  tmpRecovery.value = null;
+}
+
+function onTmpShowDiff() {
+  if (!tmpRecovery.value) return;
+  setEditorContent(tmpRecovery.value.content);
+  // Existing diff machinery compares vs originalMarkdown automatically.
+  tmpRecovery.value = null;
+}
 
 // ============ What's New Modal ============
 const showWhatsNewModal = ref(false);
@@ -1260,6 +1299,16 @@ onUnmounted(async () => {
 
     <!-- AI First-run tooltip (auto-shows once) -->
     <AiFirstRunTooltip @open-settings="showSettingsModal = true" />
+
+    <!-- AI Tmp Recovery Modal -->
+    <AiTmpRecoveryModal
+      v-if="tmpRecovery"
+      :tmp-path="tmpRecovery.tmpPath"
+      :modified-at="tmpRecovery.modifiedAt"
+      @restore="onTmpRestore"
+      @discard="onTmpDiscard"
+      @show-diff="onTmpShowDiff"
+    />
 
     <!-- What's New Modal -->
     <WhatsNewModal
