@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { AiMessage } from '../../composables/useAi';
 
 const props = defineProps<{
@@ -15,6 +15,20 @@ const emit = defineEmits<{
 const isTool = computed(() => props.message.role === 'tool');
 const isAttachment = computed(() => props.message.role === 'attachment');
 const isAssistant = computed(() => props.message.role === 'assistant');
+
+// Expand tool chip on click to reveal full args. Args arrive as a JSON
+// string (see useAi.ts pushMessage for tool_request); pretty-print so the
+// expanded view is readable.
+const toolExpanded = ref(false);
+const prettyToolArgs = computed(() => {
+  if (!isTool.value || !props.message.text) return '';
+  try {
+    const parsed = JSON.parse(props.message.text);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return props.message.text;
+  }
+});
 // Show typing indicator while waiting for first text chunk.
 const isThinking = computed(
   () => isAssistant.value && !props.message.done && props.message.text === '' && !props.message.error
@@ -82,10 +96,22 @@ function onLink(url: string | undefined, e: MouseEvent) {
 </script>
 
 <template>
-  <div v-if="isTool" class="ai-msg ai-msg--tool">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-    <span class="ai-msg__tool-label">{{ message.tool }}</span>
-    <span class="ai-msg__tool-args" :title="message.text">{{ message.text }}</span>
+  <div
+    v-if="isTool"
+    class="ai-msg ai-msg--tool"
+    :class="{ 'ai-msg--tool-expanded': toolExpanded }"
+  >
+    <button
+      class="ai-msg__tool-row"
+      @click="toolExpanded = !toolExpanded"
+      :title="toolExpanded ? 'Click to collapse' : 'Click to view full arguments'"
+    >
+      <svg class="ai-msg__tool-chevron" :class="{ 'ai-msg__tool-chevron--open': toolExpanded }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      <span class="ai-msg__tool-label">{{ message.tool }}</span>
+      <span v-if="!toolExpanded" class="ai-msg__tool-args">{{ message.text }}</span>
+    </button>
+    <pre v-if="toolExpanded" class="ai-msg__tool-args-full">{{ prettyToolArgs }}</pre>
   </div>
   <button
     v-else-if="isAttachment"
@@ -198,19 +224,42 @@ function onLink(url: string | undefined, e: MouseEvent) {
 
 /* Tool usage entry */
 .ai-msg--tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
   align-self: flex-start;
   background: var(--bg-tertiary);
   color: var(--text-muted);
   font-size: 11px;
-  padding: 4px 8px;
   border-radius: 4px;
   border: 1px dashed var(--border-primary);
   font-family: var(--code-font-family, monospace);
   max-width: 100%;
+  overflow: hidden;
 }
+.ai-msg--tool-expanded {
+  align-self: stretch;
+  width: 100%;
+}
+.ai-msg__tool-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.ai-msg__tool-row:hover { background: var(--hover-bg, rgba(0,0,0,0.04)); }
+.ai-msg__tool-chevron {
+  flex-shrink: 0;
+  transition: transform 120ms ease;
+  opacity: 0.6;
+}
+.ai-msg__tool-chevron--open { transform: rotate(90deg); }
 .ai-msg__tool-label { font-weight: 600; color: var(--primary); }
 .ai-msg__tool-args {
   overflow: hidden;
@@ -219,6 +268,19 @@ function onLink(url: string | undefined, e: MouseEvent) {
   flex: 1;
   min-width: 0;
   opacity: 0.75;
+}
+.ai-msg__tool-args-full {
+  margin: 0;
+  padding: 8px 10px;
+  border-top: 1px dashed var(--border-primary);
+  background: var(--bg-secondary, var(--bg-tertiary));
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
 }
 
 /* Attachment marker — click to inspect what was sent */

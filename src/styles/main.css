@@ -528,6 +528,12 @@ button:disabled {
   .template-modal-overlay,
   .fullscreen-overlay,
   .dialog-overlay,
+  .ai-panel,
+  .ai-panel-tab,
+  .ai-statusbar-indicator,
+  .ai-toolbar-btn,
+  .ai-first-run-tooltip,
+  .toc-panel,
   .btn-edit,
   .btn-delete,
   .btn-save,
@@ -535,6 +541,26 @@ button:disabled {
   .btn-template,
   .btn-more-templates {
     display: none !important;
+  }
+
+  /* Editor surface should fill the printable width and ignore on-screen
+     zoom + side-panel offsets so the printed output matches the doc 1:1. */
+  .editor-area,
+  .editor-pane,
+  .pane-container,
+  .split-container,
+  .editor-container,
+  .editor-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  :root {
+    --editor-zoom: 1 !important;
   }
 
   /* Editor container - ensure full content visibility for print */
