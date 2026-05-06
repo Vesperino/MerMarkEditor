@@ -22,7 +22,7 @@ use crate::ai::cli;
 const CMD: &str = "claude";
 
 pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
-    let mut cmd = Command::new(cli::resolve(CMD));
+    let mut cmd = Command::new(cli::resolve_with_override(CMD, req.cli_path.as_deref()));
     cmd.arg("-p")
         .arg("--output-format").arg("stream-json")
         .arg("--verbose")  // REQUIRED for stream-json to actually emit

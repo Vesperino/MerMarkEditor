@@ -62,6 +62,8 @@ export interface AiSendRequest {
   workDir: string;
   /** Absolute paths to attached image files. */
   images?: string[];
+  /** Optional explicit path to the CLI binary (overrides PATH-based detection). */
+  cliPath?: string | null;
 }
 
 export type AiResponseChunk =
@@ -72,7 +74,8 @@ export type AiResponseChunk =
   | { kind: 'error'; message: string; exitCode: number | null };
 
 export const aiCommands = {
-  healthCheck: (cli: CliKind) => invoke<HealthStatus>('ai_health_check', { cli }),
+  healthCheck: (cli: CliKind, overridePath: string | null = null) =>
+    invoke<HealthStatus>('ai_health_check', { cli, overridePath }),
 
   send: (req: AiSendRequest, requestId: string) => invoke<string>('ai_send', { req, requestId }),
   cancel: (requestId: string) => invoke<void>('ai_cancel', { requestId }),

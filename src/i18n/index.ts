@@ -399,6 +399,11 @@ export interface Translations {
   aiSettingsEffortHeading: string;
   aiSettingsCopyAudit: string;
   aiSettingsModelIdPlaceholder: string;
+  aiSettingsCliPathHeading: string;
+  aiSettingsCliPathHelper: string;
+  aiSettingsCliPathBrowse: string;
+  aiSettingsCliPathPlaceholder: string;
+  aiSettingsCliPathClear: string;
   collapseSidebar: string;
   expandSidebar: string;
 }

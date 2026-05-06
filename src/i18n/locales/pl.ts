@@ -393,6 +393,11 @@ const pl: Translations = {
   aiSettingsEffortHeading: 'Tryb pracy',
   aiSettingsCopyAudit: 'Kopiuj',
   aiSettingsModelIdPlaceholder: 'id modelu',
+  aiSettingsCliPathHeading: 'Własna ścieżka do binarki',
+  aiSettingsCliPathHelper: 'Użyj tylko gdy automatyczne wykrywanie zawodzi (np. aplikacje GUI na macOS nie widzą PATH z Homebrew/npm-global; nietypowe instalki przez asdf/mise/fnm/snap). Puste = wykrywanie automatyczne. Sprawdzane lokalizacje:',
+  aiSettingsCliPathBrowse: 'Wybierz…',
+  aiSettingsCliPathPlaceholder: 'np. /opt/homebrew/bin/claude',
+  aiSettingsCliPathClear: 'Wyczyść',
   collapseSidebar: 'Zwiń pasek boczny',
   expandSidebar: 'Rozwiń pasek boczny',
 };

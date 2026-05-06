@@ -18,6 +18,10 @@ export interface AiSettings {
   snapshotsKeep: number;
   hasSeenFirstRun: boolean;
   panelSide: PanelSide;
+  /** Optional manual override for the `claude` binary path. Empty = autodetect via PATH. */
+  cliPathClaude: string;
+  /** Optional manual override for the `codex` binary path. Empty = autodetect via PATH. */
+  cliPathCodex: string;
 }
 
 export interface FontPreset {
@@ -159,6 +163,8 @@ function getDefaultSettings(): AppSettings {
       snapshotsKeep: 3,
       hasSeenFirstRun: false,
       panelSide: 'right',
+      cliPathClaude: '',
+      cliPathCodex: '',
     },
   };
 }
@@ -264,6 +270,8 @@ export function useSettings() {
   };
   const setAiHasSeenFirstRun = (v: boolean) => { settings.value.ai.hasSeenFirstRun = v; };
   const setAiPanelSide = (v: PanelSide) => { settings.value.ai.panelSide = v; };
+  const setAiCliPathClaude = (v: string) => { settings.value.ai.cliPathClaude = v.trim(); };
+  const setAiCliPathCodex = (v: string) => { settings.value.ai.cliPathCodex = v.trim(); };
 
   return {
     settings,
@@ -294,6 +302,8 @@ export function useSettings() {
     setAiSnapshotsKeep,
     setAiHasSeenFirstRun,
     setAiPanelSide,
+    setAiCliPathClaude,
+    setAiCliPathCodex,
   };
 }
 

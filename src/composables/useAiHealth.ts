@@ -1,18 +1,27 @@
 import { ref } from 'vue';
 import { aiCommands, type CliKind, type HealthStatus } from '../services/aiCommands';
+import { useSettings } from './useSettings';
 
 const cache = ref<Record<CliKind, HealthStatus | null>>({ claude: null, codex: null });
 const lastCheckedAt = ref<Record<CliKind, number | null>>({ claude: null, codex: null });
 const loading = ref<Record<CliKind, boolean>>({ claude: false, codex: false });
 
 export function useAiHealth() {
+  const { settings } = useSettings();
+
+  function overrideFor(cli: CliKind): string | null {
+    const raw = cli === 'claude' ? settings.value.ai.cliPathClaude : settings.value.ai.cliPathCodex;
+    const trimmed = (raw ?? '').trim();
+    return trimmed || null;
+  }
+
   async function check(cli: CliKind, force = false): Promise<HealthStatus> {
     if (!force && cache.value[cli]) {
       return cache.value[cli] as HealthStatus;
     }
     loading.value[cli] = true;
     try {
-      const r = await aiCommands.healthCheck(cli);
+      const r = await aiCommands.healthCheck(cli, overrideFor(cli));
       cache.value[cli] = r;
       lastCheckedAt.value[cli] = Date.now();
       return r;

@@ -151,8 +151,8 @@ async fn transfer_tab_to_window(
 use ai::types::{AccessMap, AuditEntry, CliKind, HealthStatus, SessionMapping, SnapshotIndexEntry};
 
 #[tauri::command]
-async fn ai_health_check(cli: CliKind) -> HealthStatus {
-    ai::health::check(cli).await
+async fn ai_health_check(cli: CliKind, override_path: Option<String>) -> HealthStatus {
+    ai::health::check(cli, override_path.as_deref()).await
 }
 
 #[tauri::command]

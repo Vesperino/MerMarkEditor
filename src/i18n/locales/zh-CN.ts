@@ -393,6 +393,11 @@ const zhCN: Translations = {
   aiSettingsEffortHeading: '推理强度',
   aiSettingsCopyAudit: '复制',
   aiSettingsModelIdPlaceholder: '模型 ID',
+  aiSettingsCliPathHeading: '自定义可执行文件路径',
+  aiSettingsCliPathHelper: '仅在自动检测失败时使用（例如 macOS 图形应用无法读取 Homebrew/npm-global 的 PATH；或通过 asdf/mise/fnm/snap 等非标准安装）。留空则自动检测。检测的路径：',
+  aiSettingsCliPathBrowse: '浏览…',
+  aiSettingsCliPathPlaceholder: '例如 /opt/homebrew/bin/claude',
+  aiSettingsCliPathClear: '清除',
   collapseSidebar: '收起侧边栏',
   expandSidebar: '展开侧边栏',
 };

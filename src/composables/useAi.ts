@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue';
 import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap } from '../services/aiCommands';
 import { useAiContext } from './useAiContext';
+import { useSettings } from './useSettings';
 
 export interface AttachedPin {
   id: string;
@@ -314,6 +315,11 @@ export function useAi() {
       }
     });
 
+    const { settings } = useSettings();
+    const overridePath = (opts.cli === 'claude'
+      ? settings.value.ai.cliPathClaude
+      : settings.value.ai.cliPathCodex
+    ).trim();
     const req: AiSendRequest = {
       cli: opts.cli,
       sessionId: opts.sessionId,
@@ -325,6 +331,7 @@ export function useAi() {
       bypass: bypassEnabled.value,
       workDir: opts.workDir,
       images: opts.images ?? [],
+      cliPath: overridePath || null,
     };
 
     try {

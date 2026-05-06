@@ -19,8 +19,16 @@ describe('aiCommands', () => {
       ok: true, version: '1', account: 'a', error: null,
     });
     const r = await aiCommands.healthCheck('claude');
-    expect(invoke).toHaveBeenCalledWith('ai_health_check', { cli: 'claude' });
+    expect(invoke).toHaveBeenCalledWith('ai_health_check', { cli: 'claude', overridePath: null });
     expect(r.ok).toBe(true);
+  });
+
+  it('healthCheck forwards an explicit override path when provided', async () => {
+    (invoke as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue({
+      ok: true, version: '1', account: null, error: null,
+    });
+    await aiCommands.healthCheck('codex', '/opt/homebrew/bin/codex');
+    expect(invoke).toHaveBeenCalledWith('ai_health_check', { cli: 'codex', overridePath: '/opt/homebrew/bin/codex' });
   });
 
   it('send forwards the request payload as `req` and requestId', async () => {

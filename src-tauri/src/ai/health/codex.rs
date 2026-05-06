@@ -21,8 +21,8 @@ use crate::ai::cli;
 
 const CMD: &str = "codex";
 
-pub async fn probe() -> HealthStatus {
-    let version = match run_capture(&["--version"], 5).await {
+pub async fn probe(override_path: Option<&str>) -> HealthStatus {
+    let version = match run_capture(override_path, &["--version"], 5).await {
         Ok((true, out, _)) => Some(out.trim().to_string()),
         _ => {
             return HealthStatus {
@@ -33,7 +33,7 @@ pub async fn probe() -> HealthStatus {
             }
         }
     };
-    let auth = run_capture(&["login", "status"], 10).await;
+    let auth = run_capture(override_path, &["login", "status"], 10).await;
     match auth {
         Ok((true, out, _)) => {
             HealthStatus { ok: true, version, account: parse_account(&out), error: None }
@@ -67,11 +67,12 @@ fn parse_account(out: &str) -> Option<String> {
 }
 
 async fn run_capture(
+    override_path: Option<&str>,
     args: &[&str],
     timeout_secs: u64,
 ) -> Result<(bool, String, String), String> {
     let fut = async {
-        let mut cmd = Command::new(cli::resolve(CMD));
+        let mut cmd = Command::new(cli::resolve_with_override(CMD, override_path));
         cmd.args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

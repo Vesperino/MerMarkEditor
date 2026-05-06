@@ -393,6 +393,11 @@ const en: Translations = {
   aiSettingsEffortHeading: 'Effort',
   aiSettingsCopyAudit: 'Copy',
   aiSettingsModelIdPlaceholder: 'model id',
+  aiSettingsCliPathHeading: 'Custom binary path',
+  aiSettingsCliPathHelper: 'Use only if auto-detection fails (macOS GUI apps often miss Homebrew/npm-global PATH; or non-standard installs via asdf/mise/fnm/snap). Leave empty to autodetect. Searched locations:',
+  aiSettingsCliPathBrowse: 'Browse…',
+  aiSettingsCliPathPlaceholder: 'e.g. /opt/homebrew/bin/claude',
+  aiSettingsCliPathClear: 'Clear',
   collapseSidebar: 'Collapse sidebar',
   expandSidebar: 'Expand sidebar',
 };

@@ -30,6 +30,12 @@ pub struct AiSendRequest {
     /// content blocks — wired in a follow-up).
     #[serde(default)]
     pub images: Vec<String>,
+    /// Optional user-supplied path to the CLI binary, taking precedence over
+    /// PATH-based resolution. Used on macOS/Linux when the binary lives
+    /// outside the GUI process's PATH (Homebrew, npm-global, volta, etc.).
+    /// Empty / None falls back to `cli::resolve`. See issue #70.
+    #[serde(default)]
+    pub cli_path: Option<String>,
 }
 
 pub async fn spawn(

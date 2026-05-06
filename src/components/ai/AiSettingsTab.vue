@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from '../../i18n';
 import { useSettings, type CliKind, type PanelSide } from '../../composables/useSettings';
 import { useAi } from '../../composables/useAi';
@@ -20,6 +21,8 @@ const {
   setAiSnapshotsKeep,
   setAiPanelSide,
   setAiHasSeenFirstRun,
+  setAiCliPathClaude,
+  setAiCliPathCodex,
 } = useSettings();
 const { check, cache, loading } = useAiHealth();
 const { bypassEnabled } = useAi();
@@ -73,6 +76,83 @@ const installUrl: Record<CliKind, string> = {
 
 async function openInstall(cli: CliKind) {
   await openExternal(installUrl[cli]);
+}
+
+function setCliPath(cli: CliKind, value: string) {
+  if (cli === 'claude') setAiCliPathClaude(value);
+  else setAiCliPathCodex(value);
+}
+
+function getCliPath(cli: CliKind): string {
+  return cli === 'claude' ? settings.value.ai.cliPathClaude : settings.value.ai.cliPathCodex;
+}
+
+async function browseCliPath(cli: CliKind) {
+  try {
+    const picked = await openDialog({
+      multiple: false,
+      directory: false,
+      title: cli === 'claude' ? 'Select claude binary' : 'Select codex binary',
+    });
+    if (typeof picked === 'string' && picked.trim()) {
+      setCliPath(cli, picked);
+      await check(cli, true);
+    }
+  } catch (e) {
+    console.error('[AiSettings] browseCliPath failed:', e);
+  }
+}
+
+async function applyCliPath(cli: CliKind, value: string) {
+  setCliPath(cli, value);
+  await check(cli, true);
+}
+
+type OsKind = 'mac' | 'win' | 'linux';
+
+function detectOs(): OsKind {
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const plat = (navigator.platform || '').toLowerCase();
+  if (ua.includes('mac') || plat.includes('mac')) return 'mac';
+  if (ua.includes('win') || plat.includes('win')) return 'win';
+  return 'linux';
+}
+
+const currentOs = detectOs();
+
+function placeholderFor(cli: CliKind): string {
+  switch (currentOs) {
+    case 'mac':
+      return `/opt/homebrew/bin/${cli}`;
+    case 'win':
+      return `C:\\Users\\<you>\\AppData\\Roaming\\npm\\${cli}.cmd`;
+    default:
+      return `/usr/local/bin/${cli}`;
+  }
+}
+
+function searchedPaths(): string[] {
+  switch (currentOs) {
+    case 'mac':
+      return [
+        'PATH (incl. /opt/homebrew/bin, /usr/local/bin)',
+        '~/.npm-global/bin, ~/.bun/bin, ~/.volta/bin, ~/.cargo/bin',
+        '~/.nvm/versions/node/*/bin, ~/.local/bin',
+        'login shell (zsh -lc) — sources ~/.zprofile, ~/.zshrc',
+      ];
+    case 'win':
+      return [
+        'PATH with PATHEXT (.exe / .cmd / .bat)',
+        'no extra fallbacks — install via npm / scoop / winget keeps PATH set',
+      ];
+    default:
+      return [
+        'PATH (incl. /usr/local/bin, /usr/bin)',
+        '~/.npm-global/bin, ~/.bun/bin, ~/.volta/bin, ~/.cargo/bin',
+        '~/.nvm/versions/node/*/bin, ~/.local/bin',
+        'login shell ($SHELL -lc) — sources ~/.bashrc / ~/.zshrc',
+      ];
+  }
 }
 
 function isCustom(cli: 'claude' | 'codex'): boolean {
@@ -130,24 +210,51 @@ async function copyAudit() {
 
     <section class="ai-settings-section">
       <h4>{{ t.aiSettingsCliHeading }}</h4>
-      <div v-for="cli in (['claude', 'codex'] as CliKind[])" :key="cli" class="ai-cli-row">
-        <div class="ai-cli-name-col">
-          <span class="ai-cli-name">{{ cli === 'claude' ? t.aiCliStatusClaude : t.aiCliStatusCodex }}</span>
-          <span class="ai-cli-sub">{{ cache[cli]?.version ?? '' }}</span>
+      <div v-for="cli in (['claude', 'codex'] as CliKind[])" :key="cli" class="ai-cli-block">
+        <div class="ai-cli-row">
+          <div class="ai-cli-name-col">
+            <span class="ai-cli-name">{{ cli === 'claude' ? t.aiCliStatusClaude : t.aiCliStatusCodex }}</span>
+            <span class="ai-cli-sub">{{ cache[cli]?.version ?? '' }}</span>
+          </div>
+          <div class="ai-cli-status-col">
+            <span class="ai-cli-dot" :class="dotClass(cli)" />
+            <span class="ai-cli-status">{{ statusText(cli) }}</span>
+            <small v-if="cache[cli]?.error" class="ai-cli-err">{{ cache[cli]?.error }}</small>
+          </div>
+          <div class="ai-cli-actions">
+            <button class="ai-btn" @click="recheck(cli)" :disabled="loading[cli]">
+              {{ loading[cli] ? '…' : t.aiRecheck }}
+            </button>
+            <button v-if="!statusOk(cli)" class="ai-btn ai-btn--secondary" @click="openInstall(cli)">
+              {{ t.aiInstall }}
+            </button>
+          </div>
         </div>
-        <div class="ai-cli-status-col">
-          <span class="ai-cli-dot" :class="dotClass(cli)" />
-          <span class="ai-cli-status">{{ statusText(cli) }}</span>
-          <small v-if="cache[cli]?.error" class="ai-cli-err">{{ cache[cli]?.error }}</small>
-        </div>
-        <div class="ai-cli-actions">
-          <button class="ai-btn" @click="recheck(cli)" :disabled="loading[cli]">
-            {{ loading[cli] ? '…' : t.aiRecheck }}
-          </button>
-          <button v-if="!statusOk(cli)" class="ai-btn ai-btn--secondary" @click="openInstall(cli)">
-            {{ t.aiInstall }}
-          </button>
-        </div>
+        <details class="ai-cli-path">
+          <summary>{{ t.aiSettingsCliPathHeading }}</summary>
+          <div class="ai-cli-path-row">
+            <input
+              type="text"
+              :value="getCliPath(cli)"
+              :placeholder="placeholderFor(cli)"
+              @change="applyCliPath(cli, ($event.target as HTMLInputElement).value)"
+            />
+            <button class="ai-btn" @click="browseCliPath(cli)">
+              {{ t.aiSettingsCliPathBrowse }}
+            </button>
+            <button
+              class="ai-btn"
+              v-if="getCliPath(cli)"
+              @click="applyCliPath(cli, '')"
+            >
+              {{ t.aiSettingsCliPathClear }}
+            </button>
+          </div>
+          <small class="ai-helper ai-helper--inline">{{ t.aiSettingsCliPathHelper }}</small>
+          <ul class="ai-cli-path-searched">
+            <li v-for="(p, i) in searchedPaths()" :key="i">{{ p }}</li>
+          </ul>
+        </details>
       </div>
     </section>
 
@@ -385,6 +492,7 @@ async function copyAudit() {
 }
 
 /* CLI rows — kept from previous polish */
+.ai-cli-block { padding: 4px 0; }
 .ai-cli-row {
   display: grid;
   grid-template-columns: 160px 1fr auto;
@@ -392,6 +500,35 @@ async function copyAudit() {
   align-items: center;
   padding: 10px 0;
 }
+.ai-cli-path {
+  margin: 0 0 8px 0;
+  padding: 0 0 6px 0;
+}
+.ai-cli-path > summary {
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+.ai-cli-path > summary:hover { color: var(--text-secondary); }
+.ai-cli-path-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+.ai-cli-path-row input[type="text"] { flex: 1; min-width: 200px; }
+.ai-helper--inline { padding-left: 0; margin-top: 4px; }
+.ai-cli-path-searched {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--code-font-family, monospace);
+  list-style: disc;
+}
+.ai-cli-path-searched li { margin: 2px 0; }
 .ai-cli-name { font-weight: 600; font-size: 13px; color: var(--text-primary); }
 .ai-cli-sub {
   display: block;

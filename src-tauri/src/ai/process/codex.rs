@@ -37,7 +37,7 @@ const CMD: &str = "codex";
 /// arguments are invalid"); (b) stdin is the documented escape hatch for
 /// codex when "instructions are read from stdin".
 pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
-    let mut cmd = Command::new(cli::resolve(CMD));
+    let mut cmd = Command::new(cli::resolve_with_override(CMD, req.cli_path.as_deref()));
 
     // codex `exec resume` does not surface `-i <FILE>`. If the user attached
     // images to this turn, we MUST take the new-session path so the images
