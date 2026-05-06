@@ -10,7 +10,7 @@
   <a href="https://github.com/Vesperino/MerMarkEditor/releases"><img src="https://img.shields.io/github/v/release/Vesperino/MerMarkEditor?style=flat" alt="发布"></a>
   <a href="https://github.com/Vesperino/MerMarkEditor/blob/master/LICENSE"><img src="https://img.shields.io/github/license/Vesperino/MerMarkEditor?style=flat" alt="许可证"></a>
   <a href="https://github.com/Vesperino/MerMarkEditor/stargazers"><img src="https://img.shields.io/github/stars/Vesperino/MerMarkEditor?style=flat" alt="星标"></a>
-  <a href="https://github.com/Vesperino/MerMarkEditor/releases"><img src="https://img.shields.io/github/downloads/Vesperino/MerMarkEditor/total?style=flat" alt="下载量"></a>
+  <a href="https://github.com/Vesperino/MerMarkEditor/releases"><img src="https://img.shields.io/github/downloads/Vesperino/MerMarkEditor/total?style=flat&color=brightgreen&cacheSeconds=300" alt="下载量"></a>
   <a href="https://buymeacoffee.com/vesperinio"><img src="https://img.shields.io/badge/%E8%AF%B7%E6%88%91%E5%96%9D%E5%92%96%E5%95%A1-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="请我喝咖啡"></a>
 </p>
 

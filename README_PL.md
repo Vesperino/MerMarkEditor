@@ -10,7 +10,7 @@
   <a href="https://github.com/Vesperino/MerMarkEditor/releases"><img src="https://img.shields.io/github/v/release/Vesperino/MerMarkEditor?style=flat" alt="Wersja"></a>
   <a href="https://github.com/Vesperino/MerMarkEditor/blob/master/LICENSE"><img src="https://img.shields.io/github/license/Vesperino/MerMarkEditor?style=flat" alt="Licencja"></a>
   <a href="https://github.com/Vesperino/MerMarkEditor/stargazers"><img src="https://img.shields.io/github/stars/Vesperino/MerMarkEditor?style=flat" alt="Gwiazdki"></a>
-  <a href="https://github.com/Vesperino/MerMarkEditor/releases"><img src="https://img.shields.io/github/downloads/Vesperino/MerMarkEditor/total?style=flat" alt="Pobrania"></a>
+  <a href="https://github.com/Vesperino/MerMarkEditor/releases"><img src="https://img.shields.io/github/downloads/Vesperino/MerMarkEditor/total?style=flat&color=brightgreen&cacheSeconds=300" alt="Pobrania"></a>
   <a href="https://buymeacoffee.com/vesperinio"><img src="https://img.shields.io/badge/Postaw_mi_kaw%C4%99-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black" alt="Postaw mi kawę"></a>
 </p>
 
