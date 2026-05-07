@@ -111,62 +111,45 @@ function resetUserWidth() {
 
 // ===== AI assist (delegates to main panel) =====
 // The legacy in-modal AI flow is replaced by a bridge into the main AI panel.
-// We register a target with `useAiMermaidTarget`; the panel pins the diagram
-// code, runs a multi-turn conversation with model selection, and hands back
-// any returned mermaid source via `pushCandidate`. The candidate lands in
-// `aiPreviewCode` and the diagram displays it (instead of the saved code)
-// until the user clicks Apply / Discard / Stop.
+// We register a target; the panel pins the diagram, runs a multi-turn convo
+// with model selection, and pushes mermaid candidates into the singleton.
+// The diagram renders the candidate live (read-only preview); Apply / Stop
+// live in the panel chip so they don't overlap the mermaid toolbar.
 const aiMermaid = useAiMermaidTarget();
-const aiPreviewCode = ref<string | null>(null);
 const aiNodeId = `mermaid-node-${
   typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2)
 }`;
 const aiTargetActive = computed(() => aiMermaid.target.value?.id === aiNodeId);
+// Only show the candidate on this node if it owns the target.
+const aiPreviewCode = computed<string | null>(() =>
+  aiTargetActive.value ? aiMermaid.candidate.value : null,
+);
 
 function requestAiEdit() {
-  // Make sure the editing surface is open so the user can see/refine the
-  // proposed diagram alongside their own edits.
+  // Make sure the editing surface is open so the user can iterate alongside.
   if (!isEditing.value) {
     startEdit();
   }
-  // Exit zoom/preview fullscreen (mermaid_node_attrs `isFullscreen` overlay) —
-  // it overlaps the editing fullscreen and would hide both the AI panel and
-  // the proposed diagram. The editing fullscreen stays.
+  // Exit zoom/preview fullscreen — it overlaps the editing fullscreen and
+  // would hide both the AI panel and the proposed diagram.
   if (isFullscreen.value) {
     toggleFullscreen();
   }
   aiMermaid.requestEdit({
     id: aiNodeId,
     initialCode: editCode.value || props.node.attrs.code,
-    pushCandidate: (code) => {
-      aiPreviewCode.value = code;
+    apply: (code) => {
+      // Convert <br> back to placeholder for safe storage (mirrors saveEdit).
+      const safeCode = code.replace(/<br\s*\/?>/gi, '__BR__');
+      props.updateAttributes({ code: safeCode });
+      editCode.value = code;
     },
     cancel: () => {
-      aiPreviewCode.value = null;
+      // No-op — singleton clears candidate; computed reflects automatically.
     },
   });
-}
-
-function applyAiPreview() {
-  if (!aiPreviewCode.value) return;
-  const next = aiPreviewCode.value;
-  // Convert <br> back to placeholder for safe storage (mirrors saveEdit).
-  const safeCode = next.replace(/<br\s*\/?>/gi, '__BR__');
-  props.updateAttributes({ code: safeCode });
-  editCode.value = next;
-  aiPreviewCode.value = null;
-  aiMermaid.clear();
-}
-
-function discardAiPreview() {
-  aiPreviewCode.value = null;
-}
-
-function stopAiEdit() {
-  aiPreviewCode.value = null;
-  aiMermaid.clear();
 }
 const isEditing = ref(false);
 const editCode = ref(props.node.attrs.code);
@@ -496,7 +479,18 @@ watch(aiPreviewCode, () => {
         :title="t.aiAssistMermaidTitle"
         @click="requestAiEdit"
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="6" width="16" height="14" rx="3"/>
+          <circle cx="9" cy="13" r="1.3" fill="currentColor"/>
+          <circle cx="15" cy="13" r="1.3" fill="currentColor"/>
+          <line x1="9" y1="17" x2="15" y2="17"/>
+          <line x1="12" y1="3" x2="12" y2="6"/>
+          <circle cx="12" cy="2.5" r="1" fill="currentColor"/>
+          <line x1="2" y1="11" x2="4" y2="11"/>
+          <line x1="2" y1="14" x2="4" y2="14"/>
+          <line x1="20" y1="11" x2="22" y2="11"/>
+          <line x1="20" y1="14" x2="22" y2="14"/>
+        </svg>
       </button>
       <button class="mermaid-toolbar-btn" :title="`${t.fullscreen} (Esc)`" @click="toggleFullscreen">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
@@ -511,7 +505,6 @@ watch(aiPreviewCode, () => {
       <div
         v-if="isEditing"
         class="editor-fullscreen"
-        :class="{ 'editor-fullscreen--with-ai': aiTargetActive }"
         @keydown="handleEditorKeydown"
       >
         <!-- Template modal (inside fullscreen so it renders on top) -->
@@ -543,10 +536,19 @@ watch(aiPreviewCode, () => {
               :title="t.aiAssistMermaidTitle"
               @click="requestAiEdit"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="6" width="16" height="14" rx="3"/>
+                <circle cx="9" cy="13" r="1.3" fill="currentColor"/>
+                <circle cx="15" cy="13" r="1.3" fill="currentColor"/>
+                <line x1="9" y1="17" x2="15" y2="17"/>
+                <line x1="12" y1="3" x2="12" y2="6"/>
+                <circle cx="12" cy="2.5" r="1" fill="currentColor"/>
+                <line x1="2" y1="11" x2="4" y2="11"/>
+                <line x1="2" y1="14" x2="4" y2="14"/>
+                <line x1="20" y1="11" x2="22" y2="11"/>
+                <line x1="20" y1="14" x2="22" y2="14"/>
               </svg>
-              {{ t.aiAssistMermaidButton }}
+              AI
             </button>
             <button @click="saveEdit" class="btn-save">{{ t.saveDiagram }}</button>
             <button @click="cancelEdit" class="btn-cancel">{{ t.cancelEdit }}</button>
@@ -567,17 +569,6 @@ watch(aiPreviewCode, () => {
             <div class="divider-handle-mermaid"></div>
           </div>
           <div class="editor-preview-pane" :style="{ flex: `0 0 ${100 - splitRatio}%` }">
-            <div v-if="aiPreviewCode !== null" class="editor-preview-ai-banner">
-              <span class="editor-preview-ai-icon">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
-                </svg>
-              </span>
-              <span class="editor-preview-ai-label">{{ t.aiAssistMermaidProposed }}</span>
-              <button class="editor-preview-ai-apply" @click="applyAiPreview">{{ t.aiAssistMermaidApply }}</button>
-              <button class="editor-preview-ai-discard" @click="discardAiPreview">{{ t.cancel }}</button>
-              <button class="editor-preview-ai-stop" @click="stopAiEdit" :title="t.aiAssistMermaidTitle">×</button>
-            </div>
             <div class="editor-preview-toolbar">
               <button @click="previewZoomOut" class="btn-zoom" :title="t.zoomOut">−</button>
               <span class="zoom-level">{{ previewZoomPercent }}%</span>
@@ -608,25 +599,6 @@ watch(aiPreviewCode, () => {
 
     <div v-if="error" class="mermaid-error">
       {{ error }}
-    </div>
-
-    <!-- AI preview banner — visible whenever the panel hands back a mermaid
-         candidate. Apply commits it to the node, Discard drops the candidate
-         (target stays so the user can iterate), Stop ends the AI session. -->
-    <div v-if="aiPreviewCode !== null" class="mermaid-ai-preview-banner">
-      <span class="mermaid-ai-preview-icon">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
-        </svg>
-      </span>
-      <span class="mermaid-ai-preview-label">{{ t.aiAssistMermaidProposed }}</span>
-      <button class="mermaid-ai-preview-apply" @click="applyAiPreview">
-        {{ t.aiAssistMermaidApply }}
-      </button>
-      <button class="mermaid-ai-preview-discard" @click="discardAiPreview">
-        {{ t.cancel }}
-      </button>
-      <button class="mermaid-ai-preview-stop" @click="stopAiEdit" :title="t.aiAssistMermaidTitle">×</button>
     </div>
 
     <!-- Viewport with pan/zoom -->
@@ -828,6 +800,7 @@ watch(aiPreviewCode, () => {
   background: var(--danger-bg);
   color: var(--danger);
 }
+
 
 .mermaid-toolbar-divider {
   width: 1px;
@@ -1039,66 +1012,6 @@ watch(aiPreviewCode, () => {
   background: var(--bg-primary);
 }
 
-/* When the main AI panel is bound to this diagram, shrink the fullscreen
-   editor so both can coexist instead of one overlaying the other.
-   AI panel width matches AiPanel.vue (.ai-panel { width: 420px }). */
-.editor-fullscreen--with-ai {
-  right: 420px;
-}
-
-/* AI proposal banner inside the fullscreen preview pane. */
-.editor-preview-ai-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--bg-tertiary, #1f2937);
-  border-bottom: 1px solid var(--border-primary);
-  border-left: 3px solid var(--primary, #6366f1);
-  font-size: 12px;
-  color: var(--text-primary);
-}
-.editor-preview-ai-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--primary, #6366f1);
-  color: #fff;
-  flex-shrink: 0;
-}
-.editor-preview-ai-label {
-  flex: 1;
-  font-weight: 500;
-}
-.editor-preview-ai-apply,
-.editor-preview-ai-discard,
-.editor-preview-ai-stop {
-  border: 1px solid var(--border-primary);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.editor-preview-ai-apply {
-  background: var(--primary, #6366f1);
-  color: #fff;
-  border-color: var(--primary, #6366f1);
-  font-weight: 600;
-}
-.editor-preview-ai-apply:hover { filter: brightness(1.05); }
-.editor-preview-ai-discard:hover,
-.editor-preview-ai-stop:hover { background: var(--bg-secondary); }
-.editor-preview-ai-stop {
-  width: 26px;
-  padding: 0;
-  font-size: 16px;
-  line-height: 1;
-}
 
 .editor-topbar {
   display: flex;
@@ -1312,60 +1225,6 @@ watch(aiPreviewCode, () => {
   margin-bottom: 12px;
 }
 
-.mermaid-ai-preview-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-primary);
-  border-left: 3px solid var(--primary, #6366f1);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--text-primary);
-}
-.mermaid-ai-preview-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--primary, #6366f1);
-  color: #fff;
-  flex-shrink: 0;
-}
-.mermaid-ai-preview-label {
-  flex: 1;
-  font-weight: 500;
-}
-.mermaid-ai-preview-apply,
-.mermaid-ai-preview-discard,
-.mermaid-ai-preview-stop {
-  border: 1px solid var(--border-primary);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.mermaid-ai-preview-apply {
-  background: var(--primary, #6366f1);
-  color: #fff;
-  border-color: var(--primary, #6366f1);
-  font-weight: 600;
-}
-.mermaid-ai-preview-apply:hover { filter: brightness(1.05); }
-.mermaid-ai-preview-discard:hover,
-.mermaid-ai-preview-stop:hover { background: var(--bg-secondary); }
-.mermaid-ai-preview-stop {
-  width: 26px;
-  padding: 0;
-  font-size: 16px;
-  line-height: 1;
-}
 
 /* Zoom Controls */
 .zoom-controls {

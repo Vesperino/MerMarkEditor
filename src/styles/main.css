@@ -869,27 +869,28 @@ button:disabled {
     border: none !important;
   }
 
-  /* Inline code — same monospace family, subtle teal accent matching the
-     Minimal editor look so PDF and on-screen render the same way. */
+  /* Inline code — coral accent matches the Minimal theme's `code` rule
+     (which uses `--danger`) and the default theme's reddish look. The
+     earlier teal palette diverged from both on-screen variants. */
   code {
-    background: #f1f5f4 !important;
+    background: #f4f6f8 !important;
     font-family: "Fira Code", "JetBrains Mono", "SF Mono",
       "Cascadia Code", Consolas, "Liberation Mono", "Courier New",
       monospace !important;
     font-size: 0.92em !important;
-    color: #0d9488 !important;
-    -webkit-text-fill-color: #0d9488 !important;
+    color: #e11d48 !important;
+    -webkit-text-fill-color: #e11d48 !important;
     padding: 1pt 5pt !important;
     border-radius: 3px !important;
     border: 0.4pt solid #d0d6dc !important;
   }
 
-  /* Override the catch-all editor color rule so inline code keeps its teal */
+  /* Override the catch-all editor color rule so inline code keeps its tint */
   .ProseMirror code,
   .tiptap code,
   .editor-content code {
-    color: #0d9488 !important;
-    -webkit-text-fill-color: #0d9488 !important;
+    color: #e11d48 !important;
+    -webkit-text-fill-color: #e11d48 !important;
   }
 
   /* Syntax highlight palette — mirrors the on-screen editor (lowlight
@@ -930,12 +931,17 @@ button:disabled {
   /* ===== Tables =====
      Long tables split across pages with the header repeating, individual
      rows stay together. Zebra rows on the body for scanability. Header gets
-     a thin teal accent line on top to echo the document's hr/blockquote. */
+     a thin teal accent line on top to echo the document's hr/blockquote.
+
+     `table-layout: auto` (instead of fixed) lets columns size to content the
+     way the on-screen renderer does — fixed layout was distributing widths
+     equally even when one column held long URLs and another held single
+     words like "GET", which read poorly. */
   table {
     border-collapse: collapse !important;
     width: 100% !important;
     max-width: 100% !important;
-    table-layout: fixed !important;
+    table-layout: auto !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
     margin: 0.8em 0 !important;

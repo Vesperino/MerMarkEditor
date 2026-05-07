@@ -7,25 +7,28 @@ import { ref } from 'vue';
  * a target here. The main AI panel reads `target` to:
  *  - pin the diagram code as scoped context,
  *  - augment its preamble with mermaid-edit instructions,
- *  - hand back any returned mermaid code via `pushCandidate`.
+ *  - extract a mermaid candidate from each assistant reply via `pushCandidate`,
+ *  - commit it to the node via `applyCandidate` when the user clicks Apply.
  *
- * The node owns the preview/apply lifecycle; the singleton is just a routing
- * channel so AiPanel doesn't need to know about specific node instances.
+ * The diagram still renders the candidate live (so the user sees the proposal
+ * inline), but the Apply / Stop affordances live in the AI panel chip — the
+ * floating banner on the diagram itself overlapped the mermaid toolbar.
  */
 export interface MermaidEditTarget {
-  /** Stable id for diagnostics + de-duping pushed candidates. */
+  /** Stable id for diagnostics + de-duping. */
   id: string;
   /** Diagram code at the moment editing started — pinned in the panel. */
   initialCode: string;
-  /** Called by AiPanel when an assistant reply yields mermaid source. */
-  pushCandidate: (code: string) => void;
-  /** Called when the target is cleared (user pressed Stop, panel closed, …). */
+  /** Commits a mermaid code candidate to the node attrs (called by Apply). */
+  apply: (code: string) => void;
+  /** Called when the target is cleared (Stop, panel close, node unmount, …). */
   cancel: () => void;
 }
 
 const target = ref<MermaidEditTarget | null>(null);
+const candidate = ref<string | null>(null);
 
-/** Extract mermaid source from an AI reply. Mirrors the regex used in MermaidNode. */
+/** Extract mermaid source from an AI reply. */
 export function extractMermaidCodeFromResponse(raw: string): string {
   if (!raw) return '';
   const fenced = raw.match(/```mermaid\s*\n([\s\S]*?)```/i);
@@ -41,13 +44,42 @@ export function useAiMermaidTarget() {
       target.value.cancel();
     }
     target.value = t;
+    candidate.value = null;
+  }
+
+  /** Called by AiPanel after each completed reply that yielded mermaid code. */
+  function pushCandidate(code: string) {
+    if (!target.value) return;
+    candidate.value = code;
+  }
+
+  /** Commit the current candidate to the node and end the session. */
+  function applyCandidate() {
+    if (!target.value || !candidate.value) return;
+    target.value.apply(candidate.value);
+    candidate.value = null;
+    target.value = null;
+  }
+
+  /** Drop the candidate but keep the target so the user can iterate. */
+  function discardCandidate() {
+    candidate.value = null;
   }
 
   function clear() {
     const cur = target.value;
     target.value = null;
+    candidate.value = null;
     cur?.cancel();
   }
 
-  return { target, requestEdit, clear };
+  return {
+    target,
+    candidate,
+    requestEdit,
+    pushCandidate,
+    applyCandidate,
+    discardCandidate,
+    clear,
+  };
 }
