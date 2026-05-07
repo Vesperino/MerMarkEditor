@@ -41,8 +41,14 @@
 - **Natywna wydajność** - Zbudowany z Tauri dla szybkiego, lekkiego działania
 - **Edycja WYSIWYG** - Zobacz sformatowaną treść podczas pisania
 - **Integracja Mermaid** - Twórz diagramy bezpośrednio w dokumentach
+- **Workspace'y wielu folderów** - Otwórz jeden lub kilka folderów; AI widzi je jako scoped read-only context
 - **Lokalny asystent AI** - Rozmawiaj z Claude lub Codex o swoich notatkach; AI edytuje pliki bezpośrednio
 - **Wieloplatformowy** - Dostępny na Windows, macOS i Linux
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-light-mode.png" alt="MerMark — motyw Minimal z paskiem workspace'ów" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-with-ai-panel.png" alt="MerMark — ten sam układ z asystentem AI po prawej" width="48%" />
+</p>
 
 ---
 
@@ -87,18 +93,6 @@ Jeśli już płacisz za **Claude Code** albo **OpenAI Codex** — albo oba — M
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png" alt="Pinowanie wielu fragmentów" />
   <br>
   <em>Przypnij wiele zaznaczonych fragmentów przed wysłaniem — każdy pojawia się jako numerowany chip w composerze</em>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png" alt="Miniatury obrazów w historii czatu" />
-  <br>
-  <em>Wysłane obrazy zostają w historii czatu jako miniatury — pamiętasz dokładnie co przekazałeś modelowi</em>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments-with-screen-effect.png" alt="Przypięte fragmenty + załączony zrzut — efekt po AI" />
-  <br>
-  <em>End-to-end: trzy przypięte paragrafy + załączony screenshot + jedno polecenie — AI przepisuje tekst i opisuje obraz w jednej turze</em>
 </p>
 
 ### Wywołania narzędzi widoczne w czacie
@@ -151,17 +145,12 @@ Jeśli już płacisz za **Claude Code** albo **OpenAI Codex** — albo oba — M
 - Skrót wysyłania: `Ctrl+Enter` (Win/Linux), `Cmd+Enter` (macOS).
 - Minimalizacja do bocznej zakładki, fullscreen, zamknięcie — wszystko w headerze panelu.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/streaming-context.png" alt="Streaming i pasek kontekstu" />
-  <br>
-  <em>Streaming tokenów z segmentowym paskiem użycia kontekstu na żywo (input / cache / free)</em>
-</p>
+### Edycja diagramów Mermaid przez AI
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/settings-ai.png" alt="Zakładka ustawień AI" />
-  <br>
-  <em>Ustawienia → AI — health instalacji i autentykacji, viewer audit logu, runtime bypass toggle</em>
-</p>
+- Klik **AI** na diagramie (lub w fullscreen edycji) — główny panel auto-pinuje kod diagramu jako scoped context i przełącza preamble w mermaid-edit mode.
+- Ten sam panel, ten sam wybór modelu, ta sama wieloturowa rozmowa co dla prozy.
+- Każda odpowiedź asystenta jest parsowana pod kątem `mermaid` fenced bloku i renderowana na żywo zamiast zapisanego diagramu.
+- Przyciski **Apply ✓ / Discard × / Stop** w chipie panelu; Apply zapisuje do node, Discard kontynuuje rozmowę, Stop kończy sesję.
 
 Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawieszonych sesjach, multi-window-safe streamingiem i izolacją sesji per CLI — żyje w [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
@@ -175,27 +164,34 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **Kolorowanie składni** dla bloków kodu (50+ języków)
 - Tabele, listy zadań, cytaty i więcej
 - **Skróty klawiszowe** dla efektywnej edycji
+- **Konfigurowalny padding** — suwaki góry, boków i dołu w Settings
 
 ### Diagramy Mermaid
-- **Diagramy przepływu** - Wizualizacja procesów i workflow
-- **Diagramy sekwencji** - Dokumentowanie interakcji systemów
-- **Diagramy klas** - Projektowanie architektury oprogramowania
-- **Diagramy stanów** - Modelowanie maszyn stanów
-- **Diagramy relacji encji** - Projektowanie baz danych
-- **Wykresy Gantta** - Planowanie projektów
-- **Wykresy kołowe** - Wizualizacja danych
-- I wiele innych typów diagramów!
+- **Flowchart**, **sequence**, **class**, **state**, **ER**, **Gantt**, **pie** i wiele innych typów
+- **Skalowanie** w dokumencie — przeciągnij prawą krawędź żeby ustawić własną szerokość (zapisana w markdownie)
+- **Skalowanie split** w fullscreen edycji — przeciągnij divider między panelami kodu i podglądu
+- **AI assist** — klik AI na diagramie i główny panel AI przejmuje sterowanie z diagramem przypiętym jako kontekst
+- **Szybkie szablony** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap jednym klikiem
+
+### Workspace'y
+- **Pasek wielu folderów** — otwórz jeden lub kilka; każdy ma własną sekcję z drzewem plików
+- **Drzewo plików** — rozwijanie folderów, otwieranie plików w zakładkach, OS-level reveal, rename, delete, nowy plik / folder
+- **AI widzi workspace** — root workspace'u dodawany do AI preamble jako read-only scope automatycznie
+- **Quick switcher** (`Ctrl+Shift+E`) — workspace'y, pliki, full-text grep w aktywnym workspace
+- **Drag do reorder** workspace'ów; rozwinięte foldery utrzymują się między sesjami
 
 ### Eksport i integracja
-- **Eksport do PDF** z odpowiednim formatowaniem
-- **Zapis jako Markdown** (pliki .md)
-- Czysty, przenośny format plików
+- **Eksport do PDF** — bliski WYSIWYG: ten sam serif font i skala co edytor, kolorowane bloki kodu, koralowy inline code, tabele dopasowane do zawartości
+- **Zapis jako Markdown** (pliki .md), czysty przenośny format
+- Ustawienia paddingu edytora przekładają się na marginesy PDF
 
 ### Doświadczenie użytkownika
-- **Obsługa zakładek** - Praca z wieloma dokumentami
-- **Jasny/Ciemny motyw** - Komfort dla oczu
-- **Licznik znaków i słów** - Śledź postępy
-- **Automatyczny zapis** - Nigdy nie stracisz pracy
+- **Zakładki z pin / context menu** — Pin / Unpin / Close / Close others / Close all but pinned / Close saved
+- **Jasny/Ciemny motyw** plus wariant **Minimal** (paleta z logo Mermaid: teal + coral na slate)
+- **Suwak zoom w stylu Word** w status barze — przyciski `±` + odczyt procentów
+- **Licznik znaków / słów / linii / tokenów** jako pojedyncza przesuwalna jednostka
+- **Stylizowane prompt / confirm dialogi** wszędzie (bez natywnych modali przeglądarki)
+- **Automatyczny zapis** — nigdy nie stracisz pracy
 - **Trójjęzyczny interfejs** - polski, angielski i chiński
 - **Modal skrótów klawiszowych** - Szybki podgląd wszystkich skrótów (`Ctrl+/`)
 

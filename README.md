@@ -41,8 +41,14 @@
 - **Native performance** - Built with Tauri for fast, lightweight operation
 - **WYSIWYG editing** - See your formatted content as you type
 - **Mermaid integration** - Create diagrams directly in your documents
+- **Multi-root workspaces** - Open one folder or many; the AI sees them as scoped read-only context
 - **Local AI assistant** - Talk to Claude or Codex about your notes; they edit your files directly
 - **Cross-platform** - Available on Windows, macOS and Linux
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-light-mode.png" alt="MerMark — Minimal theme with workspace sidebar" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-with-ai-panel.png" alt="MerMark — same layout with the AI Assistant docked on the right" width="48%" />
+</p>
 
 ---
 
@@ -87,18 +93,6 @@ If you already pay for **Claude Code** or **OpenAI Codex** — or both — MerMa
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png" alt="Pinning multiple fragments" />
   <br>
   <em>Pin multiple highlighted fragments before sending — each appears as a numbered chip in the composer</em>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png" alt="Image thumbs in chat history" />
-  <br>
-  <em>Sent images stay in chat history as thumbnails so you remember what was passed to the model</em>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments-with-screen-effect.png" alt="Pinned fragments + attached screenshot — AI rewrite result" />
-  <br>
-  <em>End-to-end: three pinned paragraphs + an attached screenshot + one prompt — the AI rewrites the text and captions the image in a single turn</em>
 </p>
 
 ### Tool calls visible in the chat
@@ -151,17 +145,12 @@ If you already pay for **Claude Code** or **OpenAI Codex** — or both — MerMa
 - Send shortcut: `Ctrl+Enter` (Win/Linux), `Cmd+Enter` (macOS).
 - Minimize to a side tab, fullscreen, close — all in the panel header.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/streaming-context.png" alt="Streaming and context bar" />
-  <br>
-  <em>Token streaming with a live segmented context-usage bar (input / cache / free)</em>
-</p>
+### AI editing for Mermaid diagrams
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/settings-ai.png" alt="AI settings tab" />
-  <br>
-  <em>Settings → AI — install / authentication health, audit log viewer, runtime bypass toggle</em>
-</p>
+- Click **AI** on any diagram (or in fullscreen mermaid edit) — the main panel auto-pins the diagram source as scoped context and switches its preamble into mermaid-edit mode.
+- Same panel, same model picker, same multi-turn conversation you use for prose.
+- Each assistant reply is parsed for a `mermaid` fenced block and rendered live in place of the saved diagram.
+- **Apply ✓ / Discard × / Stop** buttons appear in the panel chip; Apply commits to the node, Discard keeps iterating, Stop ends the session.
 
 The full feature list — including snapshot rotation, tmp-recovery on crashed sessions, multi-window-safe streaming and per-CLI session isolation — lives in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
@@ -175,27 +164,34 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **Syntax highlighting** for code blocks (50+ languages)
 - Tables, task lists, blockquotes, and more
 - **Keyboard shortcuts** for efficient editing
+- **Configurable padding** — top, side and bottom sliders in Settings
 
 ### Mermaid Diagrams
-- **Flowcharts** - Visualize processes and workflows
-- **Sequence diagrams** - Document system interactions
-- **Class diagrams** - Design software architecture
-- **State diagrams** - Model state machines
-- **Entity Relationship diagrams** - Database design
-- **Gantt charts** - Project planning
-- **Pie charts** - Data visualization
-- And many more diagram types!
+- **Flowcharts**, **sequence**, **class**, **state**, **ER**, **Gantt**, **pie** and many more diagram types
+- **Resizable** in document — drag the right edge to set a custom width (persisted in markdown)
+- **Resizable split** in fullscreen edit — drag the divider between code and preview pane
+- **AI assist** — click AI on any diagram and the main AI panel takes over with the diagram pinned as context
+- **Quick templates** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap one-click inserts
+
+### Workspaces
+- **Multi-root sidebar** — open one folder or many; each gets a collapsible section with its own file tree
+- **File tree** — expand / collapse folders, open files in tabs, OS-level reveal, rename, delete, new file / new folder
+- **AI sees the workspace** — workspace root is added to the AI preamble as a read-only scope automatically
+- **Quick switcher** (`Ctrl+Shift+E`) — workspaces, files, full-text grep across the active workspace
+- **Drag to reorder** workspaces; expanded folders persist between sessions
 
 ### Export & Integration
-- **Export to PDF** with proper formatting
-- **Save as Markdown** (.md files)
-- Clean, portable file format
+- **Export to PDF** — close to WYSIWYG: same serif font and scale as the editor, syntax-highlighted code blocks, coral inline code, content-sized tables
+- **Save as Markdown** (.md files), clean portable format
+- Editor padding settings translate into PDF margins
 
 ### User Experience
-- **Tab support** - Work with multiple documents
-- **Dark/Light themes** - Easy on the eyes
-- **Character & word count** - Track your progress
-- **Auto-save** - Never lose your work
+- **Tab support** with **pin / context menu** — Pin / Unpin / Close / Close others / Close all but pinned / Close saved
+- **Dark/Light themes** plus a **Minimal theme variant** (Mermaid-logo palette: teal + coral on slate)
+- **Word-style zoom slider** in the status bar — `±` buttons + percentage readout
+- **Character / word / line / token counters** as a single movable unit
+- **Styled prompt / confirm dialogs** throughout (no native browser modals)
+- **Auto-save** — never lose your work
 - **Trilingual UI** - English, Polish and Chinese interface
 - **Keyboard shortcuts modal** - Quick reference for all shortcuts (`Ctrl+/`)
 

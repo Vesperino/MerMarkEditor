@@ -41,8 +41,14 @@
 - **原生性能** - 基于 Tauri 构建，快速且轻量
 - **所见即所得编辑** - 边输入边查看格式化内容
 - **Mermaid 集成** - 直接在文档中创建图表
+- **多根工作区** - 打开一个或多个文件夹；AI 自动将其作为只读上下文范围
 - **本地 AI 助手** - 与 Claude 或 Codex 对话来处理你的笔记，AI 会直接编辑文件
 - **跨平台** - 支持 Windows、macOS 和 Linux
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-light-mode.png" alt="MerMark — Minimal 主题与工作区侧栏" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-with-ai-panel.png" alt="MerMark — 同样的布局，AI 助手停靠在右侧" width="48%" />
+</p>
 
 ---
 
@@ -87,18 +93,6 @@
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png" alt="固定多个片段" />
   <br>
   <em>发送前固定多个高亮片段 — 每个片段都以编号 chip 的形式出现在 composer 里</em>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png" alt="聊天记录中的图片缩略图" />
-  <br>
-  <em>已发送的图片以缩略图形式保留在聊天记录里 — 你能清楚记得给模型传过什么</em>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments-with-screen-effect.png" alt="固定片段 + 附加截图 — AI 改写效果" />
-  <br>
-  <em>端到端：三个固定段落 + 一张附加截图 + 一条提示 — AI 在一次对话中重写文本并为图片生成说明</em>
 </p>
 
 ### 工具调用在聊天中可见
@@ -151,17 +145,12 @@
 - 发送快捷键：`Ctrl+Enter`（Win/Linux）、`Cmd+Enter`（macOS）。
 - 最小化到侧边 tab、全屏、关闭 — 都在面板 header 里。
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/streaming-context.png" alt="流式输出与上下文使用条" />
-  <br>
-  <em>Token 流式输出加上实时分段的上下文使用条（input / cache / free）</em>
-</p>
+### 在 Mermaid 图表中使用 AI
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/settings-ai.png" alt="AI 设置标签页" />
-  <br>
-  <em>设置 → AI — 安装 / 鉴权健康状态、审计日志查看器、运行时 bypass 开关</em>
-</p>
+- 在任意图表（或全屏编辑）中点击 **AI** — 主面板自动将图表源码作为只读上下文固定，并把 preamble 切换到 mermaid-edit 模式。
+- 同一个面板、同一个模型选择器、同一种你处理散文时使用的多轮对话。
+- 每条助手回复都会被解析出 `mermaid` 代码块，并实时渲染替代已保存的图表。
+- 面板 chip 中显示 **Apply ✓ / Discard × / Stop** 按钮；Apply 提交到节点，Discard 继续迭代，Stop 结束会话。
 
 完整功能列表 — 包含快照轮转、崩溃会话的 tmp 恢复、多窗口安全的流式输出和按 CLI 隔离会话 — 详见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
 
@@ -175,26 +164,33 @@
 - 代码块**语法高亮**（50+ 种语言）
 - 表格、任务列表、引用块等
 - **键盘快捷键** 提高编辑效率
+- **可配置内边距** — Settings 中的顶部、两侧、底部滑块
 
 ### Mermaid 图表
-- **流程图** - 可视化流程和工作流
-- **时序图** - 记录系统交互
-- **类图** - 软件架构设计
-- **状态图** - 建模状态机
-- **实体关系图** - 数据库设计
-- **甘特图** - 项目规划
-- **饼图** - 数据可视化
-- 还有许多其他图表类型！
+- **流程图**、**时序图**、**类图**、**状态图**、**ER 图**、**甘特图**、**饼图** 以及许多其他图表类型
+- **可调整大小** - 拖动右侧边缘设置自定义宽度（持久化到 markdown）
+- **可调整分屏** - 全屏编辑中拖动代码与预览面板之间的分隔条
+- **AI 辅助** - 在任意图表上点击 AI，主 AI 面板将以图表为上下文接管
+- **快速模板** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap 一键插入
+
+### 工作区
+- **多根侧栏** — 打开一个或多个文件夹；每个都有自己的可折叠区段，包含独立的文件树
+- **文件树** — 展开 / 折叠文件夹、在标签中打开文件、OS 级 reveal、重命名、删除、新建文件 / 文件夹
+- **AI 看到工作区** — 工作区根目录自动作为只读范围加入 AI preamble
+- **快速切换器**（`Ctrl+Shift+E`）— 工作区、文件、活动工作区中的全文 grep
+- **拖动重新排序** 工作区；展开的文件夹在会话之间保留
 
 ### 导出与集成
-- **导出 PDF**，格式正确
-- **保存为 Markdown** (.md 文件)
-- 简洁、可移植的文件格式
+- **导出 PDF** — 接近所见即所得：与编辑器相同的衬线字体和缩放、带语法高亮的代码块、coral 行内代码、根据内容自适应的表格
+- **保存为 Markdown** (.md 文件)，简洁可移植
+- 编辑器内边距设置会转换成 PDF 边距
 
 ### 用户体验
-- **多标签支持** - 同时处理多个文档
-- **深色 / 浅色主题** - 视觉舒适
-- **字符与字数计数** - 跟踪你的进度
+- **标签 + pin / context menu** — Pin / Unpin / Close / Close others / Close all but pinned / Close saved
+- **深色 / 浅色主题** 加上 **Minimal 主题变体**（Mermaid 标志色：teal + coral 配 slate）
+- **Word 风格的缩放滑块** 在状态栏 — `±` 按钮 + 百分比读数
+- **字符 / 单词 / 行 / token 计数器** 作为单一可移动单元
+- **样式化的 prompt / confirm 对话框** 全程使用（不再有原生浏览器弹窗）
 - **自动保存** - 不会丢失工作
 - **多语言界面** - 英语、波兰语、中文
 - **快捷键速查模态** - 所有快捷键的快速参考 (`Ctrl+/`)
