@@ -116,7 +116,7 @@ const en: Translations = {
   saveAndClose: 'Save & Close',
 
   // Tabs
-  newDocument: 'New Document',
+  newDocument: 'document',
   closeTab: 'Close tab',
   closeTabTooltip: 'Close tab (Ctrl+W)',
 

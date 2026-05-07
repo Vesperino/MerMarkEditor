@@ -271,10 +271,6 @@ const closeTabAndCheckWindow = async (paneId: string, tabId: string) => {
   }
 
   if (isWindowEmpty()) {
-    // Keep the window alive when at least one workspace is open — the
-    // workspace sidebar is still useful (browse files, drag onto pane,
-    // run AI / quick switcher) even with zero tabs. Without an open
-    // workspace there's nothing left to interact with, so close as before.
     if (workspace.openWorkspaces.value.length === 0) {
       await closeCurrentWindow();
       return;
@@ -759,9 +755,6 @@ const handleWorkspaceOpenFile = (path: string) => {
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
 
-// Drop a file from the workspace tree onto a specific pane in split mode.
-// Switching the active pane *before* the open call routes the new tab to the
-// target pane via the existing createTab(activePaneId, …) path.
 const handleWorkspaceDropFile = (paneId: string, path: string) => {
   splitState.value.activePaneId = paneId;
   // eslint-disable-next-line @typescript-eslint/no-use-before-define

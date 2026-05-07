@@ -25,15 +25,11 @@ const emit = defineEmits<{
   updateChanges: [tabId: string, hasChanges: boolean];
   linkClick: [href: string];
   focus: [];
-  /** Workspace file dropped onto this pane — open it here. */
   dropFile: [filePath: string];
 }>();
 
 const WS_NODE_MIME = 'application/x-mermark-ws-node';
 
-// Active when a workspace-tree drag is hovering this pane (HTML5 drag, not the
-// custom tab drag). Drives the same drop overlay so users see where the file
-// will land.
 const isFileDragOver = ref(false);
 
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
@@ -92,19 +88,30 @@ const handlePaneMouseLeave = () => {
   }
 };
 
-// HTML5 drag from the workspace sidebar — accepts files dragged out of the
-// tree onto either pane in split view. The mime type matches what
-// WorkspaceTree sets via setData() in onTreeDragStart.
-const handleFileDragOver = (e: DragEvent) => {
-  if (!e.dataTransfer || !e.dataTransfer.types.includes(WS_NODE_MIME)) return;
+// Capture phase + dragenter — TipTap installs its own dragover handler that
+// preventDefaults text/html drags but ignores our custom mime; without
+// capture the cursor stays in not-allowed state.
+function hasWsNodeType(dt: DataTransfer | null): boolean {
+  if (!dt) return false;
+  return Array.from(dt.types as unknown as Iterable<string>).includes(WS_NODE_MIME);
+}
+
+const handleFileDragEnter = (e: DragEvent) => {
+  if (!hasWsNodeType(e.dataTransfer)) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = 'copy';
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  isFileDragOver.value = true;
+};
+
+const handleFileDragOver = (e: DragEvent) => {
+  if (!hasWsNodeType(e.dataTransfer)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
   isFileDragOver.value = true;
 };
 
 const handleFileDragLeave = (e: DragEvent) => {
-  // Ignore phantom dragleave events when crossing over child elements; only
-  // clear when leaving the pane element itself.
   const related = e.relatedTarget as Node | null;
   if (related && (e.currentTarget as Node).contains(related)) return;
   isFileDragOver.value = false;
@@ -113,8 +120,12 @@ const handleFileDragLeave = (e: DragEvent) => {
 const handleFileDrop = (e: DragEvent) => {
   if (!e.dataTransfer) return;
   const raw = e.dataTransfer.getData(WS_NODE_MIME);
-  if (!raw) return;
+  if (!raw) {
+    isFileDragOver.value = false;
+    return;
+  }
   e.preventDefault();
+  e.stopPropagation();
   isFileDragOver.value = false;
   let info: { path: string; kind: 'file' | 'folder' };
   try { info = JSON.parse(raw); } catch { return; }
@@ -141,9 +152,10 @@ defineExpose({
     @focusin="handlePaneFocus"
     @mouseenter="handlePaneMouseEnter"
     @mouseleave="handlePaneMouseLeave"
-    @dragover="handleFileDragOver"
+    @dragenter.capture="handleFileDragEnter"
+    @dragover.capture="handleFileDragOver"
     @dragleave="handleFileDragLeave"
-    @drop="handleFileDrop"
+    @drop.capture="handleFileDrop"
   >
     <!-- Tab bar (only show if has tabs) -->
     <TabBar
@@ -179,7 +191,6 @@ defineExpose({
         <div class="empty-subtitle">{{ t.orOpenFileInPane }}</div>
       </div>
 
-      <!-- Drop overlay during drag (tab transfer or workspace file drop). -->
       <div
         v-if="(isValidDropTarget || isFileDragOver) && !isEmpty"
         class="drop-overlay"

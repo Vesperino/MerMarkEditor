@@ -116,7 +116,7 @@ const zhCN: Translations = {
   saveAndClose: '保存并关闭',
 
   // Tabs
-  newDocument: '新建文档',
+  newDocument: '文档',
   closeTab: '关闭标签页',
   closeTabTooltip: '关闭标签页 (Ctrl+W)',
 
