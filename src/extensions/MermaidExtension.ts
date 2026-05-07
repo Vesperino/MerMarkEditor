@@ -50,14 +50,18 @@ export const MermaidExtension = Node.create<MermaidOptions>({
         },
       },
       printScale: {
-        default: 25,
+        // Default to 100 % so freshly inserted / pasted diagrams render at
+        // full size. Earlier versions defaulted to 25 % which made small
+        // diagrams look broken; users rarely want anything below 100 %
+        // until they're laying out a print-heavy page.
+        default: 100,
         parseHTML: (element) => {
           const scale = element.getAttribute("data-print-scale");
-          return scale ? parseInt(scale, 10) : 25;
+          return scale ? parseInt(scale, 10) : 100;
         },
         renderHTML: (attributes) => {
           return {
-            "data-print-scale": attributes.printScale || 25,
+            "data-print-scale": attributes.printScale || 100,
           };
         },
       },

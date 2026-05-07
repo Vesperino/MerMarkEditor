@@ -61,9 +61,9 @@ export function htmlToMarkdown(html: string): string {
       const userWidthMatch = match.match(/data-user-width=["']?(\d+)["']?/i);
       if (userWidthMatch) attrPairs.push(`userWidth=${userWidthMatch[1]}`);
       const printScaleMatch = match.match(/data-print-scale=["']?(\d+)["']?/i);
-      if (printScaleMatch && printScaleMatch[1] !== '25') {
-        // Default scale (25) is the implicit value — only persist when the
-        // user changed it, otherwise the comment is noise.
+      if (printScaleMatch && printScaleMatch[1] !== '100') {
+        // Default scale (100) is implicit — only persist when the user
+        // changed it, otherwise every saved diagram carries dead noise.
         attrPairs.push(`printScale=${printScaleMatch[1]}`);
       }
       const splitRatioMatch = match.match(/data-split-ratio=["']?(\d+)["']?/i);

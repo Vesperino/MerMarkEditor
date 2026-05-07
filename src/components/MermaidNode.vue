@@ -31,8 +31,9 @@ const props = defineProps<{
 // Diagram size options (percentage of container width)
 const sizeOptions = [25, 50, 75, 100] as const;
 
-// Current diagram size
-const diagramSize = computed(() => props.node.attrs.printScale || 25);
+// Current diagram size — full width by default. Users can dial it down via
+// the floating toolbar size buttons.
+const diagramSize = computed(() => props.node.attrs.printScale || 100);
 
 const setDiagramSize = (size: number) => {
   props.updateAttributes({ printScale: size });
@@ -585,64 +586,64 @@ watch(editCode, () => {
           </div>
         </div>
 
-        <!-- AI assist popup — Canva-style centered card. Big textarea, room
-             to write multi-line prompts. Result shown below; Apply replaces
-             the editor content. Esc / backdrop click dismiss. -->
-        <Teleport to="body">
-          <div v-if="aiPanelOpen" class="ai-mermaid-modal" @click.self="aiPanelOpen = false">
-            <div class="ai-mermaid-card" @keydown.esc="aiPanelOpen = false">
-              <header class="ai-mermaid-card-header">
-                <span class="ai-mermaid-card-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
-                  </svg>
-                </span>
-                <h3 class="ai-mermaid-card-title">{{ t.aiAssistMermaidTitle }}</h3>
-                <button class="ai-mermaid-card-close" @click="aiPanelOpen = false">×</button>
-              </header>
+        <!-- AI assist popup — Canva-style centered card. The modal lives
+             directly inside `.editor-fullscreen` (already position:fixed at
+             z-index 99999) and uses z-index 100000 to layer above the
+             editor. Nested <Teleport>s into the same target sometimes fail
+             to mount in Vue's compile output, so we render in place. -->
+        <div v-if="aiPanelOpen" class="ai-mermaid-modal" @click.self="aiPanelOpen = false">
+          <div class="ai-mermaid-card" @keydown.esc="aiPanelOpen = false">
+            <header class="ai-mermaid-card-header">
+              <span class="ai-mermaid-card-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
+                </svg>
+              </span>
+              <h3 class="ai-mermaid-card-title">{{ t.aiAssistMermaidTitle }}</h3>
+              <button class="ai-mermaid-card-close" @click="aiPanelOpen = false">×</button>
+            </header>
 
-              <div class="ai-mermaid-card-body">
-                <label class="ai-mermaid-card-label">{{ t.aiAssistMermaidPromptLabel }}</label>
-                <textarea
-                  v-model="aiPrompt"
-                  class="ai-mermaid-card-textarea"
-                  :placeholder="t.aiAssistMermaidPlaceholder"
-                  :disabled="aiBusy"
-                  rows="6"
-                  @keydown.ctrl.enter="aiAskMermaid"
-                  @keydown.meta.enter="aiAskMermaid"
-                ></textarea>
-                <p class="ai-mermaid-card-hint">{{ t.aiAssistMermaidHint }}</p>
+            <div class="ai-mermaid-card-body">
+              <label class="ai-mermaid-card-label">{{ t.aiAssistMermaidPromptLabel }}</label>
+              <textarea
+                v-model="aiPrompt"
+                class="ai-mermaid-card-textarea"
+                :placeholder="t.aiAssistMermaidPlaceholder"
+                :disabled="aiBusy"
+                rows="6"
+                @keydown.ctrl.enter="aiAskMermaid"
+                @keydown.meta.enter="aiAskMermaid"
+              ></textarea>
+              <p class="ai-mermaid-card-hint">{{ t.aiAssistMermaidHint }}</p>
 
-                <div v-if="aiError" class="ai-mermaid-error">{{ aiError }}</div>
+              <div v-if="aiError" class="ai-mermaid-error">{{ aiError }}</div>
 
-                <div v-if="aiOutput || aiBusy" class="ai-mermaid-output">
-                  <div class="ai-mermaid-output-label">
-                    {{ t.aiAssistMermaidProposed }}
-                    <span v-if="aiBusy" class="ai-mermaid-busy-dot"></span>
-                  </div>
-                  <pre class="ai-mermaid-output-pre">{{ aiOutput ? extractMermaidCodeFromResponse(aiOutput) : '…' }}</pre>
+              <div v-if="aiOutput || aiBusy" class="ai-mermaid-output">
+                <div class="ai-mermaid-output-label">
+                  {{ t.aiAssistMermaidProposed }}
+                  <span v-if="aiBusy" class="ai-mermaid-busy-dot"></span>
                 </div>
+                <pre class="ai-mermaid-output-pre">{{ aiOutput ? extractMermaidCodeFromResponse(aiOutput) : '…' }}</pre>
               </div>
-
-              <footer class="ai-mermaid-card-actions">
-                <button v-if="aiOutput && !aiBusy" class="ai-mermaid-apply" @click="aiApply">
-                  {{ t.aiAssistMermaidApply }}
-                </button>
-                <button v-if="aiBusy" class="ai-mermaid-cancel" @click="aiCancel">
-                  {{ t.aiCancelButton }}
-                </button>
-                <button
-                  v-else
-                  class="ai-mermaid-send"
-                  :disabled="!aiPrompt.trim()"
-                  @click="aiAskMermaid"
-                >{{ t.aiSendButton }}</button>
-                <button class="ai-mermaid-discard" @click="aiPanelOpen = false">{{ t.cancel }}</button>
-              </footer>
             </div>
+
+            <footer class="ai-mermaid-card-actions">
+              <button v-if="aiOutput && !aiBusy" class="ai-mermaid-apply" @click="aiApply">
+                {{ t.aiAssistMermaidApply }}
+              </button>
+              <button v-if="aiBusy" class="ai-mermaid-cancel" @click="aiCancel">
+                {{ t.aiCancelButton }}
+              </button>
+              <button
+                v-else
+                class="ai-mermaid-send"
+                :disabled="!aiPrompt.trim()"
+                @click="aiAskMermaid"
+              >{{ t.aiSendButton }}</button>
+              <button class="ai-mermaid-discard" @click="aiPanelOpen = false">{{ t.cancel }}</button>
+            </footer>
           </div>
-        </Teleport>
+        </div>
         <!-- Split: code left, preview right -->
         <div class="editor-split-fullscreen">
           <div class="editor-code-pane" :style="{ flex: `0 0 ${splitRatio}%` }">
@@ -1081,11 +1082,12 @@ watch(editCode, () => {
   color: var(--primary);
 }
 
-/* Modal overlay (Canva-style centered card) */
+/* Modal overlay (Canva-style centered card). z-index must outrank
+   `.editor-fullscreen` (99999) since the modal is launched from inside it. */
 .ai-mermaid-modal {
   position: fixed;
   inset: 0;
-  z-index: 12000;
+  z-index: 100000;
   background: var(--overlay-bg, rgba(0, 0, 0, 0.55));
   display: flex;
   align-items: center;
