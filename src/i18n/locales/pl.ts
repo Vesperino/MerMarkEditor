@@ -413,6 +413,7 @@ const pl: Translations = {
   noWorkspaceOpen: 'Brak otwartego obszaru roboczego',
   recentWorkspaces: 'Ostatnie obszary',
   closeWorkspace: 'Zamknij obszar',
+  closeAllWorkspaces: 'Zamknij wszystkie obszary',
   refreshTree: 'Odśwież',
   showWorkspaceSidebar: 'Pokaż panel obszaru',
   workspaceSidebarShow: 'Pokaż panel',
@@ -427,6 +428,9 @@ const pl: Translations = {
   workspaceEmptyHint: 'Otwórz folder, aby przeglądać jego pliki markdown.',
   workspaceErrorLoad: 'Nie udało się wczytać obszaru roboczego.',
   workspaceClearRecents: 'Wyczyść listę',
+
+  // Open split-button
+  openMenuTooltip: 'Otwórz plik lub obszar roboczy…',
 };
 
 export default pl;

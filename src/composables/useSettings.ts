@@ -9,10 +9,22 @@ export type CodeThemeMode = 'dark' | 'white';
 export type CliKind = 'claude' | 'codex';
 export type PanelSide = 'left' | 'right';
 
+/** A workspace currently pinned in the sidebar (one of N concurrent roots). */
+export interface OpenWorkspaceEntry {
+  /** Stable id (uuid) — used to identify the active tab independent of path. */
+  id: string;
+  /** Absolute path to the folder root. */
+  rootPath: string;
+  /** Display name (defaults to basename of rootPath). */
+  name: string;
+}
+
 export interface WorkspaceSettings {
-  /** Absolute path to last opened workspace root, or null when none. */
-  lastRoot: string | null;
-  /** Recently opened workspace roots (LRU, most recent first). */
+  /** Currently open workspaces (sidebar tabs). Empty when no workspace is open. */
+  openWorkspaces: OpenWorkspaceEntry[];
+  /** Id of the currently active workspace, or null when none. */
+  activeWorkspaceId: string | null;
+  /** Recently closed workspace roots (LRU, most recent first). Excludes currently open. */
   recentRoots: string[];
   /** Whether the workspace sidebar is currently visible. */
   sidebarVisible: boolean;
@@ -21,6 +33,7 @@ export interface WorkspaceSettings {
 }
 
 export const RECENT_WORKSPACES_LIMIT = 10;
+export const OPEN_WORKSPACES_LIMIT = 8;
 export const SIDEBAR_WIDTH_MIN = 160;
 export const SIDEBAR_WIDTH_MAX = 480;
 export const SIDEBAR_WIDTH_DEFAULT = 240;
@@ -98,6 +111,21 @@ export interface AppSettings {
 
 const STORAGE_KEY = 'mermark-settings';
 
+/** crypto.randomUUID is available in modern browsers; fall back to Math.random for very old engines (test envs). */
+function makeWorkspaceId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `ws-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function basenameOfPath(p: string): string {
+  if (!p) return '';
+  const trimmed = p.replace(/[/\\]+$/, '');
+  const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
+}
+
 // Valid model IDs for migration
 const VALID_MODEL_IDS = Object.keys(TOKEN_MODELS) as TokenModelId[];
 
@@ -150,17 +178,61 @@ function loadSettings(): AppSettings {
       // even when localStorage holds an older partial ai object.
       const mergedAi = { ...defaults.ai, ...(parsed.ai ?? {}) };
       const mergedWorkspace = { ...defaults.workspace, ...(parsed.workspace ?? {}) };
+
       // Clamp sidebar width to valid range in case storage holds out-of-range value
       mergedWorkspace.sidebarWidth = Math.max(
         SIDEBAR_WIDTH_MIN,
         Math.min(SIDEBAR_WIDTH_MAX, mergedWorkspace.sidebarWidth || SIDEBAR_WIDTH_DEFAULT),
       );
+
+      // Migrate v1 single-workspace shape (lastRoot: string | null) to v2 multi-workspace
+      // (openWorkspaces[] + activeWorkspaceId). Detect v1 by presence of lastRoot field.
+      if ('lastRoot' in mergedWorkspace || !Array.isArray(mergedWorkspace.openWorkspaces)) {
+        const legacyLastRoot = (mergedWorkspace as { lastRoot?: string | null }).lastRoot ?? null;
+        if (legacyLastRoot) {
+          const migratedId = makeWorkspaceId();
+          mergedWorkspace.openWorkspaces = [
+            { id: migratedId, rootPath: legacyLastRoot, name: basenameOfPath(legacyLastRoot) || legacyLastRoot },
+          ];
+          mergedWorkspace.activeWorkspaceId = migratedId;
+        } else {
+          mergedWorkspace.openWorkspaces = [];
+          mergedWorkspace.activeWorkspaceId = null;
+        }
+        delete (mergedWorkspace as { lastRoot?: unknown }).lastRoot;
+      }
+
+      // Defensively normalize: cap to limit, drop dupes by rootPath, ensure id present
+      const seenPaths = new Set<string>();
+      mergedWorkspace.openWorkspaces = (mergedWorkspace.openWorkspaces as OpenWorkspaceEntry[])
+        .filter((w) => w && typeof w.rootPath === 'string' && w.rootPath)
+        .filter((w) => {
+          if (seenPaths.has(w.rootPath)) return false;
+          seenPaths.add(w.rootPath);
+          return true;
+        })
+        .slice(0, OPEN_WORKSPACES_LIMIT)
+        .map((w) => ({
+          id: w.id || makeWorkspaceId(),
+          rootPath: w.rootPath,
+          name: w.name || basenameOfPath(w.rootPath) || w.rootPath,
+        }));
+
+      // Active id must point to one of the open workspaces; otherwise pick first or null.
+      const activeStillOpen = mergedWorkspace.openWorkspaces.some(
+        (w: OpenWorkspaceEntry) => w.id === mergedWorkspace.activeWorkspaceId,
+      );
+      if (!activeStillOpen) {
+        mergedWorkspace.activeWorkspaceId = mergedWorkspace.openWorkspaces[0]?.id ?? null;
+      }
+
       // Trim recents that exceed the limit (e.g. limit lowered between versions)
       if (Array.isArray(mergedWorkspace.recentRoots)) {
         mergedWorkspace.recentRoots = mergedWorkspace.recentRoots.slice(0, RECENT_WORKSPACES_LIMIT);
       } else {
         mergedWorkspace.recentRoots = [];
       }
+
       const themeVariant: ThemeVariant = parsed.themeVariant === 'minimal' ? 'minimal' : 'default';
       return { ...defaults, ...parsed, themeVariant, workspace: mergedWorkspace, ai: mergedAi };
     }
@@ -187,7 +259,8 @@ function getDefaultSettings(): AppSettings {
     showLineNumbers: false,
     leftBarExpanded: false,
     workspace: {
-      lastRoot: null,
+      openWorkspaces: [],
+      activeWorkspaceId: null,
       recentRoots: [],
       sidebarVisible: true,
       sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
@@ -260,8 +333,35 @@ export function useSettings() {
     applyThemeVariant(variant);
   };
 
-  const setWorkspaceLastRoot = (root: string | null) => {
-    settings.value.workspace.lastRoot = root;
+  const setOpenWorkspaces = (list: OpenWorkspaceEntry[]) => {
+    // Cap, drop dupes by rootPath
+    const seen = new Set<string>();
+    const next: OpenWorkspaceEntry[] = [];
+    for (const w of list) {
+      if (!w?.rootPath || seen.has(w.rootPath)) continue;
+      seen.add(w.rootPath);
+      next.push({
+        id: w.id || makeWorkspaceId(),
+        rootPath: w.rootPath,
+        name: w.name || basenameOfPath(w.rootPath) || w.rootPath,
+      });
+      if (next.length >= OPEN_WORKSPACES_LIMIT) break;
+    }
+    settings.value.workspace.openWorkspaces = next;
+    // Keep activeWorkspaceId valid
+    if (!next.some((w) => w.id === settings.value.workspace.activeWorkspaceId)) {
+      settings.value.workspace.activeWorkspaceId = next[0]?.id ?? null;
+    }
+  };
+
+  const setActiveWorkspaceId = (id: string | null) => {
+    if (id === null) {
+      settings.value.workspace.activeWorkspaceId = null;
+      return;
+    }
+    if (settings.value.workspace.openWorkspaces.some((w) => w.id === id)) {
+      settings.value.workspace.activeWorkspaceId = id;
+    }
   };
 
   const setWorkspaceRecents = (recents: string[]) => {
@@ -361,7 +461,8 @@ export function useSettings() {
     toggleShowLineNumbers,
     setLeftBarExpanded,
     toggleLeftBarExpanded,
-    setWorkspaceLastRoot,
+    setOpenWorkspaces,
+    setActiveWorkspaceId,
     setWorkspaceRecents,
     setSidebarVisible,
     toggleSidebarVisible,

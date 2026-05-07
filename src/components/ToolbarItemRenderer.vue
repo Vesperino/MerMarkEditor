@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { useToolbarActions } from '../composables/useToolbarActions';
-import RecentFilesDropdown from './RecentFilesDropdown.vue';
+import { useSettings } from '../composables/useSettings';
+import { useWorkspace } from '../composables/useWorkspace';
+import OpenSplitButton from './OpenSplitButton.vue';
 import AiToolbarButton from './ai/AiToolbarButton.vue';
+
+const { settings, setThemeVariant } = useSettings();
+const ws = useWorkspace();
+
+function toggleThemeVariant() {
+  setThemeVariant(settings.value.themeVariant === 'minimal' ? 'default' : 'minimal');
+}
 
 const props = defineProps<{
   itemId: string;
@@ -23,6 +32,8 @@ const emit = defineEmits<{
   newFile: [];
   openFile: [];
   openRecent: [filePath: string];
+  openWorkspace: [];
+  openRecentWorkspace: [rootPath: string];
   saveFile: [];
   saveFileAs: [];
   exportPdf: [];
@@ -120,14 +131,12 @@ const showLabel = (id: string) => {
   </button>
 
   <div v-else-if="itemId === 'open-file'" class="open-file-group">
-    <button @click="emit('openFile')" class="toolbar-btn" :class="{ 'icon-only': !showLabel(itemId) }" :title="`${t.open} (Ctrl+O)`" :disabled="isDisabled(itemId)">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
-        <path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/>
-      </svg>
-      <span v-if="showLabel(itemId)">{{ t.open }}</span>
-    </button>
-    <RecentFilesDropdown @open-recent="(fp: string) => emit('openRecent', fp)" />
+    <OpenSplitButton
+      @open-file="emit('openFile')"
+      @open-recent="(fp: string) => emit('openRecent', fp)"
+      @open-workspace="emit('openWorkspace')"
+      @open-recent-workspace="(rp: string) => emit('openRecentWorkspace', rp)"
+    />
   </div>
 
   <button v-else-if="itemId === 'save-file'" @click="emit('saveFile')" class="toolbar-btn" :class="{ 'icon-only': !showLabel(itemId) }" :title="`${t.save} (Ctrl+S)`" :disabled="isDisabled(itemId)">
@@ -498,6 +507,35 @@ const showLabel = (id: string) => {
       <path d="M8 16h1"/>
     </svg>
     <span v-if="showLabel(itemId)">{{ t.compareTabs }}</span>
+  </button>
+
+  <!-- Workspace sidebar toggle -->
+  <button
+    v-else-if="itemId === 'toggle-workspace-sidebar'"
+    @click="ws.toggleSidebarVisible()"
+    :class="['toolbar-btn', { active: ws.sidebarVisible.value, 'icon-only': !showLabel(itemId) }]"
+    :title="ws.sidebarVisible.value ? t.workspaceSidebarHide : t.workspaceSidebarShow"
+  >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/>
+      <line x1="9" y1="4" x2="9" y2="20"/>
+    </svg>
+    <span v-if="showLabel(itemId)">{{ t.workspace }}</span>
+  </button>
+
+  <!-- Theme variant toggle (Default ↔ Minimal) -->
+  <button
+    v-else-if="itemId === 'toggle-theme-variant'"
+    @click="toggleThemeVariant"
+    :class="['toolbar-btn', { active: settings.themeVariant === 'minimal', 'icon-only': !showLabel(itemId) }]"
+    :title="settings.themeVariant === 'minimal' ? t.themeVariantDefault : t.themeVariantMinimal"
+  >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 3v18"/>
+      <path d="M12 12a9 9 0 0 0 0-9z" :fill="settings.themeVariant === 'minimal' ? 'currentColor' : 'none'"/>
+    </svg>
+    <span v-if="showLabel(itemId)">{{ settings.themeVariant === 'minimal' ? t.themeVariantMinimal : t.themeVariantDefault }}</span>
   </button>
 
   <!-- AI toggle -->

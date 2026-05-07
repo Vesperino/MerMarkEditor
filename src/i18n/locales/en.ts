@@ -413,6 +413,7 @@ const en: Translations = {
   noWorkspaceOpen: 'No workspace open',
   recentWorkspaces: 'Recent workspaces',
   closeWorkspace: 'Close workspace',
+  closeAllWorkspaces: 'Close all workspaces',
   refreshTree: 'Refresh',
   showWorkspaceSidebar: 'Show workspace sidebar',
   workspaceSidebarShow: 'Show sidebar',
@@ -427,6 +428,9 @@ const en: Translations = {
   workspaceEmptyHint: 'Open a folder to browse its markdown files here.',
   workspaceErrorLoad: 'Could not load workspace.',
   workspaceClearRecents: 'Clear list',
+
+  // Open split-button
+  openMenuTooltip: 'Open file or workspace…',
 };
 
 export default en;

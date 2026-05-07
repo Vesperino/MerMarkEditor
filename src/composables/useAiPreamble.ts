@@ -16,6 +16,10 @@ export interface PreambleOptions {
   sendFullDocOverride: boolean;
   docMarkdownLength: number;
   localeKey: string;
+  /** Name of the workspace (folder) owning the active file, if any. */
+  workspaceName?: string;
+  /** Absolute root path of the workspace, if any. */
+  workspaceRoot?: string;
 }
 
 interface PinScopeStrings {
@@ -68,8 +72,16 @@ export function buildPreamble(opts: PreambleOptions): string {
   const activeFileLine = opts.docPath
     ? `Active file: ${opts.docPath}`
     : 'Active file: (unsaved — no edits possible until user saves)';
+  const workspaceLines = opts.workspaceRoot
+    ? [
+        `Workspace: ${opts.workspaceName || opts.workspaceRoot}`,
+        `Workspace root: ${opts.workspaceRoot}`,
+        `When the user refers to "the project" or "this notebook", they mean the workspace above. Tool calls (file reads, bash) should default to this directory unless a more specific path is provided.`,
+      ]
+    : [];
   const lines = [
     `You are an AI assistant integrated into the MerMark editor.`,
+    ...workspaceLines,
     activeFileLine,
     selSection,
     `Read paths: ${am?.readPaths.join(', ') ?? opts.docPath}`,

@@ -32,6 +32,10 @@ const props = defineProps<{
   selectionRange: { start: number; end: number } | null;
   selectionText?: string;
   workDir: string;
+  /** Optional name of the workspace owning the active file (for AI context). */
+  workspaceName?: string;
+  /** Optional absolute root path of the workspace (for AI context). */
+  workspaceRoot?: string;
 }>();
 
 const emit = defineEmits<{
@@ -204,6 +208,8 @@ function buildPreambleForSend(): string {
     sendFullDocOverride: sendFullDocOverride.value,
     docMarkdownLength: docMarkdown.value.length,
     localeKey,
+    workspaceName: props.workspaceName ?? '',
+    workspaceRoot: props.workspaceRoot ?? '',
   });
 }
 

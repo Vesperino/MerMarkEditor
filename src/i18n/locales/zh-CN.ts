@@ -413,6 +413,7 @@ const zhCN: Translations = {
   noWorkspaceOpen: '未打开工作区',
   recentWorkspaces: '最近的工作区',
   closeWorkspace: '关闭工作区',
+  closeAllWorkspaces: '关闭所有工作区',
   refreshTree: '刷新',
   showWorkspaceSidebar: '显示工作区侧边栏',
   workspaceSidebarShow: '显示侧边栏',
@@ -427,6 +428,9 @@ const zhCN: Translations = {
   workspaceEmptyHint: '打开一个文件夹以浏览其中的 Markdown 文件。',
   workspaceErrorLoad: '无法加载工作区。',
   workspaceClearRecents: '清空列表',
+
+  // Open split-button
+  openMenuTooltip: '打开文件或工作区…',
 };
 
 export default zhCN;

@@ -419,6 +419,7 @@ export interface Translations {
   noWorkspaceOpen: string;
   recentWorkspaces: string;
   closeWorkspace: string;
+  closeAllWorkspaces: string;
   refreshTree: string;
   showWorkspaceSidebar: string;
   workspaceSidebarShow: string;
@@ -433,6 +434,9 @@ export interface Translations {
   workspaceEmptyHint: string;
   workspaceErrorLoad: string;
   workspaceClearRecents: string;
+
+  // Open split-button
+  openMenuTooltip: string;
 }
 
 const translations: Record<Locale, Translations> = {

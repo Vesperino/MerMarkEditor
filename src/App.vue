@@ -599,12 +599,36 @@ const aiSelectionText = computed<string>(() => {
   if (from === to) return '';
   return ed.state.doc.textBetween(from, to, '\n\n', '\n');
 });
+// AI workdir resolution priority:
+//   1. Workspace root that owns the active file (so the AI runs from project root)
+//   2. The active file's parent directory
+//   3. Any active workspace root (when no file is open yet)
+//   4. Empty (no scope)
+// Reasoning: when the user is editing a note inside a workspace, they expect
+// AI tool calls (read/write paths, bash cwd) to be scoped to the project root,
+// not just the immediate folder. Standalone files keep the old behavior.
 const aiWorkDir = computed(() => {
   const p = activeTab.value?.filePath;
-  if (!p) return '';
-  // Strip the filename to get the directory; works for both / and \ separators.
-  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-  return idx >= 0 ? p.slice(0, idx) : p;
+  if (p) {
+    const owning = workspace.findOwningWorkspace(p);
+    if (owning) return owning.rootPath;
+    const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    return idx >= 0 ? p.slice(0, idx) : p;
+  }
+  return workspace.activeWorkspace.value?.rootPath ?? '';
+});
+
+// AI workspace context — surfaces to the model so it understands which
+// project/notebook the user is working in.
+const aiWorkspaceName = computed<string>(() => {
+  const p = activeTab.value?.filePath;
+  const owning = p ? workspace.findOwningWorkspace(p) : null;
+  return (owning ?? workspace.activeWorkspace.value)?.name ?? '';
+});
+const aiWorkspaceRoot = computed<string>(() => {
+  const p = activeTab.value?.filePath;
+  const owning = p ? workspace.findOwningWorkspace(p) : null;
+  return (owning ?? workspace.activeWorkspace.value)?.rootPath ?? '';
 });
 
 // ============ AI Tmp Recovery ============
@@ -668,6 +692,12 @@ const workspace = useWorkspace();
 const handleWorkspaceOpenFile = (path: string) => {
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
+};
+const handleOpenWorkspaceFromToolbar = () => {
+  workspace.openWorkspaceDialog().catch((e) => console.error('[App] open workspace dialog:', e));
+};
+const handleOpenRecentWorkspaceFromToolbar = (rootPath: string) => {
+  workspace.openWorkspace(rootPath).catch((e) => console.error('[App] open recent workspace:', e));
 };
 
 // ============ Layout Config ============
@@ -1188,6 +1218,8 @@ onUnmounted(async () => {
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @open-recent="openFileWithCrossWindowCheck"
+      @open-workspace="handleOpenWorkspaceFromToolbar"
+      @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
@@ -1203,9 +1235,11 @@ onUnmounted(async () => {
 
     <!-- Main content area with optional left bar -->
     <div class="main-area">
-      <!-- Workspace Sidebar (folder browser) -->
+      <!-- Workspace Sidebar (folder browser).
+           Visible whenever the sidebar toggle is on — the sidebar renders an
+           empty-state CTA when no workspace is open yet. -->
       <WorkspaceSidebar
-        v-if="workspace.sidebarVisible.value && workspace.activeWorkspace.value"
+        v-if="workspace.sidebarVisible.value"
         @open-file="handleWorkspaceOpenFile"
       />
 
@@ -1222,6 +1256,8 @@ onUnmounted(async () => {
         @new-file="newFile"
         @open-file="openFileWithCrossWindowDialog"
         @open-recent="openFileWithCrossWindowCheck"
+        @open-workspace="handleOpenWorkspaceFromToolbar"
+        @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
         @save-file="saveFile"
         @save-file-as="saveFileAs"
         @export-pdf="exportPdf"
@@ -1284,6 +1320,8 @@ onUnmounted(async () => {
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @open-recent="openFileWithCrossWindowCheck"
+      @open-workspace="handleOpenWorkspaceFromToolbar"
+      @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
@@ -1373,6 +1411,8 @@ onUnmounted(async () => {
       :selection-range="aiSelectionRange"
       :selection-text="aiSelectionText"
       :work-dir="aiWorkDir"
+      :workspace-name="aiWorkspaceName"
+      :workspace-root="aiWorkspaceRoot"
       @close="aiPanelOpen = false"
       @apply-content="onAiApplyContent"
       @show-diff="onAiShowDiff"

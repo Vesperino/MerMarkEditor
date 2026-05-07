@@ -23,6 +23,8 @@ const emit = defineEmits<{
   newFile: [];
   openFile: [];
   openRecent: [filePath: string];
+  openWorkspace: [];
+  openRecentWorkspace: [rootPath: string];
   saveFile: [];
   saveFileAs: [];
   exportPdf: [];
@@ -34,7 +36,7 @@ const emit = defineEmits<{
   showSettings: [];
   toggleToc: [];
   toggleAi: [];
-}>(); 
+}>();
 </script>
 
 <template>
@@ -54,6 +56,8 @@ const emit = defineEmits<{
         @new-file="emit('newFile')"
         @open-file="emit('openFile')"
         @open-recent="(fp: string) => emit('openRecent', fp)"
+        @open-workspace="emit('openWorkspace')"
+        @open-recent-workspace="(rp: string) => emit('openRecentWorkspace', rp)"
         @save-file="emit('saveFile')"
         @save-file-as="emit('saveFileAs')"
         @export-pdf="emit('exportPdf')"

@@ -37,7 +37,7 @@ function settingsRemoveRecent(p: string) {
   workspace.removeRecent(p);
 }
 function settingsCloseWorkspace() {
-  workspace.closeWorkspace();
+  workspace.closeActiveWorkspace();
 }
 function settingsClearRecents() {
   workspace.clearRecents();
