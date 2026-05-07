@@ -451,16 +451,12 @@ button:disabled {
  * 11 pt). 15 mm bottom leaves room for the OS-supplied page number footer.
  * First page gets a slightly smaller top margin so a leading H1 sits high.
  * ========================================================================== */
+/* @page rules can't read CSS custom properties (Chromium limitation), so
+   we keep this block light — just a sane base — and let user-controlled
+   padding live on the body via `--editor-pad-*` (see @media print). */
 @page {
   size: A4;
-  margin: 14mm 18mm 18mm 18mm;
-}
-
-@page :first {
-  /* Tight first-page top margin so a leading H1 doesn't sit halfway down
-     the sheet. Earlier 12 mm + the editor's own padding-top added up to
-     ~30 mm of dead space at the top of every PDF. */
-  margin-top: 8mm;
+  margin: 10mm;
 }
 
 @media print {
@@ -525,7 +521,18 @@ button:disabled {
     width: 210mm;
     height: auto;
     margin: 0 !important;
-    padding: 0 !important;
+  }
+
+  /* Body padding mirrors the user's editor padding settings so the PDF
+     side / top / bottom whitespace matches what they see while writing.
+     `@page` already gives a 10 mm physical safety margin; this layers on
+     top so a denser editor (small padding) prints with tight margins,
+     and a roomy editor prints generously. */
+  body {
+    padding-top: var(--editor-pad-top, 16px) !important;
+    padding-bottom: var(--editor-pad-bottom, 32px) !important;
+    padding-left: var(--editor-pad-x, 24px) !important;
+    padding-right: var(--editor-pad-x, 24px) !important;
   }
 
   body {
@@ -815,32 +822,48 @@ button:disabled {
     -webkit-text-fill-color: #0b56c4 !important;
   }
 
-  /* ===== Code =====
-     GitHub-style light grey block with a subtle border — readable as a
-     fragment, distinct from prose, never noisy. Forced monospace stack so
-     a system without a fancy display font still picks up the right face. */
-  pre {
+  /* ===== Code blocks =====
+     Match what the user sees in the editor: dark slate background with the
+     same syntax-highlight palette. The earlier "GitHub-light" treatment
+     stripped colours because the page-wide `.editor-content *` colour reset
+     out-ranked the hljs rules. Now we (a) force the dark bg with high
+     specificity so the Minimal theme override doesn't get re-overridden by
+     light token sets, and (b) explicitly let `pre *` keep its inherited
+     colour so syntax classes survive. */
+  pre,
+  html[data-variant] .editor-content .tiptap pre,
+  html[data-variant] .editor-content .ProseMirror pre,
+  .editor-content .tiptap pre,
+  .editor-content .ProseMirror pre {
     white-space: pre-wrap !important;
     word-wrap: break-word !important;
-    background: var(--code-block-bg) !important;
-    border: 0.5pt solid var(--border-primary) !important;
-    border-left: 2pt solid var(--print-accent) !important;
-    padding: 10px 12px !important;
+    background: #0d1117 !important;
+    background-color: #0d1117 !important;
+    border: none !important;
+    padding: 12px 14px !important;
     font-family: "Fira Code", "JetBrains Mono", "SF Mono",
       "Cascadia Code", Consolas, "Liberation Mono", "Courier New",
       monospace !important;
     font-size: 9pt !important;
-    line-height: 1.5 !important;
-    border-radius: 3px !important;
+    line-height: 1.55 !important;
+    border-radius: 6px !important;
     page-break-inside: avoid;
     break-inside: avoid;
-    color: var(--code-block-text) !important;
+    color: #e2e8f0 !important;
+    -webkit-text-fill-color: #e2e8f0 !important;
     margin: 0.6em 0 !important;
   }
 
-  pre code {
+  pre code,
+  pre code *,
+  .editor-content pre code,
+  .editor-content pre code * {
+    /* Override the .editor-content * color reset so syntax highlight
+       classes (hljs-*) on inner spans render in their assigned colour
+       instead of being forced to ink black. */
     background: transparent !important;
-    color: var(--code-block-text) !important;
+    color: inherit !important;
+    -webkit-text-fill-color: inherit !important;
     font-size: inherit !important;
     padding: 0 !important;
     border: none !important;
@@ -869,17 +892,40 @@ button:disabled {
     -webkit-text-fill-color: #0d9488 !important;
   }
 
-  /* Syntax highlighting - dark colors for print */
-  pre .hljs-keyword { color: #7928a1 !important; }
-  pre .hljs-string { color: #1a7f37 !important; }
-  pre .hljs-number { color: #953800 !important; }
-  pre .hljs-function { color: #0550ae !important; }
-  pre .hljs-comment { color: #6e7781 !important; }
-  pre .hljs-variable { color: #953800 !important; }
-  pre .hljs-attr { color: #953800 !important; }
-  pre .hljs-tag { color: #0550ae !important; }
-  pre .hljs-title { color: #8250df !important; }
-  pre .hljs-built_in { color: #0550ae !important; }
+  /* Syntax highlight palette — mirrors the on-screen editor (lowlight
+     One-Dark-ish) so PDFs read like a screenshot of the editor view.
+     `-webkit-text-fill-color` set alongside `color` because Chromium's
+     PDF renderer prefers the fill colour when both are present. */
+  pre .hljs-keyword,
+  pre code .hljs-keyword { color: #c678dd !important; -webkit-text-fill-color: #c678dd !important; }
+  pre .hljs-string,
+  pre code .hljs-string { color: #98c379 !important; -webkit-text-fill-color: #98c379 !important; }
+  pre .hljs-number,
+  pre code .hljs-number { color: #d19a66 !important; -webkit-text-fill-color: #d19a66 !important; }
+  pre .hljs-function,
+  pre code .hljs-function { color: #61afef !important; -webkit-text-fill-color: #61afef !important; }
+  pre .hljs-comment,
+  pre code .hljs-comment { color: #7f848e !important; -webkit-text-fill-color: #7f848e !important; }
+  pre .hljs-variable,
+  pre code .hljs-variable { color: #e06c75 !important; -webkit-text-fill-color: #e06c75 !important; }
+  pre .hljs-attr,
+  pre code .hljs-attr { color: #d19a66 !important; -webkit-text-fill-color: #d19a66 !important; }
+  pre .hljs-tag,
+  pre code .hljs-tag { color: #e06c75 !important; -webkit-text-fill-color: #e06c75 !important; }
+  pre .hljs-title,
+  pre code .hljs-title { color: #61afef !important; -webkit-text-fill-color: #61afef !important; }
+  pre .hljs-built_in,
+  pre code .hljs-built_in { color: #56b6c2 !important; -webkit-text-fill-color: #56b6c2 !important; }
+  pre .hljs-literal,
+  pre code .hljs-literal { color: #d19a66 !important; -webkit-text-fill-color: #d19a66 !important; }
+  pre .hljs-name,
+  pre code .hljs-name { color: #e06c75 !important; -webkit-text-fill-color: #e06c75 !important; }
+  pre .hljs-symbol,
+  pre code .hljs-symbol { color: #56b6c2 !important; -webkit-text-fill-color: #56b6c2 !important; }
+  pre .hljs-meta,
+  pre code .hljs-meta { color: #c678dd !important; -webkit-text-fill-color: #c678dd !important; }
+  pre .hljs-params,
+  pre code .hljs-params { color: #abb2bf !important; -webkit-text-fill-color: #abb2bf !important; }
 
   /* ===== Tables =====
      Long tables split across pages with the header repeating, individual
