@@ -663,12 +663,17 @@ defineExpose({ editor });
 }
 
 .editor-content-wrapper.has-line-numbers .editor-content {
-  padding-left: calc(80px + var(--editor-gutter-width));
+  /* Side padding still respects the line-number gutter; user's setting
+     is added on top of the fixed gutter width. */
+  padding-left: calc(var(--editor-pad-x, 24px) + var(--editor-gutter-width));
 }
 
 .editor-content {
   background: var(--editor-content-bg);
-  padding: 60px 80px;
+  /* User-tunable paddings (Settings → Editor → Padding). Defaults defined
+     in useSettings; the var fallbacks here only matter on first paint
+     before applyCssVars runs. */
+  padding: var(--editor-pad-top, 16px) var(--editor-pad-x, 24px) var(--editor-pad-bottom, 32px);
   min-height: calc(100vh - 180px);
   box-shadow: var(--shadow-sm);
   border-radius: 4px;
