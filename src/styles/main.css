@@ -582,6 +582,23 @@ button:disabled {
     content: none !important;
   }
 
+  /* Belt-and-braces: collapse the workspace sidebar to zero width and
+     visually hide its contents. `display: none` alone leaves a width
+     reservation in some flex layouts when a child still computes layout —
+     the dark gutter on the left of the printed page came from this. */
+  .workspace-sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+  }
+
+  .main-area {
+    display: block !important;
+  }
+
   /* Hide every UI surface — chrome, modals, drag artefacts. The PDF must
      contain ONLY document content. New entries go here, never inside the
      @page rule. */
@@ -686,26 +703,29 @@ button:disabled {
   }
 
   /* ===== Typography =====
-     Headings are the document's skeleton — they get more breathing room
-     than the on-screen version and tighter letter-spacing for a
-     manuscript feel. h1/h2 get a hairline rule below them so the user
-     can scan the structure at a glance; h3+ stay rule-free for density. */
+     Hard-coded ink colors here on purpose. CSS variables don't survive
+     into print reliably when a higher-specificity selector (e.g.
+     `html.dark[data-variant="minimal"]`) re-sets `--text-primary` to a
+     light hex — variables can't be selectively overridden inside an
+     `@media print` block at lower specificity. Hex values bypass the
+     cascade entirely. */
   h1, h2, h3, h4, h5, h6 {
     break-after: avoid;
     page-break-after: avoid;
-    color: var(--text-primary) !important;
+    color: #1a1a1a !important;
     font-weight: 600 !important;
     letter-spacing: -0.012em !important;
     line-height: 1.25 !important;
     background: none !important;
-    -webkit-text-fill-color: currentColor !important;
+    background-image: none !important;
+    -webkit-text-fill-color: #1a1a1a !important;
   }
 
   h1 {
     font-size: 24pt;
     margin: 0 0 0.4em;
     padding-bottom: 0.18em;
-    border-bottom: 1.2pt solid var(--text-primary) !important;
+    border-bottom: 1.2pt solid #1a1a1a !important;
   }
   h1 + p,
   h1 + ul,
@@ -718,7 +738,7 @@ button:disabled {
     font-size: 17pt;
     margin: 1.4em 0 0.3em;
     padding-bottom: 0.12em;
-    border-bottom: 0.6pt solid var(--border-primary) !important;
+    border-bottom: 0.6pt solid #b6bdc4 !important;
   }
 
   h3 {
@@ -728,12 +748,14 @@ button:disabled {
   h4 {
     font-size: 12pt;
     margin: 1.1em 0 0.2em;
-    color: var(--text-secondary) !important;
+    color: #303030 !important;
+    -webkit-text-fill-color: #303030 !important;
   }
   h5, h6 {
     font-size: 11pt;
     margin: 1.0em 0 0.2em;
-    color: var(--text-secondary) !important;
+    color: #303030 !important;
+    -webkit-text-fill-color: #303030 !important;
     text-transform: uppercase;
     letter-spacing: 0.04em !important;
   }
@@ -744,9 +766,30 @@ button:disabled {
     break-inside: avoid;
     orphans: 3;
     widows: 3;
-    color: var(--text-primary) !important;
+    color: #1a1a1a !important;
+    -webkit-text-fill-color: #1a1a1a !important;
     margin: 0 0 0.6em !important;
     hyphens: none !important;
+  }
+
+  /* Catch-all: every text-bearing element inside the editor must render
+     as dark ink on white. Belt-and-braces against scoped Vue styles that
+     pin a `color: var(...)` value somewhere deep in the component tree. */
+  .ProseMirror,
+  .tiptap,
+  .ProseMirror *,
+  .tiptap *,
+  .editor-content,
+  .editor-content * {
+    color: #1a1a1a !important;
+    -webkit-text-fill-color: #1a1a1a !important;
+  }
+
+  .ProseMirror a,
+  .tiptap a,
+  .editor-content a {
+    color: #0b56c4 !important;
+    -webkit-text-fill-color: #0b56c4 !important;
   }
 
   /* ===== Code =====

@@ -6,7 +6,6 @@ import { useI18n } from '../i18n';
 import { useSettings, EDITOR_FONTS, CODE_FONTS } from '../composables/useSettings';
 import { useSystemFonts } from '../composables/useSystemFonts';
 import { useLayoutConfig, type LayoutZone } from '../composables/useLayoutConfig';
-import { useWorkspace } from '../composables/useWorkspace';
 import { getItemDef } from '../data/toolbarItems';
 import AiSettingsTab from './ai/AiSettingsTab.vue';
 
@@ -26,22 +25,6 @@ const {
   toggleCodeWordWrap,
 } = useSettings();
 
-const workspace = useWorkspace();
-async function settingsOpenWorkspaceDialog() {
-  try { await workspace.openWorkspaceDialog(); } catch (e) { console.error('open workspace:', e); }
-}
-function settingsOpenRecent(p: string) {
-  workspace.openWorkspace(p).catch((e) => console.error('open recent:', e));
-}
-function settingsRemoveRecent(p: string) {
-  workspace.removeRecent(p);
-}
-function settingsCloseWorkspace() {
-  workspace.closeActiveWorkspace();
-}
-function settingsClearRecents() {
-  workspace.clearRecents();
-}
 
 const { allFonts, monoFonts, isLoaded: fontsLoaded } = useSystemFonts();
 
@@ -483,42 +466,8 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Workspace section -->
-            <div class="setting-row workspace-setting">
-              <label class="setting-label">{{ t.workspace }}</label>
-              <div class="setting-control workspace-controls">
-                <div v-if="workspace.activeWorkspace.value" class="workspace-current">
-                  <span class="workspace-current-path" :title="workspace.activeWorkspace.value.rootPath">
-                    {{ workspace.activeWorkspace.value.rootPath }}
-                  </span>
-                  <button class="workspace-secondary" @click="settingsCloseWorkspace">
-                    {{ t.closeWorkspace }}
-                  </button>
-                </div>
-                <div v-else class="workspace-empty">{{ t.noWorkspaceOpen }}</div>
-                <button class="workspace-primary" @click="settingsOpenWorkspaceDialog">
-                  {{ t.openFolder }}
-                </button>
-                <div v-if="workspace.recentWorkspaces.value.length" class="workspace-recents">
-                  <div class="workspace-recents-header">
-                    <span>{{ t.recentWorkspaces }}</span>
-                    <button class="workspace-link-btn" @click="settingsClearRecents">
-                      {{ t.workspaceClearRecents }}
-                    </button>
-                  </div>
-                  <div
-                    v-for="r in workspace.recentWorkspaces.value"
-                    :key="r"
-                    class="workspace-recent-item"
-                  >
-                    <span class="workspace-recent-path" :title="r" @click="settingsOpenRecent(r)">
-                      {{ r }}
-                    </span>
-                    <button class="workspace-remove-btn" :aria-label="r" @click="settingsRemoveRecent(r)">×</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <!-- Workspace controls live exclusively in the left sidebar
+                 now — no need to duplicate them under Settings. -->
           </div>
 
           <!-- Editor Tab -->
