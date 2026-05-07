@@ -428,6 +428,7 @@ const zhCN: Translations = {
   workspaceEmptyHint: '打开一个文件夹以浏览其中的 Markdown 文件。',
   workspaceErrorLoad: '无法加载工作区。',
   workspaceClearRecents: '清空列表',
+  workspaceLoading: '正在加载工作区…',
 
   // Open split-button
   openMenuTooltip: '打开文件或工作区…',

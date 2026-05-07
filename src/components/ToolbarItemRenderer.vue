@@ -1,16 +1,10 @@
 <script setup lang="ts">
 import { useToolbarActions } from '../composables/useToolbarActions';
-import { useSettings } from '../composables/useSettings';
 import { useWorkspace } from '../composables/useWorkspace';
 import OpenSplitButton from './OpenSplitButton.vue';
 import AiToolbarButton from './ai/AiToolbarButton.vue';
 
-const { settings, setThemeVariant } = useSettings();
 const ws = useWorkspace();
-
-function toggleThemeVariant() {
-  setThemeVariant(settings.value.themeVariant === 'minimal' ? 'default' : 'minimal');
-}
 
 const props = defineProps<{
   itemId: string;
@@ -521,21 +515,6 @@ const showLabel = (id: string) => {
       <line x1="9" y1="4" x2="9" y2="20"/>
     </svg>
     <span v-if="showLabel(itemId)">{{ t.workspace }}</span>
-  </button>
-
-  <!-- Theme variant toggle (Default ↔ Minimal) -->
-  <button
-    v-else-if="itemId === 'toggle-theme-variant'"
-    @click="toggleThemeVariant"
-    :class="['toolbar-btn', { active: settings.themeVariant === 'minimal', 'icon-only': !showLabel(itemId) }]"
-    :title="settings.themeVariant === 'minimal' ? t.themeVariantDefault : t.themeVariantMinimal"
-  >
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="9"/>
-      <path d="M12 3v18"/>
-      <path d="M12 12a9 9 0 0 0 0-9z" :fill="settings.themeVariant === 'minimal' ? 'currentColor' : 'none'"/>
-    </svg>
-    <span v-if="showLabel(itemId)">{{ settings.themeVariant === 'minimal' ? t.themeVariantMinimal : t.themeVariantDefault }}</span>
   </button>
 
   <!-- AI toggle -->

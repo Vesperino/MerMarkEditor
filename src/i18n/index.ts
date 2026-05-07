@@ -434,6 +434,7 @@ export interface Translations {
   workspaceEmptyHint: string;
   workspaceErrorLoad: string;
   workspaceClearRecents: string;
+  workspaceLoading: string;
 
   // Open split-button
   openMenuTooltip: string;

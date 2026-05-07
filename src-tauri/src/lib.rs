@@ -380,15 +380,22 @@ fn read_workspace_subtree(path: &Path, depth: usize) -> Result<WorkspaceNode, St
 }
 
 #[tauri::command]
-fn read_workspace_tree(root: String) -> Result<WorkspaceNode, String> {
-    let path = Path::new(&root);
-    if !path.exists() {
-        return Err(format!("workspace path does not exist: {}", root));
-    }
-    if !path.is_dir() {
-        return Err(format!("workspace path is not a directory: {}", root));
-    }
-    read_workspace_subtree(path, 0)
+async fn read_workspace_tree(root: String) -> Result<WorkspaceNode, String> {
+    // Walking a large folder is CPU/IO bound and can take seconds. Run it on
+    // tokio's blocking pool so the Tauri command thread (and the renderer
+    // IPC) stays responsive — the UI shows its loading state in the meantime.
+    tokio::task::spawn_blocking(move || {
+        let path = Path::new(&root);
+        if !path.exists() {
+            return Err(format!("workspace path does not exist: {}", root));
+        }
+        if !path.is_dir() {
+            return Err(format!("workspace path is not a directory: {}", root));
+        }
+        read_workspace_subtree(path, 0)
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
 }
 
 #[tauri::command]

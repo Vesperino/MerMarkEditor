@@ -1,0 +1,449 @@
+/* ==========================================================================
+ * Minimal theme variant — Zettlr / iA Writer inspired
+ *
+ * Activates when `<html data-variant="minimal">` is present. Combines with
+ * `html.dark` (or its absence) so the four states `default-light`,
+ * `default-dark`, `minimal-light`, `minimal-dark` are independently
+ * styleable.
+ *
+ * Design intent (matches the user's stated reference: Zettlr):
+ *   - Paper-like background (warm cream in light, deep ink in dark)
+ *   - Serif body type for editor; clean sans for chrome
+ *   - Hairline borders, no gradients, no drop shadows on chrome
+ *   - Tabs as quiet underline-only labels — content first
+ *   - Wide editor side padding (max readable measure ~70ch)
+ *   - Toolbar / status bar muted; stay out of the way until used
+ *
+ * Each section below is self-contained so one block can be tweaked
+ * without affecting the others.
+ * ========================================================================== */
+
+/* ===== Color tokens — light minimal ===== */
+html[data-variant="minimal"] {
+  /* Paper-like cream background */
+  --bg-primary: #fbf8f1;
+  --bg-secondary: #f5f1e7;
+  --bg-tertiary: #ede8d9;
+  --bg-input: #fdfaf3;
+
+  /* Warm ink palette */
+  --text-primary: #2a2622;
+  --text-secondary: #5a5249;
+  --text-muted: #8a8278;
+  --text-faint: #b8aea0;
+
+  /* Hairline borders only */
+  --border-primary: #e2dccb;
+  --border-secondary: #c9c0a9;
+
+  /* Muted serif-friendly accent (warm sienna instead of vivid blue) */
+  --primary: #a85a2a;
+  --primary-hover: #8a4720;
+  --primary-rgb: 168, 90, 42;
+
+  --focus-ring: #a85a2a;
+  --focus-ring-alpha: rgba(168, 90, 42, 0.15);
+
+  --active-bg: #f3e7d6;
+  --active-border: #d9b78a;
+  --active-text: #6a3a18;
+  --hover-bg: #efe8d6;
+
+  /* Surfaces share the paper tone */
+  --statusbar-bg: var(--bg-primary);
+  --leftbar-bg: var(--bg-primary);
+  --toolbar-gradient-from: var(--bg-primary);
+  --toolbar-gradient-to: var(--bg-primary);
+
+  --editor-container-bg: var(--bg-primary);
+  --editor-content-bg: var(--bg-primary);
+
+  --tab-bg: transparent;
+  --tab-hover-bg: var(--hover-bg);
+  --tab-active-bg: transparent;
+
+  --dialog-bg: var(--bg-primary);
+  --dialog-actions-bg: var(--bg-secondary);
+  --overlay-bg: rgba(40, 35, 28, 0.4);
+
+  /* No gimmicky shadow */
+  --shadow-sm: 0 0 0 transparent;
+  --shadow-lg: 0 8px 32px rgba(40, 35, 28, 0.18);
+  --shadow-dropdown: 0 2px 12px rgba(40, 35, 28, 0.12);
+
+  /* Typography stacks — system-quality serifs across macOS/Windows/Linux. */
+  --minimal-font-serif: "Charter", "Iowan Old Style", "Palatino Linotype",
+    "Cambria", Georgia, "Times New Roman", serif;
+  --minimal-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Editor inherits serif by default; user font setting still wins via
+     --editor-font-family override in useSettings. */
+  --editor-line-height: 1.7;
+  --toolbar-height: 38px;
+}
+
+/* ===== Color tokens — dark minimal ===== */
+html.dark[data-variant="minimal"] {
+  /* Deep slate paper */
+  --bg-primary: #1a1815;
+  --bg-secondary: #221f1b;
+  --bg-tertiary: #2b2722;
+  --bg-input: #1f1c18;
+
+  --text-primary: #d8d2c5;
+  --text-secondary: #a59f93;
+  --text-muted: #7a7468;
+  --text-faint: #5a5448;
+
+  --border-primary: #2f2c26;
+  --border-secondary: #3d3930;
+
+  /* Slightly warmer accent on dark — keeps the parchment feel */
+  --primary: #d4915a;
+  --primary-hover: #e0a06a;
+  --primary-rgb: 212, 145, 90;
+
+  --focus-ring: #d4915a;
+  --focus-ring-alpha: rgba(212, 145, 90, 0.18);
+
+  --active-bg: rgba(212, 145, 90, 0.12);
+  --active-border: rgba(212, 145, 90, 0.4);
+  --active-text: #e8b285;
+  --hover-bg: #2b2722;
+
+  --shadow-sm: 0 0 0 transparent;
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.6);
+  --shadow-dropdown: 0 2px 12px rgba(0, 0, 0, 0.45);
+
+  --overlay-bg: rgba(0, 0, 0, 0.65);
+  --dialog-bg: var(--bg-secondary);
+  --dialog-actions-bg: var(--bg-tertiary);
+}
+
+/* ===== Global rules — apply to body in minimal mode ===== */
+html[data-variant="minimal"] body {
+  font-family: var(--minimal-font-sans);
+}
+
+/* ===== Toolbar ===== */
+html[data-variant="minimal"] .toolbar {
+  padding: 4px 12px;
+  gap: 2px;
+  box-shadow: none;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+html[data-variant="minimal"] .toolbar .toolbar-button,
+html[data-variant="minimal"] .toolbar button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+  font-weight: 400;
+  letter-spacing: 0;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+html[data-variant="minimal"] .toolbar button:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .toolbar button.active {
+  background: transparent;
+  color: var(--primary);
+  border-color: transparent;
+}
+
+/* Toolbar separators are decoration; weaken them. */
+html[data-variant="minimal"] .toolbar .toolbar-separator {
+  background: var(--border-primary);
+  opacity: 0.6;
+  margin: 0 6px;
+  height: 20px;
+}
+
+html[data-variant="minimal"] .toolbar .toolbar-divider {
+  margin: 0 4px;
+  opacity: 0.6;
+}
+
+/* ===== Tab bar ===== */
+html[data-variant="minimal"] .tab-bar {
+  padding: 0 8px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+html[data-variant="minimal"] .tab,
+html[data-variant="minimal"] .tab-bar .tab {
+  border-radius: 0;
+  padding: 8px 14px;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 400;
+  font-family: var(--minimal-font-sans);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+html[data-variant="minimal"] .tab:hover,
+html[data-variant="minimal"] .tab-bar .tab:hover {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .tab.active,
+html[data-variant="minimal"] .tab-bar .tab.active {
+  background: transparent;
+  border-bottom-color: var(--primary);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ===== Status bar ===== */
+html[data-variant="minimal"] .status-bar {
+  font-size: 11px;
+  padding: 2px 12px;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-primary);
+  color: var(--text-muted);
+  font-family: var(--minimal-font-sans);
+  letter-spacing: 0.02em;
+}
+
+html[data-variant="minimal"] .status-bar button {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .status-bar button:hover {
+  color: var(--text-primary);
+}
+
+/* ===== Left bar (vertical icon rail) ===== */
+html[data-variant="minimal"] .left-bar {
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-primary);
+}
+
+html[data-variant="minimal"] .left-bar button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .left-bar button:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+/* ===== Workspace sidebar ===== */
+html[data-variant="minimal"] .workspace-sidebar,
+html[data-variant="minimal"] .workspace-sidebar .ws-header,
+html[data-variant="minimal"] .workspace-sidebar .ws-body,
+html[data-variant="minimal"] .workspace-sidebar .ws-tabs {
+  background: var(--bg-primary);
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-title {
+  font-family: var(--minimal-font-sans);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-family: var(--minimal-font-sans);
+  font-weight: 400;
+  font-size: 11px;
+  padding: 6px 8px;
+  letter-spacing: 0.02em;
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab:hover {
+  color: var(--text-primary);
+  background: transparent;
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab.active {
+  border-bottom-color: var(--primary);
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab-add {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab-add:hover {
+  color: var(--primary);
+}
+
+/* Tree rows — quieter typography, no folder colour pop */
+html[data-variant="minimal"] .file-tree-node .tree-row {
+  font-family: var(--minimal-font-sans);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 3px 8px 3px 4px;
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row.active {
+  background: var(--active-bg);
+  color: var(--active-text);
+  font-weight: 500;
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row.folder .tree-icon {
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row.active .tree-icon {
+  color: var(--active-text);
+}
+
+/* ===== Editor content — serif body, generous measure ===== */
+html[data-variant="minimal"] .editor-container {
+  background: var(--bg-primary);
+}
+
+html[data-variant="minimal"] .editor-content,
+html[data-variant="minimal"] .ProseMirror,
+html[data-variant="minimal"] .tiptap {
+  font-family: var(--minimal-font-serif);
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  /* Reading measure: ~70ch, never less than 20px side gutter */
+  padding-left: max(24px, calc(50% - 36ch));
+  padding-right: max(24px, calc(50% - 36ch));
+  padding-top: 32px;
+  padding-bottom: 64px;
+}
+
+/* Headings: tighter, slight letter-spacing, no underline rule */
+html[data-variant="minimal"] .ProseMirror h1,
+html[data-variant="minimal"] .ProseMirror h2,
+html[data-variant="minimal"] .ProseMirror h3,
+html[data-variant="minimal"] .ProseMirror h4,
+html[data-variant="minimal"] .ProseMirror h5,
+html[data-variant="minimal"] .ProseMirror h6,
+html[data-variant="minimal"] .tiptap h1,
+html[data-variant="minimal"] .tiptap h2,
+html[data-variant="minimal"] .tiptap h3 {
+  font-family: var(--minimal-font-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-top: 1.6em;
+  margin-bottom: 0.4em;
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .ProseMirror h1,
+html[data-variant="minimal"] .tiptap h1 {
+  font-size: 1.85em;
+  line-height: 1.2;
+}
+
+html[data-variant="minimal"] .ProseMirror h2,
+html[data-variant="minimal"] .tiptap h2 {
+  font-size: 1.45em;
+  line-height: 1.25;
+}
+
+html[data-variant="minimal"] .ProseMirror h3,
+html[data-variant="minimal"] .tiptap h3 {
+  font-size: 1.18em;
+  line-height: 1.3;
+}
+
+html[data-variant="minimal"] .ProseMirror p,
+html[data-variant="minimal"] .tiptap p {
+  margin: 0 0 0.85em 0;
+}
+
+html[data-variant="minimal"] .ProseMirror blockquote,
+html[data-variant="minimal"] .tiptap blockquote {
+  border-left-width: 2px;
+  border-left-color: var(--text-faint);
+  color: var(--text-secondary);
+  font-style: italic;
+  padding-left: 1em;
+}
+
+html[data-variant="minimal"] .ProseMirror hr,
+html[data-variant="minimal"] .tiptap hr {
+  border: none;
+  border-top: 1px solid var(--border-primary);
+  margin: 2em auto;
+  width: 30%;
+}
+
+/* Inline code reads quietly, not punchy */
+html[data-variant="minimal"] .ProseMirror code,
+html[data-variant="minimal"] .tiptap code {
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: var(--primary);
+}
+
+html[data-variant="minimal"] .ProseMirror a,
+html[data-variant="minimal"] .tiptap a {
+  color: var(--primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* ===== Tabs in tab-strip animation tweak ===== */
+html[data-variant="minimal"] .ws-tabs {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+/* ===== Dialogs ===== */
+html[data-variant="minimal"] .settings-panel,
+html[data-variant="minimal"] .dialog-bg {
+  border-radius: 6px;
+  box-shadow: var(--shadow-lg);
+}
+
+html[data-variant="minimal"] .settings-tab.active {
+  border-bottom-color: var(--primary);
+}
+
+/* ===== Scrollbar ===== */
+html[data-variant="minimal"] {
+  --scrollbar-thumb: var(--border-secondary);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* Fade transition between variants — keeps the toggle feeling intentional */
+html[data-variant="minimal"] body,
+html[data-variant="minimal"] .toolbar,
+html[data-variant="minimal"] .status-bar,
+html[data-variant="minimal"] .workspace-sidebar,
+html[data-variant="minimal"] .editor-container {
+  transition: background-color 0.18s ease, color 0.18s ease;
+}

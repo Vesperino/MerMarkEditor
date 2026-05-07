@@ -28,6 +28,11 @@ function resetWorkspaceState() {
   settings.value.workspace.recentRoots = [];
   settings.value.workspace.sidebarVisible = true;
   settings.value.workspace.sidebarWidth = 240;
+  // Module-level tree-view state must also be reset between tests since
+  // `useWorkspace` is a singleton.
+  const ws = useWorkspace();
+  ws.expandedFolders.value = new Set();
+  ws.highlightedPath.value = null;
 }
 
 describe('useWorkspace', () => {
@@ -275,6 +280,48 @@ describe('useWorkspace', () => {
       await ws.openWorkspace('C:\\notes');
       const owner = ws.findOwningWorkspace('C:\\notes\\sub\\x.md');
       expect(owner?.rootPath).toBe('C:\\notes');
+    });
+  });
+
+  describe('tree view state', () => {
+    it('toggleFolder flips expanded state', () => {
+      const ws = useWorkspace();
+      expect(ws.isFolderExpanded('/a/b')).toBe(false);
+      ws.toggleFolder('/a/b');
+      expect(ws.isFolderExpanded('/a/b')).toBe(true);
+      ws.toggleFolder('/a/b');
+      expect(ws.isFolderExpanded('/a/b')).toBe(false);
+    });
+
+    it('expandAncestorsOf adds parents (not the file itself or root)', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValueOnce(makeFolderNode('/r'));
+      await ws.openWorkspace('/r');
+
+      ws.expandAncestorsOf('/r/sub/deep/file.md');
+      expect(ws.isFolderExpanded('/r/sub')).toBe(true);
+      expect(ws.isFolderExpanded('/r/sub/deep')).toBe(true);
+      // The root is implicitly expanded (rendered as `isRoot`); should NOT be added.
+      expect(ws.isFolderExpanded('/r')).toBe(false);
+      // The file itself is not a folder.
+      expect(ws.isFolderExpanded('/r/sub/deep/file.md')).toBe(false);
+    });
+
+    it('setHighlightedPath stores path and expands ancestors', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValueOnce(makeFolderNode('/r'));
+      await ws.openWorkspace('/r');
+
+      ws.setHighlightedPath('/r/sub/file.md');
+      expect(ws.highlightedPath.value).toBe('/r/sub/file.md');
+      expect(ws.isFolderExpanded('/r/sub')).toBe(true);
+    });
+
+    it('setHighlightedPath(null) clears the highlight', () => {
+      const ws = useWorkspace();
+      ws.setHighlightedPath('/x/y.md');
+      ws.setHighlightedPath(null);
+      expect(ws.highlightedPath.value).toBeNull();
     });
   });
 

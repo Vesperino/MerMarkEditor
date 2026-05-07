@@ -69,20 +69,20 @@ export function buildPreamble(opts: PreambleOptions): string {
   const tools = am
     ? Object.entries(am.tools).filter(([, v]) => v).map(([k]) => k).join(',') || 'none'
     : 'unknown';
-  const activeFileLine = opts.docPath
-    ? `Active file: ${opts.docPath}`
-    : 'Active file: (unsaved — no edits possible until user saves)';
+  const mainFileLine = opts.docPath
+    ? `Main file (the document the user is editing — your only writable target): ${opts.docPath}`
+    : 'Main file: (unsaved — no edits possible until user saves)';
   const workspaceLines = opts.workspaceRoot
     ? [
         `Workspace: ${opts.workspaceName || opts.workspaceRoot}`,
-        `Workspace root: ${opts.workspaceRoot}`,
-        `When the user refers to "the project" or "this notebook", they mean the workspace above. Tool calls (file reads, bash) should default to this directory unless a more specific path is provided.`,
+        `Workspace root (read-only context): ${opts.workspaceRoot}`,
+        `The main file lives inside this workspace. You may READ other files in the workspace for context (notes, references, related documents) but you must only WRITE to the main file. When the user says "the project" / "this notebook" / "these notes", they mean the workspace above.`,
       ]
     : [];
   const lines = [
     `You are an AI assistant integrated into the MerMark editor.`,
     ...workspaceLines,
-    activeFileLine,
+    mainFileLine,
     selSection,
     `Read paths: ${am?.readPaths.join(', ') ?? opts.docPath}`,
     `Write paths: ${am?.writePaths.join(', ') ?? opts.docPath}`,

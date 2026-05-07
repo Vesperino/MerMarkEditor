@@ -1,5 +1,4 @@
 import { ref, computed } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   useSettings,
@@ -7,25 +6,20 @@ import {
   OPEN_WORKSPACES_LIMIT,
   type OpenWorkspaceEntry,
 } from './useSettings';
+import { workspaceFs, type WorkspaceNode } from '../services/workspaceFs';
+import { basenameOf, isAncestor } from '../utils/path-utils';
 
-export interface WorkspaceNode {
-  name: string;
-  path: string;
-  kind: 'file' | 'folder';
-  children?: WorkspaceNode[];
-}
+export type { WorkspaceNode } from '../services/workspaceFs';
 
 /** Tree state per open workspace, keyed by workspace id. */
 const treesById = ref<Record<string, WorkspaceNode | null>>({});
 const loadingById = ref<Record<string, boolean>>({});
 const errorById = ref<Record<string, string | null>>({});
 
-function basenameOf(p: string): string {
-  if (!p) return '';
-  const trimmed = p.replace(/[/\\]+$/, '');
-  const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-  return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
-}
+/** Set of folder paths the user has expanded in the active workspace's tree. */
+const expandedFolders = ref<Set<string>>(new Set());
+/** File path that should be highlighted in the tree (usually the active editor tab). */
+const highlightedPath = ref<string | null>(null);
 
 function moveToFront(list: string[], item: string, limit: number): string[] {
   const filtered = list.filter((p) => p !== item);
@@ -51,7 +45,7 @@ export function useWorkspace() {
     toggleSidebarVisible,
   } = useSettings();
 
-  // ===== State =====
+  // ===== Reactive state =====
   const openWorkspaces = computed<OpenWorkspaceEntry[]>(
     () => settings.value.workspace.openWorkspaces,
   );
@@ -67,7 +61,7 @@ export function useWorkspace() {
   const sidebarVisible = computed<boolean>(() => settings.value.workspace.sidebarVisible);
   const sidebarWidth = computed<number>(() => settings.value.workspace.sidebarWidth);
 
-  // ===== Tree access scoped to active workspace =====
+  // Tree view state — scoped to the currently active workspace.
   const tree = computed<WorkspaceNode | null>(() => {
     const id = activeWorkspaceId.value;
     return id ? treesById.value[id] ?? null : null;
@@ -81,12 +75,13 @@ export function useWorkspace() {
     return id ? errorById.value[id] ?? null : null;
   });
 
-  // ===== Internal helpers =====
+  // ===== Tree loading =====
+
   async function loadTreeFor(entry: OpenWorkspaceEntry): Promise<WorkspaceNode> {
     loadingById.value[entry.id] = true;
     errorById.value[entry.id] = null;
     try {
-      const node = await invoke<WorkspaceNode>('read_workspace_tree', { root: entry.rootPath });
+      const node = await workspaceFs.readTree(entry.rootPath);
       treesById.value[entry.id] = node;
       return node;
     } catch (e) {
@@ -103,14 +98,13 @@ export function useWorkspace() {
     return openWorkspaces.value.find((w) => w.rootPath === path) ?? null;
   }
 
-  // ===== Public API =====
+  // ===== Public API: workspace lifecycle =====
 
-  /** Open a workspace by path. If already open, switch to it instead. Caps to OPEN_WORKSPACES_LIMIT. */
+  /** Open a workspace by path. If already open, switch to it instead. */
   async function openWorkspace(rootPath: string): Promise<OpenWorkspaceEntry> {
     const existing = findOpenByPath(rootPath);
     if (existing) {
       setActiveWorkspaceId(existing.id);
-      // Ensure tree is current — refresh if missing.
       if (!treesById.value[existing.id]) {
         await loadTreeFor(existing).catch(() => null);
       }
@@ -123,7 +117,6 @@ export function useWorkspace() {
       name: basenameOf(rootPath) || rootPath,
     };
 
-    // Validate by loading tree first; only mutate state on success.
     treesById.value[entry.id] = null;
     try {
       await loadTreeFor(entry);
@@ -136,14 +129,13 @@ export function useWorkspace() {
 
     const next = [...openWorkspaces.value, entry];
     if (next.length > OPEN_WORKSPACES_LIMIT) {
-      // Drop oldest non-active workspace.
+      // Drop oldest non-active workspace to make room for the new one.
       const idxToDrop = next.findIndex((w) => w.id !== activeWorkspaceId.value);
       if (idxToDrop >= 0) next.splice(idxToDrop, 1);
     }
     setOpenWorkspaces(next);
     setActiveWorkspaceId(entry.id);
 
-    // Remove from recents (it's now open) — recents holds *closed* workspaces.
     setWorkspaceRecents(recentWorkspaces.value.filter((p) => p !== rootPath));
     return entry;
   }
@@ -157,14 +149,12 @@ export function useWorkspace() {
 
   function setActive(id: string) {
     setActiveWorkspaceId(id);
-    // Lazy-load tree if missing
     const entry = openWorkspaces.value.find((w) => w.id === id);
     if (entry && !treesById.value[id] && !loadingById.value[id]) {
       loadTreeFor(entry).catch(() => null);
     }
   }
 
-  /** Close one workspace by id. Moves it to recents (LRU). */
   function closeWorkspaceById(id: string) {
     const entry = openWorkspaces.value.find((w) => w.id === id);
     const next = openWorkspaces.value.filter((w) => w.id !== id);
@@ -177,13 +167,11 @@ export function useWorkspace() {
     }
   }
 
-  /** Close the currently active workspace. */
   function closeActiveWorkspace() {
     const id = activeWorkspaceId.value;
     if (id) closeWorkspaceById(id);
   }
 
-  /** Close ALL open workspaces (moves each to recents). */
   function closeAllWorkspaces() {
     for (const w of [...openWorkspaces.value]) {
       closeWorkspaceById(w.id);
@@ -196,7 +184,6 @@ export function useWorkspace() {
     await loadTreeFor(entry);
   }
 
-  /** Refresh ALL open workspace trees in parallel. */
   async function refreshAll(): Promise<void> {
     await Promise.all(
       openWorkspaces.value.map((w) => loadTreeFor(w).catch(() => null)),
@@ -204,9 +191,8 @@ export function useWorkspace() {
   }
 
   /**
-   * Restore previously-open workspaces on app start.
-   * Each is loaded independently; failed ones are dropped silently and pushed
-   * into recents so the user can re-open them later if the path is valid again.
+   * Restore previously-open workspaces on app start. Each is loaded
+   * independently; failed ones are dropped silently and pushed into recents.
    */
   async function restoreLastOnStartup(): Promise<void> {
     const entries = [...openWorkspaces.value];
@@ -228,7 +214,6 @@ export function useWorkspace() {
 
     if (validEntries.length !== entries.length) {
       setOpenWorkspaces(validEntries);
-      // Move dropped to recents (oldest first so most recent is at the front)
       let recents = recentWorkspaces.value;
       for (const root of droppedRoots) {
         recents = moveToFront(recents, root, RECENT_WORKSPACES_LIMIT);
@@ -254,40 +239,92 @@ export function useWorkspace() {
     setOpenWorkspaces(list);
   }
 
-  // ===== File operations (scoped to whichever workspace contains the path) =====
+  // ===== Public API: file operations =====
 
   async function createFile(parent: string, name: string): Promise<string> {
-    const created = await invoke<string>('create_md_file', { parent, name });
+    const created = await workspaceFs.createFile(parent, name);
     await refreshAll();
     return created;
   }
 
   async function renamePath(from: string, to: string): Promise<void> {
-    await invoke('rename_path', { from, to });
+    await workspaceFs.rename(from, to);
     await refreshAll();
   }
 
   async function deletePath(path: string): Promise<void> {
-    await invoke('delete_path', { path });
+    await workspaceFs.remove(path);
     await refreshAll();
   }
 
   async function revealInOs(path: string): Promise<void> {
-    await invoke('reveal_in_os', { path });
+    await workspaceFs.reveal(path);
+  }
+
+  /** Workspace whose root contains the given path (active set only). */
+  function findOwningWorkspace(path: string): OpenWorkspaceEntry | null {
+    if (!path) return null;
+    for (const w of openWorkspaces.value) {
+      if (isAncestor(w.rootPath, path)) return w;
+    }
+    return null;
+  }
+
+  // ===== Public API: tree-view UI state =====
+
+  function isFolderExpanded(path: string): boolean {
+    return expandedFolders.value.has(path);
+  }
+
+  function expandFolder(path: string) {
+    if (!expandedFolders.value.has(path)) {
+      const next = new Set(expandedFolders.value);
+      next.add(path);
+      expandedFolders.value = next;
+    }
+  }
+
+  function collapseFolder(path: string) {
+    if (expandedFolders.value.has(path)) {
+      const next = new Set(expandedFolders.value);
+      next.delete(path);
+      expandedFolders.value = next;
+    }
+  }
+
+  function toggleFolder(path: string) {
+    if (expandedFolders.value.has(path)) collapseFolder(path);
+    else expandFolder(path);
+  }
+
+  /** Expand all ancestor folders of a target path so it becomes visible. */
+  function expandAncestorsOf(target: string) {
+    const owning = findOwningWorkspace(target);
+    if (!owning) return;
+    const next = new Set(expandedFolders.value);
+    // Walk up from target's parent until we reach the workspace root.
+    // Each ancestor folder gets added to the expanded set.
+    let cur = target;
+    const rootNorm = owning.rootPath.replace(/\\/g, '/');
+    for (let i = 0; i < 50; i++) {
+      const sepIdx = Math.max(cur.lastIndexOf('/'), cur.lastIndexOf('\\'));
+      if (sepIdx < 0) break;
+      cur = cur.slice(0, sepIdx);
+      const curNorm = cur.replace(/\\/g, '/');
+      if (curNorm === rootNorm || curNorm.length < rootNorm.length) break;
+      next.add(cur);
+    }
+    expandedFolders.value = next;
   }
 
   /**
-   * Returns the workspace whose root is an ancestor of (or equal to) `path`.
-   * Used for AI workdir selection and for scoping file operations to a tab.
+   * Set the file path to highlight in the tree (typically the editor's
+   * currently active file). Auto-expands ancestor folders so the row is
+   * visible. Pass null to clear.
    */
-  function findOwningWorkspace(path: string): OpenWorkspaceEntry | null {
-    if (!path) return null;
-    const norm = path.replace(/\\/g, '/');
-    for (const w of openWorkspaces.value) {
-      const root = w.rootPath.replace(/\\/g, '/');
-      if (norm === root || norm.startsWith(root + '/')) return w;
-    }
-    return null;
+  function setHighlightedPath(path: string | null) {
+    highlightedPath.value = path;
+    if (path) expandAncestorsOf(path);
   }
 
   return {
@@ -302,8 +339,10 @@ export function useWorkspace() {
     isLoading,
     error,
     treesById,
+    expandedFolders,
+    highlightedPath,
 
-    // Actions
+    // Workspace lifecycle
     openWorkspace,
     openWorkspaceDialog,
     setActive,
@@ -316,13 +355,23 @@ export function useWorkspace() {
     removeRecent,
     clearRecents,
     reorderOpenWorkspaces,
+
+    // File operations
     createFile,
     renamePath,
     deletePath,
     revealInOs,
     findOwningWorkspace,
 
-    // Sidebar visibility / size (re-exported for convenience)
+    // Tree view
+    isFolderExpanded,
+    expandFolder,
+    collapseFolder,
+    toggleFolder,
+    expandAncestorsOf,
+    setHighlightedPath,
+
+    // Sidebar
     setSidebarVisible,
     toggleSidebarVisible,
     setSidebarWidth,

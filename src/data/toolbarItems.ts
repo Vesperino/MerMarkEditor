@@ -92,9 +92,6 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   // Workspace sidebar toggle
   { id: 'toggle-workspace-sidebar', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1150, needsEditor: false, labelKey: 'showWorkspaceSidebar' },
 
-  // Theme variant quick-toggle (Default ↔ Minimal)
-  { id: 'toggle-theme-variant', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1160, needsEditor: false, labelKey: 'themeVariantLabel' },
-
   // AI toggle
   { id: 'ai-toggle', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1200, needsEditor: false, labelKey: 'aiToggleTooltip' },
 ];

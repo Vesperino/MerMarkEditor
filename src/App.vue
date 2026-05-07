@@ -700,6 +700,16 @@ const handleOpenRecentWorkspaceFromToolbar = (rootPath: string) => {
   workspace.openWorkspace(rootPath).catch((e) => console.error('[App] open recent workspace:', e));
 };
 
+// Sync the active tab's file path into the workspace tree highlight so the
+// sidebar reveals (and scrolls to) whichever file the user is editing.
+watch(
+  () => activeTab.value?.filePath,
+  (path) => {
+    workspace.setHighlightedPath(path ?? null);
+  },
+  { immediate: true },
+);
+
 // ============ Layout Config ============
 const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
 

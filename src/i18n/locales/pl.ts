@@ -428,6 +428,7 @@ const pl: Translations = {
   workspaceEmptyHint: 'Otwórz folder, aby przeglądać jego pliki markdown.',
   workspaceErrorLoad: 'Nie udało się wczytać obszaru roboczego.',
   workspaceClearRecents: 'Wyczyść listę',
+  workspaceLoading: 'Wczytywanie obszaru…',
 
   // Open split-button
   openMenuTooltip: 'Otwórz plik lub obszar roboczy…',

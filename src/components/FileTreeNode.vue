@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import type { WorkspaceNode } from '../composables/useWorkspace';
+import { useWorkspace } from '../composables/useWorkspace';
 
 defineOptions({ name: 'FileTreeNode' });
 
 const props = defineProps<{
   node: WorkspaceNode;
   depth: number;
-  /** When true, this node is the root and its row header is omitted (only children render). */
+  /** When true, this node is the workspace root and renders only its children. */
   isRoot?: boolean;
   /** Path of the folder currently highlighted as a drop target (for visual feedback). */
   dragOverPath?: string | null;
@@ -22,16 +23,37 @@ const emit = defineEmits<{
   (e: 'node-drop', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
 }>();
 
-// Folder default: expanded if root, collapsed otherwise.
-const expanded = ref<boolean>(props.isRoot === true || props.depth === 0);
+const ws = useWorkspace();
 
 const isFolder = computed(() => props.node.kind === 'folder');
 const indentPx = computed(() => `${props.depth * 12}px`);
-const isDropTarget = computed(() => isFolder.value && props.dragOverPath === props.node.path);
+
+/**
+ * Folder is expanded when:
+ *   - It's the workspace root (always renders its children), OR
+ *   - It's tracked in the shared expanded-folders set, OR
+ *   - It's depth=0 (top-level entries auto-expand for parity with v1 UX).
+ */
+const expanded = computed(
+  () =>
+    props.isRoot === true ||
+    props.depth === 0 ||
+    ws.isFolderExpanded(props.node.path),
+);
+
+const isDropTarget = computed(
+  () => isFolder.value && props.dragOverPath === props.node.path,
+);
+
+const isHighlighted = computed(
+  () => !isFolder.value && ws.highlightedPath.value === props.node.path,
+);
+
+const rowEl = ref<HTMLDivElement | null>(null);
 
 function onRowClick() {
   if (isFolder.value) {
-    expanded.value = !expanded.value;
+    ws.toggleFolder(props.node.path);
   } else {
     emit('open-file', props.node.path);
   }
@@ -45,26 +67,55 @@ function onContextMenu(e: MouseEvent) {
 function onDragStart(e: DragEvent) {
   emit('node-dragstart', { path: props.node.path, kind: props.node.kind, ev: e });
 }
-
 function onDragOver(e: DragEvent) {
   emit('node-dragover', { path: props.node.path, kind: props.node.kind, ev: e });
 }
-
 function onDragLeave() {
   emit('node-dragleave', { path: props.node.path, kind: props.node.kind });
 }
-
 function onDrop(e: DragEvent) {
   emit('node-drop', { path: props.node.path, kind: props.node.kind, ev: e });
 }
+
+/**
+ * Auto-scroll the highlighted row into view when it becomes active.
+ * Used so clicking a recent file (or switching tabs) reveals the row in
+ * the tree even if the user had scrolled away.
+ */
+function scrollIntoViewIfNeeded() {
+  const el = rowEl.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+  if (!inView) {
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+}
+
+onMounted(() => {
+  if (isHighlighted.value) scrollIntoViewIfNeeded();
+});
+
+watch(
+  () => isHighlighted.value,
+  (now) => {
+    if (now) scrollIntoViewIfNeeded();
+  },
+);
 </script>
 
 <template>
   <div class="file-tree-node">
     <div
       v-if="!isRoot"
+      ref="rowEl"
       class="tree-row"
-      :class="{ folder: isFolder, file: !isFolder, 'drop-target': isDropTarget }"
+      :class="{
+        folder: isFolder,
+        file: !isFolder,
+        'drop-target': isDropTarget,
+        active: isHighlighted,
+      }"
       :style="{ paddingLeft: indentPx }"
       :draggable="!isRoot"
       @click="onRowClick"
@@ -91,7 +142,7 @@ function onDrop(e: DragEvent) {
       <span class="tree-label" :title="node.path">{{ node.name }}</span>
     </div>
 
-    <div v-if="isFolder && (isRoot || expanded)" class="tree-children">
+    <div v-if="isFolder && expanded" class="tree-children">
       <FileTreeNode
         v-for="child in node.children || []"
         :key="child.path"
@@ -128,6 +179,12 @@ function onDrop(e: DragEvent) {
   background: var(--hover-bg);
 }
 
+.tree-row.active {
+  background: var(--active-bg);
+  color: var(--active-text);
+  font-weight: 500;
+}
+
 .tree-row.drop-target {
   background: var(--active-bg);
   outline: 1px dashed var(--primary);
@@ -161,6 +218,10 @@ function onDrop(e: DragEvent) {
 
 .tree-row.folder .tree-icon {
   color: var(--primary);
+}
+
+.tree-row.active .tree-icon {
+  color: var(--active-text);
 }
 
 .tree-label {

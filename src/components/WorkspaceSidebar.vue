@@ -299,10 +299,18 @@ const widthPx = computed(() => `${ws.sidebarWidth.value}px`);
     </header>
 
     <div class="ws-body">
-      <div v-if="ws.isLoading.value" class="ws-state">…</div>
+      <div v-if="ws.isLoading.value && !ws.tree.value" class="ws-loading">
+        <!-- Skeleton placeholder rows so users see immediate feedback that
+             the workspace is loading instead of a frozen empty pane. -->
+        <div class="skel-row" v-for="n in 8" :key="n" :style="{ width: 60 + ((n * 17) % 35) + '%' }"></div>
+        <div class="ws-loading-label">{{ t.workspaceLoading }}</div>
+      </div>
       <div v-else-if="ws.error.value" class="ws-state error">{{ t.workspaceErrorLoad }}</div>
       <div v-else-if="!ws.activeWorkspace.value" class="ws-empty">
-        <p>{{ t.workspaceEmptyHint }}</p>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        </svg>
+        <p class="ws-empty-hint">{{ t.workspaceEmptyHint }}</p>
         <button class="ws-empty-btn" @click="pickFolder">{{ t.openFolder }}</button>
       </div>
       <div v-else-if="ws.tree.value" class="ws-tree">
@@ -566,14 +574,60 @@ const widthPx = computed(() => `${ws.sidebarWidth.value}px`);
   color: var(--danger);
 }
 
+/* ===== Loading skeleton ===== */
+.ws-loading {
+  padding: 12px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skel-row {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--hover-bg) 50%,
+    var(--bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skel-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.ws-loading-label {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .ws-empty {
-  padding: 16px;
+  padding: 32px 20px 24px;
   font-size: 13px;
   color: var(--text-muted);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
+}
+
+.ws-empty svg {
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+.ws-empty-hint {
+  margin: 0;
+  line-height: 1.5;
 }
 
 .ws-empty-btn {

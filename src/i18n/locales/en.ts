@@ -428,6 +428,7 @@ const en: Translations = {
   workspaceEmptyHint: 'Open a folder to browse its markdown files here.',
   workspaceErrorLoad: 'Could not load workspace.',
   workspaceClearRecents: 'Clear list',
+  workspaceLoading: 'Loading workspace…',
 
   // Open split-button
   openMenuTooltip: 'Open file or workspace…',

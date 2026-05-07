@@ -15,6 +15,7 @@ import { useAiToolToast } from '../../composables/useAiToolToast';
 import { useAiPinnedSelections } from '../../composables/useAiPinnedSelections';
 import { useAiPendingImages, type PendingImage } from '../../composables/useAiPendingImages';
 import { buildPreamble } from '../../composables/useAiPreamble';
+import { withWorkspaceReadAccess } from '../../composables/useAiWorkspaceContext';
 import AiPanelTab from './AiPanelTab.vue';
 import AiPanelHeader from './AiPanelHeader.vue';
 import AiPanelContextBar from './AiPanelContextBar.vue';
@@ -193,6 +194,12 @@ watch(() => props.docPath, async (p) => {
   }
 });
 
+function effectiveAccessMap() {
+  // Augment the per-doc access map with read access to the surrounding
+  // workspace, if any. Writes stay scoped to the active doc.
+  return withWorkspaceReadAccess(access.current.value, props.workspaceRoot ?? '');
+}
+
 function buildPreambleForSend(): string {
   const localeKey = (typeof navigator !== 'undefined' && (localStorage.getItem('mermark-locale') ?? 'en')) || 'en';
   return buildPreamble({
@@ -201,7 +208,7 @@ function buildPreambleForSend(): string {
       : [],
     includePins: pins.includePinned.value,
     selectionRange: props.selectionRange,
-    accessMap: access.current.value,
+    accessMap: effectiveAccessMap(),
     docPath: props.docPath,
     docNeedsSave: docNeedsSave.value,
     docTooLarge: docTooLarge.value,
@@ -266,7 +273,7 @@ async function onSend() {
     effort: selectedEffort.value,
     prompt,
     preamble: buildPreambleForSend(),
-    accessMap: access.current.value,
+    accessMap: effectiveAccessMap()!,
     workDir: props.workDir,
     images: imagePaths,
     onSessionId: async (sid) => {
