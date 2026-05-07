@@ -5,6 +5,8 @@ import { useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
 import { SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '../composables/useSettings';
 import WorkspaceSection from './WorkspaceSection.vue';
 import WorkspaceContextMenu, { type WorkspaceContextAction } from './WorkspaceContextMenu.vue';
+import WorkspaceInputDialog from './WorkspaceInputDialog.vue';
+import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
 
 /**
  * Multi-root workspace sidebar (VS Code / Obsidian inspired).
@@ -45,6 +47,16 @@ function closeContext() {
   ctxNode.value = null;
 }
 
+// Dialog state for input prompts (new file / rename) and the delete
+// confirmation. We collect what to do in `pendingAction`, render the
+// matching dialog, and run the actual fs op when the user confirms.
+type PendingAction =
+  | { kind: 'new-file'; parent: string }
+  | { kind: 'rename'; from: string; originalName: string }
+  | { kind: 'delete'; path: string; name: string };
+
+const pendingAction = ref<PendingAction | null>(null);
+
 async function onContextAction(action: WorkspaceContextAction) {
   const node = ctxNode.value;
   if (!node) return;
@@ -55,42 +67,70 @@ async function onContextAction(action: WorkspaceContextAction) {
   }
   if (action === 'new-file') {
     if (node.kind !== 'folder') return;
-    const name = window.prompt(t.value.workspaceNewFilePrompt, 'untitled.md');
-    if (!name) return;
-    try {
-      const created = await ws.createFile(node.path, name);
-      emit('open-file', created);
-    } catch (e) {
-      console.error('createFile:', e);
-      window.alert(String(e));
-    }
+    pendingAction.value = { kind: 'new-file', parent: node.path };
     return;
   }
   if (action === 'rename') {
-    const newName = window.prompt(t.value.workspaceRenamePrompt, node.name);
-    if (!newName || newName === node.name) return;
-    const sepIdx = Math.max(node.path.lastIndexOf('/'), node.path.lastIndexOf('\\'));
-    const sep = node.path.includes('\\') && (sepIdx === -1 || node.path[sepIdx] === '\\') ? '\\' : '/';
-    const parent = sepIdx >= 0 ? node.path.slice(0, sepIdx) : '';
-    const dest = parent ? `${parent}${sep}${newName}` : newName;
-    try {
-      await ws.renamePath(node.path, dest);
-    } catch (e) {
-      console.error('rename:', e);
-      window.alert(String(e));
-    }
+    pendingAction.value = { kind: 'rename', from: node.path, originalName: node.name };
     return;
   }
   if (action === 'delete') {
-    const ok = window.confirm(t.value.workspaceConfirmDelete(node.name));
-    if (!ok) return;
-    try {
-      await ws.deletePath(node.path);
-    } catch (e) {
-      console.error('delete:', e);
-      window.alert(String(e));
-    }
+    pendingAction.value = { kind: 'delete', path: node.path, name: node.name };
   }
+}
+
+function dismissDialog() {
+  pendingAction.value = null;
+}
+
+async function onConfirmNewFile(name: string) {
+  const a = pendingAction.value;
+  if (!a || a.kind !== 'new-file') return;
+  pendingAction.value = null;
+  try {
+    const created = await ws.createFile(a.parent, name);
+    emit('open-file', created);
+  } catch (e) {
+    console.error('createFile:', e);
+    window.alert(String(e));
+  }
+}
+
+async function onConfirmRename(newName: string) {
+  const a = pendingAction.value;
+  if (!a || a.kind !== 'rename') return;
+  pendingAction.value = null;
+  if (newName === a.originalName) return;
+  const sepIdx = Math.max(a.from.lastIndexOf('/'), a.from.lastIndexOf('\\'));
+  const sep = a.from.includes('\\') && (sepIdx === -1 || a.from[sepIdx] === '\\') ? '\\' : '/';
+  const parent = sepIdx >= 0 ? a.from.slice(0, sepIdx) : '';
+  const dest = parent ? `${parent}${sep}${newName}` : newName;
+  try {
+    await ws.renamePath(a.from, dest);
+  } catch (e) {
+    console.error('rename:', e);
+    window.alert(String(e));
+  }
+}
+
+async function onConfirmDelete() {
+  const a = pendingAction.value;
+  if (!a || a.kind !== 'delete') return;
+  pendingAction.value = null;
+  try {
+    await ws.deletePath(a.path);
+  } catch (e) {
+    console.error('delete:', e);
+    window.alert(String(e));
+  }
+}
+
+function validateNewFileName(v: string): string | null {
+  const trimmed = v.trim();
+  if (!trimmed) return null; // disabled, no error message
+  if (/[/\\]/.test(trimmed)) return t.value.workspaceErrorNoPathSeparators;
+  if (trimmed === '.' || trimmed === '..') return t.value.workspaceErrorReservedName;
+  return null;
 }
 
 // ===== Header menu =====
@@ -353,6 +393,45 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
       :kind="ctxNode.kind"
       @action="onContextAction"
       @close="closeContext"
+    />
+
+    <!-- Styled prompts replacing native window.prompt / confirm -->
+    <WorkspaceInputDialog
+      v-if="pendingAction?.kind === 'new-file'"
+      :title="t.workspaceContextNewFile"
+      :label="t.workspaceNewFilePrompt"
+      initial-value="untitled.md"
+      :placeholder="'untitled.md'"
+      :confirm-label="t.create"
+      :cancel-label="t.cancel"
+      :validate="validateNewFileName"
+      :select-basename="true"
+      @confirm="onConfirmNewFile"
+      @cancel="dismissDialog"
+    />
+
+    <WorkspaceInputDialog
+      v-if="pendingAction?.kind === 'rename'"
+      :title="t.workspaceContextRename"
+      :label="t.workspaceRenamePrompt"
+      :initial-value="pendingAction.originalName"
+      :confirm-label="t.rename"
+      :cancel-label="t.cancel"
+      :validate="validateNewFileName"
+      :select-basename="true"
+      @confirm="onConfirmRename"
+      @cancel="dismissDialog"
+    />
+
+    <WorkspaceConfirmDialog
+      v-if="pendingAction?.kind === 'delete'"
+      :title="t.workspaceContextDelete"
+      :message="t.workspaceConfirmDelete(pendingAction.name)"
+      :confirm-label="t.workspaceContextDelete"
+      :cancel-label="t.cancel"
+      danger
+      @confirm="onConfirmDelete"
+      @cancel="dismissDialog"
     />
   </aside>
 </template>

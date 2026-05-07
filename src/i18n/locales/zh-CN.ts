@@ -443,6 +443,10 @@ const zhCN: Translations = {
   qsHintNavigate: '导航',
   qsHintOpen: '打开',
   qsHintCancel: '取消',
+  create: '创建',
+  rename: '重命名',
+  workspaceErrorNoPathSeparators: '名称不能包含路径分隔符 (/ 或 \\)。',
+  workspaceErrorReservedName: '此名称已保留。',
 
   // Open split-button
   openMenuTooltip: '打开文件或工作区…',

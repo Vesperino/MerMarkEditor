@@ -52,6 +52,16 @@ export interface AiSettings {
   cliPathClaude: string;
   /** Optional manual override for the `codex` binary path. Empty = autodetect via PATH. */
   cliPathCodex: string;
+  /**
+   * Last-known-good absolute path for the `claude` binary. Populated automatically
+   * after a successful health check; passed back to subsequent probes as the
+   * `override_path` so the backend skips its curated-dir scan + login-shell
+   * fallback (which costs ~50–150 ms on macOS, longer on slow shells).
+   * Distinct from `cliPathClaude` — that field is the user's manual override.
+   */
+  cliResolvedPathClaude: string;
+  /** Last-known-good resolved path for `codex`; same semantics as above. */
+  cliResolvedPathCodex: string;
 }
 
 export interface FontPreset {
@@ -277,6 +287,8 @@ function getDefaultSettings(): AppSettings {
       panelSide: 'right',
       cliPathClaude: '',
       cliPathCodex: '',
+      cliResolvedPathClaude: '',
+      cliResolvedPathCodex: '',
     },
   };
 }
@@ -439,6 +451,8 @@ export function useSettings() {
   const setAiPanelSide = (v: PanelSide) => { settings.value.ai.panelSide = v; };
   const setAiCliPathClaude = (v: string) => { settings.value.ai.cliPathClaude = v.trim(); };
   const setAiCliPathCodex = (v: string) => { settings.value.ai.cliPathCodex = v.trim(); };
+  const setAiCliResolvedPathClaude = (v: string) => { settings.value.ai.cliResolvedPathClaude = (v ?? '').trim(); };
+  const setAiCliResolvedPathCodex = (v: string) => { settings.value.ai.cliResolvedPathCodex = (v ?? '').trim(); };
 
   return {
     settings,
@@ -478,6 +492,8 @@ export function useSettings() {
     setAiPanelSide,
     setAiCliPathClaude,
     setAiCliPathCodex,
+    setAiCliResolvedPathClaude,
+    setAiCliResolvedPathCodex,
   };
 }
 

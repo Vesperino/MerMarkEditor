@@ -19,35 +19,44 @@
  * ========================================================================== */
 
 /* ===== Color tokens — light minimal ===== */
+/* Palette derives from the Mermaid Markdown logo: deep slate base, teal
+ * primary accent that fades to coral. Gives the editor a cohesive identity
+ * with the brand mark. */
 html[data-variant="minimal"] {
-  /* Paper-like cream background */
-  --bg-primary: #fbf8f1;
-  --bg-secondary: #f5f1e7;
-  --bg-tertiary: #ede8d9;
-  --bg-input: #fdfaf3;
+  /* Cool, paper-like surface — keeps reading comfort but pairs with teal */
+  --bg-primary: #fafaf7;
+  --bg-secondary: #f3f4f1;
+  --bg-tertiary: #e8eae6;
+  --bg-input: #ffffff;
 
-  /* Warm ink palette */
-  --text-primary: #2a2622;
-  --text-secondary: #5a5249;
-  --text-muted: #8a8278;
-  --text-faint: #b8aea0;
+  /* Slate ink — pulls from the dark side of the logo */
+  --text-primary: #1c2530;
+  --text-secondary: #4a5664;
+  --text-muted: #7a8694;
+  --text-faint: #a9b3bc;
 
-  /* Hairline borders only */
-  --border-primary: #e2dccb;
-  --border-secondary: #c9c0a9;
+  /* Hairline borders */
+  --border-primary: #dde1de;
+  --border-secondary: #c4cbc7;
 
-  /* Muted serif-friendly accent (warm sienna instead of vivid blue) */
-  --primary: #a85a2a;
-  --primary-hover: #8a4720;
-  --primary-rgb: 168, 90, 42;
+  /* Mermaid teal as the primary accent */
+  --primary: #14b8a6;
+  --primary-hover: #0d9488;
+  --primary-rgb: 20, 184, 166;
 
-  --focus-ring: #a85a2a;
-  --focus-ring-alpha: rgba(168, 90, 42, 0.15);
+  --focus-ring: #14b8a6;
+  --focus-ring-alpha: rgba(20, 184, 166, 0.18);
 
-  --active-bg: #f3e7d6;
-  --active-border: #d9b78a;
-  --active-text: #6a3a18;
-  --hover-bg: #efe8d6;
+  --active-bg: #d6f4ef;
+  --active-border: #5eead4;
+  --active-text: #0f766e;
+  --hover-bg: #ecf5f2;
+
+  /* Coral derived from the logo's tail — used for danger / highlighted accents */
+  --danger: #f43f5e;
+  --danger-light: #fb7185;
+  --danger-bg: #fff1f3;
+  --danger-hover-bg: #ffe4e8;
 
   /* Surfaces share the paper tone */
   --statusbar-bg: var(--bg-primary);
@@ -84,39 +93,46 @@ html[data-variant="minimal"] {
 }
 
 /* ===== Color tokens — dark minimal ===== */
+/* Mirrors the dark slate background of the Mermaid Markdown logo. */
 html.dark[data-variant="minimal"] {
-  /* Deep slate paper */
-  --bg-primary: #1a1815;
-  --bg-secondary: #221f1b;
-  --bg-tertiary: #2b2722;
-  --bg-input: #1f1c18;
+  /* Deep slate base — straight from the logo */
+  --bg-primary: #1a2028;
+  --bg-secondary: #1f2630;
+  --bg-tertiary: #2a313c;
+  --bg-input: #232a35;
 
-  --text-primary: #d8d2c5;
-  --text-secondary: #a59f93;
-  --text-muted: #7a7468;
-  --text-faint: #5a5448;
+  --text-primary: #e1e6ec;
+  --text-secondary: #aab4bf;
+  --text-muted: #788494;
+  --text-faint: #525d6b;
 
-  --border-primary: #2f2c26;
-  --border-secondary: #3d3930;
+  --border-primary: #2c333d;
+  --border-secondary: #3b4350;
 
-  /* Slightly warmer accent on dark — keeps the parchment feel */
-  --primary: #d4915a;
-  --primary-hover: #e0a06a;
-  --primary-rgb: 212, 145, 90;
+  /* Brighter teal so it pops against the dark slate */
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --primary-rgb: 45, 212, 191;
 
-  --focus-ring: #d4915a;
-  --focus-ring-alpha: rgba(212, 145, 90, 0.18);
+  --focus-ring: #2dd4bf;
+  --focus-ring-alpha: rgba(45, 212, 191, 0.22);
 
-  --active-bg: rgba(212, 145, 90, 0.12);
-  --active-border: rgba(212, 145, 90, 0.4);
-  --active-text: #e8b285;
-  --hover-bg: #2b2722;
+  --active-bg: rgba(45, 212, 191, 0.14);
+  --active-border: rgba(45, 212, 191, 0.45);
+  --active-text: #5eead4;
+  --hover-bg: #262d38;
+
+  /* Coral on dark — same hue, slightly punchier */
+  --danger: #fb7185;
+  --danger-light: #f87171;
+  --danger-bg: rgba(251, 113, 133, 0.14);
+  --danger-hover-bg: rgba(251, 113, 133, 0.22);
 
   --shadow-sm: 0 0 0 transparent;
-  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.6);
-  --shadow-dropdown: 0 2px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.45);
 
-  --overlay-bg: rgba(0, 0, 0, 0.65);
+  --overlay-bg: rgba(0, 0, 0, 0.68);
   --dialog-bg: var(--bg-secondary);
   --dialog-actions-bg: var(--bg-tertiary);
 }
@@ -400,14 +416,15 @@ html[data-variant="minimal"] .tiptap hr {
   width: 30%;
 }
 
-/* Inline code reads quietly, not punchy */
+/* Inline code: subtle coral tint to nod at the logo's gradient tail without
+ * overpowering body type. Background stays neutral. */
 html[data-variant="minimal"] .ProseMirror code,
 html[data-variant="minimal"] .tiptap code {
   background: var(--bg-tertiary);
   padding: 1px 5px;
   border-radius: 3px;
   font-size: 0.9em;
-  color: var(--primary);
+  color: var(--danger);
 }
 
 html[data-variant="minimal"] .ProseMirror a,

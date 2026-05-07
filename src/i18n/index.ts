@@ -449,6 +449,10 @@ export interface Translations {
   qsHintNavigate: string;
   qsHintOpen: string;
   qsHintCancel: string;
+  create: string;
+  rename: string;
+  workspaceErrorNoPathSeparators: string;
+  workspaceErrorReservedName: string;
 
   // Open split-button
   openMenuTooltip: string;

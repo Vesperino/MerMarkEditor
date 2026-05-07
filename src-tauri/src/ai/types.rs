@@ -23,6 +23,12 @@ pub struct HealthStatus {
     pub version: Option<String>,
     pub account: Option<String>,
     pub error: Option<String>,
+    /// Absolute path to the binary that was actually used. Frontend caches
+    /// this between sessions so subsequent health probes can pass it back
+    /// as `override_path`, skipping the curated-dir scan and login-shell
+    /// resolution that take 50–150 ms on macOS.
+    #[serde(default)]
+    pub resolved_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

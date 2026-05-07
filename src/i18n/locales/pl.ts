@@ -443,6 +443,10 @@ const pl: Translations = {
   qsHintNavigate: 'nawigacja',
   qsHintOpen: 'otwórz',
   qsHintCancel: 'anuluj',
+  create: 'Utwórz',
+  rename: 'Zmień nazwę',
+  workspaceErrorNoPathSeparators: 'Nazwa nie może zawierać separatorów ścieżki (/ ani \\).',
+  workspaceErrorReservedName: 'Ta nazwa jest zarezerwowana.',
 
   // Open split-button
   openMenuTooltip: 'Otwórz plik lub obszar roboczy…',

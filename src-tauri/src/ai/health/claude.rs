@@ -24,6 +24,10 @@ use crate::ai::cli;
 const CMD: &str = "claude";
 
 pub async fn probe(override_path: Option<&str>) -> HealthStatus {
+    let resolved = cli::resolve_with_override(CMD, override_path);
+    let resolved_str = resolved.to_string_lossy().into_owned();
+    let resolved_field = if resolved_str == CMD { None } else { Some(resolved_str) };
+
     let version = match run_capture(override_path, &["--version"], 5).await {
         Ok((true, out, _)) => Some(out.trim().to_string()),
         _ => {
@@ -32,6 +36,7 @@ pub async fn probe(override_path: Option<&str>) -> HealthStatus {
                 version: None,
                 account: None,
                 error: Some("Binary not found".into()),
+                resolved_path: None,
             }
         }
     };
@@ -42,12 +47,12 @@ pub async fn probe(override_path: Option<&str>) -> HealthStatus {
     match auth {
         Ok((true, out, _)) => {
             let account = parse_account(&out);
-            HealthStatus { ok: true, version, account, error: None }
+            HealthStatus { ok: true, version, account, error: None, resolved_path: resolved_field }
         }
         Ok((false, _, _)) | Err(_) => {
             // Doctor subcommand missing or auth failed — degrade gracefully:
             // binary works, auth state unknown. Surface as healthy with no account.
-            HealthStatus { ok: true, version, account: None, error: None }
+            HealthStatus { ok: true, version, account: None, error: None, resolved_path: resolved_field }
         }
     }
 }

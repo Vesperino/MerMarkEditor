@@ -8,6 +8,12 @@ export interface HealthStatus {
   version: string | null;
   account: string | null;
   error: string | null;
+  /**
+   * Absolute path of the binary actually used by the probe. The frontend
+   * caches this value so the next session can pass it back as
+   * `overridePath`, skipping the curated-dir scan + login-shell resolution.
+   */
+  resolvedPath?: string | null;
 }
 
 export interface AccessMapTools {

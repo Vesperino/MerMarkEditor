@@ -295,27 +295,46 @@ watch(editCode, () => {
 
 <template>
   <NodeViewWrapper class="mermaid-wrapper" :class="{ selected: props.selected }" :data-code="encodeURIComponent(props.node.attrs.code)">
-    <div class="mermaid-header">
-      <span class="mermaid-label">Mermaid Diagram</span>
-      <div class="mermaid-header-right">
-        <div class="size-control">
-          <span class="size-label">{{ t.diagramSize || 'Size' }}:</span>
-          <div class="size-buttons">
-            <button
-              v-for="size in sizeOptions"
-              :key="size"
-              @click="setDiagramSize(size)"
-              :class="['btn-size', { active: diagramSize === size }]"
-            >
-              {{ size }}%
-            </button>
-          </div>
-        </div>
-        <div class="mermaid-actions">
-          <button v-if="!isEditing" @click="startEdit" class="btn-edit">{{ t.editDiagram }}</button>
-          <button @click="props.deleteNode" class="btn-delete">{{ t.deleteDiagram }}</button>
-        </div>
-      </div>
+    <!-- Compact floating toolbar — appears on hover or when selected.
+         Replaces the previous full-width header + standalone zoom row that
+         dwarfed the diagram itself. -->
+    <div class="mermaid-toolbar" v-if="!isEditing">
+      <select
+        class="mermaid-toolbar-size"
+        :value="diagramSize"
+        :title="t.diagramSize || 'Size'"
+        @change="(e: Event) => setDiagramSize(Number((e.target as HTMLSelectElement).value))"
+      >
+        <option v-for="size in sizeOptions" :key="size" :value="size">{{ size }}%</option>
+      </select>
+
+      <span class="mermaid-toolbar-divider"></span>
+
+      <button class="mermaid-toolbar-btn" :title="`${t.zoomOut} (-)`" @click="zoomOut">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <span class="mermaid-toolbar-zoom" :title="t.zoom">{{ zoomPercent }}%</span>
+      <button class="mermaid-toolbar-btn" :title="`${t.zoomIn} (+)`" @click="zoomIn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <button class="mermaid-toolbar-btn" :title="`${t.reset} (100%)`" @click="resetZoom">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
+      <button class="mermaid-toolbar-btn" :title="t.fit" @click="handleFitToView">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 4 20 10 20"/><polyline points="20 10 20 4 14 4"/><line x1="4" y1="20" x2="11" y2="13"/><line x1="20" y1="4" x2="13" y2="11"/></svg>
+      </button>
+
+      <span class="mermaid-toolbar-divider"></span>
+
+      <button class="mermaid-toolbar-btn" :title="t.editDiagram" @click="startEdit">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      </button>
+      <button class="mermaid-toolbar-btn" :title="`${t.fullscreen} (Esc)`" @click="toggleFullscreen">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      </button>
+      <button class="mermaid-toolbar-btn danger" :title="t.deleteDiagram" @click="props.deleteNode">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      </button>
     </div>
 
     <!-- Fullscreen editor overlay -->
@@ -395,16 +414,6 @@ watch(editCode, () => {
       {{ error }}
     </div>
 
-    <!-- Zoom Controls -->
-    <div v-if="!isEditing" class="zoom-controls">
-      <button @click="zoomOut" class="btn-zoom" :title="`${t.zoomOut} (-)`">−</button>
-      <span class="zoom-level">{{ zoomPercent }}%</span>
-      <button @click="zoomIn" class="btn-zoom" :title="`${t.zoomIn} (+)`">+</button>
-      <button @click="resetZoom" class="btn-zoom-text" :title="`${t.reset} (100%)`">{{ t.reset }}</button>
-      <button @click="handleFitToView" class="btn-zoom-text" :title="t.fit">{{ t.fit }}</button>
-      <button @click="toggleFullscreen" class="btn-zoom-text btn-fullscreen" :title="`${t.fullscreen} (Esc)`">{{ t.fullscreen }}</button>
-    </div>
-
     <!-- Viewport with pan/zoom -->
     <div
       ref="viewportRef"
@@ -453,16 +462,110 @@ watch(editCode, () => {
 
 <style scoped>
 .mermaid-wrapper {
+  position: relative;
   margin: 1em 0;
-  padding: 16px;
+  padding: 0;
   background: var(--bg-secondary);
   border-radius: 8px;
-  border: 2px solid var(--border-primary);
+  border: 1px solid var(--border-primary);
   transition: border-color 0.2s;
+  overflow: hidden;
 }
 
 .mermaid-wrapper.selected {
   border-color: var(--primary);
+}
+
+/* Floating toolbar — top-right, hidden by default, fades in on hover/select.
+   Keeps the diagram itself the centerpiece; controls stay reachable but
+   never compete for visual space. */
+.mermaid-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 5px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  box-shadow: var(--shadow-dropdown);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.mermaid-wrapper:hover .mermaid-toolbar,
+.mermaid-wrapper.selected .mermaid-toolbar,
+.mermaid-toolbar:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.mermaid-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.mermaid-toolbar-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.mermaid-toolbar-btn.danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.mermaid-toolbar-divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 3px;
+  background: var(--border-primary);
+}
+
+.mermaid-toolbar-size {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  outline: none;
+}
+
+.mermaid-toolbar-size:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.mermaid-toolbar-size:focus {
+  border-color: var(--primary);
+  color: var(--text-primary);
+}
+
+.mermaid-toolbar-zoom {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: center;
+  padding: 0 2px;
 }
 
 .mermaid-header {

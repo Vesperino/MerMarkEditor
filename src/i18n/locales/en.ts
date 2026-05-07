@@ -443,6 +443,10 @@ const en: Translations = {
   qsHintNavigate: 'navigate',
   qsHintOpen: 'open',
   qsHintCancel: 'cancel',
+  create: 'Create',
+  rename: 'Rename',
+  workspaceErrorNoPathSeparators: 'Name cannot contain path separators (/ or \\).',
+  workspaceErrorReservedName: 'Name is reserved.',
 
   // Open split-button
   openMenuTooltip: 'Open file or workspace…',
