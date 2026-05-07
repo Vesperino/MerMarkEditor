@@ -1013,6 +1013,17 @@ onMounted(async () => {
   const urlFilePath = getFilePathFromUrl();
   let hasExplicitFile = false;
 
+  // Register before reading pending open state so macOS open-document events
+  // cannot race past the frontend during cold start.
+  try {
+    unlistenOpenFile = await listen<string>('open-file', (event) => {
+      hasExplicitFile = true;
+      openFileWithCrossWindowCheck(event.payload);
+    });
+  } catch (error) {
+    console.error('Błąd nasłuchiwania zdarzeń:', error);
+  }
+
   if (urlFilePath) {
     hasExplicitFile = true;
     console.log('[App] Opening file from URL:', urlFilePath);
@@ -1051,15 +1062,6 @@ onMounted(async () => {
 
   // Start persisting session state
   startSessionWatching();
-
-  // Listen for open-file events
-  try {
-    unlistenOpenFile = await listen<string>('open-file', (event) => {
-      openFileWithCrossWindowCheck(event.payload);
-    });
-  } catch (error) {
-    console.error('Błąd nasłuchiwania zdarzeń:', error);
-  }
 
   // Listen for tab transfer events (from other windows)
   try {
