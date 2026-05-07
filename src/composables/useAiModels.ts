@@ -35,10 +35,14 @@ export const CLAUDE_MODELS: AiModelOption[] = [
 ];
 
 export const CODEX_MODELS: AiModelOption[] = [
+  // gpt-5-codex is the default for ChatGPT-account codex CLI logins.
+  // gpt-5 itself is API-key only — picking it on a ChatGPT login fails
+  // with "model is not supported when using Codex with a ChatGPT account".
+  { id: 'gpt-5-codex', label: 'GPT-5 Codex (ChatGPT login)' },
+  { id: 'gpt-5', label: 'GPT-5 (API key)' },
+  { id: 'gpt-5-mini', label: 'GPT-5 mini' },
   { id: 'gpt-5.5', label: 'GPT-5.5' },
   { id: 'gpt-5.4', label: 'GPT-5.4' },
-  { id: 'gpt-5', label: 'GPT-5' },
-  { id: 'gpt-5-mini', label: 'GPT-5 mini' },
   { id: 'o3', label: 'o3' },
   { id: 'o4-mini', label: 'o4-mini' },
   { id: CUSTOM_MODEL_SENTINEL, label: 'Custom…', custom: true },

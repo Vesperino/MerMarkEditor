@@ -26,32 +26,47 @@ use std::path::PathBuf;
 /// wins when it points to an existing file — even on Unix where executable
 /// bit checks would normally apply, since the user explicitly picked it.
 pub fn resolve_with_override(name: &str, override_path: Option<&str>) -> OsString {
+    resolve_with_override_info(name, override_path).0
+}
+
+/// Same resolution as `resolve_with_override` but also returns the absolute
+/// path string when one was found (vs. falling back to the bare name). The
+/// path string powers the "binary used" display in the AI settings panel.
+pub fn resolve_with_override_info(
+    name: &str,
+    override_path: Option<&str>,
+) -> (OsString, Option<String>) {
     if let Some(p) = override_path {
         let trimmed = p.trim();
         if !trimmed.is_empty() {
             let candidate = Path::new(trimmed);
             if candidate.is_file() {
-                return candidate.as_os_str().to_os_string();
+                let os = candidate.as_os_str().to_os_string();
+                let display = candidate.to_string_lossy().into_owned();
+                return (os, Some(display));
             }
         }
     }
-    resolve(name)
+    resolve_info(name)
 }
 
-pub fn resolve(name: &str) -> OsString {
+pub fn resolve_info(name: &str) -> (OsString, Option<String>) {
     if let Ok(p) = which::which(name) {
-        return p.into_os_string();
+        let display = p.to_string_lossy().into_owned();
+        return (p.into_os_string(), Some(display));
     }
     #[cfg(unix)]
     {
         if let Some(p) = resolve_unix_fallback(name) {
-            return p.into_os_string();
+            let display = p.to_string_lossy().into_owned();
+            return (p.into_os_string(), Some(display));
         }
         if let Some(p) = resolve_via_login_shell(name) {
-            return p.into_os_string();
+            let display = p.to_string_lossy().into_owned();
+            return (p.into_os_string(), Some(display));
         }
     }
-    OsString::from(name)
+    (OsString::from(name), None)
 }
 
 #[cfg(unix)]

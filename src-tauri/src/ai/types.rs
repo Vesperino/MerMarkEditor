@@ -23,6 +23,11 @@ pub struct HealthStatus {
     pub version: Option<String>,
     pub account: Option<String>,
     pub error: Option<String>,
+    /// Absolute path to the binary that PATH/override resolution picked.
+    /// `None` when nothing was found (the probe will then surface
+    /// `error = "Binary not found"`). Surfaced in the AI settings panel
+    /// so users can see exactly which install is being used.
+    pub resolved_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

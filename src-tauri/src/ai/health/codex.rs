@@ -22,6 +22,7 @@ use crate::ai::cli;
 const CMD: &str = "codex";
 
 pub async fn probe(override_path: Option<&str>) -> HealthStatus {
+    let resolved_path = cli::resolve_with_override_info(CMD, override_path).1;
     let version = match run_capture(override_path, &["--version"], 5).await {
         Ok((true, out, _)) => Some(out.trim().to_string()),
         _ => {
@@ -30,21 +31,33 @@ pub async fn probe(override_path: Option<&str>) -> HealthStatus {
                 version: None,
                 account: None,
                 error: Some("Binary not found".into()),
+                resolved_path,
             }
         }
     };
     let auth = run_capture(override_path, &["login", "status"], 10).await;
     match auth {
-        Ok((true, out, _)) => {
-            HealthStatus { ok: true, version, account: parse_account(&out), error: None }
-        }
+        Ok((true, out, _)) => HealthStatus {
+            ok: true,
+            version,
+            account: parse_account(&out),
+            error: None,
+            resolved_path,
+        },
         Ok((false, _, err)) => HealthStatus {
             ok: false,
             version,
             account: None,
             error: Some(if err.is_empty() { "Authentication required".into() } else { err }),
+            resolved_path,
         },
-        Err(e) => HealthStatus { ok: false, version, account: None, error: Some(e) },
+        Err(e) => HealthStatus {
+            ok: false,
+            version,
+            account: None,
+            error: Some(e),
+            resolved_path,
+        },
     }
 }
 

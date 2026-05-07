@@ -31,6 +31,7 @@ export function useAiHealth() {
         version: null,
         account: null,
         error: (e as Error)?.message ?? String(e),
+        resolvedPath: null,
       };
       cache.value[cli] = errStatus;
       lastCheckedAt.value[cli] = Date.now();
