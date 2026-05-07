@@ -61,6 +61,24 @@ export const MermaidExtension = Node.create<MermaidOptions>({
           };
         },
       },
+      /**
+       * User-resized width in pixels. `null` means "auto" (use natural diagram
+       * width). Persisted into the saved markdown via `data-user-width` so
+       * reopening the file restores the same layout the user dragged to.
+       */
+      userWidth: {
+        default: null as number | null,
+        parseHTML: (element) => {
+          const w = element.getAttribute("data-user-width");
+          if (!w) return null;
+          const n = parseInt(w, 10);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        },
+        renderHTML: (attributes) => {
+          if (!attributes.userWidth) return {};
+          return { "data-user-width": String(attributes.userWidth) };
+        },
+      },
     };
   },
 
@@ -70,12 +88,23 @@ export const MermaidExtension = Node.create<MermaidOptions>({
         tag: 'div[data-type="mermaid"]',
         getAttrs: (dom) => {
           if (typeof dom === "string") return {};
+          const result: Record<string, unknown> = {};
           const dataCode = dom.getAttribute("data-code");
           if (dataCode) {
             // Preserve code as-is - <br> tags are valid mermaid syntax
-            return { code: decodeURIComponent(dataCode) };
+            result.code = decodeURIComponent(dataCode);
           }
-          return { code: undefined };
+          const dataWidth = dom.getAttribute("data-user-width");
+          if (dataWidth) {
+            const n = parseInt(dataWidth, 10);
+            if (Number.isFinite(n) && n > 0) result.userWidth = n;
+          }
+          const dataScale = dom.getAttribute("data-print-scale");
+          if (dataScale) {
+            const n = parseInt(dataScale, 10);
+            if (Number.isFinite(n)) result.printScale = n;
+          }
+          return result;
         },
       },
     ];

@@ -15,6 +15,7 @@ const props = defineProps<{
     attrs: {
       code: string;
       printScale: number;
+      userWidth: number | null;
     };
   };
   updateAttributes: (attrs: Record<string, unknown>) => void;
@@ -50,6 +51,60 @@ const applySvgSize = () => {
 const containerRef = ref<HTMLDivElement | null>(null);
 const previewContainerRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
+const wrapperRef = ref<HTMLElement | null>(null);
+
+/**
+ * User-resized width handling.
+ * - `userWidth` is null until the user drags the handle, then a px value
+ *   that is persisted via node attrs and survives markdown roundtrip.
+ * - Hard min/max guard against zero-width or runaway dragging.
+ */
+const MIN_USER_WIDTH = 240;
+const MAX_USER_WIDTH = 1600;
+
+const userWidth = computed(() => props.node.attrs.userWidth);
+
+const wrapperStyle = computed(() => {
+  if (!userWidth.value) return undefined;
+  return {
+    width: `${userWidth.value}px`,
+    maxWidth: '100%',
+  } as Record<string, string>;
+});
+
+let resizeStartX = 0;
+let resizeStartW = 0;
+const isResizing = ref(false);
+
+function onResizeStart(e: PointerEvent) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (!wrapperRef.value) return;
+  resizeStartX = e.clientX;
+  resizeStartW = wrapperRef.value.getBoundingClientRect().width;
+  isResizing.value = true;
+  (e.target as Element).setPointerCapture?.(e.pointerId);
+  document.addEventListener('pointermove', onResizeMove);
+  document.addEventListener('pointerup', onResizeEnd, { once: true });
+}
+
+function onResizeMove(e: PointerEvent) {
+  if (!isResizing.value) return;
+  const delta = e.clientX - resizeStartX;
+  const next = Math.max(MIN_USER_WIDTH, Math.min(MAX_USER_WIDTH, resizeStartW + delta));
+  // Update node attrs live so the wrapper reflows immediately. The final
+  // value is what gets persisted to disk on save.
+  props.updateAttributes({ userWidth: Math.round(next) });
+}
+
+function onResizeEnd() {
+  isResizing.value = false;
+  document.removeEventListener('pointermove', onResizeMove);
+}
+
+function resetUserWidth() {
+  props.updateAttributes({ userWidth: null });
+}
 const isEditing = ref(false);
 const editCode = ref(props.node.attrs.code);
 const error = ref<string | null>(null);
@@ -294,7 +349,13 @@ watch(editCode, () => {
 </script>
 
 <template>
-  <NodeViewWrapper class="mermaid-wrapper" :class="{ selected: props.selected }" :data-code="encodeURIComponent(props.node.attrs.code)">
+  <NodeViewWrapper
+    ref="wrapperRef"
+    class="mermaid-wrapper"
+    :class="{ selected: props.selected, resizing: isResizing, 'has-user-width': !!userWidth }"
+    :data-code="encodeURIComponent(props.node.attrs.code)"
+    :style="wrapperStyle"
+  >
     <!-- Compact floating toolbar — appears on hover or when selected.
          Replaces the previous full-width header + standalone zoom row that
          dwarfed the diagram itself. -->
@@ -457,6 +518,23 @@ watch(editCode, () => {
         </div>
       </div>
     </Teleport>
+
+    <!-- Resize handle: pull from the right edge to widen the diagram.
+         Persists into node.attrs.userWidth so reopening the file restores
+         the dragged-to size. Reset button (× icon) appears when a user
+         width is active so the user can revert to natural sizing. -->
+    <button
+      v-if="!isEditing && userWidth"
+      class="mermaid-reset-width"
+      :title="t.reset"
+      @click="resetUserWidth"
+    >×</button>
+    <span
+      v-if="!isEditing"
+      class="mermaid-resize-handle"
+      :title="t.diagramSize || 'Resize'"
+      @pointerdown="onResizeStart"
+    ></span>
   </NodeViewWrapper>
 </template>
 
@@ -470,6 +548,72 @@ watch(editCode, () => {
   border: 1px solid var(--border-primary);
   transition: border-color 0.2s;
   overflow: hidden;
+}
+
+.mermaid-wrapper.resizing {
+  user-select: none;
+}
+
+/* Resize handle: vertical bar pinned to the right edge — drag to widen.
+   Hidden until hover/select so it never competes with the diagram. */
+.mermaid-resize-handle {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  right: 0;
+  width: 8px;
+  cursor: col-resize;
+  background: transparent;
+  border-radius: 4px 0 0 4px;
+  transition: background 0.15s ease;
+  opacity: 0;
+  z-index: 4;
+}
+
+.mermaid-wrapper:hover .mermaid-resize-handle,
+.mermaid-wrapper.selected .mermaid-resize-handle,
+.mermaid-wrapper.resizing .mermaid-resize-handle,
+.mermaid-wrapper.has-user-width .mermaid-resize-handle {
+  opacity: 1;
+}
+
+.mermaid-resize-handle:hover,
+.mermaid-wrapper.resizing .mermaid-resize-handle {
+  background: rgba(var(--primary-rgb, 37, 99, 235), 0.25);
+}
+
+/* Small × button to revert to natural width. Only visible when the user
+   has dragged the handle. */
+.mermaid-reset-width {
+  position: absolute;
+  bottom: 6px;
+  right: 14px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.mermaid-wrapper:hover .mermaid-reset-width,
+.mermaid-wrapper.selected .mermaid-reset-width {
+  opacity: 1;
+}
+
+.mermaid-reset-width:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
 }
 
 .mermaid-wrapper.selected {

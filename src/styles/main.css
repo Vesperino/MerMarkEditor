@@ -527,7 +527,7 @@ button:disabled {
 
   body {
     overflow: visible !important;
-    background: white !important;
+    background: #ffffff !important;
     /* Charter / Iowan / Palatino / Cambria / Georgia — quality system serifs
        across macOS, Windows, Linux. Falls back gracefully to web-safe families
        so the PDF embedder always finds a reasonable face. */
@@ -535,12 +535,51 @@ button:disabled {
       "Cambria", Georgia, "Times New Roman", serif !important;
     font-size: 11pt;
     line-height: 1.6;
-    color: var(--text-primary) !important;
+    color: #1a1a1a !important;
     /* Better text rendering on the printed sheet — anti-aliasing + ligatures. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-feature-settings: "kern" 1, "liga" 1, "onum" 1;
+  }
+
+  /* Hard force the entire container chain to white + dark text. Earlier
+     versions relied on cascading `--bg-primary: #ffffff` overrides — but
+     nested theme variants and Vue scoped styles re-set the colour on
+     `.app`, `.editor-area`, etc., so dark mode bled through to the PDF.
+     These selectors leave nothing to chance. */
+  html,
+  html.dark,
+  body,
+  .app,
+  .main-area,
+  .editor-area,
+  .editor-pane,
+  .editor-container,
+  .editor-content,
+  .pane-container,
+  .split-container,
+  .tiptap,
+  .ProseMirror {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #1a1a1a !important;
+    box-shadow: none !important;
+  }
+
+  /* Kill the gradient accents added by the Minimal theme's chrome. They
+     live on toolbar / status-bar pseudo-elements that survive even when
+     the parent has display:none in some browsers. */
+  .toolbar::before,
+  .toolbar::after,
+  .status-bar::before,
+  .status-bar::after,
+  .ws-header::before,
+  .ws-header::after,
+  .tab-bar::before,
+  .tab-bar::after {
+    display: none !important;
+    content: none !important;
   }
 
   /* Hide every UI surface — chrome, modals, drag artefacts. The PDF must
@@ -867,23 +906,16 @@ button:disabled {
   }
 
   /* ===== Links =====
-     Print convention: keep the link styled (blue + underline) AND append
-     the URL after the visible text in muted brackets so the reader can
-     follow it on paper. Skipped for empty / fragment / mail links. */
+     Keep the styled inline text only. We deliberately do NOT append the
+     URL after the link — TipTap autolinks plain text like `CLAUDE.md`
+     into `<a href="http://CLAUDE.md">CLAUDE.md</a>`, which would print
+     as `CLAUDE.md (http://CLAUDE.md)` and look terrible. PDFs embed
+     clickable hyperlinks anyway, so the URL is reachable digitally. */
   a {
     color: var(--link-color) !important;
     text-decoration: underline !important;
     text-decoration-thickness: 0.5pt !important;
     text-underline-offset: 1.2pt !important;
-  }
-
-  a[href^="http"]::after,
-  a[href^="https"]::after {
-    content: " (" attr(href) ")";
-    font-size: 0.82em;
-    color: var(--text-muted) !important;
-    word-break: break-all;
-    font-style: normal;
   }
 
   /* ===== Mermaid diagrams =====
@@ -900,6 +932,17 @@ button:disabled {
     break-inside: avoid;
     text-align: center;
     overflow: visible !important;
+    /* Force-clear user-dragged width when printing — natural reflow always
+       wins on paper since page dimensions, not the user's monitor, set the
+       measure. */
+    width: auto !important;
+    max-width: 100% !important;
+  }
+
+  /* Hide the resize handle / reset button — they're UI affordances. */
+  .mermaid-resize-handle,
+  .mermaid-reset-width {
+    display: none !important;
   }
 
   .mermaid-content,

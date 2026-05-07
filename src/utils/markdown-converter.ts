@@ -47,12 +47,27 @@ export function htmlToMarkdown(html: string): string {
 
   const protectedBlocks: string[] = [];
 
-  // Mermaid blocks - extract first
+  // Mermaid blocks - extract first.
+  // Attributes the user can adjust per-diagram (e.g. dragged width, print
+  // scale) are serialized into an HTML comment on the line preceding the
+  // fenced block. Format: `<!--mermaid-attrs:k1=v1,k2=v2-->`. The matching
+  // `markdownToHtml` parser reads it back into `data-*` attributes so node
+  // attrs survive a save/reload round trip.
   md = md.replace(/<div[^>]*data-type=["']mermaid["'][^>]*>[\s\S]*?<\/div>/gi, (match) => {
     const code = extractMermaidCode(match);
     if (code) {
       const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
-      protectedBlocks.push(`\n\`\`\`mermaid\n${code}\n\`\`\`\n`);
+      const attrPairs: string[] = [];
+      const userWidthMatch = match.match(/data-user-width=["']?(\d+)["']?/i);
+      if (userWidthMatch) attrPairs.push(`userWidth=${userWidthMatch[1]}`);
+      const printScaleMatch = match.match(/data-print-scale=["']?(\d+)["']?/i);
+      if (printScaleMatch && printScaleMatch[1] !== '25') {
+        // Default scale (25) is the implicit value — only persist when the
+        // user changed it, otherwise the comment is noise.
+        attrPairs.push(`printScale=${printScaleMatch[1]}`);
+      }
+      const attrComment = attrPairs.length ? `<!--mermaid-attrs:${attrPairs.join(',')}-->\n` : '';
+      protectedBlocks.push(`\n${attrComment}\`\`\`mermaid\n${code}\n\`\`\`\n`);
       return placeholder;
     }
     return '';
