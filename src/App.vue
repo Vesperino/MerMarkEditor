@@ -294,6 +294,48 @@ const handleCloseTabRequest = (paneId: string, tabId: string) => {
   closeTabAndCheckWindow(paneId, tabId);
 };
 
+// ===== Tab pinning + bulk close =====
+
+function handleTabTogglePin(paneId: string, tabId: string) {
+  const pane = splitState.value.panes.find((p) => p.id === paneId);
+  const tab = pane?.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  tab.pinned = !tab.pinned;
+}
+
+/** Close every tab in a pane that satisfies `predicate`. Pinned tabs and
+ *  the (still currently displayed) target tab can be excluded by the
+ *  caller. Reuses `handleCloseTabRequest` so unsaved-change prompts still
+ *  fire one-at-a-time per affected tab. */
+async function bulkCloseTabs(
+  paneId: string,
+  predicate: (tab: { id: string; pinned?: boolean; hasChanges: boolean }) => boolean,
+) {
+  const pane = splitState.value.panes.find((p) => p.id === paneId);
+  if (!pane) return;
+  // Snapshot ids first — closing mutates the array.
+  const targets = pane.tabs.filter(predicate).map((t) => t.id);
+  for (const id of targets) {
+    handleCloseTabRequest(paneId, id);
+  }
+}
+
+function handleTabCloseOthers(paneId: string, keepId: string) {
+  bulkCloseTabs(paneId, (t) => t.id !== keepId && !t.pinned);
+}
+
+function handleTabCloseAll(paneId: string) {
+  bulkCloseTabs(paneId, () => true);
+}
+
+function handleTabCloseAllButPinned(paneId: string) {
+  bulkCloseTabs(paneId, (t) => !t.pinned);
+}
+
+function handleTabCloseSaved(paneId: string) {
+  bulkCloseTabs(paneId, (t) => !t.hasChanges && !t.pinned);
+}
+
 const handleTabCloseSave = async () => {
   if (!tabToClose.value) return;
 
@@ -1307,6 +1349,11 @@ onUnmounted(async () => {
           @link-click="handleLinkClick"
           @close-tab-request="handleCloseTabRequest"
           @changes-updated="handleChangesUpdated"
+          @toggle-pin="handleTabTogglePin"
+          @close-others="handleTabCloseOthers"
+          @close-all="handleTabCloseAll"
+          @close-all-but-pinned="handleTabCloseAllButPinned"
+          @close-saved="handleTabCloseSaved"
         />
       </div>
 

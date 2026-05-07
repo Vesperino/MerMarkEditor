@@ -66,6 +66,10 @@ export function htmlToMarkdown(html: string): string {
         // user changed it, otherwise the comment is noise.
         attrPairs.push(`printScale=${printScaleMatch[1]}`);
       }
+      const splitRatioMatch = match.match(/data-split-ratio=["']?(\d+)["']?/i);
+      if (splitRatioMatch && splitRatioMatch[1] !== '50') {
+        attrPairs.push(`splitRatio=${splitRatioMatch[1]}`);
+      }
       const attrComment = attrPairs.length ? `<!--mermaid-attrs:${attrPairs.join(',')}-->\n` : '';
       protectedBlocks.push(`\n${attrComment}\`\`\`mermaid\n${code}\n\`\`\`\n`);
       return placeholder;

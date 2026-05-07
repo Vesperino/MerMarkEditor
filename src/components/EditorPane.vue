@@ -16,6 +16,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   switchTab: [tabId: string];
   closeTab: [tabId: string];
+  togglePin: [tabId: string];
+  closeOthers: [tabId: string];
+  closeAll: [];
+  closeAllButPinned: [];
+  closeSaved: [];
   updateContent: [tabId: string, content: string];
   updateChanges: [tabId: string, hasChanges: boolean];
   linkClick: [href: string];
@@ -106,6 +111,11 @@ defineExpose({
       :pane-id="pane.id"
       @switch-tab="handleSwitchTab"
       @close-tab="handleCloseTab"
+      @toggle-pin="(id) => emit('togglePin', id)"
+      @close-others="(id) => emit('closeOthers', id)"
+      @close-all="emit('closeAll')"
+      @close-all-but-pinned="emit('closeAllButPinned')"
+      @close-saved="emit('closeSaved')"
     />
 
     <!-- Editor content or empty state -->

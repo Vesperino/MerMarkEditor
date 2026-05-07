@@ -79,6 +79,25 @@ export const MermaidExtension = Node.create<MermaidOptions>({
           return { "data-user-width": String(attributes.userWidth) };
         },
       },
+      /**
+       * Code-vs-preview split ratio (%) for the fullscreen editor. Default 50.
+       * Persisted so reopening a file remembers the user's preferred split.
+       * Clamped to 20–80 % both at load and at drag time.
+       */
+      splitRatio: {
+        default: 50,
+        parseHTML: (element) => {
+          const r = element.getAttribute("data-split-ratio");
+          if (!r) return 50;
+          const n = parseFloat(r);
+          if (!Number.isFinite(n)) return 50;
+          return Math.max(20, Math.min(80, Math.round(n)));
+        },
+        renderHTML: (attributes) => {
+          if (!attributes.splitRatio || attributes.splitRatio === 50) return {};
+          return { "data-split-ratio": String(attributes.splitRatio) };
+        },
+      },
     };
   },
 
@@ -103,6 +122,11 @@ export const MermaidExtension = Node.create<MermaidOptions>({
           if (dataScale) {
             const n = parseInt(dataScale, 10);
             if (Number.isFinite(n)) result.printScale = n;
+          }
+          const dataSplit = dom.getAttribute("data-split-ratio");
+          if (dataSplit) {
+            const n = parseFloat(dataSplit);
+            if (Number.isFinite(n)) result.splitRatio = Math.max(20, Math.min(80, Math.round(n)));
           }
           return result;
         },

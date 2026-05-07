@@ -252,6 +252,9 @@ export function extractCodeBlocks(md: string): { html: string; codeBlocks: strin
           } else if (k === 'printScale') {
             const n = parseInt(v, 10);
             if (Number.isFinite(n) && n > 0) attrs.push(`data-print-scale="${n}"`);
+          } else if (k === 'splitRatio') {
+            const n = parseInt(v, 10);
+            if (Number.isFinite(n) && n >= 20 && n <= 80) attrs.push(`data-split-ratio="${n}"`);
           }
         }
       }

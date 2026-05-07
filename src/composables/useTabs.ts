@@ -10,6 +10,12 @@ export interface Tab {
   hasChanges: boolean;
   scrollTop: number;
   originalMarkdown: string | null;
+  /**
+   * User-pinned flag. Pinned tabs are protected from "Close all" / "Close
+   * others" actions and may be visually rendered differently. Persisted
+   * with the session by useSessionRestore.
+   */
+  pinned?: boolean;
 }
 
 export interface UseTabsOptions {

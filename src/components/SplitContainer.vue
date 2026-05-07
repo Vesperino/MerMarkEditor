@@ -39,6 +39,11 @@ const emit = defineEmits<{
   linkClick: [href: string];
   closeTabRequest: [paneId: string, tabId: string];
   changesUpdated: [paneId: string, tabId: string, hasChanges: boolean];
+  togglePin: [paneId: string, tabId: string];
+  closeOthers: [paneId: string, tabId: string];
+  closeAll: [paneId: string];
+  closeAllButPinned: [paneId: string];
+  closeSaved: [paneId: string];
 }>();
 
 const leftPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
@@ -241,6 +246,11 @@ defineExpose({
       :style="leftPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('left', tabId)"
       @close-tab="(tabId) => handleCloseTab('left', tabId)"
+      @toggle-pin="(tabId) => emit('togglePin', 'left', tabId)"
+      @close-others="(tabId) => emit('closeOthers', 'left', tabId)"
+      @close-all="emit('closeAll', 'left')"
+      @close-all-but-pinned="emit('closeAllButPinned', 'left')"
+      @close-saved="emit('closeSaved', 'left')"
       @update-content="(tabId, content) => handleContentUpdate('left', tabId, content)"
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('left', tabId, hasChanges)"
       @link-click="handleLinkClick"
@@ -266,6 +276,11 @@ defineExpose({
       :style="rightPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('right', tabId)"
       @close-tab="(tabId) => handleCloseTab('right', tabId)"
+      @toggle-pin="(tabId) => emit('togglePin', 'right', tabId)"
+      @close-others="(tabId) => emit('closeOthers', 'right', tabId)"
+      @close-all="emit('closeAll', 'right')"
+      @close-all-but-pinned="emit('closeAllButPinned', 'right')"
+      @close-saved="emit('closeSaved', 'right')"
       @update-content="(tabId, content) => handleContentUpdate('right', tabId, content)"
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('right', tabId, hasChanges)"
       @link-click="handleLinkClick"

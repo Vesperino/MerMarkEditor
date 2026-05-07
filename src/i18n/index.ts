@@ -459,6 +459,23 @@ export interface Translations {
   qsContentSearching: string;
   qsContentTruncated: string;
 
+  // Mermaid AI assist
+  aiAssistMermaidButton: string;
+  aiAssistMermaidTitle: string;
+  aiAssistMermaidPlaceholder: string;
+  aiAssistMermaidProposed: string;
+  aiAssistMermaidApply: string;
+
+  // Tab context menu
+  tabPin: string;
+  tabUnpin: string;
+  tabPinned: string;
+  tabClose: string;
+  tabCloseOthers: string;
+  tabCloseAll: string;
+  tabCloseAllButPinned: string;
+  tabCloseSaved: string;
+
   // Open split-button
   openMenuTooltip: string;
 }

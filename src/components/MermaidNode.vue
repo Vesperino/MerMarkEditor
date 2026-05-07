@@ -7,8 +7,12 @@ import { useZoomPan } from "../composables/useZoomPan";
 import { useFullscreen } from "../composables/useFullscreen";
 import { quickAccessTemplates } from "../data/diagramTemplates";
 import DiagramTemplateModal from "./DiagramTemplateModal.vue";
+import { aiCommands, type CliKind, type AccessMap } from "../services/aiCommands";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useSettings } from "../composables/useSettings";
 
 const { t } = useI18n();
+const { settings } = useSettings();
 
 const props = defineProps<{
   node: {
@@ -16,6 +20,7 @@ const props = defineProps<{
       code: string;
       printScale: number;
       userWidth: number | null;
+      splitRatio: number;
     };
   };
   updateAttributes: (attrs: Record<string, unknown>) => void;
@@ -105,6 +110,133 @@ function onResizeEnd() {
 function resetUserWidth() {
   props.updateAttributes({ userWidth: null });
 }
+
+// ===== AI assist (in-modal) =====
+// One-shot prompt: user types instructions, we send the current mermaid
+// code as context, AI returns updated code, we replace the textarea. No
+// chat history, no thread persistence — single-purpose surface so the
+// modal stays focused.
+const aiPanelOpen = ref(false);
+const aiPrompt = ref('');
+const aiBusy = ref(false);
+const aiError = ref<string | null>(null);
+const aiOutput = ref('');
+let aiUnlisten: UnlistenFn | null = null;
+let aiCurrentRequestId: string | null = null;
+
+function extractMermaidCodeFromResponse(raw: string): string {
+  // Prefer fenced ```mermaid block; fall back to any fence; finally raw text.
+  const fenced = raw.match(/```mermaid\s*\n([\s\S]*?)```/i);
+  if (fenced) return fenced[1].trim();
+  const anyFence = raw.match(/```[\w-]*\s*\n([\s\S]*?)```/);
+  if (anyFence) return anyFence[1].trim();
+  return raw.trim();
+}
+
+async function aiAskMermaid() {
+  const userPrompt = aiPrompt.value.trim();
+  if (!userPrompt || aiBusy.value) return;
+  aiBusy.value = true;
+  aiError.value = null;
+  aiOutput.value = '';
+
+  const cli: CliKind = settings.value.ai.defaultCli;
+  const model = cli === 'claude'
+    ? settings.value.ai.defaultModelClaude
+    : settings.value.ai.defaultModelCodex;
+  const effort = cli === 'claude'
+    ? settings.value.ai.effortClaude
+    : settings.value.ai.effortCodex;
+  const overridePath = (cli === 'claude'
+    ? settings.value.ai.cliPathClaude
+    : settings.value.ai.cliPathCodex
+  ).trim();
+
+  const preamble = [
+    'You are an AI assistant integrated into the Mermaid diagram editor.',
+    'Return ONLY a valid mermaid diagram body — no prose, no commentary, no markdown fences (or just one ```mermaid fence).',
+    'If the user asks to modify an existing diagram, use the diagram below as the starting point. Preserve unrelated parts.',
+    'Stay terse — diagrams should not be cluttered with unnecessary nodes.',
+  ].join('\n');
+
+  const fullPrompt = [
+    'Current mermaid diagram:',
+    '```mermaid',
+    editCode.value || props.node.attrs.code,
+    '```',
+    '',
+    `User request: ${userPrompt}`,
+  ].join('\n');
+
+  // Default access map: read+write off, no bash/network. AI doesn't need
+  // tools — it just needs to return the new code text.
+  const accessMap: AccessMap = {
+    readPaths: [],
+    writePaths: [],
+    tools: { fileRead: false, fileWrite: false, bash: false, network: false },
+  };
+
+  const requestId = `mermaid-ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  aiCurrentRequestId = requestId;
+
+  let collected = '';
+  try {
+    aiUnlisten = await listen<{ requestId: string; chunk: { kind: string; content?: string; message?: string } }>(
+      'ai-response',
+      (event) => {
+        const payload = event.payload;
+        if (!payload || payload.requestId !== requestId) return;
+        const c = payload.chunk;
+        if (c.kind === 'text' && typeof c.content === 'string') {
+          collected += c.content;
+          aiOutput.value = collected;
+        } else if (c.kind === 'error') {
+          aiError.value = c.message || 'AI error';
+        } else if (c.kind === 'done') {
+          aiBusy.value = false;
+        }
+      },
+    );
+
+    await aiCommands.send(
+      {
+        cli,
+        sessionId: null,
+        model: model || null,
+        effort: effort || null,
+        prompt: fullPrompt,
+        preamble,
+        accessMap,
+        bypass: false,
+        workDir: '',
+        images: [],
+        cliPath: overridePath || null,
+      },
+      requestId,
+    );
+  } catch (e) {
+    aiError.value = (e as Error)?.message ?? String(e);
+    aiBusy.value = false;
+  }
+}
+
+function aiCancel() {
+  if (aiCurrentRequestId) aiCommands.cancel(aiCurrentRequestId).catch(() => null);
+  aiBusy.value = false;
+}
+
+function aiApply() {
+  const next = extractMermaidCodeFromResponse(aiOutput.value);
+  if (!next) return;
+  editCode.value = next;
+  aiOutput.value = '';
+  aiPrompt.value = '';
+  aiPanelOpen.value = false;
+}
+
+onUnmounted(() => {
+  if (aiUnlisten) aiUnlisten();
+});
 const isEditing = ref(false);
 const editCode = ref(props.node.attrs.code);
 const error = ref<string | null>(null);
@@ -134,8 +266,10 @@ const handlePreviewFitToView = () => {
   previewFitToView(previewContainerRef.value, previewViewportRef.value);
 };
 
-// Resizable split between code and preview panes
-const splitRatio = ref(50);
+// Resizable split between code and preview panes. Initial value comes from
+// node attrs (persisted in markdown), gets clamped on drag, and is saved
+// back to attrs on drag-end so reopening the file remembers the layout.
+const splitRatio = ref(props.node.attrs.splitRatio || 50);
 let isDraggingSplit = false;
 let splitContainerRect: DOMRect | null = null;
 
@@ -164,6 +298,11 @@ const endSplitDrag = () => {
   splitContainerRect = null;
   document.removeEventListener('mousemove', doSplitDrag);
   document.removeEventListener('mouseup', endSplitDrag);
+  // Persist the dragged ratio so reopening the doc honours the user's choice.
+  const next = Math.round(splitRatio.value);
+  if (next !== props.node.attrs.splitRatio) {
+    props.updateAttributes({ splitRatio: next });
+  }
 };
 
 const renderPreview = async () => {
@@ -360,14 +499,20 @@ watch(editCode, () => {
          Replaces the previous full-width header + standalone zoom row that
          dwarfed the diagram itself. -->
     <div class="mermaid-toolbar" v-if="!isEditing">
-      <select
-        class="mermaid-toolbar-size"
-        :value="diagramSize"
-        :title="t.diagramSize || 'Size'"
-        @change="(e: Event) => setDiagramSize(Number((e.target as HTMLSelectElement).value))"
-      >
-        <option v-for="size in sizeOptions" :key="size" :value="size">{{ size }}%</option>
-      </select>
+      <!-- Compact button row for the four print scales. The previous native
+           <select> rendered weirdly inside the floating toolbar (Chromium's
+           dropdown stole the popup layer and the active option visually
+           shifted between renders), so it's now four buttons that activate
+           by class. -->
+      <span class="mermaid-toolbar-sizes" :title="t.diagramSize || 'Size'">
+        <button
+          v-for="size in sizeOptions"
+          :key="size"
+          class="mermaid-toolbar-size-btn"
+          :class="{ active: diagramSize === size }"
+          @click="setDiagramSize(size)"
+        >{{ size }}</button>
+      </span>
 
       <span class="mermaid-toolbar-divider"></span>
 
@@ -424,8 +569,50 @@ watch(editCode, () => {
             </button>
           </div>
           <div class="editor-topbar-actions">
+            <button
+              class="btn-ai-toggle"
+              :class="{ active: aiPanelOpen }"
+              :title="t.aiAssistMermaidTitle"
+              @click="aiPanelOpen = !aiPanelOpen"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
+              </svg>
+              {{ t.aiAssistMermaidButton }}
+            </button>
             <button @click="saveEdit" class="btn-save">{{ t.saveDiagram }}</button>
             <button @click="cancelEdit" class="btn-cancel">{{ t.cancelEdit }}</button>
+          </div>
+        </div>
+
+        <!-- AI assist strip — fixed below topbar when open. Compact, single
+             prompt + result preview. Apply replaces the editor content. -->
+        <div v-if="aiPanelOpen" class="ai-mermaid-strip">
+          <div class="ai-mermaid-row">
+            <input
+              v-model="aiPrompt"
+              class="ai-mermaid-input"
+              type="text"
+              :placeholder="t.aiAssistMermaidPlaceholder"
+              :disabled="aiBusy"
+              @keydown.enter="aiAskMermaid"
+            />
+            <button
+              v-if="!aiBusy"
+              class="ai-mermaid-send"
+              :disabled="!aiPrompt.trim()"
+              @click="aiAskMermaid"
+            >{{ t.aiSendButton }}</button>
+            <button v-else class="ai-mermaid-cancel" @click="aiCancel">{{ t.aiCancelButton }}</button>
+          </div>
+          <div v-if="aiError" class="ai-mermaid-error">{{ aiError }}</div>
+          <div v-if="aiOutput" class="ai-mermaid-output">
+            <div class="ai-mermaid-output-label">{{ t.aiAssistMermaidProposed }}</div>
+            <pre class="ai-mermaid-output-pre">{{ extractMermaidCodeFromResponse(aiOutput) }}</pre>
+            <div class="ai-mermaid-output-actions">
+              <button class="ai-mermaid-apply" @click="aiApply">{{ t.aiAssistMermaidApply }}</button>
+              <button class="ai-mermaid-discard" @click="aiOutput = ''">{{ t.cancel }}</button>
+            </div>
           </div>
         </div>
         <!-- Split: code left, preview right -->
@@ -682,25 +869,37 @@ watch(editCode, () => {
   background: var(--border-primary);
 }
 
-.mermaid-toolbar-size {
-  background: transparent;
-  border: 1px solid transparent;
+.mermaid-toolbar-sizes {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-tertiary);
   border-radius: 4px;
-  padding: 1px 4px;
-  font-size: 11px;
+  padding: 1px;
+  gap: 0;
+}
+
+.mermaid-toolbar-size-btn {
+  background: transparent;
+  border: none;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   cursor: pointer;
-  outline: none;
+  border-radius: 3px;
+  line-height: 1.4;
+  min-width: 22px;
 }
 
-.mermaid-toolbar-size:hover {
-  background: var(--hover-bg);
+.mermaid-toolbar-size-btn:hover {
   color: var(--text-primary);
 }
 
-.mermaid-toolbar-size:focus {
-  border-color: var(--primary);
-  color: var(--text-primary);
+.mermaid-toolbar-size-btn.active {
+  background: var(--bg-primary);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .mermaid-toolbar-zoom {
@@ -832,6 +1031,139 @@ watch(editCode, () => {
   background: var(--text-secondary);
 }
 
+/* ===== AI assist in mermaid fullscreen ===== */
+.btn-ai-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn-ai-toggle:hover,
+.btn-ai-toggle.active {
+  background: rgba(var(--primary-rgb, 37, 99, 235), 0.12);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.ai-mermaid-strip {
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  padding: 8px 14px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-mermaid-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ai-mermaid-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.ai-mermaid-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--focus-ring-alpha);
+}
+
+.ai-mermaid-send,
+.ai-mermaid-apply {
+  padding: 6px 14px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ai-mermaid-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-mermaid-send:hover:not(:disabled),
+.ai-mermaid-apply:hover {
+  background: var(--primary-hover);
+}
+
+.ai-mermaid-cancel,
+.ai-mermaid-discard {
+  padding: 6px 14px;
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ai-mermaid-cancel:hover,
+.ai-mermaid-discard:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.ai-mermaid-error {
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  padding: 4px 8px;
+  border-radius: 3px;
+}
+
+.ai-mermaid-output {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-mermaid-output-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ai-mermaid-output-pre {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 0;
+  font-family: var(--code-font-family, monospace);
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.ai-mermaid-output-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .btn-template {
   background: var(--border-primary);
   color: var(--text-secondary);
@@ -905,22 +1237,28 @@ watch(editCode, () => {
   line-height: 1.6;
 }
 
+/* Split divider — wider (12 px) and more visible than before so the drag
+   affordance is obvious. The hot zone extends another 8 px beyond on each
+   side via ::before so users can grab it without pixel-hunting. */
 .split-divider-mermaid {
-  width: 8px;
+  width: 12px;
   cursor: col-resize;
-  background: var(--divider-bg, #e2e8f0);
+  background: var(--bg-tertiary);
+  border-left: 1px solid var(--border-primary);
+  border-right: 1px solid var(--border-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   position: relative;
+  transition: background 0.12s ease;
 }
 
 .split-divider-mermaid::before {
   content: '';
   position: absolute;
-  left: -6px;
-  right: -6px;
+  left: -8px;
+  right: -8px;
   top: 0;
   bottom: 0;
   cursor: col-resize;
@@ -928,15 +1266,30 @@ watch(editCode, () => {
 
 .split-divider-mermaid:hover,
 .split-divider-mermaid:active {
-  background: var(--divider-hover, #cbd5e1);
+  background: rgba(var(--primary-rgb, 37, 99, 235), 0.12);
 }
 
 .divider-handle-mermaid {
-  width: 2px;
-  height: 32px;
-  border-radius: 1px;
-  background: var(--divider-handle, #94a3b8);
+  width: 4px;
+  height: 56px;
+  border-radius: 2px;
+  background: var(--text-faint);
+  position: relative;
 }
+
+.divider-handle-mermaid::before,
+.divider-handle-mermaid::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: inherit;
+}
+
+.divider-handle-mermaid::before { top: -10px; }
+.divider-handle-mermaid::after { bottom: -10px; }
 
 .split-divider-mermaid:hover .divider-handle-mermaid,
 .split-divider-mermaid:active .divider-handle-mermaid {
