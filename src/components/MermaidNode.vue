@@ -7,12 +7,9 @@ import { useZoomPan } from "../composables/useZoomPan";
 import { useFullscreen } from "../composables/useFullscreen";
 import { quickAccessTemplates } from "../data/diagramTemplates";
 import DiagramTemplateModal from "./DiagramTemplateModal.vue";
-import { aiCommands, type CliKind, type AccessMap } from "../services/aiCommands";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { useSettings } from "../composables/useSettings";
+import { useAiMermaidTarget } from "../composables/useAiMermaidTarget";
 
 const { t } = useI18n();
-const { settings } = useSettings();
 
 const props = defineProps<{
   node: {
@@ -112,132 +109,65 @@ function resetUserWidth() {
   props.updateAttributes({ userWidth: null });
 }
 
-// ===== AI assist (in-modal) =====
-// One-shot prompt: user types instructions, we send the current mermaid
-// code as context, AI returns updated code, we replace the textarea. No
-// chat history, no thread persistence — single-purpose surface so the
-// modal stays focused.
-const aiPanelOpen = ref(false);
-const aiPrompt = ref('');
-const aiBusy = ref(false);
-const aiError = ref<string | null>(null);
-const aiOutput = ref('');
-let aiUnlisten: UnlistenFn | null = null;
-let aiCurrentRequestId: string | null = null;
+// ===== AI assist (delegates to main panel) =====
+// The legacy in-modal AI flow is replaced by a bridge into the main AI panel.
+// We register a target with `useAiMermaidTarget`; the panel pins the diagram
+// code, runs a multi-turn conversation with model selection, and hands back
+// any returned mermaid source via `pushCandidate`. The candidate lands in
+// `aiPreviewCode` and the diagram displays it (instead of the saved code)
+// until the user clicks Apply / Discard / Stop.
+const aiMermaid = useAiMermaidTarget();
+const aiPreviewCode = ref<string | null>(null);
+const aiNodeId = `mermaid-node-${
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2)
+}`;
+const aiTargetActive = computed(() => aiMermaid.target.value?.id === aiNodeId);
 
-function extractMermaidCodeFromResponse(raw: string): string {
-  // Prefer fenced ```mermaid block; fall back to any fence; finally raw text.
-  const fenced = raw.match(/```mermaid\s*\n([\s\S]*?)```/i);
-  if (fenced) return fenced[1].trim();
-  const anyFence = raw.match(/```[\w-]*\s*\n([\s\S]*?)```/);
-  if (anyFence) return anyFence[1].trim();
-  return raw.trim();
-}
-
-async function aiAskMermaid() {
-  const userPrompt = aiPrompt.value.trim();
-  if (!userPrompt || aiBusy.value) return;
-  aiBusy.value = true;
-  aiError.value = null;
-  aiOutput.value = '';
-
-  const cli: CliKind = settings.value.ai.defaultCli;
-  const model = cli === 'claude'
-    ? settings.value.ai.defaultModelClaude
-    : settings.value.ai.defaultModelCodex;
-  const effort = cli === 'claude'
-    ? settings.value.ai.effortClaude
-    : settings.value.ai.effortCodex;
-  const overridePath = (cli === 'claude'
-    ? settings.value.ai.cliPathClaude
-    : settings.value.ai.cliPathCodex
-  ).trim();
-
-  const preamble = [
-    'You are an AI assistant integrated into the Mermaid diagram editor.',
-    'Return ONLY a valid mermaid diagram body — no prose, no commentary, no markdown fences (or just one ```mermaid fence).',
-    'If the user asks to modify an existing diagram, use the diagram below as the starting point. Preserve unrelated parts.',
-    'Stay terse — diagrams should not be cluttered with unnecessary nodes.',
-  ].join('\n');
-
-  const fullPrompt = [
-    'Current mermaid diagram:',
-    '```mermaid',
-    editCode.value || props.node.attrs.code,
-    '```',
-    '',
-    `User request: ${userPrompt}`,
-  ].join('\n');
-
-  // Default access map: read+write off, no bash/network. AI doesn't need
-  // tools — it just needs to return the new code text.
-  const accessMap: AccessMap = {
-    readPaths: [],
-    writePaths: [],
-    tools: { fileRead: false, fileWrite: false, bash: false, network: false },
-  };
-
-  const requestId = `mermaid-ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  aiCurrentRequestId = requestId;
-
-  let collected = '';
-  try {
-    aiUnlisten = await listen<{ requestId: string; chunk: { kind: string; content?: string; message?: string } }>(
-      'ai-response',
-      (event) => {
-        const payload = event.payload;
-        if (!payload || payload.requestId !== requestId) return;
-        const c = payload.chunk;
-        if (c.kind === 'text' && typeof c.content === 'string') {
-          collected += c.content;
-          aiOutput.value = collected;
-        } else if (c.kind === 'error') {
-          aiError.value = c.message || 'AI error';
-        } else if (c.kind === 'done') {
-          aiBusy.value = false;
-        }
-      },
-    );
-
-    await aiCommands.send(
-      {
-        cli,
-        sessionId: null,
-        model: model || null,
-        effort: effort || null,
-        prompt: fullPrompt,
-        preamble,
-        accessMap,
-        bypass: false,
-        workDir: '',
-        images: [],
-        cliPath: overridePath || null,
-      },
-      requestId,
-    );
-  } catch (e) {
-    aiError.value = (e as Error)?.message ?? String(e);
-    aiBusy.value = false;
+function requestAiEdit() {
+  // Make sure the editing surface is open so the user can see/refine the
+  // proposed diagram alongside their own edits.
+  if (!isEditing.value) {
+    startEdit();
   }
+  // Exit zoom/preview fullscreen (mermaid_node_attrs `isFullscreen` overlay) —
+  // it overlaps the editing fullscreen and would hide both the AI panel and
+  // the proposed diagram. The editing fullscreen stays.
+  if (isFullscreen.value) {
+    toggleFullscreen();
+  }
+  aiMermaid.requestEdit({
+    id: aiNodeId,
+    initialCode: editCode.value || props.node.attrs.code,
+    pushCandidate: (code) => {
+      aiPreviewCode.value = code;
+    },
+    cancel: () => {
+      aiPreviewCode.value = null;
+    },
+  });
 }
 
-function aiCancel() {
-  if (aiCurrentRequestId) aiCommands.cancel(aiCurrentRequestId).catch(() => null);
-  aiBusy.value = false;
-}
-
-function aiApply() {
-  const next = extractMermaidCodeFromResponse(aiOutput.value);
-  if (!next) return;
+function applyAiPreview() {
+  if (!aiPreviewCode.value) return;
+  const next = aiPreviewCode.value;
+  // Convert <br> back to placeholder for safe storage (mirrors saveEdit).
+  const safeCode = next.replace(/<br\s*\/?>/gi, '__BR__');
+  props.updateAttributes({ code: safeCode });
   editCode.value = next;
-  aiOutput.value = '';
-  aiPrompt.value = '';
-  aiPanelOpen.value = false;
+  aiPreviewCode.value = null;
+  aiMermaid.clear();
 }
 
-onUnmounted(() => {
-  if (aiUnlisten) aiUnlisten();
-});
+function discardAiPreview() {
+  aiPreviewCode.value = null;
+}
+
+function stopAiEdit() {
+  aiPreviewCode.value = null;
+  aiMermaid.clear();
+}
 const isEditing = ref(false);
 const editCode = ref(props.node.attrs.code);
 const error = ref<string | null>(null);
@@ -318,7 +248,10 @@ const renderPreview = async () => {
   try {
     previewError.value = null;
     const id = `mermaid-preview-${Date.now()}`;
-    const codeForRender = editCode.value
+    // When the AI proposed a candidate, render that instead of the user's
+    // in-progress edits so they can review before clicking Apply.
+    const sourceForPreview = aiPreviewCode.value ?? editCode.value;
+    const codeForRender = sourceForPreview
       .replace(/__BR__/g, '<br/>')
       .replace(/\\n/g, '<br/>');
     const { svg } = await mermaid.render(id, codeForRender);
@@ -398,8 +331,11 @@ const renderMermaid = async () => {
   try {
     error.value = null;
     const id = `mermaid-${Date.now()}`;
-    // Convert placeholder back to <br> for mermaid rendering
-    const codeForRender = props.node.attrs.code
+    // Convert placeholder back to <br> for mermaid rendering. When an AI
+    // preview is active we render that instead so the user sees the proposed
+    // change in place — the saved attr stays untouched until Apply.
+    const sourceCode = aiPreviewCode.value ?? props.node.attrs.code;
+    const codeForRender = sourceCode
       .replace(/__BR__/g, '<br/>')
       .replace(/\\n/g, '<br/>');
     const { svg } = await mermaid.render(id, codeForRender);
@@ -430,6 +366,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   darkModeObserver?.disconnect();
+  // If this node owns the active AI target, clear it so a stale callback
+  // doesn't try to write to an unmounted component.
+  if (aiTargetActive.value) {
+    aiMermaid.clear();
+  }
 });
 
 watch(
@@ -440,6 +381,11 @@ watch(
 );
 
 watch(isDark, () => {
+  renderMermaid();
+});
+
+// Re-render whenever the AI preview candidate changes (or is cleared).
+watch(aiPreviewCode, () => {
   renderMermaid();
 });
 
@@ -482,6 +428,14 @@ const handleTemplateSelect = (code: string) => {
 
 // Live preview: re-render on code changes while editing
 watch(editCode, () => {
+  if (isEditing.value) {
+    debouncedRenderPreview();
+  }
+});
+
+// Re-render the in-edit preview pane whenever the AI proposes (or revokes) a
+// candidate so the user sees the proposal immediately while still editing.
+watch(aiPreviewCode, () => {
   if (isEditing.value) {
     debouncedRenderPreview();
   }
@@ -536,6 +490,14 @@ watch(editCode, () => {
       <button class="mermaid-toolbar-btn" :title="t.editDiagram" @click="startEdit">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
       </button>
+      <button
+        class="mermaid-toolbar-btn"
+        :class="{ active: aiTargetActive }"
+        :title="t.aiAssistMermaidTitle"
+        @click="requestAiEdit"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/></svg>
+      </button>
       <button class="mermaid-toolbar-btn" :title="`${t.fullscreen} (Esc)`" @click="toggleFullscreen">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
       </button>
@@ -546,7 +508,12 @@ watch(editCode, () => {
 
     <!-- Fullscreen editor overlay -->
     <Teleport to="body">
-      <div v-if="isEditing" class="editor-fullscreen" @keydown="handleEditorKeydown">
+      <div
+        v-if="isEditing"
+        class="editor-fullscreen"
+        :class="{ 'editor-fullscreen--with-ai': aiTargetActive }"
+        @keydown="handleEditorKeydown"
+      >
         <!-- Template modal (inside fullscreen so it renders on top) -->
         <DiagramTemplateModal
           :show="showTemplateModal"
@@ -572,9 +539,9 @@ watch(editCode, () => {
           <div class="editor-topbar-actions">
             <button
               class="btn-ai-toggle"
-              :class="{ active: aiPanelOpen }"
+              :class="{ active: aiTargetActive }"
               :title="t.aiAssistMermaidTitle"
-              @click="aiPanelOpen = !aiPanelOpen"
+              @click="requestAiEdit"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
@@ -583,65 +550,6 @@ watch(editCode, () => {
             </button>
             <button @click="saveEdit" class="btn-save">{{ t.saveDiagram }}</button>
             <button @click="cancelEdit" class="btn-cancel">{{ t.cancelEdit }}</button>
-          </div>
-        </div>
-
-        <!-- AI assist popup — Canva-style centered card. The modal lives
-             directly inside `.editor-fullscreen` (already position:fixed at
-             z-index 99999) and uses z-index 100000 to layer above the
-             editor. Nested <Teleport>s into the same target sometimes fail
-             to mount in Vue's compile output, so we render in place. -->
-        <div v-if="aiPanelOpen" class="ai-mermaid-modal" @click.self="aiPanelOpen = false">
-          <div class="ai-mermaid-card" @keydown.esc="aiPanelOpen = false">
-            <header class="ai-mermaid-card-header">
-              <span class="ai-mermaid-card-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
-                </svg>
-              </span>
-              <h3 class="ai-mermaid-card-title">{{ t.aiAssistMermaidTitle }}</h3>
-              <button class="ai-mermaid-card-close" @click="aiPanelOpen = false">×</button>
-            </header>
-
-            <div class="ai-mermaid-card-body">
-              <label class="ai-mermaid-card-label">{{ t.aiAssistMermaidPromptLabel }}</label>
-              <textarea
-                v-model="aiPrompt"
-                class="ai-mermaid-card-textarea"
-                :placeholder="t.aiAssistMermaidPlaceholder"
-                :disabled="aiBusy"
-                rows="6"
-                @keydown.ctrl.enter="aiAskMermaid"
-                @keydown.meta.enter="aiAskMermaid"
-              ></textarea>
-              <p class="ai-mermaid-card-hint">{{ t.aiAssistMermaidHint }}</p>
-
-              <div v-if="aiError" class="ai-mermaid-error">{{ aiError }}</div>
-
-              <div v-if="aiOutput || aiBusy" class="ai-mermaid-output">
-                <div class="ai-mermaid-output-label">
-                  {{ t.aiAssistMermaidProposed }}
-                  <span v-if="aiBusy" class="ai-mermaid-busy-dot"></span>
-                </div>
-                <pre class="ai-mermaid-output-pre">{{ aiOutput ? extractMermaidCodeFromResponse(aiOutput) : '…' }}</pre>
-              </div>
-            </div>
-
-            <footer class="ai-mermaid-card-actions">
-              <button v-if="aiOutput && !aiBusy" class="ai-mermaid-apply" @click="aiApply">
-                {{ t.aiAssistMermaidApply }}
-              </button>
-              <button v-if="aiBusy" class="ai-mermaid-cancel" @click="aiCancel">
-                {{ t.aiCancelButton }}
-              </button>
-              <button
-                v-else
-                class="ai-mermaid-send"
-                :disabled="!aiPrompt.trim()"
-                @click="aiAskMermaid"
-              >{{ t.aiSendButton }}</button>
-              <button class="ai-mermaid-discard" @click="aiPanelOpen = false">{{ t.cancel }}</button>
-            </footer>
           </div>
         </div>
         <!-- Split: code left, preview right -->
@@ -659,6 +567,17 @@ watch(editCode, () => {
             <div class="divider-handle-mermaid"></div>
           </div>
           <div class="editor-preview-pane" :style="{ flex: `0 0 ${100 - splitRatio}%` }">
+            <div v-if="aiPreviewCode !== null" class="editor-preview-ai-banner">
+              <span class="editor-preview-ai-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
+                </svg>
+              </span>
+              <span class="editor-preview-ai-label">{{ t.aiAssistMermaidProposed }}</span>
+              <button class="editor-preview-ai-apply" @click="applyAiPreview">{{ t.aiAssistMermaidApply }}</button>
+              <button class="editor-preview-ai-discard" @click="discardAiPreview">{{ t.cancel }}</button>
+              <button class="editor-preview-ai-stop" @click="stopAiEdit" :title="t.aiAssistMermaidTitle">×</button>
+            </div>
             <div class="editor-preview-toolbar">
               <button @click="previewZoomOut" class="btn-zoom" :title="t.zoomOut">−</button>
               <span class="zoom-level">{{ previewZoomPercent }}%</span>
@@ -689,6 +608,25 @@ watch(editCode, () => {
 
     <div v-if="error" class="mermaid-error">
       {{ error }}
+    </div>
+
+    <!-- AI preview banner — visible whenever the panel hands back a mermaid
+         candidate. Apply commits it to the node, Discard drops the candidate
+         (target stays so the user can iterate), Stop ends the AI session. -->
+    <div v-if="aiPreviewCode !== null" class="mermaid-ai-preview-banner">
+      <span class="mermaid-ai-preview-icon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
+        </svg>
+      </span>
+      <span class="mermaid-ai-preview-label">{{ t.aiAssistMermaidProposed }}</span>
+      <button class="mermaid-ai-preview-apply" @click="applyAiPreview">
+        {{ t.aiAssistMermaidApply }}
+      </button>
+      <button class="mermaid-ai-preview-discard" @click="discardAiPreview">
+        {{ t.cancel }}
+      </button>
+      <button class="mermaid-ai-preview-stop" @click="stopAiEdit" :title="t.aiAssistMermaidTitle">×</button>
     </div>
 
     <!-- Viewport with pan/zoom -->
@@ -1082,221 +1020,6 @@ watch(editCode, () => {
   color: var(--primary);
 }
 
-/* Modal overlay (Canva-style centered card). z-index must outrank
-   `.editor-fullscreen` (99999) since the modal is launched from inside it. */
-.ai-mermaid-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-  background: var(--overlay-bg, rgba(0, 0, 0, 0.55));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  backdrop-filter: blur(2px);
-}
-
-.ai-mermaid-card {
-  width: min(640px, 100%);
-  max-height: 86vh;
-  background: var(--dialog-bg, var(--bg-primary));
-  border: 1px solid var(--border-primary);
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg, 0 24px 64px rgba(0, 0, 0, 0.4));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.ai-mermaid-card-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.ai-mermaid-card-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(var(--primary-rgb, 37, 99, 235), 0.15);
-  color: var(--primary);
-}
-
-.ai-mermaid-card-title {
-  flex: 1;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ai-mermaid-card-close {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.ai-mermaid-card-close:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
-
-.ai-mermaid-card-body {
-  padding: 14px 16px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ai-mermaid-card-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.ai-mermaid-card-textarea {
-  width: 100%;
-  min-height: 120px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-secondary);
-  border-radius: 6px;
-  background: var(--bg-input);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-family: inherit;
-  resize: vertical;
-  outline: none;
-  line-height: 1.5;
-}
-
-.ai-mermaid-card-textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--focus-ring-alpha);
-}
-
-.ai-mermaid-card-hint {
-  margin: -4px 0 0;
-  font-size: 11px;
-  color: var(--text-faint);
-}
-
-.ai-mermaid-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 14px;
-  background: var(--dialog-actions-bg, var(--bg-secondary));
-  border-top: 1px solid var(--border-primary);
-}
-
-.ai-mermaid-busy-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary);
-  margin-left: 6px;
-  animation: aimermaid-pulse 1s ease-in-out infinite;
-}
-
-@keyframes aimermaid-pulse {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
-}
-
-.ai-mermaid-send,
-.ai-mermaid-apply {
-  padding: 6px 14px;
-  border: none;
-  background: var(--primary);
-  color: white;
-  border-radius: 4px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.ai-mermaid-send:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.ai-mermaid-send:hover:not(:disabled),
-.ai-mermaid-apply:hover {
-  background: var(--primary-hover);
-}
-
-.ai-mermaid-cancel,
-.ai-mermaid-discard {
-  padding: 6px 14px;
-  border: 1px solid var(--border-secondary);
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 4px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.ai-mermaid-cancel:hover,
-.ai-mermaid-discard:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
-
-.ai-mermaid-error {
-  font-size: 12px;
-  color: var(--danger);
-  background: var(--danger-bg);
-  padding: 4px 8px;
-  border-radius: 3px;
-}
-
-.ai-mermaid-output {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ai-mermaid-output-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-.ai-mermaid-output-pre {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-primary);
-  border-radius: 4px;
-  padding: 8px 10px;
-  margin: 0;
-  font-family: var(--code-font-family, monospace);
-  font-size: 12px;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.ai-mermaid-output-actions {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-}
-
 .btn-template {
   background: var(--border-primary);
   color: var(--text-secondary);
@@ -1314,6 +1037,67 @@ watch(editCode, () => {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+}
+
+/* When the main AI panel is bound to this diagram, shrink the fullscreen
+   editor so both can coexist instead of one overlaying the other.
+   AI panel width matches AiPanel.vue (.ai-panel { width: 420px }). */
+.editor-fullscreen--with-ai {
+  right: 420px;
+}
+
+/* AI proposal banner inside the fullscreen preview pane. */
+.editor-preview-ai-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary, #1f2937);
+  border-bottom: 1px solid var(--border-primary);
+  border-left: 3px solid var(--primary, #6366f1);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.editor-preview-ai-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary, #6366f1);
+  color: #fff;
+  flex-shrink: 0;
+}
+.editor-preview-ai-label {
+  flex: 1;
+  font-weight: 500;
+}
+.editor-preview-ai-apply,
+.editor-preview-ai-discard,
+.editor-preview-ai-stop {
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.editor-preview-ai-apply {
+  background: var(--primary, #6366f1);
+  color: #fff;
+  border-color: var(--primary, #6366f1);
+  font-weight: 600;
+}
+.editor-preview-ai-apply:hover { filter: brightness(1.05); }
+.editor-preview-ai-discard:hover,
+.editor-preview-ai-stop:hover { background: var(--bg-secondary); }
+.editor-preview-ai-stop {
+  width: 26px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .editor-topbar {
@@ -1526,6 +1310,61 @@ watch(editCode, () => {
   color: var(--error-color);
   font-size: 13px;
   margin-bottom: 12px;
+}
+
+.mermaid-ai-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-left: 3px solid var(--primary, #6366f1);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.mermaid-ai-preview-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary, #6366f1);
+  color: #fff;
+  flex-shrink: 0;
+}
+.mermaid-ai-preview-label {
+  flex: 1;
+  font-weight: 500;
+}
+.mermaid-ai-preview-apply,
+.mermaid-ai-preview-discard,
+.mermaid-ai-preview-stop {
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mermaid-ai-preview-apply {
+  background: var(--primary, #6366f1);
+  color: #fff;
+  border-color: var(--primary, #6366f1);
+  font-weight: 600;
+}
+.mermaid-ai-preview-apply:hover { filter: brightness(1.05); }
+.mermaid-ai-preview-discard:hover,
+.mermaid-ai-preview-stop:hover { background: var(--bg-secondary); }
+.mermaid-ai-preview-stop {
+  width: 26px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
 }
 
 /* Zoom Controls */

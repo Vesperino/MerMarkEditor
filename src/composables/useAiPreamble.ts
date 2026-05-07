@@ -20,6 +20,9 @@ export interface PreambleOptions {
   workspaceName?: string;
   /** Absolute root path of the workspace, if any. */
   workspaceRoot?: string;
+  /** True when the panel is bound to a Mermaid edit target (see useAiMermaidTarget).
+   *  Adds instructions steering the model toward a single ```mermaid``` reply. */
+  mermaidEditMode?: boolean;
 }
 
 interface PinScopeStrings {
@@ -97,6 +100,15 @@ export function buildPreamble(opts: PreambleOptions): string {
   }
   if (opts.docTooLarge && !opts.sendFullDocOverride) {
     lines.push('', `Note: the active document is large (${opts.docMarkdownLength} bytes). Focus on the first 200KB unless instructed otherwise.`);
+  }
+  if (opts.mermaidEditMode) {
+    lines.push(
+      '',
+      'MERMAID EDIT MODE — the user is editing a mermaid diagram and the pinned fragment above is its current source.',
+      'Reply with ONLY one ```mermaid fenced block containing the full updated diagram. Preserve unrelated parts. No prose, no commentary, no other code blocks.',
+      'Do NOT call file Edit / Write tools — the host applies your reply to the diagram node directly.',
+      'Stay terse — diagrams should not be cluttered with unnecessary nodes.',
+    );
   }
   return lines.join('\n');
 }

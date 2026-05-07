@@ -15,6 +15,7 @@ import { useAiToolToast } from '../../composables/useAiToolToast';
 import { useAiPinnedSelections } from '../../composables/useAiPinnedSelections';
 import { useAiPendingImages, type PendingImage } from '../../composables/useAiPendingImages';
 import { buildPreamble } from '../../composables/useAiPreamble';
+import { useAiMermaidTarget, extractMermaidCodeFromResponse } from '../../composables/useAiMermaidTarget';
 import { withWorkspaceReadAccess } from '../../composables/useAiWorkspaceContext';
 import AiPanelTab from './AiPanelTab.vue';
 import AiPanelHeader from './AiPanelHeader.vue';
@@ -100,6 +101,45 @@ const liveSelectionText = computed<string | null>(() => {
 
 const pins = useAiPinnedSelections({ liveSelectionText });
 const images = useAiPendingImages();
+
+// ===== Mermaid edit mode bridge =====
+// When a Mermaid node registers an AI edit target, auto-pin its source so the
+// user sees it as scoped context, switch the preamble into mermaid-edit mode,
+// and route assistant replies back to the node via target.pushCandidate.
+const aiMermaid = useAiMermaidTarget();
+const mermaidPinId = ref<string | null>(null);
+const mermaidEditMode = computed<boolean>(() => aiMermaid.target.value !== null);
+
+function clearMermaidPin() {
+  if (mermaidPinId.value) {
+    pins.removePin(mermaidPinId.value);
+    mermaidPinId.value = null;
+  }
+}
+
+watch(
+  () => aiMermaid.target.value,
+  (target) => {
+    clearMermaidPin();
+    if (!target) return;
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `mermaid-pin-${Date.now()}`;
+    const pin = {
+      id,
+      text: `[Mermaid diagram]\n\`\`\`mermaid\n${target.initialCode}\n\`\`\``,
+      createdAt: new Date().toISOString(),
+    };
+    pins.pinnedSelections.value.push(pin);
+    pins.includePinned.value = true;
+    mermaidPinId.value = id;
+  },
+);
+
+function stopMermaidEdit() {
+  clearMermaidPin();
+  aiMermaid.clear();
+}
 const toolToast = useAiToolToast();
 const layout = useAiPanelLayout({
   panelSide: () => settings.value.ai.panelSide,
@@ -184,6 +224,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   layout.unmount();
+  // Drop our auto-pin so it doesn't reappear if the panel is mounted later
+  // without a matching mermaid target.
+  clearMermaidPin();
 });
 
 watch(() => props.docPath, async (p) => {
@@ -217,6 +260,7 @@ function buildPreambleForSend(): string {
     localeKey,
     workspaceName: props.workspaceName ?? '',
     workspaceRoot: props.workspaceRoot ?? '',
+    mermaidEditMode: mermaidEditMode.value,
   });
 }
 
@@ -288,6 +332,17 @@ async function onSend() {
       toolToast.trigger(tool);
     },
   });
+
+  // Mermaid bridge: hand the freshly-completed assistant reply to the node.
+  // The node owns the preview lifecycle (Apply / Discard / Stop) — we just
+  // pluck the mermaid code out and forward it.
+  if (aiMermaid.target.value) {
+    const lastMsg = ai.messages.value[ai.messages.value.length - 1];
+    if (lastMsg?.role === 'assistant' && lastMsg.text) {
+      const code = extractMermaidCodeFromResponse(lastMsg.text);
+      if (code) aiMermaid.target.value.pushCandidate(code);
+    }
+  }
 }
 
 async function onCancel() { await ai.cancel(); }
@@ -420,6 +475,16 @@ function onPreviewImage(img: PendingImage) {
 
     <AiPanelContextBar :usage="aiContext.usage.value" :usage-label="aiContext.usageLabel.value" />
 
+    <div v-if="mermaidEditMode" class="ai-panel-mermaid-chip">
+      <span class="ai-panel-mermaid-icon">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
+        </svg>
+      </span>
+      <span class="ai-panel-mermaid-label">Editing mermaid diagram</span>
+      <button class="ai-panel-mermaid-stop" @click="stopMermaidEdit">Stop</button>
+    </div>
+
     <AiPanelStatusNotices :connecting="anyHealthLoading" :unsaved="docNeedsSave" />
 
     <AiPanelMessages
@@ -511,5 +576,46 @@ function onPreviewImage(img: PendingImage) {
   width: auto;
   border: none;
   border-radius: 0;
+}
+.ai-panel-mermaid-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin: 6px 8px 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-left: 3px solid var(--primary, #6366f1);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.ai-panel-mermaid-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary, #6366f1);
+  color: #fff;
+  flex-shrink: 0;
+}
+.ai-panel-mermaid-label {
+  flex: 1;
+  font-weight: 500;
+}
+.ai-panel-mermaid-stop {
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ai-panel-mermaid-stop:hover {
+  background: var(--bg-secondary);
 }
 </style>

@@ -42,7 +42,14 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         cmd.arg("--allowedTools").arg(allowed);
     }
     cmd.arg("--permission-mode").arg(if req.bypass { "bypassPermissions" } else { "default" });
-    cmd.current_dir(&req.work_dir);
+    let workdir_for_claude = if req.work_dir.is_empty() {
+        std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_else(|_| ".".to_string())
+    } else {
+        req.work_dir.clone()
+    };
+    cmd.current_dir(&workdir_for_claude);
 
     let has_images = !req.images.is_empty();
     if has_images {
@@ -62,7 +69,7 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
 
     eprintln!(
         "[ai claude spawn] cwd={} images={} args={:?}",
-        req.work_dir,
+        workdir_for_claude,
         req.images.len(),
         cmd.as_std().get_args().collect::<Vec<_>>(),
     );

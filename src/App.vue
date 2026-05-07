@@ -48,6 +48,7 @@ import { useLayoutConfig } from './composables/useLayoutConfig';
 import { useSessionRestore } from './composables/useSessionRestore';
 import { useRecentFiles } from './composables/useRecentFiles';
 import { useWorkspace } from './composables/useWorkspace';
+import { useAiMermaidTarget } from './composables/useAiMermaidTarget';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -562,6 +563,17 @@ const aiPanelOpen = ref(false);
 function toggleAiPanel() {
   aiPanelOpen.value = !aiPanelOpen.value;
 }
+
+// Auto-open the panel whenever a Mermaid node registers an AI edit target.
+// The diagram pinning, preamble augmentation, and reply routing live inside
+// AiPanel — App.vue just makes sure the panel is visible when work starts.
+const aiMermaid = useAiMermaidTarget();
+watch(
+  () => aiMermaid.target.value,
+  (t) => {
+    if (t) aiPanelOpen.value = true;
+  },
+);
 
 function onAiApplyContent(content: string) {
   // Reload-only — no auto-diff (revert flow already matches disk).
