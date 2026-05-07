@@ -81,8 +81,10 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   // only.
   { id: 'stats', category: 'stats', defaultZone: 'toolbar', defaultOrder: 900, needsEditor: false, labelKey: 'stats', disallowedZones: ['leftbar'] },
 
-  // Zoom
-  { id: 'zoom-controls', category: 'zoom', defaultZone: 'toolbar', defaultOrder: 1000, needsEditor: false, labelKey: 'zoom' },
+  // Zoom — defaults to the status bar (Word-style horizontal slider). Users
+  // can still drag it back to the main toolbar; the renderer falls back to
+  // the icon-button trio when not in compact mode.
+  { id: 'zoom-controls', category: 'zoom', defaultZone: 'statusbar', defaultOrder: 1000, needsEditor: false, labelKey: 'zoom' },
 
   // View toggles
   { id: 'toggle-toc', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1100, needsEditor: false, labelKey: 'tableOfContents' },

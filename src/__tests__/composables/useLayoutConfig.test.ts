@@ -18,15 +18,15 @@ describe('useLayoutConfig', () => {
       expect(layoutConfig.value.placements.length).toBe(TOOLBAR_ITEMS.length);
     });
 
-    it('all items default to toolbar zone', () => {
+    it('most items default to the toolbar zone (zoom slider lives in the status bar)', () => {
       const { itemsForZone } = useLayoutConfig();
-      const toolbarItems = itemsForZone('toolbar');
-      expect(toolbarItems.value.length).toBe(TOOLBAR_ITEMS.length);
+      const expectedToolbar = TOOLBAR_ITEMS.filter((i) => i.id !== 'zoom-controls').length;
+      expect(itemsForZone('toolbar').value.length).toBe(expectedToolbar);
     });
 
-    it('statusbar and leftbar start empty', () => {
+    it('status bar contains the zoom slider by default; left bar starts empty', () => {
       const { itemsForZone } = useLayoutConfig();
-      expect(itemsForZone('statusbar').value.length).toBe(0);
+      expect(itemsForZone('statusbar').value.map((i) => i.id)).toEqual(['zoom-controls']);
       expect(itemsForZone('leftbar').value.length).toBe(0);
     });
   });
@@ -96,9 +96,9 @@ describe('useLayoutConfig', () => {
   });
 
   describe('hasStatusBarItems / hasLeftBarItems', () => {
-    it('returns false when zones are empty', () => {
+    it('status bar reports true at startup (zoom slider lives there); left bar empty', () => {
       const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
-      expect(hasStatusBarItems.value).toBe(false);
+      expect(hasStatusBarItems.value).toBe(true);
       expect(hasLeftBarItems.value).toBe(false);
     });
 
@@ -120,9 +120,11 @@ describe('useLayoutConfig', () => {
 
       resetToDefaults();
 
-      expect(itemsForZone('statusbar').value.length).toBe(0);
+      // Status bar always has the zoom slider as its sole default tenant.
+      expect(itemsForZone('statusbar').value.map((i) => i.id)).toEqual(['zoom-controls']);
       expect(itemsForZone('leftbar').value.length).toBe(0);
-      expect(itemsForZone('toolbar').value.length).toBe(TOOLBAR_ITEMS.length);
+      const expectedToolbar = TOOLBAR_ITEMS.filter((i) => i.id !== 'zoom-controls').length;
+      expect(itemsForZone('toolbar').value.length).toBe(expectedToolbar);
     });
   });
 

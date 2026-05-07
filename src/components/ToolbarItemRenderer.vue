@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useToolbarActions } from '../composables/useToolbarActions';
 import { useWorkspace } from '../composables/useWorkspace';
+import { ZOOM_MIN, ZOOM_MAX } from '../composables/useEditorZoom';
 import OpenSplitButton from './OpenSplitButton.vue';
 import AiToolbarButton from './ai/AiToolbarButton.vue';
 
@@ -56,6 +57,7 @@ const {
   zoomIn,
   zoomOut,
   resetZoom,
+  setZoom,
   currentHeadingLevel,
   setHeading,
   showTableMenu,
@@ -422,7 +424,26 @@ const showLabel = (id: string) => {
     </template>
   </div>
 
-  <!-- Zoom controls -->
+  <!-- Zoom controls — slider in status bar (Word-style), button trio elsewhere.
+       Compact mode == status bar; the horizontal slider feels native there
+       and gives drag-to-set instead of click-stepping. -->
+  <div v-else-if="itemId === 'zoom-controls' && props.compact" class="toolbar-group zoom-slider-group">
+    <button @click="zoomOut" class="zoom-slider-btn" :title="t.zoomOut" aria-label="zoom out">−</button>
+    <input
+      type="range"
+      class="zoom-slider"
+      :min="ZOOM_MIN"
+      :max="ZOOM_MAX"
+      step="5"
+      :value="zoomPercent"
+      :aria-valuenow="zoomPercent"
+      :title="`${t.zoom} ${zoomPercent}%`"
+      @input="(e: Event) => setZoom(Number((e.target as HTMLInputElement).value))"
+    />
+    <button @click="zoomIn" class="zoom-slider-btn" :title="t.zoomIn" aria-label="zoom in">+</button>
+    <button @click="resetZoom" class="zoom-slider-pct" :title="t.reset">{{ zoomPercent }}%</button>
+  </div>
+
   <div v-else-if="itemId === 'zoom-controls'" class="toolbar-group zoom-group">
     <button @click="zoomOut" class="toolbar-btn icon-only" :title="t.zoomOut">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -717,4 +738,89 @@ const showLabel = (id: string) => {
 .toolbar-group { display: flex; align-items: center; gap: 2px; }
 .zoom-group { gap: 0; }
 .zoom-percent-btn { font-size: 12px; font-weight: 500; min-width: 44px; padding: 4px 6px; justify-content: center; color: var(--text-muted); }
+
+/* ===== Word-style zoom slider (status bar) ===== */
+.zoom-slider-group {
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.zoom-slider-btn {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.zoom-slider-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 96px;
+  height: 4px;
+  background: var(--border-primary);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid var(--bg-primary);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--border-secondary);
+  transition: transform 0.12s ease;
+}
+
+.zoom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.zoom-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid var(--bg-primary);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--border-secondary);
+}
+
+.zoom-slider-pct {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: center;
+  padding: 0 2px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.zoom-slider-pct:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
 </style>

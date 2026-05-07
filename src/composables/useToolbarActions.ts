@@ -14,7 +14,7 @@ const editorUpdateCounter = ref(0);
 
 export function useToolbarActions() {
   const { t } = useI18n();
-  const { zoomPercent, zoomIn, zoomOut, resetZoom } = useEditorZoom();
+  const { zoomPercent, zoomIn, zoomOut, resetZoom, setZoom } = useEditorZoom();
   const {
     tokenCount,
     modelName,
@@ -225,6 +225,7 @@ export function useToolbarActions() {
     zoomIn,
     zoomOut,
     resetZoom,
+    setZoom,
 
     // Headings
     currentHeadingLevel,

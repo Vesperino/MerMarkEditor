@@ -453,11 +453,14 @@ button:disabled {
  * ========================================================================== */
 @page {
   size: A4;
-  margin: 16mm 18mm 18mm 18mm;
+  margin: 14mm 18mm 18mm 18mm;
 }
 
 @page :first {
-  margin-top: 12mm;
+  /* Tight first-page top margin so a leading H1 doesn't sit halfway down
+     the sheet. Earlier 12 mm + the editor's own padding-top added up to
+     ~30 mm of dead space at the top of every PDF. */
+  margin-top: 8mm;
 }
 
 @media print {
@@ -565,6 +568,27 @@ button:disabled {
     background-color: #ffffff !important;
     color: #1a1a1a !important;
     box-shadow: none !important;
+  }
+
+  /* Reset every scoped padding/margin that the on-screen layout adds to
+     the editor surface. The Minimal theme uses `[data-variant="minimal"]
+     .editor-content` (specificity 0,2,1) which beats a plain
+     `.editor-content` rule even with `!important`, so the print override
+     has to lead with `html[data-variant]` to outrank it. Force the same
+     serif font as the on-screen Minimal theme so PDF and editor look
+     consistent. */
+  html[data-variant] .editor-content,
+  html[data-variant] .ProseMirror,
+  html[data-variant] .tiptap,
+  html .editor-content,
+  html .ProseMirror,
+  html .tiptap {
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: "Charter", "Iowan Old Style", "Palatino Linotype",
+      "Cambria", Georgia, "Times New Roman", serif !important;
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
   }
 
   /* Kill the gradient accents added by the Minimal theme's chrome. They
