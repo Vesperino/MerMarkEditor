@@ -115,9 +115,24 @@ export interface AppSettings {
   showLineNumbers: boolean;
   /** When true, the vertical left toolbar widens to show text labels next to icons. */
   leftBarExpanded: boolean;
+  /** Top padding of the editor surface, in pixels (clamped 0–80). */
+  editorPaddingTop: number;
+  /** Bottom padding of the editor surface, in pixels (clamped 0–160). */
+  editorPaddingBottom: number;
+  /** Horizontal margins of the editor surface, in pixels per side (clamped 0–160).
+   *  Functions as a soft outer gutter — content max-width is enforced by the
+   *  Minimal theme's reading measure independently. */
+  editorPaddingX: number;
   workspace: WorkspaceSettings;
   ai: AiSettings;
 }
+
+export const EDITOR_PAD_TOP_MIN = 0;
+export const EDITOR_PAD_TOP_MAX = 80;
+export const EDITOR_PAD_BOTTOM_MIN = 0;
+export const EDITOR_PAD_BOTTOM_MAX = 160;
+export const EDITOR_PAD_X_MIN = 0;
+export const EDITOR_PAD_X_MAX = 160;
 
 const STORAGE_KEY = 'mermark-settings';
 
@@ -268,6 +283,9 @@ function getDefaultSettings(): AppSettings {
     expandTabs: false,
     showLineNumbers: false,
     leftBarExpanded: false,
+    editorPaddingTop: 16,
+    editorPaddingBottom: 32,
+    editorPaddingX: 24,
     workspace: {
       openWorkspaces: [],
       activeWorkspaceId: null,
@@ -438,6 +456,19 @@ export function useSettings() {
   const setLeftBarExpanded = (v: boolean) => { settings.value.leftBarExpanded = v; };
   const toggleLeftBarExpanded = () => { settings.value.leftBarExpanded = !settings.value.leftBarExpanded; };
 
+  const setEditorPaddingTop = (v: number) => {
+    settings.value.editorPaddingTop = Math.max(EDITOR_PAD_TOP_MIN, Math.min(EDITOR_PAD_TOP_MAX, Math.round(v)));
+    applyCssVars(settings.value);
+  };
+  const setEditorPaddingBottom = (v: number) => {
+    settings.value.editorPaddingBottom = Math.max(EDITOR_PAD_BOTTOM_MIN, Math.min(EDITOR_PAD_BOTTOM_MAX, Math.round(v)));
+    applyCssVars(settings.value);
+  };
+  const setEditorPaddingX = (v: number) => {
+    settings.value.editorPaddingX = Math.max(EDITOR_PAD_X_MIN, Math.min(EDITOR_PAD_X_MAX, Math.round(v)));
+    applyCssVars(settings.value);
+  };
+
   const setAiEnabled = (v: boolean) => { settings.value.ai.enabled = v; };
   const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
   const setAiDefaultModelClaude = (v: string) => { settings.value.ai.defaultModelClaude = v; };
@@ -475,6 +506,9 @@ export function useSettings() {
     toggleShowLineNumbers,
     setLeftBarExpanded,
     toggleLeftBarExpanded,
+    setEditorPaddingTop,
+    setEditorPaddingBottom,
+    setEditorPaddingX,
     setOpenWorkspaces,
     setActiveWorkspaceId,
     setWorkspaceRecents,
@@ -552,6 +586,11 @@ function applyCssVars(s: AppSettings) {
   root.setProperty('--editor-font-family', resolveEditorFont(s.editorFontFamily));
   root.setProperty('--code-font-family', resolveCodeFont(s.codeFontFamily));
   root.setProperty('--editor-line-height', `${s.editorLineHeight}`);
+  // Editor surface paddings — picked up by the Minimal theme via
+  // `padding: var(--editor-pad-top) var(--editor-pad-x) ...`.
+  root.setProperty('--editor-pad-top', `${s.editorPaddingTop ?? 16}px`);
+  root.setProperty('--editor-pad-bottom', `${s.editorPaddingBottom ?? 32}px`);
+  root.setProperty('--editor-pad-x', `${s.editorPaddingX ?? 24}px`);
   applyCodeThemeVars(root, s.codeTheme);
 }
 

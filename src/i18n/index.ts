@@ -171,6 +171,9 @@ export interface Translations {
   codeFont: string;
   codeTheme: string;
   lineHeight: string;
+  editorPaddingTop: string;
+  editorPaddingBottom: string;
+  editorPaddingX: string;
   spellcheck: string;
   showLineNumbers: string;
   expandTabs: string;

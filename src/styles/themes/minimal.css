@@ -18,6 +18,26 @@
  * without affecting the others.
  * ========================================================================== */
 
+/* Code blocks in Minimal use the same dark slate as the default dark
+ * theme regardless of light/dark editor mode. The body type is serif
+ * paper, but code is reference material — keeping it on a consistent
+ * dark substrate lets the syntax-highlight palette stay readable.
+ * (Inline code stays light/teal — see rules at the bottom.) */
+html[data-variant="minimal"] .editor-content .tiptap pre,
+html[data-variant="minimal"] .editor-content .ProseMirror pre {
+  background: #0d1117 !important;
+  color: #e2e8f0 !important;
+  border: none;
+}
+
+html[data-variant="minimal"] .editor-content .tiptap pre code,
+html[data-variant="minimal"] .editor-content .ProseMirror pre code {
+  background: transparent !important;
+  color: inherit !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
 /* ===== Color tokens — light minimal ===== */
 /* Palette derives from the Mermaid Markdown logo: deep slate base, teal
  * primary accent that fades to coral. Gives the editor a cohesive identity
@@ -416,11 +436,13 @@ html[data-variant="minimal"] .tiptap {
   font-size: 17px;
   line-height: 1.75;
   color: var(--text-primary);
-  /* Reading measure: ~70ch, never less than 20px side gutter */
-  padding-left: max(24px, calc(50% - 36ch));
-  padding-right: max(24px, calc(50% - 36ch));
-  padding-top: 32px;
-  padding-bottom: 64px;
+  /* Padding driven by user-tunable CSS vars (Settings → Editor → Padding).
+     Defaults defined in useSettings; fallbacks here keep the layout sane
+     before applyCssVars runs on first paint. */
+  padding-top: var(--editor-pad-top, 16px);
+  padding-bottom: var(--editor-pad-bottom, 32px);
+  padding-left: var(--editor-pad-x, 24px);
+  padding-right: var(--editor-pad-x, 24px);
 }
 
 /* Headings: tighter, slight letter-spacing, no underline rule */
@@ -479,8 +501,8 @@ html[data-variant="minimal"] .ProseMirror hr,
 html[data-variant="minimal"] .tiptap hr {
   border: none;
   border-top: 1px solid var(--border-primary);
-  margin: 2em auto;
-  width: 30%;
+  margin: 1.6em 0;
+  width: 100%;
 }
 
 /* Inline code: subtle coral tint to nod at the logo's gradient tail without

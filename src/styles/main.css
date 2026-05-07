@@ -969,15 +969,13 @@ button:disabled {
     margin: 0.2em 0 !important;
   }
 
-  /* ===== Horizontal rule =====
-     Thin centered rule (~30 % width) — used as a section divider in long
-     docs without dominating the layout. */
+  /* ===== Horizontal rule — full width to match the editor view. */
   hr {
     border: none !important;
     height: 0.6pt !important;
     background: var(--hr-color) !important;
-    margin: 1.6em auto !important;
-    width: 35% !important;
+    margin: 1.4em 0 !important;
+    width: 100% !important;
   }
 
   /* ===== Links =====
