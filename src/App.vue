@@ -25,6 +25,8 @@ import TableOfContents from './components/TableOfContents.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
+import WorkspaceSidebar from './components/WorkspaceSidebar.vue';
+import WorkspaceQuickSwitcher from './components/WorkspaceQuickSwitcher.vue';
 import AiPanel from './components/ai/AiPanel.vue';
 import AiFirstRunTooltip from './components/ai/AiFirstRunTooltip.vue';
 import AiTmpRecoveryModal from './components/ai/AiTmpRecoveryModal.vue';
@@ -45,6 +47,8 @@ import { useFileReload } from './composables/useFileReload';
 import { useLayoutConfig } from './composables/useLayoutConfig';
 import { useSessionRestore } from './composables/useSessionRestore';
 import { useRecentFiles } from './composables/useRecentFiles';
+import { useWorkspace } from './composables/useWorkspace';
+import { useAiMermaidTarget } from './composables/useAiMermaidTarget';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -267,7 +271,13 @@ const closeTabAndCheckWindow = async (paneId: string, tabId: string) => {
   }
 
   if (isWindowEmpty()) {
-    await closeCurrentWindow();
+    if (workspace.openWorkspaces.value.length === 0) {
+      await closeCurrentWindow();
+      return;
+    }
+    if (isSplitActive.value) {
+      disableSplit();
+    }
     return;
   }
 
@@ -290,6 +300,48 @@ const handleCloseTabRequest = (paneId: string, tabId: string) => {
   }
   closeTabAndCheckWindow(paneId, tabId);
 };
+
+// ===== Tab pinning + bulk close =====
+
+function handleTabTogglePin(paneId: string, tabId: string) {
+  const pane = splitState.value.panes.find((p) => p.id === paneId);
+  const tab = pane?.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  tab.pinned = !tab.pinned;
+}
+
+/** Close every tab in a pane that satisfies `predicate`. Pinned tabs and
+ *  the (still currently displayed) target tab can be excluded by the
+ *  caller. Reuses `handleCloseTabRequest` so unsaved-change prompts still
+ *  fire one-at-a-time per affected tab. */
+async function bulkCloseTabs(
+  paneId: string,
+  predicate: (tab: { id: string; pinned?: boolean; hasChanges: boolean }) => boolean,
+) {
+  const pane = splitState.value.panes.find((p) => p.id === paneId);
+  if (!pane) return;
+  // Snapshot ids first — closing mutates the array.
+  const targets = pane.tabs.filter(predicate).map((t) => t.id);
+  for (const id of targets) {
+    handleCloseTabRequest(paneId, id);
+  }
+}
+
+function handleTabCloseOthers(paneId: string, keepId: string) {
+  bulkCloseTabs(paneId, (t) => t.id !== keepId && !t.pinned);
+}
+
+function handleTabCloseAll(paneId: string) {
+  bulkCloseTabs(paneId, () => true);
+}
+
+function handleTabCloseAllButPinned(paneId: string) {
+  bulkCloseTabs(paneId, (t) => !t.pinned);
+}
+
+function handleTabCloseSaved(paneId: string) {
+  bulkCloseTabs(paneId, (t) => !t.hasChanges && !t.pinned);
+}
 
 const handleTabCloseSave = async () => {
   if (!tabToClose.value) return;
@@ -518,6 +570,17 @@ function toggleAiPanel() {
   aiPanelOpen.value = !aiPanelOpen.value;
 }
 
+// Auto-open the panel whenever a Mermaid node registers an AI edit target.
+// The diagram pinning, preamble augmentation, and reply routing live inside
+// AiPanel — App.vue just makes sure the panel is visible when work starts.
+const aiMermaid = useAiMermaidTarget();
+watch(
+  () => aiMermaid.target.value,
+  (t) => {
+    if (t) aiPanelOpen.value = true;
+  },
+);
+
 function onAiApplyContent(content: string) {
   // Reload-only — no auto-diff (revert flow already matches disk).
   setEditorContent(content);
@@ -597,12 +660,36 @@ const aiSelectionText = computed<string>(() => {
   if (from === to) return '';
   return ed.state.doc.textBetween(from, to, '\n\n', '\n');
 });
+// AI workdir resolution priority:
+//   1. Workspace root that owns the active file (so the AI runs from project root)
+//   2. The active file's parent directory
+//   3. Any active workspace root (when no file is open yet)
+//   4. Empty (no scope)
+// Reasoning: when the user is editing a note inside a workspace, they expect
+// AI tool calls (read/write paths, bash cwd) to be scoped to the project root,
+// not just the immediate folder. Standalone files keep the old behavior.
 const aiWorkDir = computed(() => {
   const p = activeTab.value?.filePath;
-  if (!p) return '';
-  // Strip the filename to get the directory; works for both / and \ separators.
-  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-  return idx >= 0 ? p.slice(0, idx) : p;
+  if (p) {
+    const owning = workspace.findOwningWorkspace(p);
+    if (owning) return owning.rootPath;
+    const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    return idx >= 0 ? p.slice(0, idx) : p;
+  }
+  return workspace.activeWorkspace.value?.rootPath ?? '';
+});
+
+// AI workspace context — surfaces to the model so it understands which
+// project/notebook the user is working in.
+const aiWorkspaceName = computed<string>(() => {
+  const p = activeTab.value?.filePath;
+  const owning = p ? workspace.findOwningWorkspace(p) : null;
+  return (owning ?? workspace.activeWorkspace.value)?.name ?? '';
+});
+const aiWorkspaceRoot = computed<string>(() => {
+  const p = activeTab.value?.filePath;
+  const owning = p ? workspace.findOwningWorkspace(p) : null;
+  return (owning ?? workspace.activeWorkspace.value)?.rootPath ?? '';
 });
 
 // ============ AI Tmp Recovery ============
@@ -660,6 +747,38 @@ const {
 
 // ============ Settings ============
 const { settings } = useSettings();
+
+// ============ Workspace ============
+const workspace = useWorkspace();
+const handleWorkspaceOpenFile = (path: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
+};
+
+const handleWorkspaceDropFile = (paneId: string, path: string) => {
+  splitState.value.activePaneId = paneId;
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] drop file in pane:', e));
+};
+const handleOpenWorkspaceFromToolbar = () => {
+  workspace.openWorkspaceDialog().catch((e) => console.error('[App] open workspace dialog:', e));
+};
+const handleOpenRecentWorkspaceFromToolbar = (rootPath: string) => {
+  workspace.openWorkspace(rootPath).catch((e) => console.error('[App] open recent workspace:', e));
+};
+
+// Quick-switcher modal state. Triggered from sidebar search icon or Ctrl+Shift+E.
+const showWorkspaceQuickSwitcher = ref(false);
+
+// Sync the active tab's file path into the workspace tree highlight so the
+// sidebar reveals (and scrolls to) whichever file the user is editing.
+watch(
+  () => activeTab.value?.filePath,
+  (path) => {
+    workspace.setHighlightedPath(path ?? null);
+  },
+  { immediate: true },
+);
 
 // ============ Layout Config ============
 const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
@@ -874,6 +993,13 @@ const handleKeyboard = (event: KeyboardEvent) => {
         event.preventDefault();
         manualReload();
         break;
+      case 'e':
+        // Ctrl+Shift+E opens the workspace quick switcher (palette-style).
+        if (event.shiftKey) {
+          event.preventDefault();
+          showWorkspaceQuickSwitcher.value = true;
+        }
+        break;
       case 'w':
         if (activeTabId.value && activePaneId.value) {
           event.preventDefault();
@@ -982,6 +1108,10 @@ const openFileWithCrossWindowDialog = async (): Promise<void> => {
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
   window.addEventListener('wheel', handleWheel, { passive: false });
+
+  // Restore last opened workspace (if any). Silent on failure — composable
+  // clears the persisted root so the next launch starts fresh.
+  workspace.restoreLastOnStartup().catch((e) => console.error('[App] restore workspace:', e));
 
   // Set window title with version
   try {
@@ -1177,6 +1307,8 @@ onUnmounted(async () => {
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @open-recent="openFileWithCrossWindowCheck"
+      @open-workspace="handleOpenWorkspaceFromToolbar"
+      @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
@@ -1192,6 +1324,15 @@ onUnmounted(async () => {
 
     <!-- Main content area with optional left bar -->
     <div class="main-area">
+      <!-- Workspace Sidebar (folder browser).
+           Visible whenever the sidebar toggle is on — the sidebar renders an
+           empty-state CTA when no workspace is open yet. -->
+      <WorkspaceSidebar
+        v-if="workspace.sidebarVisible.value"
+        @open-file="handleWorkspaceOpenFile"
+        @open-quick-switcher="showWorkspaceQuickSwitcher = true"
+      />
+
       <!-- Left Bar (configurable) -->
       <LeftBar
         v-if="hasLeftBarItems"
@@ -1205,6 +1346,8 @@ onUnmounted(async () => {
         @new-file="newFile"
         @open-file="openFileWithCrossWindowDialog"
         @open-recent="openFileWithCrossWindowCheck"
+        @open-workspace="handleOpenWorkspaceFromToolbar"
+        @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
         @save-file="saveFile"
         @save-file-as="saveFileAs"
         @export-pdf="exportPdf"
@@ -1232,6 +1375,12 @@ onUnmounted(async () => {
           @link-click="handleLinkClick"
           @close-tab-request="handleCloseTabRequest"
           @changes-updated="handleChangesUpdated"
+          @toggle-pin="handleTabTogglePin"
+          @close-others="handleTabCloseOthers"
+          @close-all="handleTabCloseAll"
+          @close-all-but-pinned="handleTabCloseAllButPinned"
+          @close-saved="handleTabCloseSaved"
+          @drop-file="handleWorkspaceDropFile"
         />
       </div>
 
@@ -1267,6 +1416,8 @@ onUnmounted(async () => {
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
       @open-recent="openFileWithCrossWindowCheck"
+      @open-workspace="handleOpenWorkspaceFromToolbar"
+      @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="exportPdf"
@@ -1347,6 +1498,13 @@ onUnmounted(async () => {
       @show-whats-new="showSettingsModal = false; showWhatsNewModal = true"
     />
 
+    <!-- Workspace Quick Switcher (Ctrl+Shift+E) -->
+    <WorkspaceQuickSwitcher
+      v-if="showWorkspaceQuickSwitcher"
+      @close="showWorkspaceQuickSwitcher = false"
+      @open-file="handleWorkspaceOpenFile"
+    />
+
     <!-- AI Assistant Panel (slide-in chat) -->
     <AiPanel
       v-if="aiPanelOpen"
@@ -1356,6 +1514,8 @@ onUnmounted(async () => {
       :selection-range="aiSelectionRange"
       :selection-text="aiSelectionText"
       :work-dir="aiWorkDir"
+      :workspace-name="aiWorkspaceName"
+      :workspace-root="aiWorkspaceRoot"
       @close="aiPanelOpen = false"
       @apply-content="onAiApplyContent"
       @show-diff="onAiShowDiff"

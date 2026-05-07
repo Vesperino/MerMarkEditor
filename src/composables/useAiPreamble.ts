@@ -16,6 +16,13 @@ export interface PreambleOptions {
   sendFullDocOverride: boolean;
   docMarkdownLength: number;
   localeKey: string;
+  /** Name of the workspace (folder) owning the active file, if any. */
+  workspaceName?: string;
+  /** Absolute root path of the workspace, if any. */
+  workspaceRoot?: string;
+  /** True when the panel is bound to a Mermaid edit target (see useAiMermaidTarget).
+   *  Adds instructions steering the model toward a single ```mermaid``` reply. */
+  mermaidEditMode?: boolean;
 }
 
 interface PinScopeStrings {
@@ -65,12 +72,20 @@ export function buildPreamble(opts: PreambleOptions): string {
   const tools = am
     ? Object.entries(am.tools).filter(([, v]) => v).map(([k]) => k).join(',') || 'none'
     : 'unknown';
-  const activeFileLine = opts.docPath
-    ? `Active file: ${opts.docPath}`
-    : 'Active file: (unsaved — no edits possible until user saves)';
+  const mainFileLine = opts.docPath
+    ? `Main file (the document the user is editing — your only writable target): ${opts.docPath}`
+    : 'Main file: (unsaved — no edits possible until user saves)';
+  const workspaceLines = opts.workspaceRoot
+    ? [
+        `Workspace: ${opts.workspaceName || opts.workspaceRoot}`,
+        `Workspace root (read-only context): ${opts.workspaceRoot}`,
+        `The main file lives inside this workspace. You may READ other files in the workspace for context (notes, references, related documents) but you must only WRITE to the main file. When the user says "the project" / "this notebook" / "these notes", they mean the workspace above.`,
+      ]
+    : [];
   const lines = [
     `You are an AI assistant integrated into the MerMark editor.`,
-    activeFileLine,
+    ...workspaceLines,
+    mainFileLine,
     selSection,
     `Read paths: ${am?.readPaths.join(', ') ?? opts.docPath}`,
     `Write paths: ${am?.writePaths.join(', ') ?? opts.docPath}`,
@@ -85,6 +100,15 @@ export function buildPreamble(opts: PreambleOptions): string {
   }
   if (opts.docTooLarge && !opts.sendFullDocOverride) {
     lines.push('', `Note: the active document is large (${opts.docMarkdownLength} bytes). Focus on the first 200KB unless instructed otherwise.`);
+  }
+  if (opts.mermaidEditMode) {
+    lines.push(
+      '',
+      'MERMAID EDIT MODE — the user is editing a mermaid diagram and the pinned fragment above is its current source.',
+      'Reply with ONLY one ```mermaid fenced block containing the full updated diagram. Preserve unrelated parts. No prose, no commentary, no other code blocks.',
+      'Do NOT call file Edit / Write tools — the host applies your reply to the diagram node directly.',
+      'Stay terse — diagrams should not be cluttered with unnecessary nodes.',
+    );
   }
   return lines.join('\n');
 }

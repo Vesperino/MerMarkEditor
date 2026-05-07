@@ -16,11 +16,21 @@ const props = defineProps<{
 const emit = defineEmits<{
   switchTab: [tabId: string];
   closeTab: [tabId: string];
+  togglePin: [tabId: string];
+  closeOthers: [tabId: string];
+  closeAll: [];
+  closeAllButPinned: [];
+  closeSaved: [];
   updateContent: [tabId: string, content: string];
   updateChanges: [tabId: string, hasChanges: boolean];
   linkClick: [href: string];
   focus: [];
+  dropFile: [filePath: string];
 }>();
+
+const WS_NODE_MIME = 'application/x-mermark-ws-node';
+
+const isFileDragOver = ref(false);
 
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
 const { isDragging, draggedTab, setDropZone, clearDropZone } = useTabDrag();
@@ -78,6 +88,51 @@ const handlePaneMouseLeave = () => {
   }
 };
 
+// Capture phase + dragenter — TipTap installs its own dragover handler that
+// preventDefaults text/html drags but ignores our custom mime; without
+// capture the cursor stays in not-allowed state.
+function hasWsNodeType(dt: DataTransfer | null): boolean {
+  if (!dt) return false;
+  return Array.from(dt.types as unknown as Iterable<string>).includes(WS_NODE_MIME);
+}
+
+const handleFileDragEnter = (e: DragEvent) => {
+  if (!hasWsNodeType(e.dataTransfer)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  isFileDragOver.value = true;
+};
+
+const handleFileDragOver = (e: DragEvent) => {
+  if (!hasWsNodeType(e.dataTransfer)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  isFileDragOver.value = true;
+};
+
+const handleFileDragLeave = (e: DragEvent) => {
+  const related = e.relatedTarget as Node | null;
+  if (related && (e.currentTarget as Node).contains(related)) return;
+  isFileDragOver.value = false;
+};
+
+const handleFileDrop = (e: DragEvent) => {
+  if (!e.dataTransfer) return;
+  const raw = e.dataTransfer.getData(WS_NODE_MIME);
+  if (!raw) {
+    isFileDragOver.value = false;
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  isFileDragOver.value = false;
+  let info: { path: string; kind: 'file' | 'folder' };
+  try { info = JSON.parse(raw); } catch { return; }
+  if (info.kind !== 'file') return;
+  emit('dropFile', info.path);
+};
+
 defineExpose({
   editor: computed(() => editorRef.value?.editor),
   getEditorContent: () => editorRef.value?.editor?.getHTML() || '',
@@ -90,13 +145,17 @@ defineExpose({
     class="editor-pane"
     :class="{
       active: isActive,
-      'drop-target': isValidDropTarget,
+      'drop-target': isValidDropTarget || isFileDragOver,
       empty: isEmpty
     }"
     @mousedown="handlePaneFocus"
     @focusin="handlePaneFocus"
     @mouseenter="handlePaneMouseEnter"
     @mouseleave="handlePaneMouseLeave"
+    @dragenter.capture="handleFileDragEnter"
+    @dragover.capture="handleFileDragOver"
+    @dragleave="handleFileDragLeave"
+    @drop.capture="handleFileDrop"
   >
     <!-- Tab bar (only show if has tabs) -->
     <TabBar
@@ -106,6 +165,11 @@ defineExpose({
       :pane-id="pane.id"
       @switch-tab="handleSwitchTab"
       @close-tab="handleCloseTab"
+      @toggle-pin="(id) => emit('togglePin', id)"
+      @close-others="(id) => emit('closeOthers', id)"
+      @close-all="emit('closeAll')"
+      @close-all-but-pinned="emit('closeAllButPinned')"
+      @close-saved="emit('closeSaved')"
     />
 
     <!-- Editor content or empty state -->
@@ -127,12 +191,11 @@ defineExpose({
         <div class="empty-subtitle">{{ t.orOpenFileInPane }}</div>
       </div>
 
-      <!-- Drop overlay during drag -->
       <div
-        v-if="isValidDropTarget && !isEmpty"
+        v-if="(isValidDropTarget || isFileDragOver) && !isEmpty"
         class="drop-overlay"
       >
-        <div class="drop-message">{{ t.dropTabHere }}</div>
+        <div class="drop-message">{{ isFileDragOver ? t.orOpenFileInPane : t.dropTabHere }}</div>
       </div>
     </div>
   </div>

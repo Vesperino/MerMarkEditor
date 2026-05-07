@@ -67,12 +67,25 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         // "Not inside a trusted directory".
         cmd.arg("exec")
             .arg("--json")
-            .arg("--skip-git-repo-check")
-            .arg("--cd").arg(&req.work_dir)
-            // Mark the working dir as writable. Without this, codex's
-            // workspace-write sandbox treats the cd directory as read-only
-            // and rejects apply_patch with "writing outside of the project".
-            .arg("--add-dir").arg(&req.work_dir);
+            .arg("--skip-git-repo-check");
+        // `--cd` requires a non-empty value; codex bails out when called as
+        // `--cd "" ...`. One-shot callers (e.g. the Mermaid AI assist) leave
+        // workDir blank because they don't bind to a particular file — fall
+        // back to the user's home directory in that case so the flag still
+        // has a real path to point at, and skip --add-dir entirely.
+        let workdir_for_codex = if req.work_dir.is_empty() {
+            std::env::var("HOME")
+                .or_else(|_| std::env::var("USERPROFILE"))
+                .unwrap_or_else(|_| ".".to_string())
+        } else {
+            req.work_dir.clone()
+        };
+        cmd.arg("--cd").arg(&workdir_for_codex);
+        if !req.work_dir.is_empty() {
+            // Only mark explicit work dirs as writable; skipping --add-dir for
+            // the home-fallback case keeps the sandbox tighter.
+            cmd.arg("--add-dir").arg(&req.work_dir);
+        }
         if let Some(model) = &req.model {
             cmd.arg("--model").arg(model);
         }

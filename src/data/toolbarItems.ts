@@ -28,9 +28,11 @@ export interface ToolbarItemDef {
 }
 
 export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
-  // File operations
+  // File operations — workspace toggle sits next to open-file because it's
+  // the most-used "navigate the project" control alongside the file picker.
   { id: 'new-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 10, needsEditor: false, labelKey: 'new' },
   { id: 'open-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 20, needsEditor: false, labelKey: 'open', disallowedZones: ['leftbar', 'statusbar'] },
+  { id: 'toggle-workspace-sidebar', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 25, needsEditor: false, labelKey: 'showWorkspaceSidebar' },
   { id: 'save-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 30, needsEditor: false, labelKey: 'save' },
   { id: 'save-file-as', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 40, needsEditor: false, labelKey: 'saveAs' },
   { id: 'export-pdf', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 50, needsEditor: false, labelKey: 'exportPdf' },
@@ -79,8 +81,10 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   // only.
   { id: 'stats', category: 'stats', defaultZone: 'toolbar', defaultOrder: 900, needsEditor: false, labelKey: 'stats', disallowedZones: ['leftbar'] },
 
-  // Zoom
-  { id: 'zoom-controls', category: 'zoom', defaultZone: 'toolbar', defaultOrder: 1000, needsEditor: false, labelKey: 'zoom' },
+  // Zoom — defaults to the status bar (Word-style horizontal slider). Users
+  // can still drag it back to the main toolbar; the renderer falls back to
+  // the icon-button trio when not in compact mode.
+  { id: 'zoom-controls', category: 'zoom', defaultZone: 'statusbar', defaultOrder: 1000, needsEditor: false, labelKey: 'zoom' },
 
   // View toggles
   { id: 'toggle-toc', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1100, needsEditor: false, labelKey: 'tableOfContents' },

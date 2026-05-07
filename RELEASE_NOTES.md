@@ -1,114 +1,82 @@
-# Release v0.2.0 — Local AI Assistant
+# Release v0.2.6 — Workspaces, Minimal Theme, AI in Diagrams
 
-MerMark Editor now ships with a full **local AI assistant** powered by your own `claude` and/or `codex` CLI installs. Everything runs on your machine, against your account — no third-party proxy, no telemetry, no extra API keys.
+Workspace folders, a brand-new Minimal theme, AI editing for Mermaid diagrams, a near-WYSIWYG PDF export — the editor finally feels like a place you can stay in for hours, not just a quick-note tool.
 
-![AI panel — overview](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/ai-panel-overview.png)
+<p>
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-light-mode.png" alt="MerMark v0.2.4 — Minimal theme, workspace sidebar, document open" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-with-ai-panel.png" alt="MerMark v0.2.4 — same layout with the AI Assistant docked on the right" width="48%" />
+</p>
 
-## What the AI can actually do
+## Workspaces
 
-- **Edit your markdown directly** — ask "rewrite this section in a friendlier tone", "extract action items into a bullet list", "translate the meeting notes to English". The AI writes the new content straight to disk (atomically, via `.mermark-ai.tmp`), the file watcher reloads the editor, and a snapshot is captured first so one-click **Revert** undoes the change.
-- **Read across folders you authorize** — point the access map at a project folder and the AI can read any file inside it: notes from yesterday's meetings, a glossary, a style guide, related docs. No surprise reads — only paths you've added show up.
-- **Modify other files in your project** — write paths in the access map let the AI create or update peer files: split a long doc into multiple notes, generate a summary alongside the source, build a table of contents file for a folder.
-- **Search the web** — turn on the `network` tool toggle and the model can fetch live information (`claude` uses its built-in web tooling; `codex` uses configured search providers). Useful for fact-checking, citation lookup, latest API docs, conference dates, etc.
-- **Run shell commands** — opt-in via the `bash` tool toggle when you want the AI to grep your notes folder, count files, run a build, or any other terminal task. Default off.
-- **See exactly what you point at** — pin one or more highlighted fragments (Visual *and* Code view), the live selection, or the whole document. The AI gets just those, not your entire vault.
+- **Multi-root workspace sidebar** (#69) — open one folder, two folders, ten. Each gets a collapsible section with file tree, drag-to-reorder header, and per-workspace controls (search, new file, open folder, menu). The active workspace shows a colored dot.
+- **Folder tree like Zettlr / Obsidian** — expand / collapse subdirectories, click a file to open in a new tab, right-click for OS-level reveal, rename, delete, new file / folder. Expanded folders are remembered between sessions.
+- **AI sees the workspace** — when a file lives inside an open workspace, the AI preamble includes the workspace root as a *read-only* scope. Ask "summarize the meeting notes from the last two weeks" and the model can actually traverse the folder; writes still stay scoped to the active document.
+- **Quick switcher** — `Ctrl+Shift+E` opens a 3-section command palette: workspaces, files (filename match), content (full-text grep across the active workspace, debounced 150 ms, capped at 5 000 files / 4 s / 200 hits so it never stalls a big tree).
+- **Migration from v0.2.x** — existing `lastRoot` workspace settings are auto-migrated to the new `openWorkspaces[]` shape on first launch.
 
-  ![Multi-pin attachments](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments.png)
+## Minimal theme
 
-- **Multi-fragment selection workflow** — highlight a paragraph, click **+ Pin**, scroll, highlight another, **+ Pin** again. The composer shows a numbered scrollable list of every pinned fragment with a per-item × to drop one and a **Clear all** to wipe the strip. Toggle **Send** off to keep the pins visible without sending them this turn.
+- **Mermaid-logo palette** — teal `#14b8a6` and coral `#f43f5e` over slate `#1a2028`. Light and dark variants both ship; the variant axis is orthogonal to light/dark, so any combination works (Default + Light, Default + Dark, Minimal + Light, Minimal + Dark).
+- **Editor chrome only** — accents live in tabs, sidebar headers, the active workspace dot, the AI status indicator. The document content stays neutral so prose doesn't fight for attention with the chrome.
+- **Configurable padding** — Settings → General now exposes top, side, and bottom padding sliders. Values apply to both Default and Minimal themes (the previous build only wired them up for Minimal).
+- **Better code blocks in Minimal** — dark slate background with full syntax highlighting, instead of the previous flat grey selection look.
+- **Full-width horizontal rules** — `---` now spans the full content column.
 
-- **Send images to the model** — paste a screenshot directly into the composer (`Ctrl+V`), drag an image file into the panel, or click the image button next to **Send** to pick one or more files (png / jpg / jpeg / gif / webp / bmp). Each attachment shows as a thumbnail chip; click to open a fullscreen preview, × to remove. Up to 8 MB per image. Both Claude and Codex see the image.
+## AI in Mermaid diagrams
 
-- **Image preview in chat history** — once you send a turn with images, the chat shows a thumbnail chip with the filename so you remember exactly what you sent. The thumbnails survive scrolling and thread switches; after a full app restart the filename remains as a placeholder chip (blob URLs do not survive page reloads).
+- **Edit via the main AI panel** — clicking the AI button on a diagram (or in fullscreen edit) registers a target with the panel, auto-pins the diagram source as scoped context, and switches the preamble into mermaid-edit mode. You get the full panel: model picker, multi-turn conversation, threads, snapshots — same surface you use for prose.
+- **Live preview, explicit Apply** — every assistant reply is parsed for a `mermaid` fenced block. The diagram renders the proposal in place, with a chip in the panel showing **Apply ✓ / Discard × / Stop**. Apply commits to the node attrs; Discard keeps the conversation going; Stop ends the session.
+- **Coexists with fullscreen edit** — you don't have to leave the fullscreen mermaid editor to use the AI. The panel sits on top (`z-index: 100000`) so both stay visible; minimising the chat restores the diagram to full width.
+- **Robot icon, no more star** — the diagram AI button uses the same robot glyph as the main toolbar, so it's recognizable across the app.
 
-  ![Image thumbs preserved in chat history](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/image-in-history.png)
+## PDF export — closer to WYSIWYG
 
-- **Pins + image + AI edit, end-to-end** — three highlighted paragraphs pinned, a screenshot attached for context, one prompt sent. The model rewrites the pinned text and the captioned image inline.
+- **Match the editor** — the PDF now uses the same serif font (Charter / Iowan Old Style / Palatino) at the same scale (11.5 pt / 1.7 line-height) as the Minimal editor. What you see really is what you get.
+- **Editor padding → PDF margins** — your top / side / bottom padding settings are applied as `body` padding inside `@media print`, so a tight editor prints with tight margins and a roomy editor prints generously. The fixed `@page` margin (10 mm safety) layers on top of that.
+- **Code blocks keep their colours** — One-Dark palette (keyword purple, string green, number / attribute orange, comment grey, …) renders inside the PDF with `-webkit-text-fill-color` set explicitly so Chromium's PDF backend doesn't strip the colour. Background stays dark slate.
+- **Inline code matches the editor** — coral text (`#e11d48`) on light grey, mirroring the Minimal theme's `--danger`-tinted inline code instead of the previous teal that diverged from both on-screen variants.
+- **Tables size to content** — switched from `table-layout: fixed` (which spread one-word columns and long-URL columns to equal widths) to `auto`, so a `Method | Route | Handler` table reads the way it does in the editor.
+- **Hidden chrome, real layout** — the workspace sidebar collapses to zero width (not just `display: none`, which left a flex reservation), all dialogs / overlays / drag artefacts are gone, the document fills the printable width 1:1.
+- **No more dark-mode bleed** — earlier builds had `html.dark[data-variant="minimal"]` selectors out-ranking the print overrides; the print block now hard-pins the entire container chain to white with hex `#ffffff` instead of relying on cascading `--bg-primary`.
 
-  ![Pinned fragments + attached screenshot — final result after AI rewrite](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/pin-multi-fragments-with-screen-effect.png)
+## UI polish
 
-## How context reaches the model
+- **Resizable Mermaid editor split** — the divider between code and preview in fullscreen mermaid edit is draggable; the ratio is persisted into the markdown via node attrs (`splitRatio`) and survives roundtrip.
+- **Resizable diagram in document** — drag the right edge of an inline mermaid block to set a custom width; persisted as `userWidth`.
+- **Word-style zoom slider** — the editor zoom (Ctrl + Scroll, Ctrl+/-) now has a visible slider in the status bar with `±` buttons and percentage readout. Cleaner than the dropdown that lived there before.
+- **Tab pin + context menu** — right-click a tab for **Pin / Unpin / Close / Close others / Close all but pinned / Close saved / Close all**. Pinned tabs reorder to the front and survive bulk-close.
+- **Quick switcher with content search** — files and live full-text grep across the active workspace, behind `Ctrl+Shift+E`.
+- **Split file-ops button** — the toolbar `+` is now two buttons: "New file" and "Open folder", so the workspace flow is one click instead of two.
+- **Styled prompts and confirms** — the native `window.prompt` / `window.confirm` modals are replaced with themed dialogs everywhere (rename file, delete file, conflict resolution, …).
 
-- **Active document** — path + content (or a truncated preamble for very large docs, with a one-click "send full doc" override).
-- **Live selection** — what's currently highlighted, extracted directly from the editor (TipTap `textBetween` for Visual view, raw `slice` for Code view).
-- **Pinned fragments** — multi-select snippets, scrollable list above the composer, sent as one attachment block. The exact text is also recorded inline in the chat so you remember what you sent.
-- **Localized scope instructions** — the preamble that tells the model "the user attached these fragments, work on them" is rendered in the editor's UI language (en / pl / zh-CN).
-- **Per-document access map** — fine-grained read paths, write paths, and tool toggles (file read / file write / bash / network) constrain everything the model can touch. Add files with **+ File** or whole folders with **+ Folder**.
+## Bug fixes
 
-  ![Access map editor](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/access-map.png)
+- **`os error 123` on Windows when the AI is asked to edit a fresh / unsaved file** — both `claude` and `codex` were getting an empty `work_dir` which Windows rejects on `Command::current_dir`. The Rust spawn helpers now fall back to `$HOME` / `$USERPROFILE` / `.` when the work dir is empty.
+- **`codex --cd ""` rejection** — same root cause on the codex side; `--cd` is now only set to a real path, and `--add-dir` is skipped when no work dir is known.
+- **Claude / Codex CLI on macOS / Linux** (#70 — also in 0.2.3) — GUI launches inherit a minimal `PATH` so installs from Homebrew / npm-global / volta / nvm / bun / asdf were not detected. The resolver now walks a curated list of standard install dirs and falls back to a login-shell probe (`$SHELL -lc 'command -v <name>'`); Settings → AI → CLI exposes a custom-path override with the actual list of locations the app searched, so you can see what was tried.
+- **AI mermaid modal not appearing on first click** — nested `<Teleport>` inside the editor fullscreen sometimes failed to mount; the modal renders in place now (and as of this release is replaced by the main AI panel anyway).
+- **PDF dark-mode bleed** — multiple iterations to defeat scoped Vue styles + `html.dark[data-variant]` rules; the entire container chain is now hex-pinned to `#ffffff` in print.
+- **PDF top margin too large in Minimal** — Minimal's `padding-top: 32px` stacked on top of the `@page :first` margin and gave a 2 cm gap; print now zeroes editor padding and uses `body` padding routed from your editor settings.
+- **Autolink URL appendix** — TipTap autolinks `CLAUDE.md` into `<a href="http://CLAUDE.md">`, and the previous `a::after { content: " (" attr(href) ")" }` rule then printed `CLAUDE.md (http://CLAUDE.md)` next to every plain-text mention. The URL appendix is gone; PDFs embed real hyperlinks anyway.
+- **Mermaid `<select>` % dropdown jankiness** — the native dropdown stole the popup layer inside the floating toolbar and the active option visually shifted on every render; replaced by four buttons (25 / 50 / 75 / 100).
+- **Default mermaid scale 25 → 100** — new diagrams render at full size by default; the previous 25 % default left them tiny in the document.
+- **Workspace sidebar visible in PDF** — `display: none` left a flex width reservation; the sidebar now collapses with `width: 0; visibility: hidden`.
+- **AI panel tab visible in fullscreen mermaid edit** — when minimised during a mermaid AI session, the tab needs to sit above the diagram fullscreen overlay. `z-index: 100000` is now applied conditionally so it only outranks the overlay during an active mermaid edit.
+- **Claude AI on Windows — `batch file arguments are invalid`** (from 0.2.5) — Claude CLI resolves to `claude.cmd` (npm shim); Rust 1.77+ rejects `.cmd` invocations with newline-bearing args (CVE-2024-24576 mitigation). The system preamble is multi-line. Spawn now uses the documented `--input-format stream-json` path universally and folds the preamble into the user message text — same pattern as the Codex spawn.
+- **Codex error events surface in the chat** (from 0.2.5) — Codex's top-level `error` / `turn.failed` envelopes were being dropped by the stdout normalizer; users got a generic *"AI process exited without finalising the turn"* instead of the real reason (e.g. *"The 'gpt-5' model is not supported when using Codex with a ChatGPT account."*). The normalizer now matches both shapes and unwraps the upstream API message.
+- **Last-stderr tail attached to "exited without finalising" errors** (from 0.2.5) — when an AI child genuinely dies without emitting a final JSON event the synthesised error chunk now includes the last 20 lines of the child's stderr so you don't need a debug build to diagnose it.
+- **Settings → AI shows resolved binary path** (from 0.2.5) — under the version line for each CLI you can see the actual path the resolver picked (`C:\Users\…\AppData\Roaming\npm\claude.cmd`, `/opt/homebrew/bin/codex`, your custom override, …). Makes it obvious which install is in use.
+- **Right-click open** (#73, from 0.2.4) — context-menu *Open with MerMark* on Windows now actually opens the file instead of failing silently.
+- **Drop file from workspace tree onto split pane** — drag a file out of the sidebar onto the left or right pane in split mode and it opens there. Works on empty panes too. Capture-phase listeners outrank TipTap/ProseMirror's own dragover handler so the cursor doesn't stick in not-allowed.
+- **Click on workspace file with zero tabs open** — after Close All, clicking a workspace file used to do nothing because `loadFileIntoTab` short-circuited on `findActiveTabIndex() === -1`. Falls through to `createNewTab` now.
+- **Window stays open after Close All when a workspace is open** — closing the last tab no longer terminates the window when at least one workspace is loaded; the sidebar stays useful for browsing, dragging, and quick-switching.
+- **Typing lag on big docs** — `useToolbarActions` is called by ~20 components (Toolbar / LeftBar / StatusBar / each ToolbarItemRenderer); each used to register its own `editor.on('update')` listener that ran `getHTML` + `htmlToMarkdown` + token recount. With many tables / code blocks this stalled typing for hundreds of milliseconds per character. Listener + token counter hoisted to module scope (one per editor); typing is responsive again.
 
-- **Bypass mode** — one-click skip of per-action confirmations *within* the access-map limits when you're iterating fast. The statusbar indicator blinks red while it's on so you don't forget.
+## Under the hood
 
-## Chat experience
-
-- **Two providers, one panel** — switch between `claude` and `codex` from the chat header. Per-CLI defaults persist (last model, last reasoning effort).
-- **Token streaming** — replies render token-by-token, with a thinking indicator until the first chunk arrives.
-- **Context window indicator** — segmented bar shows live usage (input / cache / free), pulled from each CLI's reported `modelUsage`. Reads true 1M window for Opus 4.7.
-
-  ![Streaming + context window indicator](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/streaming-context.png)
-
-- **Per-document threads** — every doc gets its own scrollable thread history; **+** archives the current chat and starts fresh. Up to 50 threads / doc, persisted in `localStorage`.
-- **Reopen a thread, pick up where you left off** — thread history now records the last CLI / model / effort used. Click an old chat from the threads dropdown and the panel automatically switches Claude ↔ Codex, restores the model and reasoning effort you were using, so continuing the conversation behaves the same way it did last time.
-- **Inline tool history** — when the model calls a tool (web fetch, bash, file read, file write, etc.) the call appears as a dashed chip in the transcript with the tool name and a one-line preview of the arguments. Click the chip to expand a pretty-printed JSON view of the full call; click again to collapse.
-
-  ![Tool call chips with expandable arguments](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/tool-chips.png)
-- **Clickable links in chat** — bare URLs and markdown links open through the existing external-link confirm dialog (same one the editor uses for `[text](https://…)` links).
-- **Window controls** — minimize the panel to a tab in the corner, maximize to fullscreen, or close — all from the panel header.
-- **Send shortcut** — `Ctrl+Enter` on Windows/Linux, `Cmd+Enter` on macOS.
-
-## Safety and trust
-
-- **Snapshot history** — rotated retention (pinned + N newest, default 3) with restore / pin / export / delete. Pre-edit snapshot is automatic on every AI write.
-
-  ![Snapshot history](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/snapshots.png)
-
-- **Concurrent-edit detection** — if the doc changes underneath an in-flight AI request, you're warned before applying.
-- **Tmp recovery** — orphaned `.mermark-ai.tmp` from a crashed session is detected on doc open with a Restore / Discard / Show diff dialog.
-- **Multi-window safe** — streaming events are scoped to the originating window so opening a second editor doesn't cross-talk.
-- **Health checks + audit log** — Settings → AI shows install / authentication state for both CLIs (cached, with re-check), an append-only JSONL audit log viewer, and the runtime bypass toggle.
-
-  ![Settings — AI](https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/settings-ai.png)
-
-- **First-run tooltip** — explains where to disable AI on first launch; AI is **on by default**.
-- **Statusbar indicator** — green / red / blinking-red (bypass on); placement honors the configurable left/right panel side.
-
-## Other
-
-- **Resizable mermaid editor split** — drag the divider between code and preview panes in the fullscreen mermaid editor to adjust their sizes (#51).
-- **Mermaid default scale** — new diagrams render at 25% by default.
-- **Customizable Layout** — toolbar items move between **Top Toolbar**, **Bottom Status Bar**, and **Left Sidebar** via Settings → Layout (#43); drag & drop, hide, reorder, persisted across restarts.
-- **Expandable left sidebar** — toggle the chevron at the bottom of the left bar to widen it from a 40 px icon strip to a 168 px column with text labels next to every icon (VS Code style). State persists across restarts. The AI button label was being truncated in the narrow strip; now it just hides until the bar is expanded.
-
-  <p>
-    <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/leftbar-expand-closed.png" alt="Left sidebar — collapsed (40 px icon strip)" width="48%" />
-    <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.0/leftbar-expand.png" alt="Left sidebar — expanded (168 px with labels)" width="48%" />
-  </p>
-
-- **Layout zone guards** — items that don't fit the narrow left sidebar (Statistics, Heading dropdown, Open file) refuse to drop there; the drop indicator vanishes over the disallowed zone and the matching move-to button is disabled with an explanatory tooltip. Open file is also pinned to the top toolbar (the bottom status bar broke its dropdown anchoring). Saved layouts that already placed an item in a now-disallowed zone are auto-migrated back to the item's default zone on load.
-- **Page break support** — `---` page breaks render correctly in Visual view and PDF export (#45).
-- **Table of Contents sidebar** — collapsible left panel showing document headings with click-to-navigate (#41), toggle with `Ctrl+Shift+T`.
-- **Expanded keyboard shortcuts** (#64) — `Ctrl/Cmd+W` close tab, `Ctrl/Cmd+N` new tab, `Ctrl/Cmd+Tab` / `+Shift+Tab` cycle, `Ctrl/Cmd+1..9` jump, `Ctrl/Cmd+Shift+V` toggle Code/Visual, `Ctrl/Cmd++/-/0` zoom, `Ctrl/Cmd+,` settings, `Ctrl/Cmd+/` shortcuts modal (auto-renders Mac glyphs `⌘ ⇧ ⌥`).
-- **Toolbar architecture refactored** — registry-based system replacing the monolithic 1150-line Toolbar.vue.
-- **AI panel architecture refactored** — the 1772-line `AiPanel.vue` was split into a 502-line orchestrator + 12 self-contained subcomponents (header, composer, message list, pin list, image strip, attachment modal, image preview, threads dropdown, context bar, status notices, tool toast, minimised tab) and 5 reusable composables (`useAiPanelLayout`, `useAiPinnedSelections`, `useAiPendingImages`, `useAiPreamble`, `useAiToolToast`). Every subcomponent ships its own scoped CSS, so style edits no longer require hunting through 850 lines of CSS in a sibling file. 89 new Vitest tests cover the composables and the most-touched subcomponents.
-- **Statistics grouped** — character / word / line / token counters as a single movable unit.
-- **White theme option for Code view** (#67).
-- **Optional support link** — Settings → General now has a subtle "Support development" row with a Buy Me a Coffee button (transparent until you hover it, opens in your default browser). MerMark stays free, MIT-licensed and telemetry-free; the link is just there if you want to say thanks.
-
-## Bug Fixes
-
-- **Codex resume + image attachments** — `codex exec resume` does not surface the `-i <FILE>` flag, so attaching an image while continuing an existing chat used to silently drop the image and the model would only see the text. The backend now forces a fresh codex session for any turn that includes images. Conversation context for that one turn resets (codex limitation), but the model actually sees the attached image instead of pretending it wasn't there.
-- **Cursor mapping** — Code ↔ Visual position uses a source-line block parser instead of DOM estimation; survives multiple toggles, large code blocks, and font-size changes (#37).
-- **Code-view tab switching** no longer loses content (#46).
-- **Trailing blank lines** no longer appended on save (#53).
-- **PDF export** — left bar, status bar and split dividers no longer leak into print output.
-- **Mermaid fullscreen scale** — the fullscreen mermaid editor now renders the diagram at 1:1 instead of inheriting the document's zoom level.
-- **Mermaid unmount race** — diagram render no longer writes to an `innerHTML` of an already-unmounted node.
-- **Verbose AI console output cleaned up** — the per-chunk `[useAi] chunk:`, per-line `[ai stdout]` / `[ai chunk]`, and `(valid JSON, no chunk)` traces that filled the dev console during every reply are gone. Real diagnostics (unparsed lines, EOF without finalisation, codex stderr in dev builds) are kept.
-- **macOS file-open** handler (#63) and resilient line numbers (#61) — both ported from #66.
-- **Windows console pop-up on every AI CLI spawn** — every `claude` / `codex` / `taskkill` invocation used to flash a black `cmd.exe` window because Rust's `Command::new` defaults to inheriting a console on Windows. Backend now sets `CREATE_NO_WINDOW` (`0x08000000`) on every child spawn, so Windows users no longer see flickering windows during health checks, AI sends, or cancellations.
-- **Claude AI assistant on Windows — `batch file arguments are invalid`** — every Claude turn on Windows failed with the cryptic shell error and no reply. Root cause: `claude` resolves to the `claude.cmd` npm shim on Windows, and Rust 1.77+ (CVE-2024-24576 mitigation) rejects any argument containing `\n` / `\r` when invoking `.cmd` / `.bat` files. The system preamble we passed via `--append-system-prompt` is multi-line, so the spawn always blew up before the binary even ran. The Claude spawn now uses the documented `--input-format stream-json` path universally (it was already wired for image attachments) and folds the preamble into the user message text — the same approach the Codex spawn already takes. Cross-platform: works identically on Windows, macOS and Linux; also lifts the ~32 KB Windows arg-length limit so a long preamble can no longer truncate.
-- **Codex error events now surface in the chat** — when a Codex turn failed (e.g. *"The 'gpt-5' model is not supported when using Codex with a ChatGPT account."*) the UI used to show a generic *"AI process exited without finalising the turn"* and the actual reason was silently dropped: the stdout normalizer didn't recognise Codex's top-level `error` / `turn.failed` envelopes and the line-validity guard threw them away. The normalizer now matches both shapes and unwraps the nested upstream API message so the user sees the real error text in the message bubble.
-- **Last-stderr tail attached to "exited without finalising" errors** — when an AI child genuinely dies without emitting a final JSON event (sandbox setup failure, segfault, etc.), the synthesised error chunk now includes the last 20 lines of the child's stderr so you don't have to switch to a debug build to find out why. Bounded buffer; chatty CLIs cannot grow it without limit.
-- **Settings → AI now shows the resolved binary path** — under the version line for each CLI you can see the actual path the resolver picked (`C:\Users\…\AppData\Roaming\npm\claude.cmd`, `/opt/homebrew/bin/codex`, your custom override, …). Makes it obvious which install is being used when you have several on `PATH` or when an override is in effect.
-- **Default AI model bumps** — Claude default jumps from `claude-opus-4-5` to `claude-opus-4-7`; Codex default moves to `gpt-5.5`. The Codex model picker also gains an explicit `gpt-5-codex` entry (the model that ChatGPT-account logins must use; `gpt-5` itself is API-key only).
-- **Claude / Codex CLI detection on macOS and Linux** (#70) — GUI apps launched from Finder / Dock / Spotlight (and Linux desktop launchers) inherit a minimal `PATH` that does not include Homebrew, npm-global, volta, nvm, bun or other shell-managed prefixes, so installed `claude` / `codex` binaries showed up as `Binary not found` even though they worked from the terminal. The resolver now walks `PATH`, then a curated list of standard install dirs (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.npm-global/bin`, `~/.bun/bin`, `~/.volta/bin`, `~/.cargo/bin`, `~/.local/bin`, `~/.nvm/versions/node/*/bin`), and finally falls back to a login-shell probe (`$SHELL -lc 'command -v <name>'`) so anything wired into `~/.zshrc` / `~/.bashrc` (asdf, mise, fnm, snap, …) is also picked up. As a bulletproof escape hatch, *Settings → AI → CLI* now exposes a per-CLI **Custom binary path** field with a file picker, OS-aware placeholder, and the actual list of locations the app searched on the current platform — so you can see what was tried before reaching for the override.
+- **AI CLI path cache** — once a `claude` / `codex` binary is resolved, the path is stored in settings (`cliResolvedPathClaude` / `cliResolvedPathCodex`) and reused on subsequent probes. Cold-start health checks are now near-instant on machines where the resolver had to do a login-shell probe.
+- **Settings migration** — `useSettings` deep-merges new fields on load (`editorPaddingTop / Bottom / X`, `openWorkspaces[]`, `activeWorkspaceId`, `cliResolvedPath*`), so existing installs upgrade without losing anything.
+- **Markdown roundtrip for mermaid attrs** — node attributes (`userWidth`, `splitRatio`, `printScale`) survive markdown serialization via a `<!--mermaid-attrs:k=v,…-->` HTML comment immediately before the fenced block, parsed back into TipTap node attrs on load.
+- **`useAiMermaidTarget` singleton** — clean bridge between the diagram node and the AI panel. The node only registers a target with `apply` and `cancel` callbacks; the singleton tracks the candidate and exposes `applyCandidate` / `discardCandidate` / `clear`. Adding new "AI edits this kind of node" surfaces will use the same pattern.
+- **`useToolbarActions` listener deduped** — Toolbar / LeftBar / StatusBar / every ToolbarItemRenderer call site used to register its own `editor.on('update')` handler, so each keystroke ran ~20 copies of `getHTML` + `htmlToMarkdown` + token recount. The listener and the token counter are now hoisted to module scope (one per editor); typing on docs with many tables / code blocks no longer stalls.

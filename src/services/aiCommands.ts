@@ -8,7 +8,6 @@ export interface HealthStatus {
   version: string | null;
   account: string | null;
   error: string | null;
-  /** Absolute path to the binary that PATH/override resolution picked. */
   resolvedPath: string | null;
 }
 

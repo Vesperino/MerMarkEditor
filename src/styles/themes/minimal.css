@@ -1,0 +1,555 @@
+/* ==========================================================================
+ * Minimal theme variant — Zettlr / iA Writer inspired
+ *
+ * Activates when `<html data-variant="minimal">` is present. Combines with
+ * `html.dark` (or its absence) so the four states `default-light`,
+ * `default-dark`, `minimal-light`, `minimal-dark` are independently
+ * styleable.
+ *
+ * Design intent (matches the user's stated reference: Zettlr):
+ *   - Paper-like background (warm cream in light, deep ink in dark)
+ *   - Serif body type for editor; clean sans for chrome
+ *   - Hairline borders, no gradients, no drop shadows on chrome
+ *   - Tabs as quiet underline-only labels — content first
+ *   - Wide editor side padding (max readable measure ~70ch)
+ *   - Toolbar / status bar muted; stay out of the way until used
+ *
+ * Each section below is self-contained so one block can be tweaked
+ * without affecting the others.
+ * ========================================================================== */
+
+/* Code blocks in Minimal use the same dark slate as the default dark
+ * theme regardless of light/dark editor mode. The body type is serif
+ * paper, but code is reference material — keeping it on a consistent
+ * dark substrate lets the syntax-highlight palette stay readable.
+ * (Inline code stays light/teal — see rules at the bottom.) */
+html[data-variant="minimal"] .editor-content .tiptap pre,
+html[data-variant="minimal"] .editor-content .ProseMirror pre {
+  background: #0d1117 !important;
+  color: #e2e8f0 !important;
+  border: none;
+}
+
+html[data-variant="minimal"] .editor-content .tiptap pre code,
+html[data-variant="minimal"] .editor-content .ProseMirror pre code {
+  background: transparent !important;
+  color: inherit !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* ===== Color tokens — light minimal ===== */
+/* Palette derives from the Mermaid Markdown logo: deep slate base, teal
+ * primary accent that fades to coral. Gives the editor a cohesive identity
+ * with the brand mark. */
+html[data-variant="minimal"] {
+  /* Cool, paper-like surface — keeps reading comfort but pairs with teal */
+  --bg-primary: #fafaf7;
+  --bg-secondary: #f3f4f1;
+  --bg-tertiary: #e8eae6;
+  --bg-input: #ffffff;
+
+  /* Slate ink — pulls from the dark side of the logo */
+  --text-primary: #1c2530;
+  --text-secondary: #4a5664;
+  --text-muted: #7a8694;
+  --text-faint: #a9b3bc;
+
+  /* Hairline borders */
+  --border-primary: #dde1de;
+  --border-secondary: #c4cbc7;
+
+  /* Mermaid teal as the primary accent */
+  --primary: #14b8a6;
+  --primary-hover: #0d9488;
+  --primary-rgb: 20, 184, 166;
+
+  --focus-ring: #14b8a6;
+  --focus-ring-alpha: rgba(20, 184, 166, 0.18);
+
+  --active-bg: #d6f4ef;
+  --active-border: #5eead4;
+  --active-text: #0f766e;
+  --hover-bg: #ecf5f2;
+
+  /* Coral derived from the logo's tail — used for danger / highlighted accents */
+  --danger: #f43f5e;
+  --danger-light: #fb7185;
+  --danger-bg: #fff1f3;
+  --danger-hover-bg: #ffe4e8;
+
+  /* Surfaces share the paper tone */
+  --statusbar-bg: var(--bg-primary);
+  --leftbar-bg: var(--bg-primary);
+  --toolbar-gradient-from: var(--bg-primary);
+  --toolbar-gradient-to: var(--bg-primary);
+
+  --editor-container-bg: var(--bg-primary);
+  --editor-content-bg: var(--bg-primary);
+
+  --tab-bg: transparent;
+  --tab-hover-bg: var(--hover-bg);
+  --tab-active-bg: transparent;
+
+  --dialog-bg: var(--bg-primary);
+  --dialog-actions-bg: var(--bg-secondary);
+  --overlay-bg: rgba(40, 35, 28, 0.4);
+
+  /* No gimmicky shadow */
+  --shadow-sm: 0 0 0 transparent;
+  --shadow-lg: 0 8px 32px rgba(40, 35, 28, 0.18);
+  --shadow-dropdown: 0 2px 12px rgba(40, 35, 28, 0.12);
+
+  /* Typography stacks — system-quality serifs across macOS/Windows/Linux. */
+  --minimal-font-serif: "Charter", "Iowan Old Style", "Palatino Linotype",
+    "Cambria", Georgia, "Times New Roman", serif;
+  --minimal-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Editor inherits serif by default; user font setting still wins via
+     --editor-font-family override in useSettings. */
+  --editor-line-height: 1.7;
+  --toolbar-height: 38px;
+}
+
+/* ===== Color tokens — dark minimal ===== */
+/* Mirrors the dark slate background of the Mermaid Markdown logo. */
+html.dark[data-variant="minimal"] {
+  /* Deep slate base — straight from the logo */
+  --bg-primary: #1a2028;
+  --bg-secondary: #1f2630;
+  --bg-tertiary: #2a313c;
+  --bg-input: #232a35;
+
+  --text-primary: #e1e6ec;
+  --text-secondary: #aab4bf;
+  --text-muted: #788494;
+  --text-faint: #525d6b;
+
+  --border-primary: #2c333d;
+  --border-secondary: #3b4350;
+
+  /* Brighter teal so it pops against the dark slate */
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --primary-rgb: 45, 212, 191;
+
+  --focus-ring: #2dd4bf;
+  --focus-ring-alpha: rgba(45, 212, 191, 0.22);
+
+  --active-bg: rgba(45, 212, 191, 0.14);
+  --active-border: rgba(45, 212, 191, 0.45);
+  --active-text: #5eead4;
+  --hover-bg: #262d38;
+
+  /* Coral on dark — same hue, slightly punchier */
+  --danger: #fb7185;
+  --danger-light: #f87171;
+  --danger-bg: rgba(251, 113, 133, 0.14);
+  --danger-hover-bg: rgba(251, 113, 133, 0.22);
+
+  --shadow-sm: 0 0 0 transparent;
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.45);
+
+  --overlay-bg: rgba(0, 0, 0, 0.68);
+  --dialog-bg: var(--bg-secondary);
+  --dialog-actions-bg: var(--bg-tertiary);
+}
+
+/* ===== Global rules — apply to body in minimal mode ===== */
+html[data-variant="minimal"] body {
+  font-family: var(--minimal-font-sans);
+}
+
+/* ===== Separator helpers =====
+ * `--accent-gradient` and `--accent-strong` are defined elsewhere only when
+ * the user has enabled the coral-accents pass; the safe defaults below
+ * keep this stylesheet self-contained when those tokens aren't set. */
+html[data-variant="minimal"] {
+  --hairline: 1px solid var(--border-primary);
+  --hairline-soft: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+}
+
+/* ===== Toolbar =====
+ * Two-line bottom: a hairline border for structure plus a barely-there
+ * inset shadow that fakes a 0.5 px sub-pixel rule. Reads as one crisp
+ * separator instead of an aliased 1 px line. */
+html[data-variant="minimal"] .toolbar {
+  padding: 4px 12px;
+  gap: 2px;
+  box-shadow: 0 1px 0 var(--bg-primary), 0 0 0 transparent;
+  border-bottom: var(--hairline);
+  background: var(--bg-primary);
+  position: relative;
+}
+
+html[data-variant="minimal"] .toolbar::after {
+  /* Soft gradient highlight just under the toolbar — fades from teal on
+   * the left to transparent on the right, a quiet brand cue. */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(20, 184, 166, 0.35) 0%,
+    rgba(20, 184, 166, 0.12) 24%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+html.dark[data-variant="minimal"] .toolbar::after {
+  background: linear-gradient(
+    90deg,
+    rgba(45, 212, 191, 0.45) 0%,
+    rgba(45, 212, 191, 0.18) 24%,
+    transparent 60%
+  );
+}
+
+html[data-variant="minimal"] .toolbar .toolbar-button,
+html[data-variant="minimal"] .toolbar button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+  font-weight: 400;
+  letter-spacing: 0;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+html[data-variant="minimal"] .toolbar button:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .toolbar button.active {
+  background: transparent;
+  color: var(--primary);
+  border-color: transparent;
+}
+
+/* Toolbar separators are decoration; weaken them. */
+html[data-variant="minimal"] .toolbar .toolbar-separator {
+  background: var(--border-primary);
+  opacity: 0.6;
+  margin: 0 6px;
+  height: 20px;
+}
+
+html[data-variant="minimal"] .toolbar .toolbar-divider {
+  margin: 0 4px;
+  opacity: 0.6;
+}
+
+/* ===== Tab bar ===== */
+html[data-variant="minimal"] .tab-bar {
+  padding: 0 8px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+html[data-variant="minimal"] .tab,
+html[data-variant="minimal"] .tab-bar .tab {
+  border-radius: 0;
+  padding: 8px 14px;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 400;
+  font-family: var(--minimal-font-sans);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+html[data-variant="minimal"] .tab:hover,
+html[data-variant="minimal"] .tab-bar .tab:hover {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .tab.active,
+html[data-variant="minimal"] .tab-bar .tab.active {
+  background: transparent;
+  border-bottom-color: var(--primary);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ===== Status bar ===== */
+html[data-variant="minimal"] .status-bar {
+  font-size: 11px;
+  padding: 2px 12px;
+  background: var(--bg-primary);
+  border-top: var(--hairline);
+  color: var(--text-muted);
+  font-family: var(--minimal-font-sans);
+  letter-spacing: 0.02em;
+  position: relative;
+}
+
+/* Mirror the toolbar's accent line — fades up rather than down. */
+html[data-variant="minimal"] .status-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 40%,
+    rgba(20, 184, 166, 0.12) 76%,
+    rgba(20, 184, 166, 0.35) 100%
+  );
+  pointer-events: none;
+}
+
+html.dark[data-variant="minimal"] .status-bar::before {
+  background: linear-gradient(
+    90deg,
+    transparent 40%,
+    rgba(45, 212, 191, 0.18) 76%,
+    rgba(45, 212, 191, 0.45) 100%
+  );
+}
+
+html[data-variant="minimal"] .status-bar button {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .status-bar button:hover {
+  color: var(--text-primary);
+}
+
+/* ===== Left bar (vertical icon rail) ===== */
+html[data-variant="minimal"] .left-bar {
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-primary);
+}
+
+html[data-variant="minimal"] .left-bar button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .left-bar button:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+/* ===== Workspace sidebar ===== */
+html[data-variant="minimal"] .workspace-sidebar,
+html[data-variant="minimal"] .workspace-sidebar .ws-header,
+html[data-variant="minimal"] .workspace-sidebar .ws-body,
+html[data-variant="minimal"] .workspace-sidebar .ws-tabs {
+  background: var(--bg-primary);
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-title {
+  font-family: var(--minimal-font-sans);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-family: var(--minimal-font-sans);
+  font-weight: 400;
+  font-size: 11px;
+  padding: 6px 8px;
+  letter-spacing: 0.02em;
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab:hover {
+  color: var(--text-primary);
+  background: transparent;
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab.active {
+  border-bottom-color: var(--primary);
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab-add {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+}
+
+html[data-variant="minimal"] .workspace-sidebar .ws-tab-add:hover {
+  color: var(--primary);
+}
+
+/* Tree rows — quieter typography, no folder colour pop */
+html[data-variant="minimal"] .file-tree-node .tree-row {
+  font-family: var(--minimal-font-sans);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 3px 8px 3px 4px;
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row.active {
+  background: var(--active-bg);
+  color: var(--active-text);
+  font-weight: 500;
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row.folder .tree-icon {
+  color: var(--text-muted);
+}
+
+html[data-variant="minimal"] .file-tree-node .tree-row.active .tree-icon {
+  color: var(--active-text);
+}
+
+/* ===== Editor content — serif body, generous measure ===== */
+html[data-variant="minimal"] .editor-container {
+  background: var(--bg-primary);
+}
+
+html[data-variant="minimal"] .editor-content,
+html[data-variant="minimal"] .ProseMirror,
+html[data-variant="minimal"] .tiptap {
+  font-family: var(--minimal-font-serif);
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  /* Padding driven by user-tunable CSS vars (Settings → Editor → Padding).
+     Defaults defined in useSettings; fallbacks here keep the layout sane
+     before applyCssVars runs on first paint. */
+  padding-top: var(--editor-pad-top, 16px);
+  padding-bottom: var(--editor-pad-bottom, 32px);
+  padding-left: var(--editor-pad-x, 24px);
+  padding-right: var(--editor-pad-x, 24px);
+}
+
+/* Headings: tighter, slight letter-spacing, no underline rule */
+html[data-variant="minimal"] .ProseMirror h1,
+html[data-variant="minimal"] .ProseMirror h2,
+html[data-variant="minimal"] .ProseMirror h3,
+html[data-variant="minimal"] .ProseMirror h4,
+html[data-variant="minimal"] .ProseMirror h5,
+html[data-variant="minimal"] .ProseMirror h6,
+html[data-variant="minimal"] .tiptap h1,
+html[data-variant="minimal"] .tiptap h2,
+html[data-variant="minimal"] .tiptap h3 {
+  font-family: var(--minimal-font-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-top: 1.6em;
+  margin-bottom: 0.4em;
+  color: var(--text-primary);
+}
+
+html[data-variant="minimal"] .ProseMirror h1,
+html[data-variant="minimal"] .tiptap h1 {
+  font-size: 1.85em;
+  line-height: 1.2;
+}
+
+html[data-variant="minimal"] .ProseMirror h2,
+html[data-variant="minimal"] .tiptap h2 {
+  font-size: 1.45em;
+  line-height: 1.25;
+}
+
+html[data-variant="minimal"] .ProseMirror h3,
+html[data-variant="minimal"] .tiptap h3 {
+  font-size: 1.18em;
+  line-height: 1.3;
+}
+
+html[data-variant="minimal"] .ProseMirror p,
+html[data-variant="minimal"] .tiptap p {
+  margin: 0 0 0.85em 0;
+}
+
+html[data-variant="minimal"] .ProseMirror blockquote,
+html[data-variant="minimal"] .tiptap blockquote {
+  border-left-width: 2px;
+  border-left-color: var(--text-faint);
+  color: var(--text-secondary);
+  font-style: italic;
+  padding-left: 1em;
+}
+
+html[data-variant="minimal"] .ProseMirror hr,
+html[data-variant="minimal"] .tiptap hr {
+  border: none;
+  border-top: 1px solid var(--border-primary);
+  margin: 1.6em 0;
+  width: 100%;
+}
+
+/* Inline code: subtle coral tint to nod at the logo's gradient tail without
+ * overpowering body type. Background stays neutral. */
+html[data-variant="minimal"] .ProseMirror code,
+html[data-variant="minimal"] .tiptap code {
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: var(--danger);
+}
+
+html[data-variant="minimal"] .ProseMirror a,
+html[data-variant="minimal"] .tiptap a {
+  color: var(--primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* ===== Tabs in tab-strip animation tweak ===== */
+html[data-variant="minimal"] .ws-tabs {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+/* ===== Dialogs ===== */
+html[data-variant="minimal"] .settings-panel,
+html[data-variant="minimal"] .dialog-bg {
+  border-radius: 6px;
+  box-shadow: var(--shadow-lg);
+}
+
+html[data-variant="minimal"] .settings-tab.active {
+  border-bottom-color: var(--primary);
+}
+
+/* ===== Scrollbar ===== */
+html[data-variant="minimal"] {
+  --scrollbar-thumb: var(--border-secondary);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* Fade transition between variants — keeps the toggle feeling intentional */
+html[data-variant="minimal"] body,
+html[data-variant="minimal"] .toolbar,
+html[data-variant="minimal"] .status-bar,
+html[data-variant="minimal"] .workspace-sidebar,
+html[data-variant="minimal"] .editor-container {
+  transition: background-color 0.18s ease, color 0.18s ease;
+}

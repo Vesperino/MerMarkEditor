@@ -4,6 +4,7 @@ import type { Tab } from '../composables/useTabs';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useI18n } from '../i18n';
 import { useSettings } from '../composables/useSettings';
+import TabContextMenu, { type TabContextAction } from './TabContextMenu.vue';
 
 const { t } = useI18n();
 const { settings } = useSettings();
@@ -17,7 +18,46 @@ const props = defineProps<{
 const emit = defineEmits<{
   switchTab: [tabId: string];
   closeTab: [tabId: string];
+  togglePin: [tabId: string];
+  closeOthers: [tabId: string];
+  closeAll: [];
+  closeAllButPinned: [];
+  closeSaved: [];
 }>();
+
+// Context menu state
+const ctxMenu = ref<{ x: number; y: number; tab: Tab } | null>(null);
+
+function openContextMenu(event: MouseEvent, tab: Tab) {
+  event.preventDefault();
+  ctxMenu.value = { x: event.clientX, y: event.clientY, tab };
+}
+
+function onContextAction(action: TabContextAction) {
+  const tab = ctxMenu.value?.tab;
+  if (!tab) return;
+  switch (action) {
+    case 'pin':
+    case 'unpin':
+      emit('togglePin', tab.id);
+      break;
+    case 'close':
+      emit('closeTab', tab.id);
+      break;
+    case 'close-others':
+      emit('closeOthers', tab.id);
+      break;
+    case 'close-all':
+      emit('closeAll');
+      break;
+    case 'close-all-but-pinned':
+      emit('closeAllButPinned');
+      break;
+    case 'close-saved':
+      emit('closeSaved');
+      break;
+  }
+}
 
 const { isDragging, draggedTab, startDrag, setDropZone, clearDropZone } = useTabDrag();
 
@@ -168,13 +208,26 @@ const handleBarMouseLeave = () => {
       class="tab"
       :class="{
         active: tab.id === activeTabId,
+        pinned: tab.pinned,
         'drop-before': dropTargetIndex === index && isDragging,
         'being-dragged': isDragging && draggedTab?.tabId === tab.id
       }"
       @mousedown="handleMouseDown($event, tab)"
+      @contextmenu="(e: MouseEvent) => openContextMenu(e, tab)"
       @mouseenter="(e) => { handleMouseEnter(index); showTooltip(e, tab); }"
       @mouseleave="() => { handleMouseLeave(); hideTooltip(); }"
     >
+      <svg
+        v-if="tab.pinned"
+        class="tab-pin-icon"
+        width="11"
+        height="11"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        :title="t.tabPinned"
+      >
+        <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
+      </svg>
       <span class="tab-name">{{ getTabDisplayName(tab) }}</span>
       <span v-if="tab.hasChanges" class="tab-unsaved">*</span>
       <button
@@ -184,6 +237,16 @@ const handleBarMouseLeave = () => {
       >&times;</button>
     </div>
   </div>
+
+  <TabContextMenu
+    v-if="ctxMenu"
+    :x="ctxMenu.x"
+    :y="ctxMenu.y"
+    :is-pinned="!!ctxMenu.tab.pinned"
+    :has-other-tabs="tabs.length > 1"
+    @action="onContextAction"
+    @close="ctxMenu = null"
+  />
 
   <Teleport to="body">
     <div
@@ -300,6 +363,23 @@ const handleBarMouseLeave = () => {
 .tab-close:hover {
   background: var(--danger-light);
   color: white;
+}
+
+.tab-pin-icon {
+  flex-shrink: 0;
+  color: var(--primary);
+  margin-right: 2px;
+  transform: rotate(45deg);
+}
+
+.tab.pinned .tab-name {
+  font-weight: 500;
+}
+
+.tab.pinned .tab-close {
+  /* Hide × on pinned tabs to prevent accidental closes — the user can
+     still close via right-click → Close, but the click target goes away. */
+  display: none;
 }
 
 @media print {

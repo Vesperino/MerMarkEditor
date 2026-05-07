@@ -104,9 +104,9 @@ describe('useAiPreamble.buildPreamble', () => {
     expect(out).toContain('IMPORTANT: The document is not saved yet');
   });
 
-  it('emits unsaved active-file line when docPath is empty', () => {
+  it('emits unsaved main-file line when docPath is empty', () => {
     const out = buildPreamble({ ...base(), docPath: '', docNeedsSave: true });
-    expect(out).toContain('Active file: (unsaved');
+    expect(out).toContain('Main file: (unsaved');
   });
 
   it('appends large-doc note when oversized and override off', () => {
@@ -117,5 +117,42 @@ describe('useAiPreamble.buildPreamble', () => {
   it('skips large-doc note when override on', () => {
     const out = buildPreamble({ ...base(), docTooLarge: true, sendFullDocOverride: true });
     expect(out).not.toMatch(/Note: the active document is large/);
+  });
+
+  describe('workspace context', () => {
+    it('emits no workspace lines when workspaceRoot is empty', () => {
+      const out = buildPreamble(base());
+      expect(out).not.toMatch(/Workspace:/);
+      expect(out).not.toMatch(/Workspace root/);
+    });
+
+    it('emits workspace name + root + read-only guidance', () => {
+      const out = buildPreamble({
+        ...base(),
+        workspaceName: 'notes',
+        workspaceRoot: '/Users/me/notes',
+      });
+      expect(out).toContain('Workspace: notes');
+      expect(out).toContain('Workspace root (read-only context): /Users/me/notes');
+      expect(out).toMatch(/only WRITE to the main file/);
+    });
+
+    it('falls back to root path when workspaceName is empty', () => {
+      const out = buildPreamble({
+        ...base(),
+        workspaceName: '',
+        workspaceRoot: '/x/y',
+      });
+      expect(out).toContain('Workspace: /x/y');
+    });
+
+    it('main file line clarifies it is the only writable target', () => {
+      const out = buildPreamble({
+        ...base(),
+        workspaceRoot: '/x',
+        docPath: '/x/file.md',
+      });
+      expect(out).toMatch(/Main file.*only writable target.*\/x\/file.md/);
+    });
   });
 });

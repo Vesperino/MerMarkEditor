@@ -15,6 +15,8 @@ import { useAiToolToast } from '../../composables/useAiToolToast';
 import { useAiPinnedSelections } from '../../composables/useAiPinnedSelections';
 import { useAiPendingImages, type PendingImage } from '../../composables/useAiPendingImages';
 import { buildPreamble } from '../../composables/useAiPreamble';
+import { useAiMermaidTarget, extractMermaidCodeFromResponse } from '../../composables/useAiMermaidTarget';
+import { withWorkspaceReadAccess } from '../../composables/useAiWorkspaceContext';
 import AiPanelTab from './AiPanelTab.vue';
 import AiPanelHeader from './AiPanelHeader.vue';
 import AiPanelContextBar from './AiPanelContextBar.vue';
@@ -32,6 +34,10 @@ const props = defineProps<{
   selectionRange: { start: number; end: number } | null;
   selectionText?: string;
   workDir: string;
+  /** Optional name of the workspace owning the active file (for AI context). */
+  workspaceName?: string;
+  /** Optional absolute root path of the workspace (for AI context). */
+  workspaceRoot?: string;
 }>();
 
 const emit = defineEmits<{
@@ -95,6 +101,45 @@ const liveSelectionText = computed<string | null>(() => {
 
 const pins = useAiPinnedSelections({ liveSelectionText });
 const images = useAiPendingImages();
+
+// ===== Mermaid edit mode bridge =====
+// When a Mermaid node registers an AI edit target, auto-pin its source so the
+// user sees it as scoped context, switch the preamble into mermaid-edit mode,
+// and route assistant replies back to the node via target.pushCandidate.
+const aiMermaid = useAiMermaidTarget();
+const mermaidPinId = ref<string | null>(null);
+const mermaidEditMode = computed<boolean>(() => aiMermaid.target.value !== null);
+
+function clearMermaidPin() {
+  if (mermaidPinId.value) {
+    pins.removePin(mermaidPinId.value);
+    mermaidPinId.value = null;
+  }
+}
+
+watch(
+  () => aiMermaid.target.value,
+  (target) => {
+    clearMermaidPin();
+    if (!target) return;
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `mermaid-pin-${Date.now()}`;
+    const pin = {
+      id,
+      text: `[Mermaid diagram]\n\`\`\`mermaid\n${target.initialCode}\n\`\`\``,
+      createdAt: new Date().toISOString(),
+    };
+    pins.pinnedSelections.value.push(pin);
+    pins.includePinned.value = true;
+    mermaidPinId.value = id;
+  },
+);
+
+function stopMermaidEdit() {
+  clearMermaidPin();
+  aiMermaid.clear();
+}
 const toolToast = useAiToolToast();
 const layout = useAiPanelLayout({
   panelSide: () => settings.value.ai.panelSide,
@@ -179,6 +224,15 @@ onMounted(async () => {
 
 onUnmounted(() => {
   layout.unmount();
+  // Drop our auto-pin so it doesn't reappear if the panel is mounted later
+  // without a matching mermaid target.
+  clearMermaidPin();
+  // Closing the panel ends any in-flight mermaid edit session — otherwise the
+  // diagram fullscreen would keep the AI-panel-side gap reserved with nothing
+  // there to fill it.
+  if (aiMermaid.target.value) {
+    aiMermaid.clear();
+  }
 });
 
 watch(() => props.docPath, async (p) => {
@@ -189,6 +243,12 @@ watch(() => props.docPath, async (p) => {
   }
 });
 
+function effectiveAccessMap() {
+  // Augment the per-doc access map with read access to the surrounding
+  // workspace, if any. Writes stay scoped to the active doc.
+  return withWorkspaceReadAccess(access.current.value, props.workspaceRoot ?? '');
+}
+
 function buildPreambleForSend(): string {
   const localeKey = (typeof navigator !== 'undefined' && (localStorage.getItem('mermark-locale') ?? 'en')) || 'en';
   return buildPreamble({
@@ -197,13 +257,16 @@ function buildPreambleForSend(): string {
       : [],
     includePins: pins.includePinned.value,
     selectionRange: props.selectionRange,
-    accessMap: access.current.value,
+    accessMap: effectiveAccessMap(),
     docPath: props.docPath,
     docNeedsSave: docNeedsSave.value,
     docTooLarge: docTooLarge.value,
     sendFullDocOverride: sendFullDocOverride.value,
     docMarkdownLength: docMarkdown.value.length,
     localeKey,
+    workspaceName: props.workspaceName ?? '',
+    workspaceRoot: props.workspaceRoot ?? '',
+    mermaidEditMode: mermaidEditMode.value,
   });
 }
 
@@ -260,7 +323,7 @@ async function onSend() {
     effort: selectedEffort.value,
     prompt,
     preamble: buildPreambleForSend(),
-    accessMap: access.current.value,
+    accessMap: effectiveAccessMap()!,
     workDir: props.workDir,
     images: imagePaths,
     onSessionId: async (sid) => {
@@ -275,6 +338,16 @@ async function onSend() {
       toolToast.trigger(tool);
     },
   });
+
+  // Mermaid bridge: hand the freshly-completed assistant reply to the singleton.
+  // Apply / Discard live in the panel chip and read from the same store.
+  if (aiMermaid.target.value) {
+    const lastMsg = ai.messages.value[ai.messages.value.length - 1];
+    if (lastMsg?.role === 'assistant' && lastMsg.text) {
+      const code = extractMermaidCodeFromResponse(lastMsg.text);
+      if (code) aiMermaid.pushCandidate(code);
+    }
+  }
 }
 
 async function onCancel() { await ai.cancel(); }
@@ -358,6 +431,7 @@ function onPreviewImage(img: PendingImage) {
   <AiPanelTab
     v-if="props.open && settings.ai.enabled && layout.minimized.value"
     :side="settings.ai.panelSide"
+    :class="{ 'ai-panel-tab--above-fullscreen': mermaidEditMode }"
     :style="layout.minimizedStyle.value"
     @restore="layout.minimized.value = false"
   />
@@ -365,7 +439,11 @@ function onPreviewImage(img: PendingImage) {
   <aside
     v-if="props.open && settings.ai.enabled && !layout.minimized.value"
     class="ai-panel"
-    :class="{ 'ai-panel--fullscreen': layout.fullscreen.value, 'ai-panel--left': settings.ai.panelSide === 'left' && !layout.fullscreen.value }"
+    :class="{
+      'ai-panel--fullscreen': layout.fullscreen.value,
+      'ai-panel--left': settings.ai.panelSide === 'left' && !layout.fullscreen.value,
+      'ai-panel--above-fullscreen': mermaidEditMode,
+    }"
     :style="layout.sideStyle.value"
   >
     <AiPanelHeader
@@ -406,6 +484,42 @@ function onPreviewImage(img: PendingImage) {
     />
 
     <AiPanelContextBar :usage="aiContext.usage.value" :usage-label="aiContext.usageLabel.value" />
+
+    <div v-if="mermaidEditMode" class="ai-panel-mermaid-chip">
+      <span class="ai-panel-mermaid-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="6" width="16" height="14" rx="3"/>
+          <circle cx="9" cy="13" r="1.3" fill="currentColor"/>
+          <circle cx="15" cy="13" r="1.3" fill="currentColor"/>
+          <line x1="9" y1="17" x2="15" y2="17"/>
+          <line x1="12" y1="3" x2="12" y2="6"/>
+          <circle cx="12" cy="2.5" r="1" fill="currentColor"/>
+          <line x1="2" y1="11" x2="4" y2="11"/>
+          <line x1="2" y1="14" x2="4" y2="14"/>
+          <line x1="20" y1="11" x2="22" y2="11"/>
+          <line x1="20" y1="14" x2="22" y2="14"/>
+        </svg>
+      </span>
+      <span class="ai-panel-mermaid-label">Editing mermaid diagram</span>
+      <button
+        v-if="aiMermaid.candidate.value !== null"
+        class="ai-panel-mermaid-apply"
+        @click="aiMermaid.applyCandidate()"
+        :title="t.aiAssistMermaidApply"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        {{ t.aiAssistMermaidApply }}
+      </button>
+      <button
+        v-if="aiMermaid.candidate.value !== null"
+        class="ai-panel-mermaid-discard"
+        @click="aiMermaid.discardCandidate()"
+        :title="t.cancel"
+      >×</button>
+      <button class="ai-panel-mermaid-stop" @click="stopMermaidEdit">Stop</button>
+    </div>
 
     <AiPanelStatusNotices :connecting="anyHealthLoading" :unsaved="docNeedsSave" />
 
@@ -498,5 +612,75 @@ function onPreviewImage(img: PendingImage) {
   width: auto;
   border: none;
   border-radius: 0;
+}
+/* When bound to a mermaid edit target, the diagram fullscreen overlay
+   (z-index 99999) would otherwise sit on top of the panel and tab. Bump
+   ours so they stay reachable without shrinking the diagram. */
+.ai-panel--above-fullscreen,
+.ai-panel-tab--above-fullscreen {
+  z-index: 100000;
+}
+.ai-panel-mermaid-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin: 6px 8px 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-left: 3px solid var(--primary, #6366f1);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.ai-panel-mermaid-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--primary, #6366f1);
+  color: #fff;
+  flex-shrink: 0;
+}
+.ai-panel-mermaid-label {
+  flex: 1;
+  font-weight: 500;
+}
+.ai-panel-mermaid-apply,
+.ai-panel-mermaid-discard,
+.ai-panel-mermaid-stop {
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ai-panel-mermaid-apply {
+  background: var(--primary, #6366f1);
+  color: #fff;
+  border-color: var(--primary, #6366f1);
+  font-weight: 600;
+}
+.ai-panel-mermaid-apply:hover {
+  filter: brightness(1.05);
+}
+.ai-panel-mermaid-discard {
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+.ai-panel-mermaid-stop:hover,
+.ai-panel-mermaid-discard:hover {
+  background: var(--bg-secondary);
 }
 </style>

@@ -1,4 +1,4 @@
-import { inject, ref, computed, watch, onUnmounted, type Ref } from 'vue';
+import { inject, ref, computed, watch, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from '../i18n';
 import { useTokenCounter } from './useTokenCounter';
@@ -12,18 +12,55 @@ const showImageMenu = ref(false);
 const showTokenMenu = ref(false);
 const editorUpdateCounter = ref(0);
 
+// ===== Shared editor-update listener =====
+// `useToolbarActions` is called by Toolbar / LeftBar / StatusBar AND by every
+// ToolbarItemRenderer instance — easily 20+ call sites once the toolbar is
+// rendered. Each call used to register its own `editor.on('update', …)`
+// handler, so a single keystroke triggered N copies of `getHTML()` +
+// `htmlToMarkdown()` + token count, scaling with the toolbar item count and
+// stalling typing on docs with many tables / code blocks.
+//
+// The registration + token counter now live at module scope: one `update`
+// listener per editor instance, one tokenizer, all consumers share the same
+// reactive `tokenCount` / `currentText`. Per-instance state (zoom, dropdowns)
+// stays local.
+const sharedTokens = useTokenCounter();
+let activeEditor: Editor | null = null;
+let activeHandler: (() => void) | null = null;
+
+function attachToEditor(ed: Editor | null | undefined) {
+  if (ed === activeEditor) return;
+  if (activeEditor && activeHandler) {
+    activeEditor.off('update', activeHandler);
+  }
+  activeEditor = ed ?? null;
+  activeHandler = null;
+  if (!ed) return;
+  const handler = () => {
+    editorUpdateCounter.value++;
+    if (typeof ed.getHTML === 'function') {
+      const markdown = htmlToMarkdown(ed.getHTML());
+      sharedTokens.updateText(markdown);
+    }
+  };
+  activeHandler = handler;
+  ed.on('update', handler);
+  // Prime the counters with the current document.
+  editorUpdateCounter.value++;
+  sharedTokens.updateText(htmlToMarkdown(ed.getHTML()));
+}
+
 export function useToolbarActions() {
   const { t } = useI18n();
-  const { zoomPercent, zoomIn, zoomOut, resetZoom } = useEditorZoom();
+  const { zoomPercent, zoomIn, zoomOut, resetZoom, setZoom } = useEditorZoom();
   const {
     tokenCount,
     modelName,
     isVisible: showTokens,
     currentModel,
     availableModels,
-    updateText,
     changeModel,
-  } = useTokenCounter();
+  } = sharedTokens;
 
   const editor = inject<Ref<Editor | null>>('editor');
 
@@ -53,44 +90,14 @@ export function useToolbarActions() {
     return editor?.value?.storage.characterCount?.words() ?? 0;
   });
 
-  // Editor update handler
-  const onEditorUpdate = () => {
-    editorUpdateCounter.value++;
-    const ed = editor?.value;
-    if (ed && typeof ed.getHTML === 'function') {
-      const markdown = htmlToMarkdown(ed.getHTML());
-      updateText(markdown);
-    }
-  };
-
-  // Track which editor instance we're listening to (per composable call)
-  let currentListeningEditor: Editor | null = null;
-
-  // Set up editor listeners
+  // Drive the shared listener whenever the injected editor changes. The actual
+  // attach/detach is module-scoped so multiple consumers don't pile up
+  // redundant listeners on the same editor instance.
   watch(
     () => editor?.value,
-    (newEditor, oldEditor) => {
-      if (oldEditor && oldEditor === currentListeningEditor) {
-        oldEditor.off('update', onEditorUpdate);
-        currentListeningEditor = null;
-      }
-      if (newEditor && newEditor !== currentListeningEditor) {
-        currentListeningEditor = newEditor;
-        newEditor.on('update', onEditorUpdate);
-        editorUpdateCounter.value++;
-        const markdown = htmlToMarkdown(newEditor.getHTML());
-        updateText(markdown);
-      }
-    },
-    { immediate: true }
+    (newEditor) => attachToEditor(newEditor),
+    { immediate: true },
   );
-
-  onUnmounted(() => {
-    if (currentListeningEditor) {
-      currentListeningEditor.off('update', onEditorUpdate);
-      currentListeningEditor = null;
-    }
-  });
 
   // Heading control
   const currentHeadingLevel = computed(() => {
@@ -225,6 +232,7 @@ export function useToolbarActions() {
     zoomIn,
     zoomOut,
     resetZoom,
+    setZoom,
 
     // Headings
     currentHeadingLevel,

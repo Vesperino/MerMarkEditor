@@ -1,10 +1,13 @@
 import { ref, computed, watch } from 'vue';
 
 const STORAGE_KEY = 'mermark-editor-zoom';
-const MIN_ZOOM = 50;
-const MAX_ZOOM = 200;
+export const ZOOM_MIN = 50;
+export const ZOOM_MAX = 200;
 const ZOOM_STEP = 10;
 const DEFAULT_ZOOM = 100;
+// Backwards-compatibility aliases for existing imports inside this module.
+const MIN_ZOOM = ZOOM_MIN;
+const MAX_ZOOM = ZOOM_MAX;
 
 function loadZoom(): number {
   try {
@@ -44,11 +47,19 @@ export function useEditorZoom() {
     zoomPercent.value = DEFAULT_ZOOM;
   };
 
+  /** Snap-clamp an arbitrary zoom value (e.g. from a slider) into the
+   *  allowed range. Non-finite inputs fall back to the current value. */
+  const setZoom = (value: number) => {
+    if (!Number.isFinite(value)) return;
+    zoomPercent.value = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(value)));
+  };
+
   return {
     zoomPercent,
     zoomScale,
     zoomIn,
     zoomOut,
     resetZoom,
+    setZoom,
   };
 }

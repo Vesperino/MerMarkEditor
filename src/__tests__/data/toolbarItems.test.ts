@@ -19,9 +19,12 @@ describe('toolbarItems registry', () => {
     }
   });
 
-  it('all items default to toolbar zone', () => {
+  it('most items default to the toolbar zone (zoom slider lives in the status bar)', () => {
     for (const item of TOOLBAR_ITEMS) {
-      expect(item.defaultZone).toBe('toolbar');
+      // zoom-controls is a deliberate exception — Word-style slider belongs
+      // in the status bar by default.
+      const expected = item.id === 'zoom-controls' ? 'statusbar' : 'toolbar';
+      expect(item.defaultZone, `${item.id} should default to ${expected}`).toBe(expected);
     }
   });
 

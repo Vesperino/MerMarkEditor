@@ -37,9 +37,6 @@ pub async fn probe(override_path: Option<&str>) -> HealthStatus {
             }
         }
     };
-    // Optional dedicated auth probe (claude doctor). If unavailable, treat
-    // version-success as healthy — Claude Code holds its credential in the
-    // browser session; we can't probe auth without making a real request.
     let auth = run_capture(override_path, &["doctor"], 10).await;
     match auth {
         Ok((true, out, _)) => {
@@ -47,8 +44,6 @@ pub async fn probe(override_path: Option<&str>) -> HealthStatus {
             HealthStatus { ok: true, version, account, error: None, resolved_path }
         }
         Ok((false, _, _)) | Err(_) => {
-            // Doctor subcommand missing or auth failed — degrade gracefully:
-            // binary works, auth state unknown. Surface as healthy with no account.
             HealthStatus { ok: true, version, account: None, error: None, resolved_path }
         }
     }

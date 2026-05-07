@@ -14,15 +14,20 @@ const {
   settings,
   toggleAutoSave,
   setTheme,
+  setThemeVariant,
   setCodeTheme,
   setEditorFontFamily,
   setCodeFontFamily,
   setEditorLineHeight,
+  setEditorPaddingTop,
+  setEditorPaddingBottom,
+  setEditorPaddingX,
   setSpellcheck,
   setExpandTabs,
   setShowLineNumbers,
   toggleCodeWordWrap,
 } = useSettings();
+
 
 const { allFonts, monoFonts, isLoaded: fontsLoaded } = useSystemFonts();
 
@@ -440,6 +445,32 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
+
+            <!-- Theme variant: Default vs Minimal (orthogonal to dark/light) -->
+            <div class="setting-row">
+              <label class="setting-label">{{ t.themeVariantLabel }}</label>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.themeVariant === 'default' }"
+                    @click="setThemeVariant('default')"
+                  >
+                    {{ t.themeVariantDefault }}
+                  </button>
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.themeVariant === 'minimal' }"
+                    @click="setThemeVariant('minimal')"
+                  >
+                    {{ t.themeVariantMinimal }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Workspace controls live exclusively in the left sidebar
+                 now — no need to duplicate them under Settings. -->
           </div>
 
           <!-- Editor Tab -->
@@ -489,6 +520,55 @@ onUnmounted(() => {
                   class="setting-range"
                 />
                 <span class="range-value">{{ settings.editorLineHeight.toFixed(1) }}</span>
+              </div>
+            </div>
+
+            <!-- Editor padding controls -->
+            <div class="setting-row">
+              <label class="setting-label">{{ t.editorPaddingTop }}</label>
+              <div class="setting-control inline-control">
+                <input
+                  type="range"
+                  min="0"
+                  max="80"
+                  step="2"
+                  :value="settings.editorPaddingTop"
+                  @input="(e: Event) => setEditorPaddingTop(Number((e.target as HTMLInputElement).value))"
+                  class="setting-range"
+                />
+                <span class="range-value">{{ settings.editorPaddingTop }}px</span>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t.editorPaddingX }}</label>
+              <div class="setting-control inline-control">
+                <input
+                  type="range"
+                  min="0"
+                  max="160"
+                  step="4"
+                  :value="settings.editorPaddingX"
+                  @input="(e: Event) => setEditorPaddingX(Number((e.target as HTMLInputElement).value))"
+                  class="setting-range"
+                />
+                <span class="range-value">{{ settings.editorPaddingX }}px</span>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t.editorPaddingBottom }}</label>
+              <div class="setting-control inline-control">
+                <input
+                  type="range"
+                  min="0"
+                  max="160"
+                  step="4"
+                  :value="settings.editorPaddingBottom"
+                  @input="(e: Event) => setEditorPaddingBottom(Number((e.target as HTMLInputElement).value))"
+                  class="setting-range"
+                />
+                <span class="range-value">{{ settings.editorPaddingBottom }}px</span>
               </div>
             </div>
 
@@ -1261,5 +1341,151 @@ onUnmounted(() => {
   background: var(--hover-bg);
   border-color: var(--border-secondary);
   color: var(--text-primary);
+}
+
+/* ===== Workspace section ===== */
+.setting-row.workspace-setting {
+  align-items: flex-start;
+}
+
+.workspace-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.workspace-current-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--code-font-family, monospace);
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.workspace-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.workspace-primary {
+  align-self: flex-start;
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.workspace-primary:hover {
+  background: var(--primary-hover);
+}
+
+.workspace-secondary {
+  background: none;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.workspace-secondary:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.workspace-recents {
+  border-top: 1px dashed var(--border-primary);
+  padding-top: 8px;
+}
+
+.workspace-recents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.workspace-recents-header > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.workspace-link-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.workspace-link-btn:hover {
+  color: var(--primary);
+}
+
+.workspace-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 4px;
+}
+
+.workspace-recent-item:hover {
+  background: var(--hover-bg);
+}
+
+.workspace-recent-path {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.workspace-recent-path:hover {
+  color: var(--primary);
+}
+
+.workspace-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 16px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.workspace-remove-btn:hover {
+  color: var(--danger);
+  background: var(--danger-text-bg);
 }
 </style>

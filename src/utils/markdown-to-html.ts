@@ -230,13 +230,38 @@ export function extractCodeBlocks(md: string): { html: string; codeBlocks: strin
   let html = md;
   const codeBlocks: string[] = [];
 
-  // Mermaid blocks
-  html = html.replace(/```mermaid\n([\s\S]*?)```/gi, (_, code) => {
-    const placeholder = `__MERMAID_BLOCK_${codeBlocks.length}__`;
-    const safeCode = code.trim().replace(/<br\s*\/?>/gi, '__BR__');
-    codeBlocks.push(`<div data-type="mermaid" data-code="${encodeURIComponent(safeCode)}"></div>`);
-    return placeholder;
-  });
+  // Mermaid blocks. An optional `<!--mermaid-attrs:...-->` HTML comment
+  // immediately preceding the fence is written by `htmlToMarkdown` to
+  // persist per-diagram node attributes (user-resized width, print scale)
+  // — parse it back into `data-*` attributes so the TipTap node restores
+  // its state on reload.
+  html = html.replace(
+    /(?:<!--mermaid-attrs:([^>]*?)-->\s*\n)?```mermaid\n([\s\S]*?)```/gi,
+    (_match, attrStr, code) => {
+      const placeholder = `__MERMAID_BLOCK_${codeBlocks.length}__`;
+      const safeCode = code.trim().replace(/<br\s*\/?>/gi, '__BR__');
+      const attrs: string[] = [`data-type="mermaid"`, `data-code="${encodeURIComponent(safeCode)}"`];
+      if (attrStr) {
+        const pairs = (attrStr as string).split(',').map((p) => p.trim()).filter(Boolean);
+        for (const pair of pairs) {
+          const [k, v] = pair.split('=');
+          if (!k || !v) continue;
+          if (k === 'userWidth') {
+            const n = parseInt(v, 10);
+            if (Number.isFinite(n) && n > 0) attrs.push(`data-user-width="${n}"`);
+          } else if (k === 'printScale') {
+            const n = parseInt(v, 10);
+            if (Number.isFinite(n) && n > 0) attrs.push(`data-print-scale="${n}"`);
+          } else if (k === 'splitRatio') {
+            const n = parseInt(v, 10);
+            if (Number.isFinite(n) && n >= 20 && n <= 80) attrs.push(`data-split-ratio="${n}"`);
+          }
+        }
+      }
+      codeBlocks.push(`<div ${attrs.join(' ')}></div>`);
+      return placeholder;
+    },
+  );
 
   // Code blocks
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/gi, (_, lang, code) => {

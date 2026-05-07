@@ -171,6 +171,9 @@ export interface Translations {
   codeFont: string;
   codeTheme: string;
   lineHeight: string;
+  editorPaddingTop: string;
+  editorPaddingBottom: string;
+  editorPaddingX: string;
   spellcheck: string;
   showLineNumbers: string;
   expandTabs: string;
@@ -406,6 +409,80 @@ export interface Translations {
   aiSettingsCliPathClear: string;
   collapseSidebar: string;
   expandSidebar: string;
+
+  // Theme variant
+  themeVariantLabel: string;
+  themeVariantDefault: string;
+  themeVariantMinimal: string;
+
+  // Workspace
+  workspace: string;
+  workspaceLabel: string;
+  openFolder: string;
+  noWorkspaceOpen: string;
+  recentWorkspaces: string;
+  closeWorkspace: string;
+  closeAllWorkspaces: string;
+  refreshTree: string;
+  showWorkspaceSidebar: string;
+  workspaceSidebarShow: string;
+  workspaceSidebarHide: string;
+  workspaceContextNewFile: string;
+  workspaceContextRename: string;
+  workspaceContextDelete: string;
+  workspaceContextRevealInOs: string;
+  workspaceNewFilePrompt: string;
+  workspaceRenamePrompt: string;
+  workspaceConfirmDelete: (name: string) => string;
+  workspaceEmptyHint: string;
+  workspaceErrorLoad: string;
+  workspaceClearRecents: string;
+  workspaceLoading: string;
+  workspaces: string;
+  addWorkspace: string;
+  expandAllSections: string;
+  collapseAllSections: string;
+  activeWorkspaceContext: string;
+  workspaceEmptyRecentHint: string;
+  workspaceQuickSwitcher: string;
+  workspaceQuickSwitcherPlaceholder: string;
+  workspaceQuickSwitcherNoMatches: string;
+  workspaceQuickSwitcherOpenBadge: string;
+  workspaceQuickSwitcherRecentBadge: string;
+  qsHintNavigate: string;
+  qsHintOpen: string;
+  qsHintCancel: string;
+  create: string;
+  rename: string;
+  workspaceErrorNoPathSeparators: string;
+  workspaceErrorReservedName: string;
+  newFileInWorkspaceTooltip: (workspace: string) => string;
+  qsSectionFiles: string;
+  qsSectionContent: string;
+  qsContentSearching: string;
+  qsContentTruncated: string;
+
+  // Mermaid AI assist
+  aiAssistMermaidButton: string;
+  aiAssistMermaidTitle: string;
+  aiAssistMermaidPlaceholder: string;
+  aiAssistMermaidProposed: string;
+  aiAssistMermaidApply: string;
+  aiAssistMermaidPromptLabel: string;
+  aiAssistMermaidHint: string;
+
+  // Tab context menu
+  tabPin: string;
+  tabUnpin: string;
+  tabPinned: string;
+  tabClose: string;
+  tabCloseOthers: string;
+  tabCloseAll: string;
+  tabCloseAllButPinned: string;
+  tabCloseSaved: string;
+
+  // Open split-button
+  openMenuTooltip: string;
 }
 
 const translations: Record<Locale, Translations> = {

@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::collections::{HashMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::{Manager, Emitter, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
 use serde::{Deserialize, Serialize};
 use font_kit::source::SystemSource;
@@ -282,6 +282,355 @@ fn ai_image_save(
     Ok(path.to_string_lossy().into_owned())
 }
 
+// ============== Workspace (folder browser) commands ==============
+
+#[derive(Serialize)]
+struct WorkspaceNode {
+    name: String,
+    path: String,
+    /// "file" or "folder"
+    kind: &'static str,
+    /// None for files; Some for folders (may be empty).
+    children: Option<Vec<WorkspaceNode>>,
+}
+
+const WORKSPACE_TREE_MAX_DEPTH: usize = 50;
+
+fn is_workspace_markdown(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".mdx")
+}
+
+fn is_workspace_hidden(name: &str) -> bool {
+    name.starts_with('.') || name == "node_modules"
+}
+
+fn read_workspace_subtree(path: &Path, depth: usize) -> Result<WorkspaceNode, String> {
+    let metadata = std::fs::metadata(path)
+        .map_err(|e| format!("read metadata for {}: {}", path.display(), e))?;
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string_lossy().into_owned());
+    let path_str = path.to_string_lossy().into_owned();
+
+    if metadata.is_file() {
+        return Ok(WorkspaceNode {
+            name,
+            path: path_str,
+            kind: "file",
+            children: None,
+        });
+    }
+
+    if !metadata.is_dir() {
+        return Err(format!("path is neither file nor directory: {}", path.display()));
+    }
+
+    let mut children: Vec<WorkspaceNode> = Vec::new();
+    if depth < WORKSPACE_TREE_MAX_DEPTH {
+        let entries = std::fs::read_dir(path)
+            .map_err(|e| format!("read_dir {}: {}", path.display(), e))?;
+        let mut folders: Vec<PathBuf> = Vec::new();
+        let mut files: Vec<PathBuf> = Vec::new();
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            let entry_name = entry.file_name().to_string_lossy().into_owned();
+            if is_workspace_hidden(&entry_name) {
+                continue;
+            }
+            let entry_type = match entry.file_type() {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            if entry_type.is_dir() {
+                folders.push(entry_path);
+            } else if entry_type.is_file() {
+                if is_workspace_markdown(&entry_name) {
+                    files.push(entry_path);
+                }
+            }
+        }
+        // Folders first then files, both alphabetical (case-insensitive).
+        folders.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default());
+        files.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default());
+
+        for folder in folders {
+            match read_workspace_subtree(&folder, depth + 1) {
+                Ok(node) => children.push(node),
+                Err(_) => {
+                    // Skip folders we cannot read (perms, broken symlinks, etc.)
+                    continue;
+                }
+            }
+        }
+        for file in files {
+            if let Ok(node) = read_workspace_subtree(&file, depth + 1) {
+                children.push(node);
+            }
+        }
+    }
+
+    Ok(WorkspaceNode {
+        name,
+        path: path_str,
+        kind: "folder",
+        children: Some(children),
+    })
+}
+
+#[tauri::command]
+async fn read_workspace_tree(root: String) -> Result<WorkspaceNode, String> {
+    // Walking a large folder is CPU/IO bound and can take seconds. Run it on
+    // tokio's blocking pool so the Tauri command thread (and the renderer
+    // IPC) stays responsive — the UI shows its loading state in the meantime.
+    tokio::task::spawn_blocking(move || {
+        let path = Path::new(&root);
+        if !path.exists() {
+            return Err(format!("workspace path does not exist: {}", root));
+        }
+        if !path.is_dir() {
+            return Err(format!("workspace path is not a directory: {}", root));
+        }
+        read_workspace_subtree(path, 0)
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
+}
+
+#[tauri::command]
+fn create_md_file(parent: String, name: String) -> Result<String, String> {
+    let parent_path = Path::new(&parent);
+    if !parent_path.is_dir() {
+        return Err(format!("parent is not a directory: {}", parent));
+    }
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("file name cannot be empty".into());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("file name cannot contain path separators".into());
+    }
+    let final_name = if is_workspace_markdown(trimmed) {
+        trimmed.to_string()
+    } else {
+        format!("{}.md", trimmed)
+    };
+    let full = parent_path.join(&final_name);
+    if full.exists() {
+        return Err(format!("file already exists: {}", full.display()));
+    }
+    std::fs::write(&full, "").map_err(|e| format!("create file: {}", e))?;
+    Ok(full.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn rename_path(from: String, to: String) -> Result<(), String> {
+    let from_path = Path::new(&from);
+    let to_path = Path::new(&to);
+    if !from_path.exists() {
+        return Err(format!("source does not exist: {}", from));
+    }
+    if to_path.exists() {
+        return Err(format!("destination already exists: {}", to));
+    }
+    std::fs::rename(from_path, to_path).map_err(|e| format!("rename: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_path(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if !target.exists() {
+        return Err(format!("path does not exist: {}", path));
+    }
+    let metadata = std::fs::metadata(target).map_err(|e| format!("stat: {}", e))?;
+    if metadata.is_dir() {
+        std::fs::remove_dir_all(target).map_err(|e| format!("remove dir: {}", e))?;
+    } else {
+        std::fs::remove_file(target).map_err(|e| format!("remove file: {}", e))?;
+    }
+    Ok(())
+}
+
+// ============== Content search across open workspaces ==============
+
+#[derive(Serialize)]
+struct ContentSearchHit {
+    path: String,
+    /// 1-based line number where the match was found.
+    line: usize,
+    /// The matching line, trimmed and capped to 240 chars for display.
+    snippet: String,
+}
+
+/// Substring-search the content of every `.md/.markdown/.mdx` file under any
+/// of the supplied roots. Case-insensitive. Async + multi-threaded so a
+/// 5000-file workspace stays interactive.
+///
+/// Hard limits to keep the worst case bounded:
+///   - Max 5_000 files visited per call (early-stops; UI explains via `truncated`).
+///   - Max 500 KB read per file (markdown is text — bigger means binary garbage).
+///   - Max 200 hit lines returned overall.
+///   - Total wall-clock budget: 4 s, then early-stop with whatever we have.
+#[tauri::command]
+async fn search_workspace_content(
+    roots: Vec<String>,
+    query: String,
+) -> Result<Vec<ContentSearchHit>, String> {
+    let q = query.trim().to_string();
+    if q.is_empty() {
+        return Ok(Vec::new());
+    }
+    let q_lower = q.to_ascii_lowercase();
+
+    tokio::task::spawn_blocking(move || -> Result<Vec<ContentSearchHit>, String> {
+        let start = std::time::Instant::now();
+        let budget = std::time::Duration::from_secs(4);
+        const MAX_FILES: usize = 5_000;
+        const MAX_FILE_BYTES: usize = 512 * 1024;
+        const MAX_HITS: usize = 200;
+
+        let mut files_visited: usize = 0;
+        let mut hits: Vec<ContentSearchHit> = Vec::new();
+
+        // Iterative DFS so we can early-stop cleanly.
+        let mut stack: Vec<PathBuf> = roots
+            .into_iter()
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir())
+            .collect();
+
+        while let Some(dir) = stack.pop() {
+            if start.elapsed() > budget || hits.len() >= MAX_HITS || files_visited >= MAX_FILES {
+                break;
+            }
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(rd) => rd,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if is_workspace_hidden(&name) {
+                    continue;
+                }
+                let path = entry.path();
+                let file_type = match entry.file_type() {
+                    Ok(t) => t,
+                    Err(_) => continue,
+                };
+                if file_type.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if !file_type.is_file() || !is_workspace_markdown(&name) {
+                    continue;
+                }
+                files_visited += 1;
+                if files_visited > MAX_FILES {
+                    break;
+                }
+                // Read up to MAX_FILE_BYTES — markdown files are text, bigger
+                // is almost certainly bad data we don't want to scan.
+                let bytes = match read_file_capped(&path, MAX_FILE_BYTES) {
+                    Ok(b) => b,
+                    Err(_) => continue,
+                };
+                let text = match std::str::from_utf8(&bytes) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                for (idx, line) in text.lines().enumerate() {
+                    if line.to_ascii_lowercase().contains(&q_lower) {
+                        let trimmed = line.trim();
+                        let snippet = if trimmed.len() > 240 {
+                            format!("{}…", &trimmed.chars().take(240).collect::<String>())
+                        } else {
+                            trimmed.to_string()
+                        };
+                        hits.push(ContentSearchHit {
+                            path: path.to_string_lossy().into_owned(),
+                            line: idx + 1,
+                            snippet,
+                        });
+                        if hits.len() >= MAX_HITS {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(hits)
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
+}
+
+fn read_file_capped(path: &Path, max_bytes: usize) -> std::io::Result<Vec<u8>> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(path)?;
+    let mut buf = Vec::with_capacity(max_bytes.min(64 * 1024));
+    let mut chunk = [0u8; 8192];
+    while buf.len() < max_bytes {
+        let n = f.read(&mut chunk)?;
+        if n == 0 {
+            break;
+        }
+        let take = n.min(max_bytes - buf.len());
+        buf.extend_from_slice(&chunk[..take]);
+        if take < n {
+            break;
+        }
+    }
+    Ok(buf)
+}
+
+/// Reveal a file or folder in the host OS file manager.
+/// On Windows uses `explorer /select,<path>`; on macOS uses `open -R <path>`;
+/// on Linux falls back to opening the parent folder via xdg-open.
+#[tauri::command]
+fn reveal_in_os(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if !target.exists() {
+        return Err(format!("path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer.exe")
+            .arg(format!("/select,{}", path))
+            .spawn()
+            .map_err(|e| format!("explorer: {}", e))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("open: {}", e))?;
+        return Ok(());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let parent = target
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.clone());
+        std::process::Command::new("xdg-open")
+            .arg(&parent)
+            .spawn()
+            .map_err(|e| format!("xdg-open: {}", e))?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("reveal_in_os: unsupported platform".into())
+}
+
 /// List all font family names installed on the system.
 /// Returns a sorted, deduplicated list of font family names.
 #[tauri::command]
@@ -376,6 +725,12 @@ pub fn run() {
             check_file_open,
             focus_window_with_file,
             list_system_fonts,
+            read_workspace_tree,
+            create_md_file,
+            rename_path,
+            delete_path,
+            reveal_in_os,
+            search_workspace_content,
             ai_health_check,
             ai_access_load,
             ai_access_save,

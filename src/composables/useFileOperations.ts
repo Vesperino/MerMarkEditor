@@ -100,19 +100,17 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     const htmlContent = markdownToHtml(fileContent);
     const fileName = extractFileName(filePath);
 
-    // If current tab is empty and has no changes, replace it
-    if (isActiveTabEmpty()) {
-      const tabIndex = findActiveTabIndex();
-      if (tabIndex !== -1) {
-        tabs.value[tabIndex].filePath = filePath;
-        tabs.value[tabIndex].fileName = fileName;
-        tabs.value[tabIndex].content = htmlContent;
-        tabs.value[tabIndex].hasChanges = false;
-        tabs.value[tabIndex].originalMarkdown = fileContent;
-        setEditorContent(htmlContent);
-      }
+    const activeIdx = findActiveTabIndex();
+    if (isActiveTabEmpty() && activeIdx !== -1) {
+      tabs.value[activeIdx].filePath = filePath;
+      tabs.value[activeIdx].fileName = fileName;
+      tabs.value[activeIdx].content = htmlContent;
+      tabs.value[activeIdx].hasChanges = false;
+      tabs.value[activeIdx].originalMarkdown = fileContent;
+      setEditorContent(htmlContent);
     } else {
       const newTabId = createNewTab(filePath, htmlContent, fileName);
+      if (!newTabId) return;
       const newTab = tabs.value.find(t => t.id === newTabId);
       if (newTab) newTab.originalMarkdown = fileContent;
       await switchToTab(newTabId);
