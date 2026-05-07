@@ -204,7 +204,10 @@ const dragOverFolderPath = ref<string | null>(null);
 function onTreeDragStart(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
   if (!payload.ev.dataTransfer) return;
   payload.ev.dataTransfer.setData('application/x-mermark-ws-node', JSON.stringify({ path: payload.path, kind: payload.kind }));
-  payload.ev.dataTransfer.effectAllowed = 'move';
+  // `copyMove` — folder drop inside the tree wants 'move' (rename), editor
+  // pane drop wants 'copy' (open without removing from tree). Either is
+  // valid; the drop target picks via dropEffect.
+  payload.ev.dataTransfer.effectAllowed = 'copyMove';
 }
 function onTreeDragOver(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
   if (payload.kind !== 'folder') return;

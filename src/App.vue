@@ -271,7 +271,17 @@ const closeTabAndCheckWindow = async (paneId: string, tabId: string) => {
   }
 
   if (isWindowEmpty()) {
-    await closeCurrentWindow();
+    // Keep the window alive when at least one workspace is open — the
+    // workspace sidebar is still useful (browse files, drag onto pane,
+    // run AI / quick switcher) even with zero tabs. Without an open
+    // workspace there's nothing left to interact with, so close as before.
+    if (workspace.openWorkspaces.value.length === 0) {
+      await closeCurrentWindow();
+      return;
+    }
+    if (isSplitActive.value) {
+      disableSplit();
+    }
     return;
   }
 
