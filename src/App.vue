@@ -25,6 +25,7 @@ import TableOfContents from './components/TableOfContents.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
+import WorkspaceSidebar from './components/WorkspaceSidebar.vue';
 import AiPanel from './components/ai/AiPanel.vue';
 import AiFirstRunTooltip from './components/ai/AiFirstRunTooltip.vue';
 import AiTmpRecoveryModal from './components/ai/AiTmpRecoveryModal.vue';
@@ -45,6 +46,7 @@ import { useFileReload } from './composables/useFileReload';
 import { useLayoutConfig } from './composables/useLayoutConfig';
 import { useSessionRestore } from './composables/useSessionRestore';
 import { useRecentFiles } from './composables/useRecentFiles';
+import { useWorkspace } from './composables/useWorkspace';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -661,6 +663,13 @@ const {
 // ============ Settings ============
 const { settings } = useSettings();
 
+// ============ Workspace ============
+const workspace = useWorkspace();
+const handleWorkspaceOpenFile = (path: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
+};
+
 // ============ Layout Config ============
 const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
 
@@ -983,6 +992,10 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeyboard);
   window.addEventListener('wheel', handleWheel, { passive: false });
 
+  // Restore last opened workspace (if any). Silent on failure — composable
+  // clears the persisted root so the next launch starts fresh.
+  workspace.restoreLastOnStartup().catch((e) => console.error('[App] restore workspace:', e));
+
   // Set window title with version
   try {
     const version = await getVersion();
@@ -1190,6 +1203,12 @@ onUnmounted(async () => {
 
     <!-- Main content area with optional left bar -->
     <div class="main-area">
+      <!-- Workspace Sidebar (folder browser) -->
+      <WorkspaceSidebar
+        v-if="workspace.sidebarVisible.value && workspace.activeWorkspace.value"
+        @open-file="handleWorkspaceOpenFile"
+      />
+
       <!-- Left Bar (configurable) -->
       <LeftBar
         v-if="hasLeftBarItems"

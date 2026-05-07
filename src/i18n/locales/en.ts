@@ -400,6 +400,33 @@ const en: Translations = {
   aiSettingsCliPathClear: 'Clear',
   collapseSidebar: 'Collapse sidebar',
   expandSidebar: 'Expand sidebar',
+
+  // Theme variant
+  themeVariantLabel: 'Theme style',
+  themeVariantDefault: 'Default',
+  themeVariantMinimal: 'Minimal',
+
+  // Workspace
+  workspace: 'Workspace',
+  workspaceLabel: 'Workspace',
+  openFolder: 'Open folder…',
+  noWorkspaceOpen: 'No workspace open',
+  recentWorkspaces: 'Recent workspaces',
+  closeWorkspace: 'Close workspace',
+  refreshTree: 'Refresh',
+  showWorkspaceSidebar: 'Show workspace sidebar',
+  workspaceSidebarShow: 'Show sidebar',
+  workspaceSidebarHide: 'Hide sidebar',
+  workspaceContextNewFile: 'New file…',
+  workspaceContextRename: 'Rename…',
+  workspaceContextDelete: 'Delete',
+  workspaceContextRevealInOs: 'Reveal in file manager',
+  workspaceNewFilePrompt: 'New file name:',
+  workspaceRenamePrompt: 'New name:',
+  workspaceConfirmDelete: (name: string) => `Delete "${name}"? This cannot be undone.`,
+  workspaceEmptyHint: 'Open a folder to browse its markdown files here.',
+  workspaceErrorLoad: 'Could not load workspace.',
+  workspaceClearRecents: 'Clear list',
 };
 
 export default en;

@@ -400,6 +400,33 @@ const pl: Translations = {
   aiSettingsCliPathClear: 'Wyczyść',
   collapseSidebar: 'Zwiń pasek boczny',
   expandSidebar: 'Rozwiń pasek boczny',
+
+  // Theme variant
+  themeVariantLabel: 'Styl motywu',
+  themeVariantDefault: 'Domyślny',
+  themeVariantMinimal: 'Minimalistyczny',
+
+  // Workspace
+  workspace: 'Obszar roboczy',
+  workspaceLabel: 'Obszar roboczy',
+  openFolder: 'Otwórz folder…',
+  noWorkspaceOpen: 'Brak otwartego obszaru roboczego',
+  recentWorkspaces: 'Ostatnie obszary',
+  closeWorkspace: 'Zamknij obszar',
+  refreshTree: 'Odśwież',
+  showWorkspaceSidebar: 'Pokaż panel obszaru',
+  workspaceSidebarShow: 'Pokaż panel',
+  workspaceSidebarHide: 'Ukryj panel',
+  workspaceContextNewFile: 'Nowy plik…',
+  workspaceContextRename: 'Zmień nazwę…',
+  workspaceContextDelete: 'Usuń',
+  workspaceContextRevealInOs: 'Pokaż w eksploratorze plików',
+  workspaceNewFilePrompt: 'Nazwa nowego pliku:',
+  workspaceRenamePrompt: 'Nowa nazwa:',
+  workspaceConfirmDelete: (name: string) => `Usunąć "${name}"? Tej operacji nie można cofnąć.`,
+  workspaceEmptyHint: 'Otwórz folder, aby przeglądać jego pliki markdown.',
+  workspaceErrorLoad: 'Nie udało się wczytać obszaru roboczego.',
+  workspaceClearRecents: 'Wyczyść listę',
 };
 
 export default pl;

@@ -406,6 +406,33 @@ export interface Translations {
   aiSettingsCliPathClear: string;
   collapseSidebar: string;
   expandSidebar: string;
+
+  // Theme variant
+  themeVariantLabel: string;
+  themeVariantDefault: string;
+  themeVariantMinimal: string;
+
+  // Workspace
+  workspace: string;
+  workspaceLabel: string;
+  openFolder: string;
+  noWorkspaceOpen: string;
+  recentWorkspaces: string;
+  closeWorkspace: string;
+  refreshTree: string;
+  showWorkspaceSidebar: string;
+  workspaceSidebarShow: string;
+  workspaceSidebarHide: string;
+  workspaceContextNewFile: string;
+  workspaceContextRename: string;
+  workspaceContextDelete: string;
+  workspaceContextRevealInOs: string;
+  workspaceNewFilePrompt: string;
+  workspaceRenamePrompt: string;
+  workspaceConfirmDelete: (name: string) => string;
+  workspaceEmptyHint: string;
+  workspaceErrorLoad: string;
+  workspaceClearRecents: string;
 }
 
 const translations: Record<Locale, Translations> = {

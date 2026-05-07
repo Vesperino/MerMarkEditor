@@ -6,6 +6,7 @@ import { useI18n } from '../i18n';
 import { useSettings, EDITOR_FONTS, CODE_FONTS } from '../composables/useSettings';
 import { useSystemFonts } from '../composables/useSystemFonts';
 import { useLayoutConfig, type LayoutZone } from '../composables/useLayoutConfig';
+import { useWorkspace } from '../composables/useWorkspace';
 import { getItemDef } from '../data/toolbarItems';
 import AiSettingsTab from './ai/AiSettingsTab.vue';
 
@@ -14,6 +15,7 @@ const {
   settings,
   toggleAutoSave,
   setTheme,
+  setThemeVariant,
   setCodeTheme,
   setEditorFontFamily,
   setCodeFontFamily,
@@ -23,6 +25,23 @@ const {
   setShowLineNumbers,
   toggleCodeWordWrap,
 } = useSettings();
+
+const workspace = useWorkspace();
+async function settingsOpenWorkspaceDialog() {
+  try { await workspace.openWorkspaceDialog(); } catch (e) { console.error('open workspace:', e); }
+}
+function settingsOpenRecent(p: string) {
+  workspace.openWorkspace(p).catch((e) => console.error('open recent:', e));
+}
+function settingsRemoveRecent(p: string) {
+  workspace.removeRecent(p);
+}
+function settingsCloseWorkspace() {
+  workspace.closeWorkspace();
+}
+function settingsClearRecents() {
+  workspace.clearRecents();
+}
 
 const { allFonts, monoFonts, isLoaded: fontsLoaded } = useSystemFonts();
 
@@ -437,6 +456,66 @@ onUnmounted(() => {
                   >
                     {{ t.on }}
                   </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Theme variant: Default vs Minimal (orthogonal to dark/light) -->
+            <div class="setting-row">
+              <label class="setting-label">{{ t.themeVariantLabel }}</label>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.themeVariant === 'default' }"
+                    @click="setThemeVariant('default')"
+                  >
+                    {{ t.themeVariantDefault }}
+                  </button>
+                  <button
+                    class="toggle-option"
+                    :class="{ active: settings.themeVariant === 'minimal' }"
+                    @click="setThemeVariant('minimal')"
+                  >
+                    {{ t.themeVariantMinimal }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Workspace section -->
+            <div class="setting-row workspace-setting">
+              <label class="setting-label">{{ t.workspace }}</label>
+              <div class="setting-control workspace-controls">
+                <div v-if="workspace.activeWorkspace.value" class="workspace-current">
+                  <span class="workspace-current-path" :title="workspace.activeWorkspace.value.rootPath">
+                    {{ workspace.activeWorkspace.value.rootPath }}
+                  </span>
+                  <button class="workspace-secondary" @click="settingsCloseWorkspace">
+                    {{ t.closeWorkspace }}
+                  </button>
+                </div>
+                <div v-else class="workspace-empty">{{ t.noWorkspaceOpen }}</div>
+                <button class="workspace-primary" @click="settingsOpenWorkspaceDialog">
+                  {{ t.openFolder }}
+                </button>
+                <div v-if="workspace.recentWorkspaces.value.length" class="workspace-recents">
+                  <div class="workspace-recents-header">
+                    <span>{{ t.recentWorkspaces }}</span>
+                    <button class="workspace-link-btn" @click="settingsClearRecents">
+                      {{ t.workspaceClearRecents }}
+                    </button>
+                  </div>
+                  <div
+                    v-for="r in workspace.recentWorkspaces.value"
+                    :key="r"
+                    class="workspace-recent-item"
+                  >
+                    <span class="workspace-recent-path" :title="r" @click="settingsOpenRecent(r)">
+                      {{ r }}
+                    </span>
+                    <button class="workspace-remove-btn" :aria-label="r" @click="settingsRemoveRecent(r)">×</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1261,5 +1340,151 @@ onUnmounted(() => {
   background: var(--hover-bg);
   border-color: var(--border-secondary);
   color: var(--text-primary);
+}
+
+/* ===== Workspace section ===== */
+.setting-row.workspace-setting {
+  align-items: flex-start;
+}
+
+.workspace-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.workspace-current-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--code-font-family, monospace);
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.workspace-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.workspace-primary {
+  align-self: flex-start;
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.workspace-primary:hover {
+  background: var(--primary-hover);
+}
+
+.workspace-secondary {
+  background: none;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.workspace-secondary:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.workspace-recents {
+  border-top: 1px dashed var(--border-primary);
+  padding-top: 8px;
+}
+
+.workspace-recents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.workspace-recents-header > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.workspace-link-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.workspace-link-btn:hover {
+  color: var(--primary);
+}
+
+.workspace-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 4px;
+}
+
+.workspace-recent-item:hover {
+  background: var(--hover-bg);
+}
+
+.workspace-recent-path {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.workspace-recent-path:hover {
+  color: var(--primary);
+}
+
+.workspace-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 16px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.workspace-remove-btn:hover {
+  color: var(--danger);
+  background: var(--danger-text-bg);
 }
 </style>

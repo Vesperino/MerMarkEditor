@@ -400,6 +400,33 @@ const zhCN: Translations = {
   aiSettingsCliPathClear: '清除',
   collapseSidebar: '收起侧边栏',
   expandSidebar: '展开侧边栏',
+
+  // Theme variant
+  themeVariantLabel: '主题风格',
+  themeVariantDefault: '默认',
+  themeVariantMinimal: '极简',
+
+  // Workspace
+  workspace: '工作区',
+  workspaceLabel: '工作区',
+  openFolder: '打开文件夹…',
+  noWorkspaceOpen: '未打开工作区',
+  recentWorkspaces: '最近的工作区',
+  closeWorkspace: '关闭工作区',
+  refreshTree: '刷新',
+  showWorkspaceSidebar: '显示工作区侧边栏',
+  workspaceSidebarShow: '显示侧边栏',
+  workspaceSidebarHide: '隐藏侧边栏',
+  workspaceContextNewFile: '新建文件…',
+  workspaceContextRename: '重命名…',
+  workspaceContextDelete: '删除',
+  workspaceContextRevealInOs: '在文件管理器中显示',
+  workspaceNewFilePrompt: '新文件名：',
+  workspaceRenamePrompt: '新名称：',
+  workspaceConfirmDelete: (name: string) => `删除 "${name}"? 此操作无法撤销。`,
+  workspaceEmptyHint: '打开一个文件夹以浏览其中的 Markdown 文件。',
+  workspaceErrorLoad: '无法加载工作区。',
+  workspaceClearRecents: '清空列表',
 };
 
 export default zhCN;

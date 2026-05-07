@@ -4,9 +4,26 @@ import { TOKEN_MODELS } from '../services/tokenCounter';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type ThemeMode = 'light' | 'dark';
+export type ThemeVariant = 'default' | 'minimal';
 export type CodeThemeMode = 'dark' | 'white';
 export type CliKind = 'claude' | 'codex';
 export type PanelSide = 'left' | 'right';
+
+export interface WorkspaceSettings {
+  /** Absolute path to last opened workspace root, or null when none. */
+  lastRoot: string | null;
+  /** Recently opened workspace roots (LRU, most recent first). */
+  recentRoots: string[];
+  /** Whether the workspace sidebar is currently visible. */
+  sidebarVisible: boolean;
+  /** Pixel width of the workspace sidebar. */
+  sidebarWidth: number;
+}
+
+export const RECENT_WORKSPACES_LIMIT = 10;
+export const SIDEBAR_WIDTH_MIN = 160;
+export const SIDEBAR_WIDTH_MAX = 480;
+export const SIDEBAR_WIDTH_DEFAULT = 240;
 
 export interface AiSettings {
   enabled: boolean;
@@ -64,6 +81,7 @@ export interface AppSettings {
   showTokenCount: boolean;
   tokenModel: TokenModelId;
   theme: ThemeMode;
+  themeVariant: ThemeVariant;
   codeTheme: CodeThemeMode;
   codeWordWrap: boolean;
   editorFontFamily: string;
@@ -74,6 +92,7 @@ export interface AppSettings {
   showLineNumbers: boolean;
   /** When true, the vertical left toolbar widens to show text labels next to icons. */
   leftBarExpanded: boolean;
+  workspace: WorkspaceSettings;
   ai: AiSettings;
 }
 
@@ -130,7 +149,20 @@ function loadSettings(): AppSettings {
       // Deep-merge the ai field so new fields added in updates get their defaults
       // even when localStorage holds an older partial ai object.
       const mergedAi = { ...defaults.ai, ...(parsed.ai ?? {}) };
-      return { ...defaults, ...parsed, ai: mergedAi };
+      const mergedWorkspace = { ...defaults.workspace, ...(parsed.workspace ?? {}) };
+      // Clamp sidebar width to valid range in case storage holds out-of-range value
+      mergedWorkspace.sidebarWidth = Math.max(
+        SIDEBAR_WIDTH_MIN,
+        Math.min(SIDEBAR_WIDTH_MAX, mergedWorkspace.sidebarWidth || SIDEBAR_WIDTH_DEFAULT),
+      );
+      // Trim recents that exceed the limit (e.g. limit lowered between versions)
+      if (Array.isArray(mergedWorkspace.recentRoots)) {
+        mergedWorkspace.recentRoots = mergedWorkspace.recentRoots.slice(0, RECENT_WORKSPACES_LIMIT);
+      } else {
+        mergedWorkspace.recentRoots = [];
+      }
+      const themeVariant: ThemeVariant = parsed.themeVariant === 'minimal' ? 'minimal' : 'default';
+      return { ...defaults, ...parsed, themeVariant, workspace: mergedWorkspace, ai: mergedAi };
     }
   } catch (error) {
     console.error('Error loading settings:', error);
@@ -144,6 +176,7 @@ function getDefaultSettings(): AppSettings {
     showTokenCount: true,
     tokenModel: 'gpt',
     theme: 'light',
+    themeVariant: 'default',
     codeTheme: 'dark',
     codeWordWrap: true,
     editorFontFamily: 'system',
@@ -153,6 +186,12 @@ function getDefaultSettings(): AppSettings {
     expandTabs: false,
     showLineNumbers: false,
     leftBarExpanded: false,
+    workspace: {
+      lastRoot: null,
+      recentRoots: [],
+      sidebarVisible: true,
+      sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
+    },
     ai: {
       enabled: true,
       defaultCli: 'claude',
@@ -214,6 +253,34 @@ export function useSettings() {
   const toggleTheme = () => {
     const newTheme = settings.value.theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
+  };
+
+  const setThemeVariant = (variant: ThemeVariant) => {
+    settings.value.themeVariant = variant;
+    applyThemeVariant(variant);
+  };
+
+  const setWorkspaceLastRoot = (root: string | null) => {
+    settings.value.workspace.lastRoot = root;
+  };
+
+  const setWorkspaceRecents = (recents: string[]) => {
+    settings.value.workspace.recentRoots = recents.slice(0, RECENT_WORKSPACES_LIMIT);
+  };
+
+  const setSidebarVisible = (visible: boolean) => {
+    settings.value.workspace.sidebarVisible = visible;
+  };
+
+  const toggleSidebarVisible = () => {
+    settings.value.workspace.sidebarVisible = !settings.value.workspace.sidebarVisible;
+  };
+
+  const setSidebarWidth = (width: number) => {
+    settings.value.workspace.sidebarWidth = Math.max(
+      SIDEBAR_WIDTH_MIN,
+      Math.min(SIDEBAR_WIDTH_MAX, Math.round(width)),
+    );
   };
 
   const toggleCodeWordWrap = () => {
@@ -282,6 +349,7 @@ export function useSettings() {
     setTokenModel,
     setTheme,
     toggleTheme,
+    setThemeVariant,
     toggleCodeWordWrap,
     setCodeTheme,
     setEditorFontFamily,
@@ -293,6 +361,11 @@ export function useSettings() {
     toggleShowLineNumbers,
     setLeftBarExpanded,
     toggleLeftBarExpanded,
+    setWorkspaceLastRoot,
+    setWorkspaceRecents,
+    setSidebarVisible,
+    toggleSidebarVisible,
+    setSidebarWidth,
     setAiEnabled,
     setAiDefaultCli,
     setAiDefaultModelClaude,
@@ -305,6 +378,12 @@ export function useSettings() {
     setAiCliPathClaude,
     setAiCliPathCodex,
   };
+}
+
+// Apply theme variant attribute to HTML element so CSS can target
+// `html[data-variant="minimal"]`. Orthogonal to the light/dark mode class.
+function applyThemeVariant(variant: ThemeVariant) {
+  document.documentElement.setAttribute('data-variant', variant);
 }
 
 // Apply theme class to HTML element
@@ -361,4 +440,5 @@ function applyCssVars(s: AppSettings) {
 
 // Apply theme and CSS vars on initial load
 applyTheme(settings.value.theme);
+applyThemeVariant(settings.value.themeVariant);
 applyCssVars(settings.value);
