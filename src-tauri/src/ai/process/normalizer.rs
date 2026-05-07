@@ -43,6 +43,27 @@ pub fn is_valid_json(line: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(line).is_ok()
 }
 
+/// Codex `error` events wrap an upstream API error envelope inside their
+/// `message` field as a STRING (not nested object), e.g.
+///   "{\"type\":\"error\",\"status\":400,\"error\":{\"message\":\"…\"}}"
+/// Try to parse it back into JSON and pull the human-readable message out.
+/// Falls back to the raw string if parsing fails or the structure differs.
+fn extract_inner_codex_error(raw: &str) -> String {
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) {
+        if let Some(msg) = v
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+        {
+            return msg.to_string();
+        }
+        if let Some(msg) = v.get("message").and_then(|m| m.as_str()) {
+            return msg.to_string();
+        }
+    }
+    raw.to_string()
+}
+
 fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -> Option<AiResponseChunk> {
     let kind = v.get("type")?.as_str()?;
     match kind {
@@ -237,6 +258,29 @@ fn parse_codex_stateful(
             let session_id = state.thread_id.clone().unwrap_or_default();
             let usage = v.get("usage").cloned();
             Some(AiResponseChunk::Done { session_id, usage })
+        }
+        // Top-level codex error event. Shape:
+        //   {"type":"error","message":"<stringified JSON or plain text>"}
+        // The `message` is itself often a stringified API error envelope
+        // ({"type":"error","status":400,"error":{"message":"..."}}); we try
+        // to peel the nested message out so the UI shows the human-readable
+        // line instead of escaped JSON. `turn.failed` follows the same shape
+        // but nests the payload under `error`.
+        "error" | "turn.failed" => {
+            let raw = v
+                .get("message")
+                .and_then(|m| m.as_str())
+                .or_else(|| {
+                    v.get("error")
+                        .and_then(|e| e.get("message"))
+                        .and_then(|m| m.as_str())
+                })
+                .unwrap_or("Codex turn failed.")
+                .to_string();
+            Some(AiResponseChunk::Error {
+                message: extract_inner_codex_error(&raw),
+                exit_code: None,
+            })
         }
         // Legacy envelope shapes still tolerated.
         "text" | "message" | "delta" => {

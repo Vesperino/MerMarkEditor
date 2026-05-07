@@ -5,6 +5,7 @@ pub mod codex;
 
 pub use registry::ChildRegistry;
 
+use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -33,7 +34,7 @@ pub struct AiSendRequest {
     /// Optional user-supplied path to the CLI binary, taking precedence over
     /// PATH-based resolution. Used on macOS/Linux when the binary lives
     /// outside the GUI process's PATH (Homebrew, npm-global, volta, etc.).
-    /// Empty / None falls back to `cli::resolve`. See issue #70.
+    /// Empty / None falls back to `cli::resolve_with_override`. See issue #70.
     #[serde(default)]
     pub cli_path: Option<String>,
 }
@@ -84,6 +85,15 @@ fn spawn_pump(
     let event_for_stderr = event;
     let label_for_stderr = window_label;
     let _req_id_for_stdout = request_id.clone();
+
+    // Shared rolling buffer of the most recent stderr lines. Used to attach
+    // a stderr tail to the synthetic "exited without finalising" error so
+    // users see WHY the child died (e.g. "Sandbox setup failed: ...") instead
+    // of an opaque message. Bounded so a chatty CLI can't grow it unboundedly.
+    let stderr_tail: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let stderr_tail_for_stdout = stderr_tail.clone();
+    let stderr_tail_for_stderr = stderr_tail.clone();
+
     if let Some(out) = stdout {
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
@@ -115,14 +125,28 @@ fn spawn_pump(
             }
             // Process closed without finalising — synthesise an Error so the
             // frontend's `await completion` doesn't hang. Codex sometimes
-            // does this when its sandbox setup fails on Windows.
+            // does this when its sandbox setup fails on Windows. Attach the
+            // tail of stderr so the user can actually see what failed.
             if !done_emitted {
+                // Give stderr task a beat to flush whatever it's still holding
+                // — child exit closes both pipes ~simultaneously and the two
+                // reader tasks race. 50 ms is plenty in practice.
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                let tail = stderr_tail_for_stdout.lock().unwrap().join("\n");
+                let message = if tail.trim().is_empty() {
+                    "AI process exited without finalising the turn (check console for details).".to_string()
+                } else {
+                    format!(
+                        "AI process exited without finalising the turn.\n\nLast stderr:\n{}",
+                        tail
+                    )
+                };
                 eprintln!("[ai] child exited without Done/Error — synthesising error");
                 let _ = app_for_stdout.emit_to(
                     label_for_stdout.as_str(),
                     &event_for_stdout,
                     AiResponseChunk::Error {
-                        message: "AI process exited without finalising the turn (check console for details).".into(),
+                        message,
                         exit_code: None,
                     },
                 );
@@ -134,16 +158,25 @@ fn spawn_pump(
             // Codex routes diagnostic traces (sandbox refresh, tool routing,
             // INFO/ERROR telemetry) through stderr while real conversation
             // status stays in stdout. Emitting every stderr line as an Error
-            // chunk turned every codex turn into a UI error bubble. Stderr is
-            // mirrored to the dev console only in debug builds; in release
-            // we drain silently.
+            // chunk turned every codex turn into a UI error bubble.
             //
             // Claude emits its fatal errors as JSON `result` events on
             // stdout, so the same policy applies.
+            //
+            // We still capture a rolling tail of stderr so that when a child
+            // dies without producing a Done/Error on stdout we can attach
+            // "Last stderr: ..." to the synthetic error chunk.
+            const TAIL_LIMIT: usize = 20;
             let mut lines = BufReader::new(err).lines();
-            while let Ok(Some(_line)) = lines.next_line().await {
+            while let Ok(Some(line)) = lines.next_line().await {
                 #[cfg(debug_assertions)]
-                eprintln!("[ai stderr] {}", _line);
+                eprintln!("[ai stderr] {}", line);
+                let mut buf = stderr_tail_for_stderr.lock().unwrap();
+                buf.push(line);
+                if buf.len() > TAIL_LIMIT {
+                    let n = buf.len() - TAIL_LIMIT;
+                    buf.drain(0..n);
+                }
             }
             // Suppress unused-binding warnings for the moved captures.
             let _ = (&app_for_stderr, &event_for_stderr, &label_for_stderr);

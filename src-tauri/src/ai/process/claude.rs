@@ -23,11 +23,21 @@ const CMD: &str = "claude";
 
 pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
     let mut cmd = Command::new(cli::resolve_with_override(CMD, req.cli_path.as_deref()));
+    // Always use stream-json input over stdin. Two reasons:
+    //   1. Windows: `claude` resolves to `claude.cmd` (npm shim). Rust 1.77+
+    //      stdlib applies CVE-2024-24576 sanitization to `.cmd`/`.bat`
+    //      invocations and rejects args containing `\n`, `\r`, etc. with
+    //      "batch file arguments are invalid". The preamble is multi-line
+    //      so passing it via `--append-system-prompt <preamble>` always
+    //      fails on Windows.
+    //   2. Image attachments need the stream-json content-block envelope.
+    // Folding preamble into the user-message text (as a leading paragraph)
+    // mirrors how the codex spawn ships its preamble + prompt over stdin.
     cmd.arg("-p")
         .arg("--output-format").arg("stream-json")
         .arg("--verbose")  // REQUIRED for stream-json to actually emit
         .arg("--include-partial-messages")  // emits content_block_delta token deltas
-        .arg("--append-system-prompt").arg(&req.preamble);
+        .arg("--input-format").arg("stream-json");
     if let Some(model) = &req.model {
         cmd.arg("--model").arg(model);
     }
@@ -50,21 +60,9 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         req.work_dir.clone()
     };
     cmd.current_dir(&workdir_for_claude);
-
-    let has_images = !req.images.is_empty();
-    if has_images {
-        // Switch to stream-json input over stdin so we can attach base64
-        // image blocks alongside the text. Without this, `-p` mode only
-        // accepts a plain string prompt.
-        cmd.arg("--input-format").arg("stream-json");
-        cmd.stdin(Stdio::piped());
-    } else {
-        // No images: keep the simple positional prompt path (smaller
-        // surface area, matches legacy spawn shape).
-        cmd.arg(&req.prompt);
-        cmd.stdin(Stdio::null());
-    }
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     cli::hide_console(&mut cmd);
 
     eprintln!(
@@ -79,29 +77,30 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         e.to_string()
     })?;
 
-    if has_images {
-        let payload = build_user_message_with_images(req).await?;
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin
-                .write_all(payload.as_bytes())
-                .await
-                .map_err(|e| format!("claude stdin write failed: {}", e))?;
-            stdin
-                .write_all(b"\n")
-                .await
-                .map_err(|e| format!("claude stdin newline failed: {}", e))?;
-            let _ = stdin.shutdown().await;
-        }
+    let payload = build_user_message_envelope(req).await?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(payload.as_bytes())
+            .await
+            .map_err(|e| format!("claude stdin write failed: {}", e))?;
+        stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|e| format!("claude stdin newline failed: {}", e))?;
+        let _ = stdin.shutdown().await;
     }
     Ok(child)
 }
 
 /// Build the stream-json user message envelope claude expects when
 /// `--input-format stream-json` is active: a top-level `{type:"user",
-/// message:{role:"user", content:[image..., text]}}`. Each attached image
-/// is read from disk, mime-detected by extension, and inlined as a
-/// `base64` image block.
-async fn build_user_message_with_images(req: &AiSendRequest) -> Result<String, String> {
+/// message:{role:"user", content:[image..., text]}}`. The preamble is
+/// folded into the leading text block (separated by a blank line) so we
+/// don't have to pass it via `--append-system-prompt` — that flag's value
+/// always contains newlines and breaks Rust's `.cmd`/`.bat` arg sanitizer
+/// on Windows. Each attached image is read from disk, mime-detected by
+/// extension, and inlined as a `base64` image block.
+async fn build_user_message_envelope(req: &AiSendRequest) -> Result<String, String> {
     let mut content: Vec<serde_json::Value> = Vec::with_capacity(req.images.len() + 1);
     for path in &req.images {
         let bytes = tokio::fs::read(path)
@@ -118,7 +117,12 @@ async fn build_user_message_with_images(req: &AiSendRequest) -> Result<String, S
             }
         }));
     }
-    content.push(serde_json::json!({ "type": "text", "text": req.prompt }));
+    let text = if req.preamble.is_empty() {
+        req.prompt.clone()
+    } else {
+        format!("{}\n\n{}", req.preamble, req.prompt)
+    };
+    content.push(serde_json::json!({ "type": "text", "text": text }));
     let envelope = serde_json::json!({
         "type": "user",
         "message": { "role": "user", "content": content },

@@ -1,10 +1,10 @@
-# Release v0.2.4 — Workspaces, Minimal Theme, AI in Diagrams
+# Release v0.2.6 — Workspaces, Minimal Theme, AI in Diagrams
 
 Workspace folders, a brand-new Minimal theme, AI editing for Mermaid diagrams, a near-WYSIWYG PDF export — the editor finally feels like a place you can stay in for hours, not just a quick-note tool.
 
 <p>
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-light-mode.png" alt="MerMark v0.2.4 — Minimal theme, workspace sidebar, document open" width="48%" />
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-with-ai-panel.png" alt="MerMark v0.2.4 — same layout with the AI Assistant docked on the right" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-light-mode.png" alt="MerMark v0.2.4 — Minimal theme, workspace sidebar, document open" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-with-ai-panel.png" alt="MerMark v0.2.4 — same layout with the AI Assistant docked on the right" width="48%" />
 </p>
 
 ## Workspaces
@@ -63,6 +63,15 @@ Workspace folders, a brand-new Minimal theme, AI editing for Mermaid diagrams, a
 - **Default mermaid scale 25 → 100** — new diagrams render at full size by default; the previous 25 % default left them tiny in the document.
 - **Workspace sidebar visible in PDF** — `display: none` left a flex width reservation; the sidebar now collapses with `width: 0; visibility: hidden`.
 - **AI panel tab visible in fullscreen mermaid edit** — when minimised during a mermaid AI session, the tab needs to sit above the diagram fullscreen overlay. `z-index: 100000` is now applied conditionally so it only outranks the overlay during an active mermaid edit.
+- **Claude AI on Windows — `batch file arguments are invalid`** (from 0.2.5) — Claude CLI resolves to `claude.cmd` (npm shim); Rust 1.77+ rejects `.cmd` invocations with newline-bearing args (CVE-2024-24576 mitigation). The system preamble is multi-line. Spawn now uses the documented `--input-format stream-json` path universally and folds the preamble into the user message text — same pattern as the Codex spawn.
+- **Codex error events surface in the chat** (from 0.2.5) — Codex's top-level `error` / `turn.failed` envelopes were being dropped by the stdout normalizer; users got a generic *"AI process exited without finalising the turn"* instead of the real reason (e.g. *"The 'gpt-5' model is not supported when using Codex with a ChatGPT account."*). The normalizer now matches both shapes and unwraps the upstream API message.
+- **Last-stderr tail attached to "exited without finalising" errors** (from 0.2.5) — when an AI child genuinely dies without emitting a final JSON event the synthesised error chunk now includes the last 20 lines of the child's stderr so you don't need a debug build to diagnose it.
+- **Settings → AI shows resolved binary path** (from 0.2.5) — under the version line for each CLI you can see the actual path the resolver picked (`C:\Users\…\AppData\Roaming\npm\claude.cmd`, `/opt/homebrew/bin/codex`, your custom override, …). Makes it obvious which install is in use.
+- **Right-click open** (#73, from 0.2.4) — context-menu *Open with MerMark* on Windows now actually opens the file instead of failing silently.
+- **Drop file from workspace tree onto split pane** — drag a file out of the sidebar onto the left or right pane in split mode and it opens there. Works on empty panes too. Capture-phase listeners outrank TipTap/ProseMirror's own dragover handler so the cursor doesn't stick in not-allowed.
+- **Click on workspace file with zero tabs open** — after Close All, clicking a workspace file used to do nothing because `loadFileIntoTab` short-circuited on `findActiveTabIndex() === -1`. Falls through to `createNewTab` now.
+- **Window stays open after Close All when a workspace is open** — closing the last tab no longer terminates the window when at least one workspace is loaded; the sidebar stays useful for browsing, dragging, and quick-switching.
+- **Typing lag on big docs** — `useToolbarActions` is called by ~20 components (Toolbar / LeftBar / StatusBar / each ToolbarItemRenderer); each used to register its own `editor.on('update')` listener that ran `getHTML` + `htmlToMarkdown` + token recount. With many tables / code blocks this stalled typing for hundreds of milliseconds per character. Listener + token counter hoisted to module scope (one per editor); typing is responsive again.
 
 ## Under the hood
 
@@ -70,3 +79,4 @@ Workspace folders, a brand-new Minimal theme, AI editing for Mermaid diagrams, a
 - **Settings migration** — `useSettings` deep-merges new fields on load (`editorPaddingTop / Bottom / X`, `openWorkspaces[]`, `activeWorkspaceId`, `cliResolvedPath*`), so existing installs upgrade without losing anything.
 - **Markdown roundtrip for mermaid attrs** — node attributes (`userWidth`, `splitRatio`, `printScale`) survive markdown serialization via a `<!--mermaid-attrs:k=v,…-->` HTML comment immediately before the fenced block, parsed back into TipTap node attrs on load.
 - **`useAiMermaidTarget` singleton** — clean bridge between the diagram node and the AI panel. The node only registers a target with `apply` and `cancel` callbacks; the singleton tracks the candidate and exposes `applyCandidate` / `discardCandidate` / `clear`. Adding new "AI edits this kind of node" surfaces will use the same pattern.
+- **`useToolbarActions` listener deduped** — Toolbar / LeftBar / StatusBar / every ToolbarItemRenderer call site used to register its own `editor.on('update')` handler, so each keystroke ran ~20 copies of `getHTML` + `htmlToMarkdown` + token recount. The listener and the token counter are now hoisted to module scope (one per editor); typing on docs with many tables / code blocks no longer stalls.

@@ -215,6 +215,11 @@ async function copyAudit() {
           <div class="ai-cli-name-col">
             <span class="ai-cli-name">{{ cli === 'claude' ? t.aiCliStatusClaude : t.aiCliStatusCodex }}</span>
             <span class="ai-cli-sub">{{ cache[cli]?.version ?? '' }}</span>
+            <span
+              v-if="cache[cli]?.resolvedPath"
+              class="ai-cli-sub ai-cli-path-display"
+              :title="cache[cli]!.resolvedPath!"
+            >{{ cache[cli]!.resolvedPath }}</span>
           </div>
           <div class="ai-cli-status-col">
             <span class="ai-cli-dot" :class="dotClass(cli)" />
@@ -536,6 +541,13 @@ async function copyAudit() {
   opacity: 0.65;
   font-family: var(--code-font-family, monospace);
   margin-top: 2px;
+}
+.ai-cli-path-display {
+  opacity: 0.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
 }
 .ai-cli-status-col {
   display: flex;

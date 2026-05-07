@@ -46,8 +46,8 @@
 - **Wieloplatformowy** - Dostępny na Windows, macOS i Linux
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-light-mode.png" alt="MerMark — motyw Minimal z paskiem workspace'ów" width="48%" />
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-with-ai-panel.png" alt="MerMark — ten sam układ z asystentem AI po prawej" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-light-mode.png" alt="MerMark — motyw Minimal z paskiem workspace'ów" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-with-ai-panel.png" alt="MerMark — ten sam układ z asystentem AI po prawej" width="48%" />
 </p>
 
 ---

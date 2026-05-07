@@ -787,6 +787,23 @@ pub fn run() {
                     // macOS: Finder double-click on already-running app dispatches
                     // NSApplicationDelegate application:openURLs: (no new process,
                     // so single_instance plugin never fires). Handle it here. (#63)
+                    let file_paths: Vec<String> = urls
+                        .into_iter()
+                        .filter_map(|url| url.to_file_path().ok())
+                        .map(|path| path.to_string_lossy().to_string())
+                        .filter(|path| is_supported_markdown_path(path))
+                        .collect();
+
+                    if file_paths.is_empty() {
+                        return;
+                    }
+
+                    // Always persist the pending file before touching the window.
+                    // On cold start macOS can deliver Opened before the webview is
+                    // ready, and the frontend later retrieves this value.
+                    let state = app.state::<OpenFileState>();
+                    *state.0.lock().unwrap() = file_paths.last().cloned();
+
                     if let Some(window) = app.get_webview_window("main") {
                         if window.is_minimized().unwrap_or(false) {
                             let _ = window.unminimize();
@@ -796,17 +813,8 @@ pub fn run() {
                         }
                         let _ = window.set_focus();
 
-                        for url in urls {
-                            if let Ok(path) = url.to_file_path() {
-                                let path_str = path.to_string_lossy().to_string();
-                                if is_supported_markdown_path(&path_str) {
-                                    // Also store in state as fallback for cold-start
-                                    // race where frontend listener isn't mounted yet.
-                                    let state = app.state::<OpenFileState>();
-                                    *state.0.lock().unwrap() = Some(path_str.clone());
-                                    let _ = window.emit("open-file", path_str);
-                                }
-                            }
+                        for path in file_paths {
+                            let _ = window.emit("open-file", path);
                         }
                     }
                 }

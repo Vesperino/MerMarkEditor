@@ -46,8 +46,8 @@
 - **跨平台** - 支持 Windows、macOS 和 Linux
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-light-mode.png" alt="MerMark — Minimal 主题与工作区侧栏" width="48%" />
-  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.4/ui-with-ai-panel.png" alt="MerMark — 同样的布局，AI 助手停靠在右侧" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-light-mode.png" alt="MerMark — Minimal 主题与工作区侧栏" width="48%" />
+  <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-with-ai-panel.png" alt="MerMark — 同样的布局，AI 助手停靠在右侧" width="48%" />
 </p>
 
 ---

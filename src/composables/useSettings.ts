@@ -296,8 +296,8 @@ function getDefaultSettings(): AppSettings {
     ai: {
       enabled: true,
       defaultCli: 'claude',
-      defaultModelClaude: 'claude-opus-4-5',
-      defaultModelCodex: 'gpt-5',
+      defaultModelClaude: 'claude-opus-4-7',
+      defaultModelCodex: 'gpt-5.5',
       effortClaude: 'high',
       effortCodex: 'high',
       snapshotsKeep: 3,
