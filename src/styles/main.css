@@ -536,8 +536,9 @@ button:disabled {
        so the PDF embedder always finds a reasonable face. */
     font-family: "Charter", "Iowan Old Style", "Palatino Linotype",
       "Cambria", Georgia, "Times New Roman", serif !important;
-    font-size: 11pt;
-    line-height: 1.6;
+    /* Match the Minimal editor (17 px / 1.75) at print scale. */
+    font-size: 11.5pt;
+    line-height: 1.7;
     color: #1a1a1a !important;
     /* Better text rendering on the printed sheet — anti-aliasing + ligatures. */
     -webkit-font-smoothing: antialiased;
@@ -587,8 +588,8 @@ button:disabled {
     margin: 0 !important;
     font-family: "Charter", "Iowan Old Style", "Palatino Linotype",
       "Cambria", Georgia, "Times New Roman", serif !important;
-    font-size: 11pt !important;
-    line-height: 1.6 !important;
+    font-size: 11.5pt !important;
+    line-height: 1.7 !important;
   }
 
   /* Kill the gradient accents added by the Minimal theme's chrome. They
@@ -727,29 +728,31 @@ button:disabled {
   }
 
   /* ===== Typography =====
-     Hard-coded ink colors here on purpose. CSS variables don't survive
-     into print reliably when a higher-specificity selector (e.g.
-     `html.dark[data-variant="minimal"]`) re-sets `--text-primary` to a
-     light hex — variables can't be selectively overridden inside an
-     `@media print` block at lower specificity. Hex values bypass the
-     cascade entirely. */
+     Mirrors the on-screen Minimal theme so the PDF reads as the same
+     document the user just edited (WYSIWYG). Hex colours used directly
+     because CSS variables get out-ranked by `html.dark[data-variant]`
+     selectors at higher specificity — variables can't be selectively
+     overridden inside an `@media print` block. */
   h1, h2, h3, h4, h5, h6 {
     break-after: avoid;
     page-break-after: avoid;
     color: #1a1a1a !important;
     font-weight: 600 !important;
-    letter-spacing: -0.012em !important;
-    line-height: 1.25 !important;
+    letter-spacing: -0.01em !important;
+    line-height: 1.3 !important;
     background: none !important;
     background-image: none !important;
     -webkit-text-fill-color: #1a1a1a !important;
+    border: none !important;
+    padding-bottom: 0 !important;
   }
 
+  /* Sizes match the Minimal theme's em scale converted to print pt
+     (body = 11.5 pt, see body rule above): 1.85em ≈ 21 pt, 1.45em ≈
+     17 pt, 1.18em ≈ 14 pt. Margins follow the same em rhythm. */
   h1 {
-    font-size: 24pt;
-    margin: 0 0 0.4em;
-    padding-bottom: 0.18em;
-    border-bottom: 1.2pt solid #1a1a1a !important;
+    font-size: 21pt;
+    margin: 0.4em 0 0.5em !important;
   }
   h1 + p,
   h1 + ul,
@@ -760,28 +763,24 @@ button:disabled {
 
   h2 {
     font-size: 17pt;
-    margin: 1.4em 0 0.3em;
-    padding-bottom: 0.12em;
-    border-bottom: 0.6pt solid #b6bdc4 !important;
+    margin: 1.6em 0 0.4em !important;
   }
 
   h3 {
-    font-size: 13.5pt;
-    margin: 1.2em 0 0.25em;
+    font-size: 14pt;
+    margin: 1.4em 0 0.3em !important;
   }
   h4 {
     font-size: 12pt;
-    margin: 1.1em 0 0.2em;
+    margin: 1.2em 0 0.25em !important;
     color: #303030 !important;
     -webkit-text-fill-color: #303030 !important;
   }
   h5, h6 {
     font-size: 11pt;
-    margin: 1.0em 0 0.2em;
+    margin: 1.1em 0 0.2em !important;
     color: #303030 !important;
     -webkit-text-fill-color: #303030 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.04em !important;
   }
 
   /* Body paragraphs — generous spacing, hyphenation off (markdown content
@@ -847,18 +846,27 @@ button:disabled {
     border: none !important;
   }
 
-  /* Inline code — same monospace family, hairline border so it doesn't
-     blur into surrounding prose at small print sizes. */
+  /* Inline code — same monospace family, subtle teal accent matching the
+     Minimal editor look so PDF and on-screen render the same way. */
   code {
-    background: var(--code-inline-bg) !important;
+    background: #f1f5f4 !important;
     font-family: "Fira Code", "JetBrains Mono", "SF Mono",
       "Cascadia Code", Consolas, "Liberation Mono", "Courier New",
       monospace !important;
     font-size: 0.92em !important;
-    color: var(--text-primary) !important;
-    padding: 1pt 4pt !important;
+    color: #0d9488 !important;
+    -webkit-text-fill-color: #0d9488 !important;
+    padding: 1pt 5pt !important;
     border-radius: 3px !important;
-    border: 0.4pt solid var(--border-primary) !important;
+    border: 0.4pt solid #d0d6dc !important;
+  }
+
+  /* Override the catch-all editor color rule so inline code keeps its teal */
+  .ProseMirror code,
+  .tiptap code,
+  .editor-content code {
+    color: #0d9488 !important;
+    -webkit-text-fill-color: #0d9488 !important;
   }
 
   /* Syntax highlighting - dark colors for print */

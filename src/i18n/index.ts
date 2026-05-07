@@ -465,6 +465,8 @@ export interface Translations {
   aiAssistMermaidPlaceholder: string;
   aiAssistMermaidProposed: string;
   aiAssistMermaidApply: string;
+  aiAssistMermaidPromptLabel: string;
+  aiAssistMermaidHint: string;
 
   // Tab context menu
   tabPin: string;

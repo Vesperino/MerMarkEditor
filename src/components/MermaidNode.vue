@@ -585,36 +585,64 @@ watch(editCode, () => {
           </div>
         </div>
 
-        <!-- AI assist strip — fixed below topbar when open. Compact, single
-             prompt + result preview. Apply replaces the editor content. -->
-        <div v-if="aiPanelOpen" class="ai-mermaid-strip">
-          <div class="ai-mermaid-row">
-            <input
-              v-model="aiPrompt"
-              class="ai-mermaid-input"
-              type="text"
-              :placeholder="t.aiAssistMermaidPlaceholder"
-              :disabled="aiBusy"
-              @keydown.enter="aiAskMermaid"
-            />
-            <button
-              v-if="!aiBusy"
-              class="ai-mermaid-send"
-              :disabled="!aiPrompt.trim()"
-              @click="aiAskMermaid"
-            >{{ t.aiSendButton }}</button>
-            <button v-else class="ai-mermaid-cancel" @click="aiCancel">{{ t.aiCancelButton }}</button>
-          </div>
-          <div v-if="aiError" class="ai-mermaid-error">{{ aiError }}</div>
-          <div v-if="aiOutput" class="ai-mermaid-output">
-            <div class="ai-mermaid-output-label">{{ t.aiAssistMermaidProposed }}</div>
-            <pre class="ai-mermaid-output-pre">{{ extractMermaidCodeFromResponse(aiOutput) }}</pre>
-            <div class="ai-mermaid-output-actions">
-              <button class="ai-mermaid-apply" @click="aiApply">{{ t.aiAssistMermaidApply }}</button>
-              <button class="ai-mermaid-discard" @click="aiOutput = ''">{{ t.cancel }}</button>
+        <!-- AI assist popup — Canva-style centered card. Big textarea, room
+             to write multi-line prompts. Result shown below; Apply replaces
+             the editor content. Esc / backdrop click dismiss. -->
+        <Teleport to="body">
+          <div v-if="aiPanelOpen" class="ai-mermaid-modal" @click.self="aiPanelOpen = false">
+            <div class="ai-mermaid-card" @keydown.esc="aiPanelOpen = false">
+              <header class="ai-mermaid-card-header">
+                <span class="ai-mermaid-card-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L9 8l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>
+                  </svg>
+                </span>
+                <h3 class="ai-mermaid-card-title">{{ t.aiAssistMermaidTitle }}</h3>
+                <button class="ai-mermaid-card-close" @click="aiPanelOpen = false">×</button>
+              </header>
+
+              <div class="ai-mermaid-card-body">
+                <label class="ai-mermaid-card-label">{{ t.aiAssistMermaidPromptLabel }}</label>
+                <textarea
+                  v-model="aiPrompt"
+                  class="ai-mermaid-card-textarea"
+                  :placeholder="t.aiAssistMermaidPlaceholder"
+                  :disabled="aiBusy"
+                  rows="6"
+                  @keydown.ctrl.enter="aiAskMermaid"
+                  @keydown.meta.enter="aiAskMermaid"
+                ></textarea>
+                <p class="ai-mermaid-card-hint">{{ t.aiAssistMermaidHint }}</p>
+
+                <div v-if="aiError" class="ai-mermaid-error">{{ aiError }}</div>
+
+                <div v-if="aiOutput || aiBusy" class="ai-mermaid-output">
+                  <div class="ai-mermaid-output-label">
+                    {{ t.aiAssistMermaidProposed }}
+                    <span v-if="aiBusy" class="ai-mermaid-busy-dot"></span>
+                  </div>
+                  <pre class="ai-mermaid-output-pre">{{ aiOutput ? extractMermaidCodeFromResponse(aiOutput) : '…' }}</pre>
+                </div>
+              </div>
+
+              <footer class="ai-mermaid-card-actions">
+                <button v-if="aiOutput && !aiBusy" class="ai-mermaid-apply" @click="aiApply">
+                  {{ t.aiAssistMermaidApply }}
+                </button>
+                <button v-if="aiBusy" class="ai-mermaid-cancel" @click="aiCancel">
+                  {{ t.aiCancelButton }}
+                </button>
+                <button
+                  v-else
+                  class="ai-mermaid-send"
+                  :disabled="!aiPrompt.trim()"
+                  @click="aiAskMermaid"
+                >{{ t.aiSendButton }}</button>
+                <button class="ai-mermaid-discard" @click="aiPanelOpen = false">{{ t.cancel }}</button>
+              </footer>
             </div>
           </div>
-        </div>
+        </Teleport>
         <!-- Split: code left, preview right -->
         <div class="editor-split-fullscreen">
           <div class="editor-code-pane" :style="{ flex: `0 0 ${splitRatio}%` }">
@@ -1053,36 +1081,139 @@ watch(editCode, () => {
   color: var(--primary);
 }
 
-.ai-mermaid-strip {
-  border-bottom: 1px solid var(--border-primary);
-  background: var(--bg-secondary);
-  padding: 8px 14px;
-  flex-shrink: 0;
+/* Modal overlay (Canva-style centered card) */
+.ai-mermaid-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.55));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(2px);
+}
+
+.ai-mermaid-card {
+  width: min(640px, 100%);
+  max-height: 86vh;
+  background: var(--dialog-bg, var(--bg-primary));
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg, 0 24px 64px rgba(0, 0, 0, 0.4));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  overflow: hidden;
 }
 
-.ai-mermaid-row {
+.ai-mermaid-card-header {
   display: flex;
-  gap: 6px;
   align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-primary);
 }
 
-.ai-mermaid-input {
+.ai-mermaid-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(var(--primary-rgb, 37, 99, 235), 0.15);
+  color: var(--primary);
+}
+
+.ai-mermaid-card-title {
   flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--border-secondary);
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ai-mermaid-card-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
   border-radius: 4px;
+}
+
+.ai-mermaid-card-close:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.ai-mermaid-card-body {
+  padding: 14px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-mermaid-card-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ai-mermaid-card-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-secondary);
+  border-radius: 6px;
   background: var(--bg-input);
   color: var(--text-primary);
   font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
   outline: none;
+  line-height: 1.5;
 }
 
-.ai-mermaid-input:focus {
+.ai-mermaid-card-textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--focus-ring-alpha);
+  box-shadow: 0 0 0 3px var(--focus-ring-alpha);
+}
+
+.ai-mermaid-card-hint {
+  margin: -4px 0 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.ai-mermaid-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--dialog-actions-bg, var(--bg-secondary));
+  border-top: 1px solid var(--border-primary);
+}
+
+.ai-mermaid-busy-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-left: 6px;
+  animation: aimermaid-pulse 1s ease-in-out infinite;
+}
+
+@keyframes aimermaid-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
 }
 
 .ai-mermaid-send,
