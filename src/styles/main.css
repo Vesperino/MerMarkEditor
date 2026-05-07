@@ -1,3 +1,7 @@
+/* Theme variants live in their own modules. Imports must precede all
+   other CSS statements per spec. */
+@import "./themes/minimal.css";
+
 * {
   margin: 0;
   padding: 0;
@@ -436,9 +440,6 @@ button:disabled {
 /* ========== Print Styles ========== */
 
 /* Page setup */
-/* Minimal theme variant lives in its own module. */
-@import "./themes/minimal.css";
-
 @page {
   size: A4;
   margin: 10mm 15mm 15mm 15mm;

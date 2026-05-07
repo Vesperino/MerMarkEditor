@@ -32,6 +32,7 @@ function resetWorkspaceState() {
   // `useWorkspace` is a singleton.
   const ws = useWorkspace();
   ws.expandedFolders.value = new Set();
+  ws.collapsedWorkspaceIds.value = new Set();
   ws.highlightedPath.value = null;
 }
 
@@ -353,6 +354,52 @@ describe('useWorkspace', () => {
         ws.closeWorkspaceById(e.id);
       }
       expect(ws.recentWorkspaces.value.length).toBe(RECENT_WORKSPACES_LIMIT);
+    });
+  });
+
+  describe('workspace section collapse', () => {
+    it('toggleWorkspaceSection flips collapsed state', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValueOnce(makeFolderNode('/r'));
+      const e = await ws.openWorkspace('/r');
+      expect(ws.isWorkspaceSectionCollapsed(e.id)).toBe(false);
+      ws.toggleWorkspaceSection(e.id);
+      expect(ws.isWorkspaceSectionCollapsed(e.id)).toBe(true);
+      ws.toggleWorkspaceSection(e.id);
+      expect(ws.isWorkspaceSectionCollapsed(e.id)).toBe(false);
+    });
+
+    it('expandAllWorkspaceSections clears the collapsed set', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValue(makeFolderNode('any'));
+      const a = await ws.openWorkspace('/a');
+      const b = await ws.openWorkspace('/b');
+      ws.collapseWorkspaceSection(a.id);
+      ws.collapseWorkspaceSection(b.id);
+      ws.expandAllWorkspaceSections();
+      expect(ws.isWorkspaceSectionCollapsed(a.id)).toBe(false);
+      expect(ws.isWorkspaceSectionCollapsed(b.id)).toBe(false);
+    });
+
+    it('collapseAllWorkspaceSections collapses every open workspace', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValue(makeFolderNode('any'));
+      const a = await ws.openWorkspace('/a');
+      const b = await ws.openWorkspace('/b');
+      ws.collapseAllWorkspaceSections();
+      expect(ws.isWorkspaceSectionCollapsed(a.id)).toBe(true);
+      expect(ws.isWorkspaceSectionCollapsed(b.id)).toBe(true);
+    });
+
+    it('setHighlightedPath auto-expands the owning collapsed section', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValueOnce(makeFolderNode('/r'));
+      const entry = await ws.openWorkspace('/r');
+      ws.collapseWorkspaceSection(entry.id);
+      expect(ws.isWorkspaceSectionCollapsed(entry.id)).toBe(true);
+
+      ws.setHighlightedPath('/r/sub/file.md');
+      expect(ws.isWorkspaceSectionCollapsed(entry.id)).toBe(false);
     });
   });
 });

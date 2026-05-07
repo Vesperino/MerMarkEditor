@@ -435,6 +435,20 @@ export interface Translations {
   workspaceErrorLoad: string;
   workspaceClearRecents: string;
   workspaceLoading: string;
+  workspaces: string;
+  addWorkspace: string;
+  expandAllSections: string;
+  collapseAllSections: string;
+  activeWorkspaceContext: string;
+  workspaceEmptyRecentHint: string;
+  workspaceQuickSwitcher: string;
+  workspaceQuickSwitcherPlaceholder: string;
+  workspaceQuickSwitcherNoMatches: string;
+  workspaceQuickSwitcherOpenBadge: string;
+  workspaceQuickSwitcherRecentBadge: string;
+  qsHintNavigate: string;
+  qsHintOpen: string;
+  qsHintCancel: string;
 
   // Open split-button
   openMenuTooltip: string;

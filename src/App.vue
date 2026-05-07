@@ -26,6 +26,7 @@ import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue';
+import WorkspaceQuickSwitcher from './components/WorkspaceQuickSwitcher.vue';
 import AiPanel from './components/ai/AiPanel.vue';
 import AiFirstRunTooltip from './components/ai/AiFirstRunTooltip.vue';
 import AiTmpRecoveryModal from './components/ai/AiTmpRecoveryModal.vue';
@@ -700,6 +701,9 @@ const handleOpenRecentWorkspaceFromToolbar = (rootPath: string) => {
   workspace.openWorkspace(rootPath).catch((e) => console.error('[App] open recent workspace:', e));
 };
 
+// Quick-switcher modal state. Triggered from sidebar search icon or Ctrl+Shift+E.
+const showWorkspaceQuickSwitcher = ref(false);
+
 // Sync the active tab's file path into the workspace tree highlight so the
 // sidebar reveals (and scrolls to) whichever file the user is editing.
 watch(
@@ -922,6 +926,13 @@ const handleKeyboard = (event: KeyboardEvent) => {
       case 'r':
         event.preventDefault();
         manualReload();
+        break;
+      case 'e':
+        // Ctrl+Shift+E opens the workspace quick switcher (palette-style).
+        if (event.shiftKey) {
+          event.preventDefault();
+          showWorkspaceQuickSwitcher.value = true;
+        }
         break;
       case 'w':
         if (activeTabId.value && activePaneId.value) {
@@ -1251,6 +1262,7 @@ onUnmounted(async () => {
       <WorkspaceSidebar
         v-if="workspace.sidebarVisible.value"
         @open-file="handleWorkspaceOpenFile"
+        @open-quick-switcher="showWorkspaceQuickSwitcher = true"
       />
 
       <!-- Left Bar (configurable) -->
@@ -1410,6 +1422,12 @@ onUnmounted(async () => {
       v-if="showSettingsModal"
       @close="showSettingsModal = false"
       @show-whats-new="showSettingsModal = false; showWhatsNewModal = true"
+    />
+
+    <!-- Workspace Quick Switcher (Ctrl+Shift+E) -->
+    <WorkspaceQuickSwitcher
+      v-if="showWorkspaceQuickSwitcher"
+      @close="showWorkspaceQuickSwitcher = false"
     />
 
     <!-- AI Assistant Panel (slide-in chat) -->

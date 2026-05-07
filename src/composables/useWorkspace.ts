@@ -16,8 +16,10 @@ const treesById = ref<Record<string, WorkspaceNode | null>>({});
 const loadingById = ref<Record<string, boolean>>({});
 const errorById = ref<Record<string, string | null>>({});
 
-/** Set of folder paths the user has expanded in the active workspace's tree. */
+/** Set of folder paths the user has expanded in any workspace's tree. */
 const expandedFolders = ref<Set<string>>(new Set());
+/** Workspace ids the user has collapsed in the multi-root sidebar (default expanded). */
+const collapsedWorkspaceIds = ref<Set<string>>(new Set());
 /** File path that should be highlighted in the tree (usually the active editor tab). */
 const highlightedPath = ref<string | null>(null);
 
@@ -324,7 +326,51 @@ export function useWorkspace() {
    */
   function setHighlightedPath(path: string | null) {
     highlightedPath.value = path;
-    if (path) expandAncestorsOf(path);
+    if (path) {
+      expandAncestorsOf(path);
+      // Also expand the section that owns this file so the row is reachable.
+      const owning = findOwningWorkspace(path);
+      if (owning) expandWorkspaceSection(owning.id);
+    }
+  }
+
+  // ===== Workspace section collapse/expand (multi-root sidebar) =====
+
+  function isWorkspaceSectionCollapsed(id: string): boolean {
+    return collapsedWorkspaceIds.value.has(id);
+  }
+
+  function expandWorkspaceSection(id: string) {
+    if (collapsedWorkspaceIds.value.has(id)) {
+      const next = new Set(collapsedWorkspaceIds.value);
+      next.delete(id);
+      collapsedWorkspaceIds.value = next;
+    }
+  }
+
+  function collapseWorkspaceSection(id: string) {
+    if (!collapsedWorkspaceIds.value.has(id)) {
+      const next = new Set(collapsedWorkspaceIds.value);
+      next.add(id);
+      collapsedWorkspaceIds.value = next;
+    }
+  }
+
+  function toggleWorkspaceSection(id: string) {
+    if (collapsedWorkspaceIds.value.has(id)) expandWorkspaceSection(id);
+    else collapseWorkspaceSection(id);
+  }
+
+  function expandAllWorkspaceSections() {
+    if (collapsedWorkspaceIds.value.size > 0) {
+      collapsedWorkspaceIds.value = new Set();
+    }
+  }
+
+  function collapseAllWorkspaceSections() {
+    const next = new Set<string>();
+    for (const w of openWorkspaces.value) next.add(w.id);
+    collapsedWorkspaceIds.value = next;
   }
 
   return {
@@ -340,6 +386,7 @@ export function useWorkspace() {
     error,
     treesById,
     expandedFolders,
+    collapsedWorkspaceIds,
     highlightedPath,
 
     // Workspace lifecycle
@@ -370,6 +417,14 @@ export function useWorkspace() {
     toggleFolder,
     expandAncestorsOf,
     setHighlightedPath,
+
+    // Workspace section collapse
+    isWorkspaceSectionCollapsed,
+    expandWorkspaceSection,
+    collapseWorkspaceSection,
+    toggleWorkspaceSection,
+    expandAllWorkspaceSections,
+    collapseAllWorkspaceSections,
 
     // Sidebar
     setSidebarVisible,
