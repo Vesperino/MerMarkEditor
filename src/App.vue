@@ -748,6 +748,15 @@ const handleWorkspaceOpenFile = (path: string) => {
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
+
+// Drop a file from the workspace tree onto a specific pane in split mode.
+// Switching the active pane *before* the open call routes the new tab to the
+// target pane via the existing createTab(activePaneId, …) path.
+const handleWorkspaceDropFile = (paneId: string, path: string) => {
+  splitState.value.activePaneId = paneId;
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] drop file in pane:', e));
+};
 const handleOpenWorkspaceFromToolbar = () => {
   workspace.openWorkspaceDialog().catch((e) => console.error('[App] open workspace dialog:', e));
 };
@@ -1366,6 +1375,7 @@ onUnmounted(async () => {
           @close-all="handleTabCloseAll"
           @close-all-but-pinned="handleTabCloseAllButPinned"
           @close-saved="handleTabCloseSaved"
+          @drop-file="handleWorkspaceDropFile"
         />
       </div>
 
