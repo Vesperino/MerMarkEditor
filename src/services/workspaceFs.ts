@@ -15,6 +15,15 @@ export interface WorkspaceNode {
   children?: WorkspaceNode[];
 }
 
+export interface ContentSearchHit {
+  /** Absolute path of the file containing the hit. */
+  path: string;
+  /** 1-based line number of the matching line. */
+  line: number;
+  /** Trimmed and length-capped match line for UI display. */
+  snippet: string;
+}
+
 export const workspaceFs = {
   /** Read the full markdown-only tree rooted at `root`. May be slow for large folders. */
   readTree: (root: string): Promise<WorkspaceNode> =>
@@ -35,4 +44,13 @@ export const workspaceFs = {
   /** Reveal a file/folder in the host OS file manager. */
   reveal: (path: string): Promise<void> =>
     invoke<void>('reveal_in_os', { path }),
+
+  /**
+   * Substring-search the markdown contents of every file under any of `roots`.
+   * Case-insensitive. Backend caps the work (5k files, 4 s budget) so the
+   * caller only needs to debounce typing — there's no full-disk-walk failure
+   * mode for the UI to defend against.
+   */
+  searchContent: (roots: string[], query: string): Promise<ContentSearchHit[]> =>
+    invoke<ContentSearchHit[]>('search_workspace_content', { roots, query }),
 };

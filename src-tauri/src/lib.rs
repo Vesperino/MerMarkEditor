@@ -453,6 +453,139 @@ fn delete_path(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// ============== Content search across open workspaces ==============
+
+#[derive(Serialize)]
+struct ContentSearchHit {
+    path: String,
+    /// 1-based line number where the match was found.
+    line: usize,
+    /// The matching line, trimmed and capped to 240 chars for display.
+    snippet: String,
+}
+
+/// Substring-search the content of every `.md/.markdown/.mdx` file under any
+/// of the supplied roots. Case-insensitive. Async + multi-threaded so a
+/// 5000-file workspace stays interactive.
+///
+/// Hard limits to keep the worst case bounded:
+///   - Max 5_000 files visited per call (early-stops; UI explains via `truncated`).
+///   - Max 500 KB read per file (markdown is text — bigger means binary garbage).
+///   - Max 200 hit lines returned overall.
+///   - Total wall-clock budget: 4 s, then early-stop with whatever we have.
+#[tauri::command]
+async fn search_workspace_content(
+    roots: Vec<String>,
+    query: String,
+) -> Result<Vec<ContentSearchHit>, String> {
+    let q = query.trim().to_string();
+    if q.is_empty() {
+        return Ok(Vec::new());
+    }
+    let q_lower = q.to_ascii_lowercase();
+
+    tokio::task::spawn_blocking(move || -> Result<Vec<ContentSearchHit>, String> {
+        let start = std::time::Instant::now();
+        let budget = std::time::Duration::from_secs(4);
+        const MAX_FILES: usize = 5_000;
+        const MAX_FILE_BYTES: usize = 512 * 1024;
+        const MAX_HITS: usize = 200;
+
+        let mut files_visited: usize = 0;
+        let mut hits: Vec<ContentSearchHit> = Vec::new();
+
+        // Iterative DFS so we can early-stop cleanly.
+        let mut stack: Vec<PathBuf> = roots
+            .into_iter()
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir())
+            .collect();
+
+        while let Some(dir) = stack.pop() {
+            if start.elapsed() > budget || hits.len() >= MAX_HITS || files_visited >= MAX_FILES {
+                break;
+            }
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(rd) => rd,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if is_workspace_hidden(&name) {
+                    continue;
+                }
+                let path = entry.path();
+                let file_type = match entry.file_type() {
+                    Ok(t) => t,
+                    Err(_) => continue,
+                };
+                if file_type.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if !file_type.is_file() || !is_workspace_markdown(&name) {
+                    continue;
+                }
+                files_visited += 1;
+                if files_visited > MAX_FILES {
+                    break;
+                }
+                // Read up to MAX_FILE_BYTES — markdown files are text, bigger
+                // is almost certainly bad data we don't want to scan.
+                let bytes = match read_file_capped(&path, MAX_FILE_BYTES) {
+                    Ok(b) => b,
+                    Err(_) => continue,
+                };
+                let text = match std::str::from_utf8(&bytes) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                for (idx, line) in text.lines().enumerate() {
+                    if line.to_ascii_lowercase().contains(&q_lower) {
+                        let trimmed = line.trim();
+                        let snippet = if trimmed.len() > 240 {
+                            format!("{}…", &trimmed.chars().take(240).collect::<String>())
+                        } else {
+                            trimmed.to_string()
+                        };
+                        hits.push(ContentSearchHit {
+                            path: path.to_string_lossy().into_owned(),
+                            line: idx + 1,
+                            snippet,
+                        });
+                        if hits.len() >= MAX_HITS {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(hits)
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
+}
+
+fn read_file_capped(path: &Path, max_bytes: usize) -> std::io::Result<Vec<u8>> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(path)?;
+    let mut buf = Vec::with_capacity(max_bytes.min(64 * 1024));
+    let mut chunk = [0u8; 8192];
+    while buf.len() < max_bytes {
+        let n = f.read(&mut chunk)?;
+        if n == 0 {
+            break;
+        }
+        let take = n.min(max_bytes - buf.len());
+        buf.extend_from_slice(&chunk[..take]);
+        if take < n {
+            break;
+        }
+    }
+    Ok(buf)
+}
+
 /// Reveal a file or folder in the host OS file manager.
 /// On Windows uses `explorer /select,<path>`; on macOS uses `open -R <path>`;
 /// on Linux falls back to opening the parent folder via xdg-open.
@@ -597,6 +730,7 @@ pub fn run() {
             rename_path,
             delete_path,
             reveal_in_os,
+            search_workspace_content,
             ai_health_check,
             ai_access_load,
             ai_access_save,

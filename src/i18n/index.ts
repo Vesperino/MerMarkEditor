@@ -453,6 +453,11 @@ export interface Translations {
   rename: string;
   workspaceErrorNoPathSeparators: string;
   workspaceErrorReservedName: string;
+  newFileInWorkspaceTooltip: (workspace: string) => string;
+  qsSectionFiles: string;
+  qsSectionContent: string;
+  qsContentSearching: string;
+  qsContentTruncated: string;
 
   // Open split-button
   openMenuTooltip: string;

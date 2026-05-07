@@ -175,6 +175,29 @@ const activeContextWorkspaceId = computed<string | null>(() => {
   return ws.activeWorkspaceId.value;
 });
 
+/**
+ * Where a "new file" header click should drop the file. Priority:
+ *   1. Workspace owning the active editor file (you're working there).
+ *   2. The settings-flagged active workspace (last clicked tab/section).
+ *   3. The first open workspace (best-effort default for single-workspace users).
+ *   4. None — the button is hidden if no workspace is open.
+ */
+const targetWorkspaceForNewFile = computed(() => {
+  const hl = ws.highlightedPath.value;
+  if (hl) {
+    const owning = ws.findOwningWorkspace(hl);
+    if (owning) return owning;
+  }
+  if (ws.activeWorkspace.value) return ws.activeWorkspace.value;
+  return ws.openWorkspaces.value[0] ?? null;
+});
+
+function startNewFileInActiveWorkspace() {
+  const target = targetWorkspaceForNewFile.value;
+  if (!target) return;
+  pendingAction.value = { kind: 'new-file', parent: target.rootPath };
+}
+
 // ===== Tree drag&drop (file -> folder = move via rename) =====
 const dragOverFolderPath = ref<string | null>(null);
 
@@ -278,6 +301,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
       <span class="ws-title">{{ t.workspaces }}</span>
       <span v-if="hasOpen" class="ws-count">{{ ws.openWorkspaces.value.length }}</span>
 
+      <!-- Search: quick switcher (workspaces / files / content). -->
       <button
         v-if="hasOpen"
         class="ws-header-btn"
@@ -290,14 +314,31 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
         </svg>
       </button>
 
+      <!-- New file: creates an empty .md in the active workspace root. -->
+      <button
+        v-if="targetWorkspaceForNewFile"
+        class="ws-header-btn"
+        :title="t.newFileInWorkspaceTooltip(targetWorkspaceForNewFile.name)"
+        @click="startNewFileInActiveWorkspace"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="11" x2="12" y2="17"/>
+          <line x1="9" y1="14" x2="15" y2="14"/>
+        </svg>
+      </button>
+
+      <!-- Open folder: adds a workspace. Distinct from "new file" above. -->
       <button
         class="ws-header-btn"
         :title="t.openFolder"
         @click="pickFolder"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <line x1="12" y1="11" x2="12" y2="17"/>
+          <line x1="9" y1="14" x2="15" y2="14"/>
         </svg>
       </button>
 

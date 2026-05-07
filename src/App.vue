@@ -1428,6 +1428,7 @@ onUnmounted(async () => {
     <WorkspaceQuickSwitcher
       v-if="showWorkspaceQuickSwitcher"
       @close="showWorkspaceQuickSwitcher = false"
+      @open-file="handleWorkspaceOpenFile"
     />
 
     <!-- AI Assistant Panel (slide-in chat) -->

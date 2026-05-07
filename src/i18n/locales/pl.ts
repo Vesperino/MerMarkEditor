@@ -447,6 +447,11 @@ const pl: Translations = {
   rename: 'Zmień nazwę',
   workspaceErrorNoPathSeparators: 'Nazwa nie może zawierać separatorów ścieżki (/ ani \\).',
   workspaceErrorReservedName: 'Ta nazwa jest zarezerwowana.',
+  newFileInWorkspaceTooltip: (workspace: string) => `Nowy plik w "${workspace}"`,
+  qsSectionFiles: 'Pliki',
+  qsSectionContent: 'Wyniki w treści',
+  qsContentSearching: 'Przeszukiwanie treści…',
+  qsContentTruncated: 'ograniczone',
 
   // Open split-button
   openMenuTooltip: 'Otwórz plik lub obszar roboczy…',

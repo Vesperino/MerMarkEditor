@@ -447,6 +447,11 @@ const zhCN: Translations = {
   rename: '重命名',
   workspaceErrorNoPathSeparators: '名称不能包含路径分隔符 (/ 或 \\)。',
   workspaceErrorReservedName: '此名称已保留。',
+  newFileInWorkspaceTooltip: (workspace: string) => `在 "${workspace}" 中新建文件`,
+  qsSectionFiles: '文件',
+  qsSectionContent: '内容匹配',
+  qsContentSearching: '正在搜索内容…',
+  qsContentTruncated: '已截断',
 
   // Open split-button
   openMenuTooltip: '打开文件或工作区…',

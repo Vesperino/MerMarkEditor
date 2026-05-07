@@ -447,6 +447,11 @@ const en: Translations = {
   rename: 'Rename',
   workspaceErrorNoPathSeparators: 'Name cannot contain path separators (/ or \\).',
   workspaceErrorReservedName: 'Name is reserved.',
+  newFileInWorkspaceTooltip: (workspace: string) => `New file in "${workspace}"`,
+  qsSectionFiles: 'Files',
+  qsSectionContent: 'Content matches',
+  qsContentSearching: 'Searching content…',
+  qsContentTruncated: 'limited',
 
   // Open split-button
   openMenuTooltip: 'Open file or workspace…',
