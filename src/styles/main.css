@@ -440,48 +440,64 @@ button:disabled {
 /* ========== Print Styles ========== */
 
 /* Page setup */
+/* ==========================================================================
+ * Print pipeline (used for both Ctrl+P and the PDF export menu action).
+ *
+ * Goal: produce a document a user could send to a colleague — calm
+ * typography, comfortable margins, professional blockquote / code / table
+ * styling — without leaking app chrome (sidebars, modals, drag handles).
+ *
+ * Margins: A4 with 18 mm side margins (≈ 70-character measure on Charter at
+ * 11 pt). 15 mm bottom leaves room for the OS-supplied page number footer.
+ * First page gets a slightly smaller top margin so a leading H1 sits high.
+ * ========================================================================== */
 @page {
   size: A4;
-  margin: 10mm 15mm 15mm 15mm;
+  margin: 16mm 18mm 18mm 18mm;
 }
 
 @page :first {
-  margin-top: 10mm;
+  margin-top: 12mm;
 }
 
 @media print {
-  /* Force light theme variables so all var() references resolve to print-friendly values */
+  /* Force a calm, neutral light palette so every `var()` reference inside
+     content resolves to a print-friendly value regardless of light/dark/
+     minimal mode the user happens to be in. */
   html, html.dark {
     --bg-primary: #ffffff;
-    --bg-secondary: #f8fafc;
-    --bg-tertiary: #f1f5f9;
+    --bg-secondary: #fafafa;
+    --bg-tertiary: #f4f6f8;
     --bg-input: #ffffff;
-    --text-primary: #000000;
-    --text-secondary: #333333;
+    --text-primary: #1a1a1a;
+    --text-secondary: #303030;
     --text-muted: #555555;
     --text-faint: #777777;
-    --border-primary: #cccccc;
-    --border-secondary: #999999;
-    --code-inline-bg: #f0f0f0;
-    --code-block-bg: #f8f8f8;
-    --code-block-text: #333333;
+    --border-primary: #d8dde2;
+    --border-secondary: #b6bdc4;
+    --code-inline-bg: #f1f3f5;
+    --code-block-bg: #f6f8fa;
+    --code-block-text: #24292f;
     --editor-container-bg: #ffffff;
     --editor-content-bg: #ffffff;
-    --heading-border: #cccccc;
-    --blockquote-border: #555555;
-    --blockquote-text: #333333;
-    --link-color: #000000;
-    --link-hover: #000000;
+    --heading-border: #d8dde2;
+    --blockquote-border: #2563eb;
+    --blockquote-text: #303030;
+    --link-color: #0b56c4;
+    --link-hover: #0b56c4;
     --h6-color: #555555;
-    --hr-color: #333333;
-    --table-header-bg: #e8e8e8;
-    --table-hover-bg: #f8f8f8;
+    --hr-color: #d0d6dc;
+    --table-header-bg: #f1f3f5;
+    --table-hover-bg: #fafafa;
     --tab-active-bg: #ffffff;
     --toolbar-gradient-from: #ffffff;
     --toolbar-gradient-to: #ffffff;
     --shadow-sm: none;
     --shadow-lg: none;
     --shadow-dropdown: none;
+    /* Solid color (no gradient) to keep everything CMYK-safe and crisp. */
+    --print-accent: #14b8a6;
+    --print-accent-secondary: #f43f5e;
   }
 
   * {
@@ -512,32 +528,64 @@ button:disabled {
   body {
     overflow: visible !important;
     background: white !important;
+    /* Charter / Iowan / Palatino / Cambria / Georgia — quality system serifs
+       across macOS, Windows, Linux. Falls back gracefully to web-safe families
+       so the PDF embedder always finds a reasonable face. */
+    font-family: "Charter", "Iowan Old Style", "Palatino Linotype",
+      "Cambria", Georgia, "Times New Roman", serif !important;
     font-size: 11pt;
-    line-height: 1.5;
-    color: #000 !important;
+    line-height: 1.6;
+    color: var(--text-primary) !important;
+    /* Better text rendering on the printed sheet — anti-aliasing + ligatures. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "kern" 1, "liga" 1, "onum" 1;
   }
 
-  /* Hide app UI - including tab bar and dialogs */
+  /* Hide every UI surface — chrome, modals, drag artefacts. The PDF must
+     contain ONLY document content. New entries go here, never inside the
+     @page rule. */
   .toolbar,
   .tab-bar,
   .left-bar,
   .status-bar,
   .split-divider,
   .app > header,
+  .workspace-sidebar,
+  .workspace-context-menu,
+  .ws-resize-handle,
+  .ws-add-btn,
+  .qs-backdrop,
+  .wid-backdrop,
+  .wcd-backdrop,
   .mermaid-header,
+  .mermaid-toolbar,
   .mermaid-actions,
   .mermaid-editor,
   .mermaid-error,
+  .editor-fullscreen,
   .zoom-controls,
   .template-modal-overlay,
   .fullscreen-overlay,
   .dialog-overlay,
+  .settings-overlay,
+  .update-dialog,
+  .save-confirm-dialog,
+  .external-link-dialog,
+  .keyboard-shortcuts-modal,
+  .whats-new-modal,
   .ai-panel,
   .ai-panel-tab,
   .ai-statusbar-indicator,
   .ai-toolbar-btn,
   .ai-first-run-tooltip,
+  .toast-notification,
   .toc-panel,
+  .file-conflict-modal,
+  .drag-drop-overlay,
+  .recent-files-dropdown,
+  .open-split-dropdown,
   .btn-edit,
   .btn-delete,
   .btn-save,
@@ -598,60 +646,113 @@ button:disabled {
     overflow: visible !important;
   }
 
-  /* Typography */
+  /* ===== Typography =====
+     Headings are the document's skeleton — they get more breathing room
+     than the on-screen version and tighter letter-spacing for a
+     manuscript feel. h1/h2 get a hairline rule below them so the user
+     can scan the structure at a glance; h3+ stay rule-free for density. */
   h1, h2, h3, h4, h5, h6 {
     break-after: avoid;
     page-break-after: avoid;
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.012em !important;
+    line-height: 1.25 !important;
+    background: none !important;
+    -webkit-text-fill-color: currentColor !important;
   }
 
   h1 {
-    font-size: 22pt;
-    margin-top: 0;
-    color: #000 !important;
+    font-size: 24pt;
+    margin: 0 0 0.4em;
+    padding-bottom: 0.18em;
+    border-bottom: 1.2pt solid var(--text-primary) !important;
   }
-  h2 {
-    font-size: 16pt;
-    color: #000 !important;
-  }
-  h3 {
-    font-size: 13pt;
-    color: #000 !important;
-  }
-  h4, h5, h6 {
-    font-size: 11pt;
-    color: #000 !important;
+  h1 + p,
+  h1 + ul,
+  h1 + ol,
+  h1 + blockquote {
+    margin-top: 0.6em !important;
   }
 
+  h2 {
+    font-size: 17pt;
+    margin: 1.4em 0 0.3em;
+    padding-bottom: 0.12em;
+    border-bottom: 0.6pt solid var(--border-primary) !important;
+  }
+
+  h3 {
+    font-size: 13.5pt;
+    margin: 1.2em 0 0.25em;
+  }
+  h4 {
+    font-size: 12pt;
+    margin: 1.1em 0 0.2em;
+    color: var(--text-secondary) !important;
+  }
+  h5, h6 {
+    font-size: 11pt;
+    margin: 1.0em 0 0.2em;
+    color: var(--text-secondary) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em !important;
+  }
+
+  /* Body paragraphs — generous spacing, hyphenation off (markdown content
+     is often technical: hyphenated identifiers read poorly). */
   p {
     break-inside: avoid;
     orphans: 3;
     widows: 3;
-    color: #000 !important;
+    color: var(--text-primary) !important;
+    margin: 0 0 0.6em !important;
+    hyphens: none !important;
   }
 
-  /* Code blocks - light theme for print */
+  /* ===== Code =====
+     GitHub-style light grey block with a subtle border — readable as a
+     fragment, distinct from prose, never noisy. Forced monospace stack so
+     a system without a fancy display font still picks up the right face. */
   pre {
     white-space: pre-wrap !important;
     word-wrap: break-word !important;
-    background: #f8f8f8 !important;
-    border: 1px solid #ccc !important;
-    padding: 12px !important;
+    background: var(--code-block-bg) !important;
+    border: 0.5pt solid var(--border-primary) !important;
+    border-left: 2pt solid var(--print-accent) !important;
+    padding: 10px 12px !important;
+    font-family: "Fira Code", "JetBrains Mono", "SF Mono",
+      "Cascadia Code", Consolas, "Liberation Mono", "Courier New",
+      monospace !important;
     font-size: 9pt !important;
-    border-radius: 4px !important;
+    line-height: 1.5 !important;
+    border-radius: 3px !important;
     page-break-inside: avoid;
-    color: #333 !important;
+    break-inside: avoid;
+    color: var(--code-block-text) !important;
+    margin: 0.6em 0 !important;
   }
 
   pre code {
     background: transparent !important;
-    color: #333 !important;
+    color: var(--code-block-text) !important;
+    font-size: inherit !important;
+    padding: 0 !important;
+    border: none !important;
   }
 
+  /* Inline code — same monospace family, hairline border so it doesn't
+     blur into surrounding prose at small print sizes. */
   code {
-    background: #f0f0f0 !important;
-    font-size: 9pt !important;
-    color: #333 !important;
-    padding: 2px 4px !important;
+    background: var(--code-inline-bg) !important;
+    font-family: "Fira Code", "JetBrains Mono", "SF Mono",
+      "Cascadia Code", Consolas, "Liberation Mono", "Courier New",
+      monospace !important;
+    font-size: 0.92em !important;
+    color: var(--text-primary) !important;
+    padding: 1pt 4pt !important;
+    border-radius: 3px !important;
+    border: 0.4pt solid var(--border-primary) !important;
   }
 
   /* Syntax highlighting - dark colors for print */
@@ -666,7 +767,10 @@ button:disabled {
   pre .hljs-title { color: #8250df !important; }
   pre .hljs-built_in { color: #0550ae !important; }
 
-  /* Tables — allow splitting across pages so there are no large gaps */
+  /* ===== Tables =====
+     Long tables split across pages with the header repeating, individual
+     rows stay together. Zebra rows on the body for scanability. Header gets
+     a thin teal accent line on top to echo the document's hr/blockquote. */
   table {
     border-collapse: collapse !important;
     width: 100% !important;
@@ -674,73 +778,151 @@ button:disabled {
     table-layout: fixed !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
+    margin: 0.8em 0 !important;
+    font-size: 10pt !important;
   }
 
-  /* Repeat table header on every page when table spans multiple pages */
   thead {
     display: table-header-group !important;
   }
 
-  /* Avoid breaking inside a single row */
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
   th, td {
-    border: 1px solid #333 !important;
+    border: 0.4pt solid var(--border-primary) !important;
     padding: 6px 10px !important;
     text-align: left !important;
-    color: #000 !important;
+    vertical-align: top !important;
+    color: var(--text-primary) !important;
     overflow-wrap: break-word !important;
     word-wrap: break-word !important;
+    line-height: 1.5 !important;
   }
 
   th {
-    background: #e8e8e8 !important;
-    font-weight: bold !important;
+    background: var(--table-header-bg) !important;
+    font-weight: 600 !important;
+    border-top: 1.2pt solid var(--print-accent) !important;
   }
 
-  /* Images */
-  img {
-    max-width: 100% !important;
-    page-break-inside: avoid;
+  /* Zebra rows: light shaded every-other row keeps long tables readable. */
+  tbody tr:nth-child(even) td {
+    background: #fbfcfd !important;
   }
 
-  /* Lists */
+  /* ===== Lists =====
+     Native bullet/number marker rendering — markers reuse the body color
+     so nothing fights for attention. */
   ul, ol {
-    margin-left: 20px !important;
-    color: #000 !important;
+    margin: 0.5em 0 0.6em 1.4em !important;
+    color: var(--text-primary) !important;
+    padding-left: 0.6em !important;
+  }
+
+  ul ul, ul ol, ol ul, ol ol {
+    margin-top: 0.2em !important;
+    margin-bottom: 0.2em !important;
   }
 
   li {
-    color: #000 !important;
+    color: var(--text-primary) !important;
+    margin-bottom: 0.18em !important;
   }
 
-  /* Blockquotes */
+  li::marker {
+    color: var(--text-secondary) !important;
+  }
+
+  /* ===== Blockquotes =====
+     Light tinted background, teal accent rail on the left. Italic body
+     text mirrors a typical print convention for pull-quotes / asides. */
   blockquote {
-    border-left: 3px solid #555 !important;
-    padding-left: 15px !important;
-    margin-left: 0 !important;
+    border-left: 2pt solid var(--print-accent) !important;
+    padding: 6pt 12pt !important;
+    margin: 0.7em 0 !important;
+    background: #f6fbfb !important;
     font-style: italic !important;
-    color: #333 !important;
-    background: transparent !important;
+    color: var(--text-secondary) !important;
+    border-radius: 0 3px 3px 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 
-  /* Horizontal rule */
+  blockquote p {
+    margin: 0.2em 0 !important;
+  }
+
+  /* ===== Horizontal rule =====
+     Thin centered rule (~30 % width) — used as a section divider in long
+     docs without dominating the layout. */
   hr {
     border: none !important;
-    border-top: 1px solid #333 !important;
-    margin: 16px 0 !important;
+    height: 0.6pt !important;
+    background: var(--hr-color) !important;
+    margin: 1.6em auto !important;
+    width: 35% !important;
   }
 
-  /* Links - show URL */
+  /* ===== Links =====
+     Print convention: keep the link styled (blue + underline) AND append
+     the URL after the visible text in muted brackets so the reader can
+     follow it on paper. Skipped for empty / fragment / mail links. */
   a {
-    color: #000 !important;
+    color: var(--link-color) !important;
     text-decoration: underline !important;
+    text-decoration-thickness: 0.5pt !important;
+    text-underline-offset: 1.2pt !important;
   }
 
-  /* Mermaid diagrams — color overrides are in MermaidNode.vue scoped styles */
+  a[href^="http"]::after,
+  a[href^="https"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.82em;
+    color: var(--text-muted) !important;
+    word-break: break-all;
+    font-style: normal;
+  }
+
+  /* ===== Mermaid diagrams =====
+     Center the rendered SVG and never split a single diagram across pages.
+     The wrapper drops its on-screen border / padding so the diagram looks
+     like a figure, not a UI element. */
+  .mermaid-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0.8em auto !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    text-align: center;
+    overflow: visible !important;
+  }
+
+  .mermaid-content,
+  .mermaid-viewport {
+    transform: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  .mermaid-content svg,
+  .mermaid-viewport svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Images get a subtle frame + caption-friendly margins; never cropped. */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+    margin: 0.6em auto !important;
+    display: block !important;
+  }
 
   /* Split container and app layout - ensure full content visibility */
   .app,

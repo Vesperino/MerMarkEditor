@@ -142,13 +142,53 @@ html[data-variant="minimal"] body {
   font-family: var(--minimal-font-sans);
 }
 
-/* ===== Toolbar ===== */
+/* ===== Separator helpers =====
+ * `--accent-gradient` and `--accent-strong` are defined elsewhere only when
+ * the user has enabled the coral-accents pass; the safe defaults below
+ * keep this stylesheet self-contained when those tokens aren't set. */
+html[data-variant="minimal"] {
+  --hairline: 1px solid var(--border-primary);
+  --hairline-soft: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+}
+
+/* ===== Toolbar =====
+ * Two-line bottom: a hairline border for structure plus a barely-there
+ * inset shadow that fakes a 0.5 px sub-pixel rule. Reads as one crisp
+ * separator instead of an aliased 1 px line. */
 html[data-variant="minimal"] .toolbar {
   padding: 4px 12px;
   gap: 2px;
-  box-shadow: none;
-  border-bottom: 1px solid var(--border-primary);
+  box-shadow: 0 1px 0 var(--bg-primary), 0 0 0 transparent;
+  border-bottom: var(--hairline);
   background: var(--bg-primary);
+  position: relative;
+}
+
+html[data-variant="minimal"] .toolbar::after {
+  /* Soft gradient highlight just under the toolbar — fades from teal on
+   * the left to transparent on the right, a quiet brand cue. */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(20, 184, 166, 0.35) 0%,
+    rgba(20, 184, 166, 0.12) 24%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+html.dark[data-variant="minimal"] .toolbar::after {
+  background: linear-gradient(
+    90deg,
+    rgba(45, 212, 191, 0.45) 0%,
+    rgba(45, 212, 191, 0.18) 24%,
+    transparent 60%
+  );
 }
 
 html[data-variant="minimal"] .toolbar .toolbar-button,
@@ -226,10 +266,37 @@ html[data-variant="minimal"] .status-bar {
   font-size: 11px;
   padding: 2px 12px;
   background: var(--bg-primary);
-  border-top: 1px solid var(--border-primary);
+  border-top: var(--hairline);
   color: var(--text-muted);
   font-family: var(--minimal-font-sans);
   letter-spacing: 0.02em;
+  position: relative;
+}
+
+/* Mirror the toolbar's accent line — fades up rather than down. */
+html[data-variant="minimal"] .status-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 40%,
+    rgba(20, 184, 166, 0.12) 76%,
+    rgba(20, 184, 166, 0.35) 100%
+  );
+  pointer-events: none;
+}
+
+html.dark[data-variant="minimal"] .status-bar::before {
+  background: linear-gradient(
+    90deg,
+    transparent 40%,
+    rgba(45, 212, 191, 0.18) 76%,
+    rgba(45, 212, 191, 0.45) 100%
+  );
 }
 
 html[data-variant="minimal"] .status-bar button {

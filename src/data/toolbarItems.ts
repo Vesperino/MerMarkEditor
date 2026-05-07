@@ -28,9 +28,11 @@ export interface ToolbarItemDef {
 }
 
 export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
-  // File operations
+  // File operations — workspace toggle sits next to open-file because it's
+  // the most-used "navigate the project" control alongside the file picker.
   { id: 'new-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 10, needsEditor: false, labelKey: 'new' },
   { id: 'open-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 20, needsEditor: false, labelKey: 'open', disallowedZones: ['leftbar', 'statusbar'] },
+  { id: 'toggle-workspace-sidebar', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 25, needsEditor: false, labelKey: 'showWorkspaceSidebar' },
   { id: 'save-file', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 30, needsEditor: false, labelKey: 'save' },
   { id: 'save-file-as', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 40, needsEditor: false, labelKey: 'saveAs' },
   { id: 'export-pdf', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 50, needsEditor: false, labelKey: 'exportPdf' },
@@ -88,9 +90,6 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'toggle-split-view', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1120, needsEditor: false, labelKey: 'splitView' },
   { id: 'toggle-diff', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1130, needsEditor: false, labelKey: 'changes' },
   { id: 'compare-tabs', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1140, needsEditor: false, labelKey: 'compareTabs' },
-
-  // Workspace sidebar toggle
-  { id: 'toggle-workspace-sidebar', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1150, needsEditor: false, labelKey: 'showWorkspaceSidebar' },
 
   // AI toggle
   { id: 'ai-toggle', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1200, needsEditor: false, labelKey: 'aiToggleTooltip' },
