@@ -285,14 +285,69 @@ const {
 
 const { isFullscreen, toggleFullscreen } = useFullscreen();
 
+const MERMAID_WHEEL_INTENT_DELAY_MS = 700;
+let wheelIntentTimer: ReturnType<typeof setTimeout> | null = null;
+const isWheelIntentReady = ref(false);
+const isWheelActive = ref(false);
+
+const clearWheelIntentTimer = () => {
+  if (!wheelIntentTimer) return;
+  clearTimeout(wheelIntentTimer);
+  wheelIntentTimer = null;
+};
+
+const startWheelIntentTimer = () => {
+  clearWheelIntentTimer();
+  isWheelIntentReady.value = false;
+  wheelIntentTimer = setTimeout(() => {
+    isWheelIntentReady.value = true;
+    wheelIntentTimer = null;
+  }, MERMAID_WHEEL_INTENT_DELAY_MS);
+};
+
+const activateWheelIntent = () => {
+  clearWheelIntentTimer();
+  isWheelIntentReady.value = true;
+  isWheelActive.value = true;
+};
+
+const resetWheelIntent = () => {
+  clearWheelIntentTimer();
+  isWheelIntentReady.value = false;
+  isWheelActive.value = false;
+};
+
+const handleViewportMouseEnter = () => {
+  if (isEditing.value) return;
+  startWheelIntentTimer();
+};
+
+const handleViewportMouseLeave = () => {
+  resetWheelIntent();
+  endPan();
+};
+
 // Wrap pan/zoom handlers to check editing state
 const startPan = (e: MouseEvent) => {
   if (isEditing.value) return;
+  activateWheelIntent();
   startPanBase(e);
 };
 
 const handleWheel = (e: WheelEvent) => {
   if (isEditing.value) return;
+  handleWheelBase(e);
+};
+
+const handleViewportWheel = (e: WheelEvent) => {
+  if (isEditing.value) return;
+  if (!isWheelActive.value) {
+    if (!isWheelIntentReady.value) {
+      startWheelIntentTimer();
+      return;
+    }
+    activateWheelIntent();
+  }
   handleWheelBase(e);
 };
 
@@ -349,6 +404,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   darkModeObserver?.disconnect();
+  clearWheelIntentTimer();
   // If this node owns the active AI target, clear it so a stale callback
   // doesn't try to write to an unmounted component.
   if (aiTargetActive.value) {
@@ -606,11 +662,12 @@ watch(aiPreviewCode, () => {
       ref="viewportRef"
       class="mermaid-viewport"
       :class="{ hidden: isEditing }"
+      @mouseenter="handleViewportMouseEnter"
       @mousedown="startPan"
       @mousemove="doPan"
       @mouseup="endPan"
-      @mouseleave="endPan"
-      @wheel="handleWheel"
+      @mouseleave="handleViewportMouseLeave"
+      @wheel="handleViewportWheel"
     >
       <div
         ref="containerRef"
