@@ -97,6 +97,12 @@ const en: Translations = {
   toggleCodeView: 'Toggle Code / Visual view',
   zoomInOut: 'Zoom in / out',
   resetZoom: 'Reset zoom',
+  findInCurrentDocument: 'Find in current document',
+  documentSearch: 'Document search',
+  documentSearchPlaceholder: 'Find in document',
+  documentSearchPrevious: 'Previous match',
+  documentSearchNext: 'Next match',
+  documentSearchClose: 'Close search',
 
   // Stats
   stats: 'Statistics',

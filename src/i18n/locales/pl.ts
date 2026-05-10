@@ -97,6 +97,12 @@ const pl: Translations = {
   toggleCodeView: 'Przełącz widok Kod / Wizualny',
   zoomInOut: 'Powiększ / pomniejsz',
   resetZoom: 'Reset powiększenia',
+  findInCurrentDocument: 'Znajdź w bieżącym dokumencie',
+  documentSearch: 'Wyszukiwanie w dokumencie',
+  documentSearchPlaceholder: 'Znajdź w dokumencie',
+  documentSearchPrevious: 'Poprzednie dopasowanie',
+  documentSearchNext: 'Następne dopasowanie',
+  documentSearchClose: 'Zamknij wyszukiwanie',
 
   // Stats
   stats: 'Statystyki',

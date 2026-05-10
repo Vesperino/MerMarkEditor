@@ -217,6 +217,20 @@ const setActiveEditorContent = (content: string) => {
   setEditorContent(activePaneId.value, content);
 };
 
+const getActiveVisualSearchApi = () => {
+  const paneRef = activePaneId.value === 'left' ? leftPaneRef.value : rightPaneRef.value;
+  if (!paneRef) return null;
+
+  return {
+    getSearchTextMap: () => paneRef.getSearchTextMap?.() ?? null,
+    setSearchHighlights: (...args: Parameters<NonNullable<typeof paneRef.setSearchHighlights>>) =>
+      paneRef.setSearchHighlights?.(...args),
+    clearSearchHighlights: () => paneRef.clearSearchHighlights?.(),
+    focusSearchMatch: (...args: Parameters<NonNullable<typeof paneRef.focusSearchMatch>>) =>
+      paneRef.focusSearchMatch?.(...args),
+  };
+};
+
 onUnmounted(() => {
   if (isDragging.value) {
     stopDrag();
@@ -228,6 +242,7 @@ defineExpose({
   setEditorContent,
   getActiveEditorContent,
   setActiveEditorContent,
+  getActiveVisualSearchApi,
   leftPaneRef,
   rightPaneRef,
 });

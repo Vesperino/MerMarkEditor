@@ -32,6 +32,7 @@ const rawShortcuts = [
   { key: 'Ctrl+P', action: () => t.value.exportPdf },
   { key: 'Ctrl+,', action: () => t.value.settings },
   { key: 'Ctrl+Shift+V', action: () => t.value.toggleCodeView },
+  { key: 'Ctrl+F', action: () => t.value.findInCurrentDocument },
   { key: 'Ctrl++ / Ctrl+-', action: () => t.value.zoomInOut },
   { key: 'Ctrl+0', action: () => t.value.resetZoom },
   { key: 'Ctrl+Z', action: () => t.value.undo },

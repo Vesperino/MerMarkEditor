@@ -72,6 +72,8 @@ let lastSavedHtml = '';
 import { MermaidExtension } from "../extensions/MermaidExtension";
 import { PageBreakExtension } from "../extensions/PageBreakExtension";
 import { FootnoteRef, FootnoteSection } from "../extensions/FootnoteExtension";
+import { DocumentSearchExtension } from "../extensions/DocumentSearchExtension";
+import type { VisualSearchMatch, VisualTextMap } from "../composables/useDocumentSearch";
 import { useI18n } from "../i18n";
 
 const { t } = useI18n();
@@ -391,6 +393,7 @@ const editor = useEditor({
     PageBreakExtension,
     FootnoteRef,
     FootnoteSection,
+    DocumentSearchExtension,
     CharacterCount.configure({
       limit: null,
     }),
@@ -586,7 +589,79 @@ watchEffect(() => {
   proseMirrorRef.value = (editor.value?.view?.dom as HTMLElement | undefined) ?? null;
 });
 
-defineExpose({ editor });
+const getSearchTextMap = (): VisualTextMap | null => {
+  const ed = editor.value;
+  if (!ed) return null;
+
+  const textParts: string[] = [];
+  const positions: Array<number | null> = [];
+
+  ed.state.doc.descendants((node, pos) => {
+    if (node.isText && node.text) {
+      for (let index = 0; index < node.text.length; index++) {
+        textParts.push(node.text[index]);
+        positions.push(pos + index);
+      }
+    }
+
+    if (node.isBlock && pos > 0) {
+      const last = textParts[textParts.length - 1];
+      if (last && last !== '\n') {
+        textParts.push('\n');
+        positions.push(null);
+      }
+    }
+  });
+
+  return {
+    text: textParts.join(''),
+    positions,
+  };
+};
+
+const setSearchHighlights = (matches: VisualSearchMatch[], activeIndex: number) => {
+  editor.value?.commands.setDocumentSearchResults(
+    matches.map(({ from, to }) => ({ from, to })),
+    activeIndex
+  );
+};
+
+const clearSearchHighlights = () => {
+  editor.value?.commands.clearDocumentSearchResults();
+};
+
+const focusSearchMatch = (match: VisualSearchMatch) => {
+  const ed = editor.value;
+  if (!ed) return;
+
+  requestAnimationFrame(() => {
+    const container = editorContainerRef.value;
+    if (!container) return;
+
+    let coords: { top: number; bottom: number } | null = null;
+    try {
+      coords = ed.view.coordsAtPos(match.from);
+    } catch {
+      coords = null;
+    }
+    if (!coords) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const isVisible = coords.top >= containerRect.top + 48 && coords.bottom <= containerRect.bottom - 48;
+    if (isVisible) return;
+
+    const targetTop = coords.top - containerRect.top + container.scrollTop - Math.max(80, container.clientHeight * 0.25);
+    container.scrollTop = Math.max(0, targetTop);
+  });
+};
+
+defineExpose({
+  editor,
+  getSearchTextMap,
+  setSearchHighlights,
+  clearSearchHighlights,
+  focusSearchMatch,
+});
 </script>
 
 <template>
@@ -706,6 +781,18 @@ defineExpose({ editor });
 .ProseMirror:focus {
   outline: none !important;
   border: none !important;
+}
+
+.ProseMirror .doc-search-hit {
+  background-color: rgba(250, 204, 21, 0.36);
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.ProseMirror .doc-search-hit.doc-search-hit--active {
+  background-color: rgba(245, 158, 11, 0.86);
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.32);
 }
 
 /* Ensure all block elements are left-aligned by default */

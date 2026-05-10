@@ -103,6 +103,12 @@ export interface Translations {
   toggleCodeView: string;
   zoomInOut: string;
   resetZoom: string;
+  findInCurrentDocument: string;
+  documentSearch: string;
+  documentSearchPlaceholder: string;
+  documentSearchPrevious: string;
+  documentSearchNext: string;
+  documentSearchClose: string;
 
   // Stats
   stats: string;

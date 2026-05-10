@@ -97,6 +97,12 @@ const zhCN: Translations = {
   toggleCodeView: '切换代码 / 可视视图',
   zoomInOut: '放大 / 缩小',
   resetZoom: '重置缩放',
+  findInCurrentDocument: '在当前文档中查找',
+  documentSearch: '文档内搜索',
+  documentSearchPlaceholder: '在文档中查找',
+  documentSearchPrevious: '上一个匹配',
+  documentSearchNext: '下一个匹配',
+  documentSearchClose: '关闭搜索',
 
   // Stats
   stats: '统计',

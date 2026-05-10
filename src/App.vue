@@ -27,6 +27,7 @@ import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue';
 import WorkspaceQuickSwitcher from './components/WorkspaceQuickSwitcher.vue';
+import DocumentSearchBar from './components/DocumentSearchBar.vue';
 import AiPanel from './components/ai/AiPanel.vue';
 import AiFirstRunTooltip from './components/ai/AiFirstRunTooltip.vue';
 import AiTmpRecoveryModal from './components/ai/AiTmpRecoveryModal.vue';
@@ -49,6 +50,7 @@ import { useSessionRestore } from './composables/useSessionRestore';
 import { useRecentFiles } from './composables/useRecentFiles';
 import { useWorkspace } from './composables/useWorkspace';
 import { useAiMermaidTarget } from './composables/useAiMermaidTarget';
+import { useDocumentSearch, type DocumentSearchMatch, type VisualSearchMatch } from './composables/useDocumentSearch';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -476,6 +478,10 @@ watch(
 const toggleCodeView = async () => {
   isLoadingContent.value = true;
 
+  if (!codeView.value) {
+    splitContainerRef.value?.getActiveVisualSearchApi?.()?.clearSearchHighlights();
+  }
+
   // Cast to satisfy type checker - the types are compatible
   // useCodeView now handles setContent and cursor restoration internally
   await toggleCodeViewBase(editorInstance.value as Parameters<typeof toggleCodeViewBase>[0]);
@@ -483,6 +489,105 @@ const toggleCodeView = async () => {
   await nextTick();
   isLoadingContent.value = false;
 };
+
+// ============ Current Document Search ============
+const documentSearchBarRef = ref<InstanceType<typeof DocumentSearchBar> | null>(null);
+
+const getCodeTextarea = (): HTMLTextAreaElement | null => {
+  return (codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | null | undefined) ?? null;
+};
+
+const scrollCodeMatchIntoView = (textarea: HTMLTextAreaElement, match: DocumentSearchMatch) => {
+  const computedStyle = window.getComputedStyle(textarea);
+  const fontSize = parseFloat(computedStyle.fontSize) || 14;
+  const parsedLineHeight = parseFloat(computedStyle.lineHeight);
+  const lineHeight = computedStyle.lineHeight === 'normal' || Number.isNaN(parsedLineHeight)
+    ? fontSize * 1.2
+    : parsedLineHeight;
+  const line = textarea.value.slice(0, match.start).split('\n').length - 1;
+  const targetTop = Math.max(0, (line - 4) * lineHeight);
+  textarea.scrollTop = targetTop;
+};
+
+const focusCodeMatch = (match: DocumentSearchMatch) => {
+  const textarea = getCodeTextarea();
+  if (!textarea) return;
+  textarea.focus();
+  textarea.setSelectionRange(match.start, match.end);
+  scrollCodeMatchIntoView(textarea, match);
+};
+
+const getSelectedTextForDocumentSearch = (): string => {
+  if (codeView.value) {
+    const textarea = getCodeTextarea();
+    if (!textarea || textarea.selectionStart === textarea.selectionEnd) return '';
+    return textarea.value.slice(textarea.selectionStart, textarea.selectionEnd);
+  }
+
+  const ed = editorInstance.value;
+  if (ed) {
+    const { from, to } = ed.state.selection;
+    if (from !== to) {
+      return ed.state.doc.textBetween(from, to, '\n');
+    }
+  }
+
+  const selection = window.getSelection();
+  const selectedText = selection?.toString() ?? '';
+  if (!selectedText) return '';
+  const root = document.querySelector('.editor-pane.active .ProseMirror');
+  const anchor = selection?.anchorNode;
+  if (root && anchor && root.contains(anchor)) return selectedText;
+  return '';
+};
+
+const documentSearch = useDocumentSearch({
+  getMode: () => (codeView.value ? 'code' : 'visual'),
+  getCodeText: () => codeContent.value,
+  getVisualTextAndMap: () => splitContainerRef.value?.getActiveVisualSearchApi?.()?.getSearchTextMap() ?? null,
+  focusCodeMatch,
+  focusVisualMatch: (match: VisualSearchMatch) => {
+    splitContainerRef.value?.getActiveVisualSearchApi?.()?.focusSearchMatch(match);
+  },
+  applyVisualHighlights: (matches: VisualSearchMatch[], activeIndex: number) => {
+    splitContainerRef.value?.getActiveVisualSearchApi?.()?.setSearchHighlights(matches, activeIndex);
+  },
+  clearVisualHighlights: () => {
+    splitContainerRef.value?.getActiveVisualSearchApi?.()?.clearSearchHighlights();
+  },
+  focusSearchInput: () => {
+    nextTick(() => documentSearchBarRef.value?.focusInput());
+  },
+  focusEditor: () => {
+    nextTick(() => {
+      if (codeView.value) {
+        getCodeTextarea()?.focus();
+      } else {
+        editorInstance.value?.commands.focus();
+      }
+    });
+  },
+});
+
+const openDocumentSearch = async () => {
+  await documentSearch.open(getSelectedTextForDocumentSearch());
+};
+
+watch(
+  [
+    codeContent,
+    codeView,
+    activeTabId,
+    activePaneId,
+    () => activeTab.value?.content,
+  ],
+  () => {
+    if (!documentSearch.state.value.open) return;
+    nextTick(() => {
+      documentSearch.refresh();
+    });
+  }
+);
 
 // Switch tab while in code view: exit code view first to commit edits, then switch
 const switchToTabFromCodeView = async (tabId: string) => {
@@ -1000,6 +1105,10 @@ const handleKeyboard = (event: KeyboardEvent) => {
           showWorkspaceQuickSwitcher.value = true;
         }
         break;
+      case 'f':
+        event.preventDefault();
+        openDocumentSearch();
+        break;
       case 'w':
         if (activeTabId.value && activePaneId.value) {
           event.preventDefault();
@@ -1503,6 +1612,19 @@ onUnmounted(async () => {
       v-if="showWorkspaceQuickSwitcher"
       @close="showWorkspaceQuickSwitcher = false"
       @open-file="handleWorkspaceOpenFile"
+    />
+
+    <!-- Current Document Search (Ctrl/Cmd+F) -->
+    <DocumentSearchBar
+      v-if="documentSearch.state.value.open"
+      ref="documentSearchBarRef"
+      :query="documentSearch.state.value.query"
+      :active-index="documentSearch.state.value.activeIndex"
+      :total="documentSearch.state.value.matches.length"
+      @update:query="documentSearch.setQuery"
+      @next="documentSearch.next"
+      @previous="documentSearch.previous"
+      @close="documentSearch.close"
     />
 
     <!-- AI Assistant Panel (slide-in chat) -->

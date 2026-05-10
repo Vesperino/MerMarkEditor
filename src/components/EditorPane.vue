@@ -137,6 +137,12 @@ defineExpose({
   editor: computed(() => editorRef.value?.editor),
   getEditorContent: () => editorRef.value?.editor?.getHTML() || '',
   setEditorContent: (_content: string) => { /* handled reactively via modelValue prop */ },
+  getSearchTextMap: () => editorRef.value?.getSearchTextMap?.() ?? null,
+  setSearchHighlights: (...args: Parameters<NonNullable<InstanceType<typeof Editor>['setSearchHighlights']>>) =>
+    editorRef.value?.setSearchHighlights?.(...args),
+  clearSearchHighlights: () => editorRef.value?.clearSearchHighlights?.(),
+  focusSearchMatch: (...args: Parameters<NonNullable<InstanceType<typeof Editor>['focusSearchMatch']>>) =>
+    editorRef.value?.focusSearchMatch?.(...args),
 });
 </script>
 
