@@ -15,6 +15,7 @@ export interface Translations {
   save: string;
   saveAs: string;
   exportPdf: string;
+  exportDocx: string;
 
   // Toolbar - Edit operations
   undo: string;

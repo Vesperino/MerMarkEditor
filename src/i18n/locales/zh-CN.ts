@@ -9,6 +9,7 @@ const zhCN: Translations = {
   save: '保存',
   saveAs: '另存为',
   exportPdf: 'PDF',
+  exportDocx: 'DOCX',
 
   // Toolbar - Edit operations
   undo: '撤销',

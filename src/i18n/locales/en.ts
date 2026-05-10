@@ -9,6 +9,7 @@ const en: Translations = {
   save: 'Save',
   saveAs: 'Save As',
   exportPdf: 'PDF',
+  exportDocx: 'DOCX',
 
   // Toolbar - Edit operations
   undo: 'Undo',

@@ -10,7 +10,6 @@ import {
   WidthType,
   UnderlineType,
   BorderStyle,
-  ImageRun,
 } from 'docx';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
@@ -144,7 +143,7 @@ function buildListItems(listEl: Element, ordered: boolean): Paragraph[] {
   return items;
 }
 
-const HEADING_LEVELS: Record<string, HeadingLevel> = {
+const HEADING_LEVELS: Record<string, typeof HeadingLevel[keyof typeof HeadingLevel]> = {
   h1: HeadingLevel.HEADING_1,
   h2: HeadingLevel.HEADING_2,
   h3: HeadingLevel.HEADING_3,

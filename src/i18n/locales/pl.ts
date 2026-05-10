@@ -9,6 +9,7 @@ const pl: Translations = {
   save: 'Zapisz',
   saveAs: 'Zapisz jako',
   exportPdf: 'PDF',
+  exportDocx: 'DOCX',
 
   // Toolbar - Edit operations
   undo: 'Cofnij',
