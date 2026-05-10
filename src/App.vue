@@ -58,6 +58,7 @@ import { t } from './i18n';
 import PdfExportDialog from './components/PdfExportDialog.vue';
 import { usePdfExport } from './composables/usePdfExport';
 import type { PdfSettings } from './composables/usePdfExport';
+import { useDocxExport } from './composables/useDocxExport';
 
 // ============ Split View & Tab Management ============
 const {
@@ -449,6 +450,7 @@ const {
 // ============ PDF Export ============
 const showPdfDialog = ref(false);
 const { exportPdf: doPdfExport } = usePdfExport();
+const { exportDocx } = useDocxExport();
 
 function openPdfDialog() {
   showPdfDialog.value = true;
@@ -1480,6 +1482,7 @@ onUnmounted(async () => {
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="openPdfDialog"
+      @export-docx="exportDocx"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
@@ -1519,6 +1522,7 @@ onUnmounted(async () => {
         @save-file="saveFile"
         @save-file-as="saveFileAs"
         @export-pdf="openPdfDialog"
+        @export-docx="exportDocx"
         @toggle-code-view="toggleCodeView"
         @toggle-split="toggleSplit"
         @toggle-diff-preview="toggleDiffPreview"
@@ -1589,6 +1593,7 @@ onUnmounted(async () => {
       @save-file="saveFile"
       @save-file-as="saveFileAs"
       @export-pdf="openPdfDialog"
+      @export-docx="exportDocx"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
