@@ -1,0 +1,256 @@
+/* ============================================================
+ * MerMark Print Stylesheet
+ * Standalone — zero dependency on app CSS variables or theme.
+ * Font scale: --pf-size injected by buildPrintDocument via <style>.
+ * @page rule is injected dynamically (CSS custom props unreliable in @page).
+ * ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  background: #ffffff;
+}
+
+body {
+  font-family: "Charter", "Iowan Old Style", "Palatino Linotype",
+    "Cambria", Georgia, "Times New Roman", serif;
+  font-size: var(--pf-size, 10pt);
+  line-height: 1.65;
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* ===== Headings ===== */
+h1, h2, h3, h4, h5, h6 {
+  color: #1a1a1a;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  break-after: avoid;
+  page-break-after: avoid;
+  margin-top: 0;
+}
+
+h1 {
+  font-size: calc(var(--pf-size, 10pt) * 1.6);
+  margin: 0.4em 0 0.4em;
+  border-bottom: 0.5pt solid #d0d6dc;
+  padding-bottom: 0.2em;
+}
+
+h2 { font-size: calc(var(--pf-size, 10pt) * 1.3); margin: 1.4em 0 0.4em; }
+h3 { font-size: calc(var(--pf-size, 10pt) * 1.1); margin: 1.2em 0 0.3em; }
+h4 { font-size: var(--pf-size, 10pt); font-weight: 600; margin: 1.1em 0 0.25em; }
+h5 { font-size: var(--pf-size, 10pt); font-weight: 600; font-style: italic; margin: 1em 0 0.2em; }
+h6 { font-size: var(--pf-size, 10pt); font-weight: 400; font-style: italic; color: #555555; margin: 1em 0 0.2em; }
+
+/* ===== Paragraphs ===== */
+p {
+  margin: 0 0 0.55em;
+  orphans: 3;
+  widows: 3;
+}
+
+/* ===== Links ===== */
+a { color: #0b56c4; text-decoration: underline; }
+
+/* ===== Inline code ===== */
+code {
+  font-family: "Fira Code", "JetBrains Mono", "SF Mono",
+    "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  font-size: calc(var(--pf-size, 10pt) * 0.88);
+  background: #f4f6f8;
+  color: #e11d48;
+  padding: 1pt 4pt;
+  border-radius: 3px;
+  border: 0.4pt solid #d0d6dc;
+}
+
+/* ===== Code blocks ===== */
+pre {
+  font-family: "Fira Code", "JetBrains Mono", "SF Mono",
+    "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  font-size: calc(var(--pf-size, 10pt) * 0.85);
+  line-height: 1.5;
+  background: #0d1117;
+  color: #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 5px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  margin: 0.6em 0;
+}
+
+pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border: none;
+  font-size: inherit;
+  border-radius: 0;
+}
+
+/* Syntax highlight palette (One Dark) */
+pre .hljs-keyword { color: #c678dd; }
+pre .hljs-string  { color: #98c379; }
+pre .hljs-number  { color: #d19a66; }
+pre .hljs-comment { color: #7f848e; font-style: italic; }
+pre .hljs-function, pre .hljs-title { color: #61afef; }
+pre .hljs-variable, pre .hljs-tag, pre .hljs-name { color: #e06c75; }
+pre .hljs-attr    { color: #d19a66; }
+pre .hljs-built_in, pre .hljs-symbol { color: #56b6c2; }
+pre .hljs-literal { color: #d19a66; }
+pre .hljs-meta    { color: #c678dd; }
+pre .hljs-params  { color: #abb2bf; }
+
+/* ===== Tables ===== */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  word-break: break-word;
+  font-size: calc(var(--pf-size, 10pt) * 0.9);
+  margin: 0.8em 0;
+  page-break-inside: auto;
+}
+
+thead { display: table-header-group; }
+
+tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+th {
+  background: #f1f3f5;
+  font-weight: 600;
+  border: 0.5pt solid #c0c8d0;
+  border-top: 1.2pt solid #14b8a6;
+  padding: 5px 8px;
+  text-align: left;
+  vertical-align: top;
+  color: #1a1a1a;
+}
+
+td {
+  border: 0.5pt solid #c0c8d0;
+  padding: 5px 8px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+  color: #1a1a1a;
+}
+
+tbody tr:nth-child(even) td {
+  background: #f9fafb;
+}
+
+/* ===== Lists ===== */
+ul, ol {
+  margin: 0.4em 0 0.55em;
+  padding-left: 1.6em;
+}
+
+ul ul, ol ol, ul ol, ol ul { margin: 0.15em 0; }
+
+li {
+  margin-bottom: 0.15em;
+  line-height: 1.55;
+  color: #1a1a1a;
+}
+
+/* ===== Blockquotes ===== */
+blockquote {
+  border-left: 2pt solid #14b8a6;
+  margin: 0.7em 0;
+  padding: 5pt 12pt;
+  background: #f6fbfb;
+  font-style: italic;
+  color: #303030;
+  border-radius: 0 3px 3px 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+blockquote p { margin: 0.15em 0; }
+
+/* ===== Horizontal rule ===== */
+hr {
+  border: none;
+  height: 0.5pt;
+  background: #d0d6dc;
+  margin: 1.4em 0;
+}
+
+/* ===== Images ===== */
+img {
+  max-width: 100%;
+  height: auto;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ===== Mermaid diagrams ===== */
+.mermaid-print-figure {
+  margin: 0.8em 0;
+  text-align: center;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.mermaid-print-figure svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* ===== Page breaks ===== */
+.page-break {
+  page-break-after: always;
+  break-after: page;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* ===== Task lists ===== */
+input[type="checkbox"] {
+  width: 10pt;
+  height: 10pt;
+  margin-right: 4pt;
+  vertical-align: middle;
+}
+
+/* ===== Footnotes / superscript ===== */
+sup { font-size: 0.75em; line-height: 0; vertical-align: super; }
+sub { font-size: 0.75em; line-height: 0; vertical-align: sub; }
+
+.footnotes {
+  margin-top: 2em;
+  border-top: 0.5pt solid #d0d6dc;
+  padding-top: 0.5em;
+  font-size: calc(var(--pf-size, 10pt) * 0.85);
+  color: #555555;
+}
+
+/* ===== Text decoration ===== */
+del, s { text-decoration: line-through; color: #666666; }
+u { text-decoration: underline; }
+strong { font-weight: 700; }
+em { font-style: italic; }
+mark { background: #fef08a; color: #1a1a1a; padding: 0 2pt; border-radius: 2px; }
