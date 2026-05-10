@@ -2,11 +2,10 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile, rename, remove } from '@tauri-apps/plugin-fs';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding } from '../utils/markdown-converter';
 import { aiCommands } from '../services/aiCommands';
 import type { Tab } from './useTabs';
-import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS, TIMING } from '../constants';
+import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS } from '../constants';
 
 export interface UseFileOperationsOptions {
   tabs: Ref<Tab[]>;
@@ -41,7 +40,6 @@ export interface UseFileOperationsReturn {
   openFileFromPath: (filePath: string) => Promise<void>;
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
-  exportPdf: () => Promise<void>;
   handleLinkClick: (href: string) => void;
   confirmExternalLink: () => Promise<void>;
   cancelExternalLink: () => void;
@@ -281,36 +279,6 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
-  const exportPdf = async (): Promise<void> => {
-    document.body.classList.add('printing');
-
-    try {
-      // Maximize window before printing to ensure dialog is fully visible
-      const appWindow = getCurrentWindow();
-      const wasMaximized = await appWindow.isMaximized();
-
-      if (!wasMaximized) {
-        await appWindow.maximize();
-        // Wait for window to finish maximizing
-        await new Promise(resolve => setTimeout(resolve, TIMING.MAXIMIZE_ANIMATION_DELAY));
-      }
-
-      // Use standard browser print
-      window.print();
-
-      // Restore window state if it wasn't maximized before
-      if (!wasMaximized) {
-        await appWindow.unmaximize();
-      }
-    } catch (error) {
-      console.error('Print error:', error);
-      // Fallback to window.print() if Tauri API fails
-      window.print();
-    }
-
-    document.body.classList.remove('printing');
-  };
-
   const openFileInNewTab = async (relativePath: string): Promise<void> => {
     try {
       // Save current scroll position before navigating
@@ -428,7 +396,6 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     openFileFromPath,
     saveFile,
     saveFileAs,
-    exportPdf,
     handleLinkClick,
     confirmExternalLink,
     cancelExternalLink,

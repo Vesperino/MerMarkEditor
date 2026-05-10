@@ -55,6 +55,9 @@ import { useDocumentSearch, type DocumentSearchMatch, type VisualSearchMatch } f
 import { useImageDrop } from './composables/useImageDrop';
 import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
+import PdfExportDialog from './components/PdfExportDialog.vue';
+import { usePdfExport } from './composables/usePdfExport';
+import type { PdfSettings } from './composables/usePdfExport';
 
 // ============ Split View & Tab Management ============
 const {
@@ -399,7 +402,6 @@ const {
   openFileFromPath,
   saveFile,
   saveFileAs,
-  exportPdf,
   handleLinkClick,
   confirmExternalLink,
   cancelExternalLink,
@@ -443,6 +445,19 @@ const {
     });
   },
 });
+
+// ============ PDF Export ============
+const showPdfDialog = ref(false);
+const { exportPdf: doPdfExport } = usePdfExport();
+
+function openPdfDialog() {
+  showPdfDialog.value = true;
+}
+
+async function handlePdfConfirm(settings: PdfSettings) {
+  showPdfDialog.value = false;
+  await doPdfExport(settings);
+}
 
 // ============ Code View ============
 const codeEditorComponentRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -1109,7 +1124,7 @@ const handleKeyboard = (event: KeyboardEvent) => {
         break;
       case 'p':
         event.preventDefault();
-        exportPdf();
+        openPdfDialog();
         break;
       case 'd':
         if (event.shiftKey && canShowDiff.value) {
@@ -1464,7 +1479,7 @@ onUnmounted(async () => {
       @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
-      @export-pdf="exportPdf"
+      @export-pdf="openPdfDialog"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
@@ -1503,7 +1518,7 @@ onUnmounted(async () => {
         @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
         @save-file="saveFile"
         @save-file-as="saveFileAs"
-        @export-pdf="exportPdf"
+        @export-pdf="openPdfDialog"
         @toggle-code-view="toggleCodeView"
         @toggle-split="toggleSplit"
         @toggle-diff-preview="toggleDiffPreview"
@@ -1573,7 +1588,7 @@ onUnmounted(async () => {
       @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
-      @export-pdf="exportPdf"
+      @export-pdf="openPdfDialog"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
@@ -1582,6 +1597,13 @@ onUnmounted(async () => {
       @show-settings="showSettingsModal = true"
       @toggle-toc="toggleTocPanel"
       @toggle-ai="toggleAiPanel"
+    />
+
+    <!-- PDF Export Dialog -->
+    <PdfExportDialog
+      v-if="showPdfDialog"
+      @confirm="handlePdfConfirm"
+      @cancel="showPdfDialog = false"
     />
 
     <!-- Loading Overlay -->
