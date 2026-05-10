@@ -20,6 +20,18 @@ function stripAppAttributes(el: Element): void {
   }
 }
 
+function inlineTaskCheckboxes(clone: HTMLElement): void {
+  const checkboxes = Array.from(
+    clone.querySelectorAll('input[type="checkbox"]'),
+  ) as HTMLInputElement[];
+  for (const cb of checkboxes) {
+    const span = document.createElement('span');
+    span.className = cb.checked ? 'task-cb task-cb--checked' : 'task-cb';
+    span.textContent = cb.checked ? '☑' : '☐';
+    cb.replaceWith(span);
+  }
+}
+
 function inlineMermaidSvgs(clone: HTMLElement): void {
   const mermaidNodes = Array.from(clone.querySelectorAll('[data-code]'));
   for (const node of mermaidNodes) {
@@ -45,6 +57,7 @@ function inlineMermaidSvgs(clone: HTMLElement): void {
 export function serializeEditorContent(editorEl: HTMLElement): string {
   const clone = editorEl.cloneNode(true) as HTMLElement;
   inlineMermaidSvgs(clone);
+  inlineTaskCheckboxes(clone);
   stripAppAttributes(clone);
   return clone.innerHTML;
 }

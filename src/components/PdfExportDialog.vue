@@ -1,164 +1,197 @@
 <template>
-  <div class="pdf-dialog-overlay" @click.self="$emit('cancel')">
-    <div class="pdf-dialog">
-      <h3 class="pdf-dialog-title">Eksport PDF</h3>
+  <div class="pdf-overlay" @keydown.esc="$emit('close')">
+    <div class="pdf-sidebar">
+      <h3 class="pdf-title">Podgląd PDF</h3>
 
-      <div class="pdf-dialog-fields">
-        <label class="pdf-dialog-label">
+      <div class="pdf-settings">
+        <label class="pdf-label">
           Rozmiar czcionki
-          <select
-            v-model="settings.fontSize"
-            data-testid="pdf-font-size"
-            class="pdf-dialog-select"
-          >
+          <select v-model="settings.fontSize" class="pdf-select" data-testid="pdf-font-size">
             <option value="8pt">XS — 8pt</option>
             <option value="9pt">S — 9pt</option>
-            <option value="10pt">M — 10pt (domyślny)</option>
+            <option value="10pt">M — 10pt</option>
             <option value="11pt">L — 11pt</option>
             <option value="12pt">XL — 12pt</option>
           </select>
         </label>
 
-        <label class="pdf-dialog-label">
+        <label class="pdf-label">
           Marginesy
-          <select
-            v-model="settings.margins"
-            data-testid="pdf-margins"
-            class="pdf-dialog-select"
-          >
+          <select v-model="settings.margins" class="pdf-select" data-testid="pdf-margins">
             <option value="narrow">Wąskie — 10mm</option>
-            <option value="normal">Normalne — 18mm (domyślne)</option>
+            <option value="normal">Normalne — 18mm</option>
             <option value="wide">Szerokie — 25mm</option>
           </select>
         </label>
 
-        <label class="pdf-dialog-label">
+        <label class="pdf-label">
           Format strony
-          <select
-            v-model="settings.pageSize"
-            data-testid="pdf-page-size"
-            class="pdf-dialog-select"
-          >
-            <option value="A4">A4 (domyślny)</option>
+          <select v-model="settings.pageSize" class="pdf-select" data-testid="pdf-page-size">
+            <option value="A4">A4</option>
             <option value="Letter">Letter (US)</option>
             <option value="A3">A3</option>
           </select>
         </label>
       </div>
 
-      <div class="pdf-dialog-actions">
-        <button
-          class="pdf-dialog-btn pdf-dialog-btn--secondary"
-          data-testid="pdf-cancel"
-          @click="$emit('cancel')"
-        >
-          Anuluj
-        </button>
-        <button
-          class="pdf-dialog-btn pdf-dialog-btn--primary"
-          data-testid="pdf-confirm"
-          @click="handleConfirm"
-        >
-          Eksportuj PDF
+      <div class="pdf-actions">
+        <button class="pdf-btn pdf-btn--secondary" @click="$emit('close')">Zamknij</button>
+        <button class="pdf-btn pdf-btn--primary" data-testid="pdf-confirm" @click="handlePrint">
+          Drukuj / PDF
         </button>
       </div>
+    </div>
+
+    <div class="pdf-preview-area">
+      <iframe
+        ref="previewFrame"
+        class="pdf-preview-frame"
+        :srcdoc="srcdoc"
+        sandbox="allow-scripts allow-same-origin allow-modals"
+        @load="onIframeLoad"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
-import { loadPdfSettings, type PdfSettings } from '../composables/usePdfExport';
+import { ref, reactive, computed } from 'vue';
+import printCssRaw from '../styles/print.css?raw';
+import {
+  loadPdfSettings,
+  savePdfSettings,
+  buildPrintDocument,
+  type PdfSettings,
+} from '../composables/usePdfExport';
 
-const emit = defineEmits<{
-  confirm: [settings: PdfSettings];
-  cancel: [];
-}>();
+const props = defineProps<{ contentHtml: string }>();
+const emit = defineEmits<{ close: [] }>();
 
+const previewFrame = ref<HTMLIFrameElement | null>(null);
 const settings = reactive<PdfSettings>(loadPdfSettings());
 
-function handleConfirm() {
-  emit('confirm', { ...settings });
+const srcdoc = computed(() =>
+  buildPrintDocument(props.contentHtml, settings, printCssRaw),
+);
+
+function onIframeLoad() {
+  const frame = previewFrame.value;
+  if (!frame) return;
+  try {
+    const body = frame.contentDocument?.body;
+    if (body) {
+      frame.style.height = body.scrollHeight + 48 + 'px';
+    }
+  } catch {}
+}
+
+function handlePrint() {
+  savePdfSettings({ ...settings });
+  previewFrame.value?.contentWindow?.print();
 }
 </script>
 
 <style scoped>
-.pdf-dialog-overlay {
+.pdf-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 9000;
+  display: flex;
+  background: #3a3a3a;
 }
 
-.pdf-dialog {
+.pdf-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   background: var(--bg-primary, #ffffff);
-  border: 1px solid var(--border-primary, #d8dde2);
-  border-radius: 8px;
-  padding: 24px;
-  width: 320px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  border-right: 1px solid var(--border-primary, #d8dde2);
+  padding: 20px 16px;
+  overflow-y: auto;
 }
 
-.pdf-dialog-title {
-  margin: 0 0 18px;
-  font-size: 15px;
+.pdf-title {
+  margin: 0 0 20px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary, #1a1a1a);
 }
 
-.pdf-dialog-fields {
+.pdf-settings {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  margin-bottom: 20px;
+  flex: 1;
 }
 
-.pdf-dialog-label {
+.pdf-label {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary, #303030);
 }
 
-.pdf-dialog-select {
-  padding: 6px 10px;
+.pdf-select {
+  padding: 6px 8px;
   border: 1px solid var(--border-primary, #d8dde2);
   border-radius: 5px;
   background: var(--bg-input, #ffffff);
   color: var(--text-primary, #1a1a1a);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
 }
 
-.pdf-dialog-actions {
+.pdf-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 8px;
+  margin-top: 24px;
 }
 
-.pdf-dialog-btn {
-  padding: 7px 16px;
+.pdf-btn {
+  padding: 8px 12px;
   border-radius: 5px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   border: none;
+  text-align: center;
 }
 
-.pdf-dialog-btn--secondary {
+.pdf-btn--secondary {
   background: var(--bg-tertiary, #f4f6f8);
   color: var(--text-secondary, #303030);
 }
 
-.pdf-dialog-btn--primary {
+.pdf-btn--primary {
   background: #14b8a6;
   color: #ffffff;
 }
 
-.pdf-dialog-btn--primary:hover { background: #0d9488; }
-.pdf-dialog-btn--secondary:hover { background: var(--border-primary, #d8dde2); }
+.pdf-btn--primary:hover { background: #0d9488; }
+.pdf-btn--secondary:hover { background: var(--border-primary, #d8dde2); }
+
+.pdf-preview-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  gap: 0;
+  background: #505050;
+}
+
+.pdf-preview-frame {
+  width: 210mm;
+  min-height: 297mm;
+  border: none;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.5);
+  background: #ffffff;
+  display: block;
+}
 </style>

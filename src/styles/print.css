@@ -229,11 +229,16 @@ img {
 }
 
 /* ===== Task lists ===== */
-input[type="checkbox"] {
-  width: 10pt;
-  height: 10pt;
+.task-cb {
+  font-family: "Segoe UI Symbol", "Apple Color Emoji", sans-serif;
+  font-size: 1.05em;
   margin-right: 4pt;
   vertical-align: middle;
+  color: #555;
+}
+
+.task-cb--checked {
+  color: #14b8a6;
 }
 
 /* ===== Footnotes / superscript ===== */

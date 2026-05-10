@@ -57,8 +57,9 @@ import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
 import PdfExportDialog from './components/PdfExportDialog.vue';
 import { usePdfExport } from './composables/usePdfExport';
-import type { PdfSettings } from './composables/usePdfExport';
 import { useDocxExport } from './composables/useDocxExport';
+import { serializeEditorContent } from './utils/documentSerializer';
+import { DOM_SELECTORS } from './constants';
 
 // ============ Split View & Tab Management ============
 const {
@@ -449,16 +450,18 @@ const {
 
 // ============ PDF Export ============
 const showPdfDialog = ref(false);
-const { exportPdf: doPdfExport } = usePdfExport();
+const pdfContentHtml = ref('');
 const { exportDocx } = useDocxExport();
+usePdfExport();
 
 function openPdfDialog() {
+  const editorEl =
+    document.querySelector<HTMLElement>(
+      `${DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER} .ProseMirror`,
+    ) ?? document.querySelector<HTMLElement>('.ProseMirror');
+  if (!editorEl) return;
+  pdfContentHtml.value = serializeEditorContent(editorEl);
   showPdfDialog.value = true;
-}
-
-async function handlePdfConfirm(settings: PdfSettings) {
-  showPdfDialog.value = false;
-  await doPdfExport(settings);
 }
 
 // ============ Code View ============
@@ -1607,8 +1610,8 @@ onUnmounted(async () => {
     <!-- PDF Export Dialog -->
     <PdfExportDialog
       v-if="showPdfDialog"
-      @confirm="handlePdfConfirm"
-      @cancel="showPdfDialog = false"
+      :content-html="pdfContentHtml"
+      @close="showPdfDialog = false"
     />
 
     <!-- Loading Overlay -->
