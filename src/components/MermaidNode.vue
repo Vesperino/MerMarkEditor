@@ -379,6 +379,24 @@ const renderMermaid = async () => {
     const { svg } = await mermaid.render(id, codeForRender);
     if (!containerRef.value) return;
     containerRef.value.innerHTML = svg;
+    // Mermaid sometimes under-estimates node height when text wraps, producing
+    // a viewBox that clips the bottom of nodes. Expand the viewBox to the
+    // actual bounding box of all rendered content before applying CSS size.
+    const svgEl = containerRef.value.querySelector('svg') as SVGSVGElement | null;
+    if (svgEl) {
+      try {
+        const bbox = svgEl.getBBox();
+        if (bbox.width > 0 && bbox.height > 0) {
+          const pad = 8;
+          svgEl.setAttribute(
+            'viewBox',
+            `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`
+          );
+        }
+      } catch {
+        // getBBox() unavailable in some environments — skip silently
+      }
+    }
     // Apply current size to rendered SVG
     applySvgSize();
   } catch (e: unknown) {
@@ -1367,6 +1385,7 @@ watch(aiPreviewCode, () => {
 .mermaid-content :deep(svg) {
   transition: width 0.2s ease, max-width 0.2s ease;
   display: block;
+  overflow: visible;
 }
 
 /* Dark mode: ensure edge paths and arrows are visible */
@@ -1536,11 +1555,15 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
     width: 100% !important;
   }
 
-  /* SVG root — force light background, fit to page width */
+  /* SVG root — force light background, fit to page width.
+     overflow:visible is a secondary safety net: if viewBox is still
+     slightly undersized after the getBBox() adjustment, content won't
+     be hard-clipped by the SVG viewport. */
   .mermaid-content :deep(svg) {
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
+    overflow: visible !important;
     background: white !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
