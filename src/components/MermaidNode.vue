@@ -219,6 +219,42 @@ const endSplitDrag = () => {
   }
 };
 
+// Mermaid pre-calculates foreignObject height before HTML layout, so wrapped
+// text labels overflow their declared bounds and get clipped. Fix: expand each
+// foreignObject to its actual scrollHeight, then recompute the SVG viewBox.
+const fixMermaidViewBox = async (containerEl: HTMLElement): Promise<void> => {
+  const svgEl = containerEl.querySelector('svg') as SVGSVGElement | null;
+  if (!svgEl) return;
+
+  // Wait for the browser to lay out HTML content inside foreignObject elements.
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+  if (!containerEl.isConnected) return;
+
+  try {
+    for (const fo of Array.from(svgEl.querySelectorAll<SVGForeignObjectElement>('foreignObject'))) {
+      const inner = fo.firstElementChild as HTMLElement | null;
+      if (!inner) continue;
+      const declared = parseFloat(fo.getAttribute('height') ?? '0');
+      const actual = inner.scrollHeight;
+      if (actual > declared + 1) {
+        fo.setAttribute('height', String(actual + 2));
+      }
+    }
+
+    const bbox = svgEl.getBBox();
+    if (bbox.width > 0 && bbox.height > 0) {
+      const pad = 8;
+      svgEl.setAttribute(
+        'viewBox',
+        `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`
+      );
+    }
+  } catch {
+    // getBBox() unavailable in some environments
+  }
+};
+
 const renderPreview = async () => {
   if (!previewContainerRef.value || !isEditing.value) return;
 
@@ -239,6 +275,7 @@ const renderPreview = async () => {
       .replace(/\\n/g, '<br/>');
     const { svg } = await mermaid.render(id, codeForRender);
     previewContainerRef.value.innerHTML = svg;
+    await fixMermaidViewBox(previewContainerRef.value);
   } catch (e: unknown) {
     previewError.value = e instanceof Error ? e.message : t.value.diagramError;
     previewContainerRef.value.innerHTML = "";
@@ -379,25 +416,8 @@ const renderMermaid = async () => {
     const { svg } = await mermaid.render(id, codeForRender);
     if (!containerRef.value) return;
     containerRef.value.innerHTML = svg;
-    // Mermaid sometimes under-estimates node height when text wraps, producing
-    // a viewBox that clips the bottom of nodes. Expand the viewBox to the
-    // actual bounding box of all rendered content before applying CSS size.
-    const svgEl = containerRef.value.querySelector('svg') as SVGSVGElement | null;
-    if (svgEl) {
-      try {
-        const bbox = svgEl.getBBox();
-        if (bbox.width > 0 && bbox.height > 0) {
-          const pad = 8;
-          svgEl.setAttribute(
-            'viewBox',
-            `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`
-          );
-        }
-      } catch {
-        // getBBox() unavailable in some environments — skip silently
-      }
-    }
-    // Apply current size to rendered SVG
+    await fixMermaidViewBox(containerRef.value);
+    if (!containerRef.value) return;
     applySvgSize();
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t.value.diagramError;
@@ -1249,6 +1269,7 @@ watch(aiPreviewCode, () => {
 .editor-preview-content :deep(svg) {
   max-width: 100%;
   height: auto;
+  overflow: visible;
 }
 
 .btn-more-templates {
@@ -1516,6 +1537,7 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
   width: 100% !important;
   max-width: 100% !important;
   height: auto !important;
+  overflow: visible !important;
 }
 
 /* ========== Print Styles ========== */
