@@ -1,6 +1,6 @@
-# Release v0.2.11 — Mermaid diagram fix
+# Release v0.2.12 — PDF fixes
 
 ## Bug fixes
 
-- **Mermaid diagrams no longer clip node content** — nodes with multi-line labels are now fully visible in the editor, preview pane, and PDF export.
-
+- **PDF export now respects diagram size** — diagrams set to a smaller size are no longer stretched to full page width in the exported PDF.
+- **Split view no longer duplicates content in PDF** — only the active (left) pane is printed when the editor is in split mode.
