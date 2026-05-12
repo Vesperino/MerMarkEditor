@@ -205,6 +205,10 @@ export interface Translations {
   supportDev: string;
   supportDevTooltip: string;
   buyMeACoffee: string;
+  updatesTab: string;
+  checkForUpdates: string;
+  checkingForUpdates: string;
+  upToDate: string;
 
   // Split view / Panes
   dragTabHere: string;

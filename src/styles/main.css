@@ -462,8 +462,14 @@ button:disabled {
 @media print {
   /* Force a calm, neutral light palette so every `var()` reference inside
      content resolves to a print-friendly value regardless of light/dark/
-     minimal mode the user happens to be in. */
-  html, html.dark {
+     minimal mode the user happens to be in.
+     All four variants must be listed: html[data-variant="minimal"] has higher
+     specificity than plain `html`, so without explicit entries here the
+     minimal.css token values (e.g. low-contrast --border-primary) would win
+     and produce nearly-invisible table borders in PDF output. */
+  html, html.dark,
+  html[data-variant="minimal"],
+  html.dark[data-variant="minimal"] {
     --bg-primary: #ffffff;
     --bg-secondary: #fafafa;
     --bg-tertiary: #f4f6f8;
@@ -928,6 +934,13 @@ button:disabled {
   pre .hljs-params,
   pre code .hljs-params { color: #abb2bf !important; -webkit-text-fill-color: #abb2bf !important; }
 
+  /* TipTap wraps tables in .tableWrapper with overflow-x: auto for the
+     editor UX — in print that clips columns that extend near the margin. */
+  .tableWrapper {
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+
   /* ===== Tables =====
      Long tables split across pages with the header repeating, individual
      rows stay together. Zebra rows on the body for scanability. Header gets
@@ -1079,8 +1092,12 @@ button:disabled {
 
   .mermaid-content svg,
   .mermaid-viewport svg {
+    /* Override inline width set by applySvgSize() — in print the diagram
+       must fit the page regardless of the user's on-screen size preference. */
+    width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
+    display: block !important;
   }
 
   /* Images get a subtle frame + caption-friendly margins; never cropped. */

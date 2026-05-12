@@ -199,6 +199,10 @@ const en: Translations = {
   supportDev: 'Support development',
   supportDevTooltip: 'MerMark is free and open source. If it helps you, you can buy me a coffee — totally optional.',
   buyMeACoffee: 'Buy me a coffee',
+  updatesTab: 'Updates',
+  checkForUpdates: 'Check for updates',
+  checkingForUpdates: 'Checking...',
+  upToDate: "You're up to date",
 
   // Split view / Panes
   dragTabHere: 'Drag tab here',

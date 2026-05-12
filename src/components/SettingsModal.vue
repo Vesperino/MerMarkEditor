@@ -8,6 +8,7 @@ import { useSystemFonts } from '../composables/useSystemFonts';
 import { useLayoutConfig, type LayoutZone } from '../composables/useLayoutConfig';
 import { getItemDef } from '../data/toolbarItems';
 import AiSettingsTab from './ai/AiSettingsTab.vue';
+import { useAutoUpdate } from '../composables/useAutoUpdate';
 
 const { t, locale, setLocale, availableLocales, localeLabels } = useI18n();
 const {
@@ -45,8 +46,19 @@ const editorSystemFonts = computed(() =>
 );
 const codeSystemFonts = computed(() => monoFonts.value);
 
-type SettingsTab = 'appearance' | 'editor' | 'code' | 'general' | 'layout' | 'ai';
+type SettingsTab = 'appearance' | 'editor' | 'code' | 'general' | 'layout' | 'ai' | 'updates';
 const activeTab = ref<SettingsTab>('editor');
+
+const {
+  updateInfo,
+  updateProgress,
+  isUpdating,
+  updateError,
+  isCheckingForUpdates,
+  noUpdateFound,
+  checkForUpdatesManual,
+  downloadAndInstallUpdate,
+} = useAutoUpdate();
 
 // ============ Layout Tab - Drag & Drop ============
 const layoutZones: { zone: LayoutZone; labelKey: 'topToolbar' | 'bottomStatusBar' | 'leftSidebar' | 'hiddenItems' }[] = [
@@ -321,7 +333,7 @@ onUnmounted(() => {
         <!-- Tab Navigation -->
         <div class="settings-tabs">
           <button
-            v-for="tab in (['appearance', 'editor', 'code', 'general', 'layout', 'ai'] as SettingsTab[])"
+            v-for="tab in (['appearance', 'editor', 'code', 'general', 'layout', 'ai', 'updates'] as SettingsTab[])"
             :key="tab"
             class="settings-tab"
             :class="{ active: activeTab === tab }"
@@ -361,10 +373,15 @@ onUnmounted(() => {
               <line x1="9" y1="9" x2="9" y2="21"/>
             </svg>
             <!-- AI icon -->
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg v-else-if="tab === 'ai'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
             </svg>
-            {{ tab === 'appearance' ? t.appearance : tab === 'editor' ? t.editor : tab === 'code' ? t.code : tab === 'general' ? t.general : tab === 'layout' ? t.layout : t.aiTabLabel }}
+            <!-- Updates icon -->
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+              <polyline points="17 6 23 6 23 12"/>
+            </svg>
+            {{ tab === 'appearance' ? t.appearance : tab === 'editor' ? t.editor : tab === 'code' ? t.code : tab === 'general' ? t.general : tab === 'layout' ? t.layout : tab === 'ai' ? t.aiTabLabel : t.updatesTab }}
           </button>
         </div>
 
@@ -741,8 +758,10 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div class="setting-divider"></div>
+          </div>
 
+          <!-- Updates Tab -->
+          <div v-if="activeTab === 'updates'" class="settings-section">
             <div class="setting-row">
               <label class="setting-label">Version</label>
               <div class="setting-control version-control">
@@ -752,6 +771,63 @@ onUnmounted(() => {
                 </button>
               </div>
             </div>
+
+            <div class="setting-divider"></div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t.updatesTab }}</label>
+              <div class="setting-control update-check-control">
+                <button
+                  class="update-check-btn"
+                  :disabled="isCheckingForUpdates || isUpdating"
+                  @click="checkForUpdatesManual()"
+                >
+                  <svg v-if="!isCheckingForUpdates" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 .49-4"/>
+                  </svg>
+                  <svg v-else class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="2" x2="12" y2="6"/>
+                    <line x1="12" y1="18" x2="12" y2="22"/>
+                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                    <line x1="2" y1="12" x2="6" y2="12"/>
+                    <line x1="18" y1="12" x2="22" y2="12"/>
+                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
+                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
+                  </svg>
+                  {{ isCheckingForUpdates ? t.checkingForUpdates : t.checkForUpdates }}
+                </button>
+                <span v-if="noUpdateFound && !isCheckingForUpdates && !updateInfo" class="update-status up-to-date">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  {{ t.upToDate }}
+                </span>
+                <span v-if="updateInfo && !isUpdating" class="update-status update-available">
+                  {{ t.newVersionAvailable }} v{{ updateInfo.version }}
+                </span>
+              </div>
+            </div>
+
+            <div v-if="updateInfo" class="setting-row update-install-row">
+              <label class="setting-label"></label>
+              <div class="setting-control">
+                <button
+                  class="update-now-btn"
+                  :disabled="isUpdating"
+                  @click="downloadAndInstallUpdate()"
+                >
+                  {{ isUpdating ? t.updating : t.updateNow }}
+                </button>
+                <div v-if="isUpdating" class="update-progress-bar">
+                  <div class="update-progress-fill" :style="{ width: updateProgress + '%' }"></div>
+                </div>
+                <span v-if="updateError" class="update-error">{{ updateError }}</span>
+              </div>
+            </div>
+
+            <div class="setting-divider"></div>
 
             <div class="setting-row">
               <label class="setting-label">{{ t.supportDev }}</label>
@@ -924,8 +1000,9 @@ onUnmounted(() => {
 /* Tabs */
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0;
-  padding: 0 16px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
@@ -933,8 +1010,8 @@ onUnmounted(() => {
 .settings-tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
+  gap: 5px;
+  padding: 9px 11px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -1157,6 +1234,104 @@ onUnmounted(() => {
 }
 .bmc-link svg {
   flex-shrink: 0;
+}
+
+/* Updates Tab */
+.update-check-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.update-check-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.update-check-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--primary);
+}
+.update-check-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.update-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.update-status.up-to-date {
+  color: #16a34a;
+}
+html.dark .update-status.up-to-date {
+  color: #4ade80;
+}
+.update-status.update-available {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.update-install-row .setting-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.update-now-btn {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--primary);
+  border-radius: 5px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.update-now-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.update-progress-bar {
+  flex: 1;
+  min-width: 80px;
+  max-width: 160px;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.update-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+.update-error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 0.9s linear infinite;
 }
 
 /* Layout Tab */

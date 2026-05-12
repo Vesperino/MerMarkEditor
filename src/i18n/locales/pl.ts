@@ -199,6 +199,10 @@ const pl: Translations = {
   supportDev: 'Wesprzyj rozwój',
   supportDevTooltip: 'MerMark jest darmowy i open source. Jeśli ci pomaga, możesz postawić mi kawę — całkowicie opcjonalnie.',
   buyMeACoffee: 'Postaw mi kawę',
+  updatesTab: 'Aktualizacje',
+  checkForUpdates: 'Sprawdź aktualizacje',
+  checkingForUpdates: 'Sprawdzam...',
+  upToDate: 'Masz najnowszą wersję',
 
   // Split view / Panes
   dragTabHere: 'Przeciągnij kartę tutaj',

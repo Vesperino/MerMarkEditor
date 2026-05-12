@@ -1528,15 +1528,18 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
   }
 
   .mermaid-content {
-    display: flex !important;
+    display: block !important;
     transform: none !important;
-    justify-content: center !important;
+    text-align: center !important;
     background: white !important;
     padding: 10px 0 !important;
+    width: 100% !important;
   }
 
-  /* SVG root — force light background */
+  /* SVG root — force light background, fit to page width */
   .mermaid-content :deep(svg) {
+    width: 100% !important;
+    max-width: 100% !important;
     height: auto !important;
     background: white !important;
     -webkit-print-color-adjust: exact !important;
