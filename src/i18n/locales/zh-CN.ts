@@ -199,6 +199,10 @@ const zhCN: Translations = {
   supportDev: '支持开发',
   supportDevTooltip: 'MerMark 免费且开源。如果它帮助到你，可以请我喝杯咖啡 — 完全自愿。',
   buyMeACoffee: '请我喝咖啡',
+  updatesTab: '更新',
+  checkForUpdates: '检查更新',
+  checkingForUpdates: '正在检查...',
+  upToDate: '已是最新版本',
 
   // Split view / Panes
   dragTabHere: '将标签页拖放至此',
