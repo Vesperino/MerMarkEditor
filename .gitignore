@@ -50,3 +50,4 @@ line-numbers-*.png
 
 # AI staging tmp files (sit next to docs during apply)
 *.mermark-ai.tmp
+.worktrees/
