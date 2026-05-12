@@ -1092,12 +1092,11 @@ button:disabled {
 
   .mermaid-content svg,
   .mermaid-viewport svg {
-    /* Override inline width set by applySvgSize() — in print the diagram
-       must fit the page regardless of the user's on-screen size preference. */
-    width: 100% !important;
-    max-width: 100% !important;
+    width: var(--diagram-print-scale, 100%) !important;
+    max-width: var(--diagram-print-scale, 100%) !important;
     height: auto !important;
     display: block !important;
+    margin: 0 auto !important;
   }
 
   /* Images get a subtle frame + caption-friendly margins; never cropped. */
@@ -1118,6 +1117,11 @@ button:disabled {
     max-height: none !important;
     overflow: visible !important;
     display: block !important;
+  }
+
+  /* In split view, print only the left (primary) pane. */
+  .editor-pane ~ .editor-pane {
+    display: none !important;
   }
 
   /* Allow page breaks inside very large mermaid diagrams when necessary */
