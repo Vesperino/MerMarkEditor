@@ -68,10 +68,18 @@ export interface PdfWatermark {
 
 export type MarginPreset = 'narrow' | 'normal' | 'wide' | 'custom';
 
+export interface CustomMargins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 export interface PdfSettings {
   fontSize: '8pt' | '9pt' | '10pt' | '11pt' | '12pt';
   margins: MarginPreset;
   customMarginMm: number;
+  customMargins: CustomMargins;
   pageSize: 'A4' | 'Letter' | 'A3';
   fontFamily: string;
   headingFontFamily: string;
@@ -91,6 +99,7 @@ export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
   fontSize: '10pt',
   margins: 'normal',
   customMarginMm: 18,
+  customMargins: { top: 18, right: 18, bottom: 22, left: 18 },
   pageSize: 'A4',
   fontFamily: 'charter',
   headingFontFamily: 'charter',
@@ -123,10 +132,19 @@ export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
 
 interface Margins { top: string; right: string; bottom: string; left: string; }
 
+function clampMm(v: number): string {
+  return `${Math.max(3, Math.min(60, v | 0))}mm`;
+}
+
 function resolveMargins(settings: PdfSettings): Margins {
   if (settings.margins === 'custom') {
-    const v = `${Math.max(3, Math.min(60, settings.customMarginMm | 0))}mm`;
-    return { top: v, right: v, bottom: v, left: v };
+    const c = settings.customMargins;
+    return {
+      top: clampMm(c.top),
+      right: clampMm(c.right),
+      bottom: clampMm(c.bottom),
+      left: clampMm(c.left),
+    };
   }
   switch (settings.margins) {
     case 'narrow': return { top: '10mm', right: '10mm', bottom: '14mm', left: '10mm' };
@@ -329,12 +347,18 @@ function migrateSettings(parsed: Partial<PdfSettings>): PdfSettings {
     header: { ...PDF_SETTINGS_DEFAULTS.header, ...(parsed.header ?? {}) },
     footer: { ...PDF_SETTINGS_DEFAULTS.footer, ...(parsed.footer ?? {}) },
     watermark: { ...PDF_SETTINGS_DEFAULTS.watermark, ...(parsed.watermark ?? {}) },
+    customMargins: { ...PDF_SETTINGS_DEFAULTS.customMargins, ...(parsed.customMargins ?? {}) },
   };
   if (FONT_LEGACY_MIGRATION[out.fontFamily]) {
     out.fontFamily = FONT_LEGACY_MIGRATION[out.fontFamily];
   }
   if (FONT_LEGACY_MIGRATION[out.headingFontFamily]) {
     out.headingFontFamily = FONT_LEGACY_MIGRATION[out.headingFontFamily];
+  }
+  // Legacy: if old single customMarginMm exists but no customMargins, expand
+  if (!parsed.customMargins && parsed.customMarginMm) {
+    const v = parsed.customMarginMm;
+    out.customMargins = { top: v, right: v, bottom: v, left: v };
   }
   return out;
 }

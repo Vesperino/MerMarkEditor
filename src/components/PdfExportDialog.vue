@@ -62,18 +62,56 @@
               <option value="custom">Niestandardowe</option>
             </select>
           </label>
-          <label class="pdf-label">
-            Margines ({{ effectiveMarginMm }} mm)
-            <input
-              :value="effectiveMarginMm"
-              type="range"
-              min="5"
-              max="40"
-              step="1"
-              data-testid="pdf-custom-margin"
-              @input="onMarginSliderInput"
-            >
-          </label>
+          <div class="pdf-margin-grid">
+            <label class="pdf-label pdf-label--sm">
+              Górny ({{ effectiveMargins.top }} mm)
+              <input
+                :value="effectiveMargins.top"
+                type="range"
+                min="3"
+                max="60"
+                step="1"
+                data-testid="pdf-margin-top"
+                @input="onMarginSide('top', $event)"
+              >
+            </label>
+            <label class="pdf-label pdf-label--sm">
+              Prawy ({{ effectiveMargins.right }} mm)
+              <input
+                :value="effectiveMargins.right"
+                type="range"
+                min="3"
+                max="60"
+                step="1"
+                data-testid="pdf-margin-right"
+                @input="onMarginSide('right', $event)"
+              >
+            </label>
+            <label class="pdf-label pdf-label--sm">
+              Dolny ({{ effectiveMargins.bottom }} mm)
+              <input
+                :value="effectiveMargins.bottom"
+                type="range"
+                min="3"
+                max="60"
+                step="1"
+                data-testid="pdf-margin-bottom"
+                @input="onMarginSide('bottom', $event)"
+              >
+            </label>
+            <label class="pdf-label pdf-label--sm">
+              Lewy ({{ effectiveMargins.left }} mm)
+              <input
+                :value="effectiveMargins.left"
+                type="range"
+                min="3"
+                max="60"
+                step="1"
+                data-testid="pdf-margin-left"
+                @input="onMarginSide('left', $event)"
+              >
+            </label>
+          </div>
           <label class="pdf-label">
             Format strony
             <select v-model="settings.pageSize" class="pdf-select" data-testid="pdf-page-size">
@@ -300,22 +338,36 @@ const currentHeadingStack = computed(() => getFontStack(settings.headingFontFami
 
 const PRESET_MM: Record<string, number> = { narrow: 10, normal: 18, wide: 25 };
 
-const effectiveMarginMm = computed(() => {
-  if (settings.margins === 'custom') return settings.customMarginMm;
-  return PRESET_MM[settings.margins] ?? 18;
+const PRESET_MARGINS_FULL: Record<string, { top: number; right: number; bottom: number; left: number }> = {
+  narrow: { top: 10, right: 10, bottom: 14, left: 10 },
+  normal: { top: 18, right: 18, bottom: 22, left: 18 },
+  wide:   { top: 25, right: 25, bottom: 28, left: 25 },
+};
+
+const effectiveMargins = computed(() => {
+  if (settings.margins === 'custom') return settings.customMargins;
+  return PRESET_MARGINS_FULL[settings.margins] ?? PRESET_MARGINS_FULL.normal;
 });
 
 function onMarginPresetChange() {
   if (settings.margins !== 'custom') {
-    settings.customMarginMm = PRESET_MM[settings.margins] ?? 18;
+    const preset = PRESET_MARGINS_FULL[settings.margins] ?? PRESET_MARGINS_FULL.normal;
+    settings.customMargins = { ...preset };
+    settings.customMarginMm = preset.top;
   }
 }
 
-function onMarginSliderInput(e: Event) {
+function onMarginSide(side: 'top' | 'right' | 'bottom' | 'left', e: Event) {
   const v = parseInt((e.target as HTMLInputElement).value, 10);
   if (!Number.isFinite(v)) return;
+  // If currently on preset, copy preset to customMargins first
+  if (settings.margins !== 'custom') {
+    const preset = PRESET_MARGINS_FULL[settings.margins] ?? PRESET_MARGINS_FULL.normal;
+    settings.customMargins = { ...preset };
+    settings.margins = 'custom';
+  }
+  settings.customMargins[side] = v;
   settings.customMarginMm = v;
-  settings.margins = 'custom';
 }
 
 const { customPresets, allPresets, findPreset, savePreset, deletePreset } = usePdfPresets();
@@ -549,6 +601,12 @@ function handlePrint() {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
+}
+
+.pdf-margin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .pdf-hint {

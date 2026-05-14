@@ -69,9 +69,20 @@ describe('buildPrintDocument', () => {
     expect(html).toContain('Charter');
   });
 
-  it('applies custom margin when margins=custom', () => {
-    const html = buildPrintDocument('<p>x</p>', withSettings({ margins: 'custom', customMarginMm: 30 }), FAKE_CSS);
-    expect(html).toContain('30mm');
+  it('applies uniform custom margin when margins=custom and all sides equal', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({
+      margins: 'custom',
+      customMargins: { top: 30, right: 30, bottom: 30, left: 30 },
+    }), FAKE_CSS);
+    expect(html).toContain('30mm 30mm 30mm 30mm');
+  });
+
+  it('applies per-direction custom margins', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({
+      margins: 'custom',
+      customMargins: { top: 12, right: 24, bottom: 35, left: 8 },
+    }), FAKE_CSS);
+    expect(html).toContain('12mm 24mm 35mm 8mm');
   });
 
   it('renders preview header div when header.enabled', () => {
