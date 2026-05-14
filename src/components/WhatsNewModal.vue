@@ -1,89 +1,36 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getVersion } from '@tauri-apps/api/app';
 import { markdownToHtml } from '../utils/markdown-converter';
 import { useI18n } from '../i18n';
+import { getCurrent } from '../services/releaseNotes';
 import '../styles/release-notes.css';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
   close: [];
+  openChangelog: [];
 }>();
 
 const appVersion = ref('');
-const markdownContent = ref('');
-const isLoading = ref(true);
-const hasError = ref(false);
+const markdown = ref<string | null>(null);
 
-const CACHE_KEY = 'mermark-whats-new';
-const GITHUB_REPO = 'Vesperino/MerMarkEditor';
-
-const renderedHtml = computed(() => {
-  if (!markdownContent.value) return '';
-  return markdownToHtml(markdownContent.value);
-});
-
-const loadChangelog = async () => {
-  try {
-    const version = await getVersion();
-    appVersion.value = version;
-
-    // Check cache first
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.version === version && parsed.content) {
-          markdownContent.value = parsed.content;
-          isLoading.value = false;
-          return;
-        }
-      }
-    } catch {
-      // ignore cache errors
-    }
-
-    // Fetch from GitHub releases API
-    const tagName = `v${version}`;
-    const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${tagName}`;
-
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json() as { body?: string };
-      const body = data.body || '';
-      markdownContent.value = body;
-
-      // Cache it
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ version, content: body }));
-      } catch {
-        // ignore storage errors
-      }
-    } else {
-      hasError.value = true;
-    }
-  } catch {
-    hasError.value = true;
-  } finally {
-    isLoading.value = false;
-  }
-};
+const renderedHtml = computed(() => (markdown.value ? markdownToHtml(markdown.value) : ''));
 
 const handleKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') {
-    emit('close');
-  }
+  if (e.key === 'Escape') emit('close');
 };
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
-  loadChangelog();
+  try {
+    appVersion.value = await getVersion();
+  } catch {
+    appVersion.value = '';
+  }
+  const entry = appVersion.value ? getCurrent(appVersion.value) : null;
+  markdown.value = entry?.markdown ?? null;
 });
 
 onUnmounted(() => {
@@ -105,13 +52,13 @@ onUnmounted(() => {
       </div>
 
       <div class="whats-new-body">
-        <div v-if="isLoading" class="whats-new-loading">
-          {{ t.loadingChangelog }}
-        </div>
-        <div v-else-if="hasError" class="whats-new-error">
-          {{ t.changelogError }}
-        </div>
-        <div v-else class="release-notes-content" v-html="renderedHtml"></div>
+        <div v-if="markdown" class="release-notes-content" v-html="renderedHtml"></div>
+        <div v-else class="whats-new-empty">{{ t.noReleaseNotesForBuild }}</div>
+      </div>
+      <div class="whats-new-footer">
+        <button class="whats-new-changelog-btn" @click="emit('openChangelog')">
+          {{ t.fullChangelog }} →
+        </button>
       </div>
     </div>
   </div>
@@ -183,15 +130,31 @@ onUnmounted(() => {
   padding: 20px 24px;
 }
 
-.whats-new-loading,
-.whats-new-error {
+.whats-new-empty {
   color: var(--text-muted);
   font-size: 14px;
   text-align: center;
   padding: 32px 0;
 }
 
-.whats-new-error {
-  color: var(--error-color);
+.whats-new-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.whats-new-changelog-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.whats-new-changelog-btn:hover {
+  background: var(--hover-bg);
 }
 </style>

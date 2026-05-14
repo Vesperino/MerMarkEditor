@@ -202,8 +202,8 @@ export interface Translations {
   updateNow: string;
   whatsNew: string;
   whatsNewIn: string;
-  loadingChangelog: string;
-  changelogError: string;
+  noReleaseNotesForBuild: string;
+  fullChangelog: string;
   supportDev: string;
   supportDevTooltip: string;
   buyMeACoffee: string;
