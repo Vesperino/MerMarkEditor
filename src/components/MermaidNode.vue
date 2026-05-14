@@ -265,6 +265,26 @@ const renderPreview = async () => {
     startOnLoad: false,
     theme: isDark.value ? "dark" : "default",
     securityLevel: "loose",
+    themeVariables: isDark.value
+      ? {
+          primaryColor: "#2d3748",
+          primaryTextColor: "#e2e8f0",
+          primaryBorderColor: "#9ca3af",
+          lineColor: "#9ca3af",
+          secondaryColor: "#374151",
+          tertiaryColor: "#1f2937",
+          background: "#1a202c",
+          mainBkg: "#2d3748",
+          secondBkg: "#374151",
+          textColor: "#e2e8f0",
+          nodeTextColor: "#e2e8f0",
+          edgeLabelBackground: "#1f2937",
+          clusterBkg: "rgba(45, 55, 72, 0.4)",
+          clusterBorder: "#6b7280",
+          titleColor: "#e2e8f0",
+          labelTextColor: "#e2e8f0",
+        }
+      : undefined,
   });
 
   try {
@@ -404,6 +424,26 @@ const renderMermaid = async () => {
     startOnLoad: false,
     theme: isDark.value ? "dark" : "default",
     securityLevel: "loose",
+    themeVariables: isDark.value
+      ? {
+          primaryColor: "#2d3748",
+          primaryTextColor: "#e2e8f0",
+          primaryBorderColor: "#9ca3af",
+          lineColor: "#9ca3af",
+          secondaryColor: "#374151",
+          tertiaryColor: "#1f2937",
+          background: "#1a202c",
+          mainBkg: "#2d3748",
+          secondBkg: "#374151",
+          textColor: "#e2e8f0",
+          nodeTextColor: "#e2e8f0",
+          edgeLabelBackground: "#1f2937",
+          clusterBkg: "rgba(45, 55, 72, 0.4)",
+          clusterBorder: "#6b7280",
+          titleColor: "#e2e8f0",
+          labelTextColor: "#e2e8f0",
+        }
+      : undefined,
   });
 
   try {
@@ -1431,40 +1471,62 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
 }
 
 /* Dark mode: force readable labels regardless of diagram-side classDef.
-   Mermaid's "dark" theme handles its own palette, but diagrams that ship
-   classDef fill:#fff (or any light fill) leave the label text in a low-
-   contrast color. Re-paint labels light + nodes mid-dark so every box
-   stays readable in both default and minimal app variants. */
-html.dark .mermaid-content :deep(svg .nodeLabel),
-html.dark .mermaid-content :deep(svg .nodeLabel *),
-html.dark .mermaid-content :deep(svg .nodeLabel span),
-html.dark .mermaid-content :deep(svg .label text),
-html.dark .mermaid-content :deep(svg text),
-html.dark .mermaid-content :deep(svg tspan) {
-  fill: #e2e8f0 !important;
-  color: #e2e8f0 !important;
-}
-
+   Diagrams that ship their own `classDef fill:#fff` inject a <style> block
+   into the SVG that wins against simpler selectors. The selectors below are
+   long on purpose so they outrank that inline style in specificity, and
+   `!important` covers the rest. Both default and minimal app variants
+   inherit this because they share the `html.dark` class. */
 html.dark .mermaid-content :deep(svg .node rect),
 html.dark .mermaid-content :deep(svg .node polygon),
 html.dark .mermaid-content :deep(svg .node ellipse),
 html.dark .mermaid-content :deep(svg .node circle),
 html.dark .mermaid-content :deep(svg .node path),
+html.dark .mermaid-content :deep(svg g.node > rect),
+html.dark .mermaid-content :deep(svg g.node > polygon),
+html.dark .mermaid-content :deep(svg g.node > path),
 html.dark .mermaid-content :deep(svg .label-container),
-html.dark .mermaid-content :deep(svg .basic.label-container) {
+html.dark .mermaid-content :deep(svg .basic.label-container),
+html.dark .mermaid-content :deep(svg [class*="default"] rect),
+html.dark .mermaid-content :deep(svg [class*="node"] > rect) {
   fill: #2d3748 !important;
-  stroke: #6b7280 !important;
+  stroke: #9ca3af !important;
+}
+
+html.dark .mermaid-content :deep(svg .nodeLabel),
+html.dark .mermaid-content :deep(svg .nodeLabel p),
+html.dark .mermaid-content :deep(svg .nodeLabel span),
+html.dark .mermaid-content :deep(svg .nodeLabel div),
+html.dark .mermaid-content :deep(svg .label .nodeLabel),
+html.dark .mermaid-content :deep(svg foreignObject span),
+html.dark .mermaid-content :deep(svg foreignObject p),
+html.dark .mermaid-content :deep(svg foreignObject div),
+html.dark .mermaid-content :deep(svg .label text),
+html.dark .mermaid-content :deep(svg text),
+html.dark .mermaid-content :deep(svg tspan) {
+  fill: #f3f4f6 !important;
+  color: #f3f4f6 !important;
 }
 
 html.dark .mermaid-content :deep(svg .edgeLabel),
-html.dark .mermaid-content :deep(svg .edgeLabel rect) {
+html.dark .mermaid-content :deep(svg .edgeLabel rect),
+html.dark .mermaid-content :deep(svg .edgeLabel foreignObject div),
+html.dark .mermaid-content :deep(svg .edgeLabel span) {
   background-color: #1f2937 !important;
   fill: #1f2937 !important;
 }
 
-html.dark .mermaid-content :deep(svg .cluster rect) {
+html.dark .mermaid-content :deep(svg .cluster rect),
+html.dark .mermaid-content :deep(svg .cluster polygon) {
   fill: rgba(45, 55, 72, 0.4) !important;
   stroke: #6b7280 !important;
+}
+
+/* Cylinders / databases — extra surface shape sometimes rendered as
+   separate <ellipse> + <path>. Force the body fill too. */
+html.dark .mermaid-content :deep(svg .node g > ellipse),
+html.dark .mermaid-content :deep(svg .node g > path) {
+  fill: #2d3748 !important;
+  stroke: #9ca3af !important;
 }
 
 .btn-fullscreen {
