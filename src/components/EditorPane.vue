@@ -4,9 +4,11 @@ import type { Pane } from '../types/pane';
 import TabBar from './TabBar.vue';
 import Editor from './Editor.vue';
 import { useTabDrag } from '../composables/useTabDrag';
+import { useWorkspace } from '../composables/useWorkspace';
 import { useI18n } from '../i18n';
 
 const { t } = useI18n();
+const ws = useWorkspace();
 
 const props = defineProps<{
   pane: Pane;
@@ -91,20 +93,27 @@ const handlePaneMouseLeave = () => {
 // Capture phase + dragenter — TipTap installs its own dragover handler that
 // preventDefaults text/html drags but ignores our custom mime; without
 // capture the cursor stays in not-allowed state.
-function hasWsNodeType(dt: DataTransfer | null): boolean {
+//
+// Primary signal is `ws.isDraggingNode` (set in onTreeDragStart). MIME-type
+// sniffing via `dataTransfer.types` is unreliable across the
+// TipTap/iframe/webview event path — Chromium sometimes hides the custom
+// mime during dragenter, leaving us with a "no-drop" cursor even though
+// the drag is legit. Trusting the module-level flag avoids that.
+function isWorkspaceDrag(dt: DataTransfer | null): boolean {
+  if (ws.isDraggingNode.value) return true;
   if (!dt) return false;
   return Array.from(dt.types as unknown as Iterable<string>).includes(WS_NODE_MIME);
 }
 
 const handleFileDragEnter = (e: DragEvent) => {
-  if (!hasWsNodeType(e.dataTransfer)) return;
+  if (!isWorkspaceDrag(e.dataTransfer)) return;
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
   isFileDragOver.value = true;
 };
 
 const handleFileDragOver = (e: DragEvent) => {
-  if (!hasWsNodeType(e.dataTransfer)) return;
+  if (!isWorkspaceDrag(e.dataTransfer)) return;
   e.preventDefault();
   e.stopPropagation();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -118,19 +127,33 @@ const handleFileDragLeave = (e: DragEvent) => {
 };
 
 const handleFileDrop = (e: DragEvent) => {
-  if (!e.dataTransfer) return;
-  const raw = e.dataTransfer.getData(WS_NODE_MIME);
-  if (!raw) {
+  if (!isWorkspaceDrag(e.dataTransfer)) {
     isFileDragOver.value = false;
     return;
   }
   e.preventDefault();
   e.stopPropagation();
   isFileDragOver.value = false;
-  let info: { path: string; kind: 'file' | 'folder' };
-  try { info = JSON.parse(raw); } catch { return; }
-  if (info.kind !== 'file') return;
-  emit('dropFile', info.path);
+
+  // Prefer the MIME payload (carries kind=file|folder) but fall back to the
+  // shared draggedPaths snapshot when getData returns empty (Chromium quirk
+  // during cross-pane drops).
+  let paths: string[] = [];
+  let kind: 'file' | 'folder' = 'file';
+  const raw = e.dataTransfer?.getData(WS_NODE_MIME);
+  if (raw) {
+    try {
+      const info = JSON.parse(raw) as { paths?: string[]; primary?: string; kind?: 'file' | 'folder' };
+      paths = info.paths ?? (info.primary ? [info.primary] : []);
+      kind = info.kind ?? 'file';
+    } catch {
+      paths = ws.draggedPaths.value;
+    }
+  } else {
+    paths = ws.draggedPaths.value;
+  }
+  if (kind !== 'file') return;
+  for (const p of paths) emit('dropFile', p);
 };
 
 defineExpose({

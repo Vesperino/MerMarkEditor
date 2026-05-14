@@ -17,6 +17,9 @@ const props = defineProps<{
   y: number;
   /** 'file' rows offer rename/delete/reveal; 'folder' rows additionally show 'New file…'. */
   kind: 'file' | 'folder';
+  /** Right-click on a workspace root section: show new-file/new-folder/reveal,
+   *  hide rename/delete (those would destroy the workspace folder itself). */
+  isRoot?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -89,7 +92,7 @@ const handle = (action: WorkspaceContextAction) => {
       >
         {{ t.workspaceContextNewFolder }}
       </button>
-      <button class="context-menu-item" @click="handle('rename')">
+      <button v-if="!isRoot" class="context-menu-item" @click="handle('rename')">
         {{ t.workspaceContextRename }}
       </button>
       <button class="context-menu-item" @click="handle('copy-path')">
@@ -98,10 +101,12 @@ const handle = (action: WorkspaceContextAction) => {
       <button class="context-menu-item" @click="handle('reveal')">
         {{ t.workspaceContextRevealInOs }}
       </button>
-      <div class="context-menu-divider"></div>
-      <button class="context-menu-item danger" @click="handle('delete')">
-        {{ t.workspaceContextDelete }}
-      </button>
+      <template v-if="!isRoot">
+        <div class="context-menu-divider"></div>
+        <button class="context-menu-item danger" @click="handle('delete')">
+          {{ t.workspaceContextDelete }}
+        </button>
+      </template>
     </div>
   </Teleport>
 </template>

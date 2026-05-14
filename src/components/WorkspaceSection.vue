@@ -38,6 +38,10 @@ const emit = defineEmits<{
   (e: 'section-dragover', payload: { index: number; ev: DragEvent }): void;
   (e: 'section-drop', payload: { index: number; ev: DragEvent }): void;
   (e: 'section-dragend'): void;
+  /** New file/folder inside this workspace's root — bubbles up to the
+   *  sidebar so the same pending-action dialog flow handles it. */
+  (e: 'new-file-at', parent: string): void;
+  (e: 'new-folder-at', parent: string): void;
 }>();
 
 const collapsed = computed(() => ws.isWorkspaceSectionCollapsed(props.workspace.id));
@@ -76,6 +80,29 @@ function onHeaderDrop(ev: DragEvent) {
 function onHeaderDragEnd() {
   emit('section-dragend');
 }
+
+function onHeaderContextMenu(ev: MouseEvent) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  // Synthesize a folder node for the workspace root so the existing context
+  // menu / pending-action flow can target it (new file, new folder, reveal).
+  const rootNode: WorkspaceNode = {
+    name: props.workspace.name || props.workspace.rootPath,
+    path: props.workspace.rootPath,
+    kind: 'folder',
+    children: tree.value?.children ?? [],
+  };
+  emit('context', { x: ev.clientX, y: ev.clientY, node: rootNode });
+}
+
+function newFileHere(ev: MouseEvent) {
+  ev.stopPropagation();
+  emit('new-file-at', props.workspace.rootPath);
+}
+function newFolderHere(ev: MouseEvent) {
+  ev.stopPropagation();
+  emit('new-folder-at', props.workspace.rootPath);
+}
 </script>
 
 <template>
@@ -85,6 +112,7 @@ function onHeaderDragEnd() {
       :class="{ active: isActiveContext }"
       draggable="true"
       @click="toggleCollapsed"
+      @contextmenu="onHeaderContextMenu"
       @dragstart="onHeaderDragStart"
       @dragover="onHeaderDragOver"
       @drop="onHeaderDrop"
@@ -103,6 +131,29 @@ function onHeaderDragEnd() {
       <span v-if="isActiveContext" class="ws-section-active-dot" v-tooltip="t.activeWorkspaceContext"></span>
 
       <div ref="menuRoot" class="ws-section-actions" @click.stop>
+        <button
+          class="ws-section-action"
+          v-tooltip="t.workspaceContextNewFile"
+          @click="newFileHere"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+        </button>
+        <button
+          class="ws-section-action"
+          v-tooltip="t.workspaceContextNewFolder"
+          @click="newFolderHere"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+        </button>
         <button
           class="ws-section-action"
           v-tooltip="t.refreshTree"

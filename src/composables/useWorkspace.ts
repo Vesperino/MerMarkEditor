@@ -24,6 +24,16 @@ const collapsedWorkspaceIds = ref<Set<string>>(new Set());
 /** File path that should be highlighted in the tree (usually the active editor tab). */
 const highlightedPath = ref<string | null>(null);
 
+/** User-selected node paths (click / Ctrl-click / Shift-click). Multi-select. */
+const selectedPaths = ref<Set<string>>(new Set());
+/** Anchor for shift-range selection. */
+const lastSelectedPath = ref<string | null>(null);
+
+/** True while a workspace tree drag is in flight; lets drop targets accept without MIME-type sniffing. */
+const isDraggingNode = ref<boolean>(false);
+/** Snapshot of paths being dragged (single, or full selection when source row is part of it). */
+const draggedPaths = ref<string[]>([]);
+
 function moveToFront(list: string[], item: string, limit: number): string[] {
   const filtered = list.filter((p) => p !== item);
   filtered.unshift(item);
@@ -400,6 +410,86 @@ export function useWorkspace() {
     collapsedWorkspaceIds.value = next;
   }
 
+  // ===== Selection (single + multi: Ctrl, Shift) =====
+
+  /**
+   * Flat list of currently visible row paths (depth-first, top→bottom across
+   * all open workspaces). Used as the index for shift-range selection.
+   */
+  const visibleNodePaths = computed<string[]>(() => {
+    const out: string[] = [];
+    const walk = (node: WorkspaceNode, isWorkspaceRoot: boolean) => {
+      // Workspace root is invisible in the tree — only its children render.
+      if (!isWorkspaceRoot) out.push(node.path);
+      if (node.kind !== 'folder') return;
+      const isExpanded = isWorkspaceRoot || expandedFolders.value.has(node.path);
+      if (!isExpanded) return;
+      for (const child of node.children ?? []) walk(child, false);
+    };
+    for (const ws of openWorkspaces.value) {
+      if (collapsedWorkspaceIds.value.has(ws.id)) continue;
+      const tree = treesById.value[ws.id];
+      if (tree) walk(tree, true);
+    }
+    return out;
+  });
+
+  function isSelected(path: string): boolean {
+    return selectedPaths.value.has(path);
+  }
+
+  function selectOnly(path: string) {
+    selectedPaths.value = new Set([path]);
+    lastSelectedPath.value = path;
+  }
+
+  function toggleSelect(path: string) {
+    const next = new Set(selectedPaths.value);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    selectedPaths.value = next;
+    lastSelectedPath.value = path;
+  }
+
+  /** Shift-click: select range between anchor (lastSelectedPath) and path. */
+  function rangeSelect(path: string) {
+    const order = visibleNodePaths.value;
+    const anchor = lastSelectedPath.value;
+    if (!anchor || order.length === 0) {
+      selectOnly(path);
+      return;
+    }
+    const a = order.indexOf(anchor);
+    const b = order.indexOf(path);
+    if (a < 0 || b < 0) {
+      selectOnly(path);
+      return;
+    }
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    selectedPaths.value = new Set(order.slice(lo, hi + 1));
+  }
+
+  function clearSelection() {
+    if (selectedPaths.value.size > 0) selectedPaths.value = new Set();
+    lastSelectedPath.value = null;
+  }
+
+  // ===== Drag (workspace tree → editor or workspace tree → tree folder) =====
+
+  /** Begin a drag — if path is part of current selection, drag whole set; else drag just that path. */
+  function beginNodeDrag(path: string): string[] {
+    const set = selectedPaths.value;
+    const paths = set.size > 0 && set.has(path) ? Array.from(set) : [path];
+    draggedPaths.value = paths;
+    isDraggingNode.value = true;
+    return paths;
+  }
+
+  function endNodeDrag() {
+    isDraggingNode.value = false;
+    draggedPaths.value = [];
+  }
+
   return {
     // State
     openWorkspaces,
@@ -415,6 +505,10 @@ export function useWorkspace() {
     expandedFolders,
     collapsedWorkspaceIds,
     highlightedPath,
+    selectedPaths,
+    lastSelectedPath,
+    isDraggingNode,
+    draggedPaths,
 
     // Workspace lifecycle
     openWorkspace,
@@ -458,5 +552,17 @@ export function useWorkspace() {
     setSidebarVisible,
     toggleSidebarVisible,
     setSidebarWidth,
+
+    // Selection
+    visibleNodePaths,
+    isSelected,
+    selectOnly,
+    toggleSelect,
+    rangeSelect,
+    clearSelection,
+
+    // Drag
+    beginNodeDrag,
+    endNodeDrag,
   };
 }

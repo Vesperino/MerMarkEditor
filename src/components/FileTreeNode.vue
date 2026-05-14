@@ -47,9 +47,27 @@ const isHighlighted = computed(
   () => !isFolder.value && ws.highlightedPath.value === props.node.path,
 );
 
+const isSelectedRow = computed(() => ws.isSelected(props.node.path));
+
 const rowEl = ref<HTMLDivElement | null>(null);
 
-function onRowClick() {
+/**
+ * Single click = select (with Ctrl=toggle, Shift=range). Folders toggle on the
+ * chevron only — clicking the row never opens or expands. Use double-click to
+ * open files / expand folders, drag to insert/open in editor.
+ */
+function onRowClick(e: MouseEvent) {
+  const path = props.node.path;
+  if (e.shiftKey) {
+    ws.rangeSelect(path);
+  } else if (e.ctrlKey || e.metaKey) {
+    ws.toggleSelect(path);
+  } else {
+    ws.selectOnly(path);
+  }
+}
+
+function onRowDblClick() {
   if (isFolder.value) {
     ws.toggleFolder(props.node.path);
   } else {
@@ -57,13 +75,23 @@ function onRowClick() {
   }
 }
 
+function onChevronClick(e: MouseEvent) {
+  e.stopPropagation();
+  if (isFolder.value) ws.toggleFolder(props.node.path);
+}
+
 function onContextMenu(e: MouseEvent) {
   e.preventDefault();
+  // Right-click on an unselected row replaces the selection — matches Explorer/VS.
+  if (!ws.isSelected(props.node.path)) ws.selectOnly(props.node.path);
   emit('context', { x: e.clientX, y: e.clientY, node: props.node });
 }
 
 function onDragStart(e: DragEvent) {
   emit('node-dragstart', { path: props.node.path, kind: props.node.kind, ev: e });
+}
+function onDragEnd() {
+  ws.endNodeDrag();
 }
 function onDragOver(e: DragEvent) {
   emit('node-dragover', { path: props.node.path, kind: props.node.kind, ev: e });
@@ -113,17 +141,20 @@ watch(
         file: !isFolder,
         'drop-target': isDropTarget,
         active: isHighlighted,
+        selected: isSelectedRow,
       }"
       :style="{ paddingLeft: indentPx }"
       :draggable="!isRoot"
       @click="onRowClick"
+      @dblclick="onRowDblClick"
       @contextmenu.prevent.stop="onContextMenu"
       @dragstart="onDragStart"
+      @dragend="onDragEnd"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
       @drop="onDrop"
     >
-      <span class="tree-chevron" :class="{ expanded, hidden: !isFolder }">
+      <span class="tree-chevron" :class="{ expanded, hidden: !isFolder }" @click="onChevronClick">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="9 18 15 12 9 6" />
         </svg>
@@ -215,9 +246,18 @@ watch(
 }
 
 .tree-row svg,
-.tree-row .tree-icon,
-.tree-row .tree-chevron {
+.tree-row .tree-icon {
   pointer-events: none;
+}
+
+.tree-row .tree-chevron {
+  cursor: pointer;
+}
+
+.tree-row.selected {
+  background: var(--active-bg);
+  outline: 1px solid var(--primary);
+  outline-offset: -1px;
 }
 
 .tree-row.folder .tree-icon {
