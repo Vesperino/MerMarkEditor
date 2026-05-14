@@ -243,6 +243,47 @@ function startNewFileInActiveWorkspace() {
 // ===== Tree drag&drop (file -> folder = move via rename) =====
 const dragOverFolderPath = ref<string | null>(null);
 
+// Document-level capture listeners installed for the duration of a workspace
+// tree drag. WebView2 / ProseMirror occasionally swallow the dragover that
+// reaches the editor pane, leaving the cursor stuck in `no-drop` state even
+// though our handler would have accepted it. Forcing preventDefault at the
+// document capture level is a belt-and-braces guarantee that every element
+// becomes a valid drop target while the drag is in flight; the actual drop
+// is still routed to whichever target Vue/DOM picks (EditorPane.handleFileDrop
+// or onTreeDrop). They both read `ws.draggedPaths` so the payload still flows.
+let globalDragOver: ((e: DragEvent) => void) | null = null;
+let globalDragEnd: ((e: DragEvent) => void) | null = null;
+let globalDrop: ((e: DragEvent) => void) | null = null;
+
+function installGlobalDragHandlers() {
+  removeGlobalDragHandlers();
+  globalDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  };
+  globalDragEnd = () => {
+    ws.endNodeDrag();
+    removeGlobalDragHandlers();
+  };
+  globalDrop = () => {
+    // Any drop ends the workspace drag. If a pane handler accepted it, the
+    // payload was already consumed; otherwise dragend would fire too.
+    ws.endNodeDrag();
+    removeGlobalDragHandlers();
+  };
+  document.addEventListener('dragover', globalDragOver, true);
+  document.addEventListener('dragend', globalDragEnd, true);
+  document.addEventListener('drop', globalDrop, true);
+}
+function removeGlobalDragHandlers() {
+  if (globalDragOver) document.removeEventListener('dragover', globalDragOver, true);
+  if (globalDragEnd) document.removeEventListener('dragend', globalDragEnd, true);
+  if (globalDrop) document.removeEventListener('drop', globalDrop, true);
+  globalDragOver = null;
+  globalDragEnd = null;
+  globalDrop = null;
+}
+
 function onTreeDragStart(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
   // Begin shared drag state — captures the full selection if the source row
   // is part of it; otherwise just this one path. EditorPane and onTreeDrop
@@ -256,6 +297,7 @@ function onTreeDragStart(payload: { path: string; kind: 'file' | 'folder'; ev: D
     );
     payload.ev.dataTransfer.effectAllowed = 'copyMove';
   }
+  installGlobalDragHandlers();
 }
 function onTreeDragOver(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
   if (payload.kind !== 'folder') return;

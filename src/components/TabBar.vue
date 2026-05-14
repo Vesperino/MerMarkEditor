@@ -5,6 +5,7 @@ import { useTabDrag } from '../composables/useTabDrag';
 import { useI18n } from '../i18n';
 import { useSettings } from '../composables/useSettings';
 import TabContextMenu, { type TabContextAction } from './TabContextMenu.vue';
+import { invoke } from '@tauri-apps/api/core';
 
 const { t } = useI18n();
 const { settings } = useSettings();
@@ -33,7 +34,7 @@ function openContextMenu(event: MouseEvent, tab: Tab) {
   ctxMenu.value = { x: event.clientX, y: event.clientY, tab };
 }
 
-function onContextAction(action: TabContextAction) {
+async function onContextAction(action: TabContextAction) {
   const tab = ctxMenu.value?.tab;
   if (!tab) return;
   switch (action) {
@@ -55,6 +56,18 @@ function onContextAction(action: TabContextAction) {
       break;
     case 'close-saved':
       emit('closeSaved');
+      break;
+    case 'copy-path':
+      if (tab.filePath) {
+        try { await navigator.clipboard.writeText(tab.filePath); }
+        catch (e) { console.error('copy path:', e); }
+      }
+      break;
+    case 'reveal-in-os':
+      if (tab.filePath) {
+        try { await invoke('reveal_in_os', { path: tab.filePath }); }
+        catch (e) { console.error('reveal:', e); }
+      }
       break;
   }
 }
@@ -244,6 +257,7 @@ const handleBarMouseLeave = () => {
     :y="ctxMenu.y"
     :is-pinned="!!ctxMenu.tab.pinned"
     :has-other-tabs="tabs.length > 1"
+    :has-file-path="!!ctxMenu.tab.filePath"
     @action="onContextAction"
     @close="ctxMenu = null"
   />
