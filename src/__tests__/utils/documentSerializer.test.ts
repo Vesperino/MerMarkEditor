@@ -97,6 +97,52 @@ describe('serializeEditorContent', () => {
     expect(result).toContain('fill="#ffffff"');
   });
 
+  it('picks the diagram SVG inside .mermaid-content, not toolbar icons', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('graph LR'));
+
+    // Toolbar with icon SVGs (should be skipped)
+    const toolbar = document.createElement('div');
+    toolbar.className = 'mermaid-toolbar';
+    const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    iconSvg.setAttribute('viewBox', '0 0 24 24');
+    const iconLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    iconLine.setAttribute('x1', '5');
+    iconLine.setAttribute('y1', '12');
+    iconLine.setAttribute('x2', '19');
+    iconLine.setAttribute('y2', '12');
+    iconLine.setAttribute('stroke', 'currentColor');
+    iconSvg.appendChild(iconLine);
+    toolbar.appendChild(iconSvg);
+    wrapper.appendChild(toolbar);
+
+    // Real Mermaid SVG inside .mermaid-content
+    const content = document.createElement('div');
+    content.className = 'mermaid-content';
+    const diagramSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    diagramSvg.setAttribute('id', 'mermaid-real-diagram');
+    diagramSvg.setAttribute('viewBox', '0 0 800 400');
+    const node = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    node.setAttribute('width', '100');
+    node.setAttribute('height', '50');
+    node.setAttribute('fill', '#abcdef');
+    diagramSvg.appendChild(node);
+    content.appendChild(diagramSvg);
+    wrapper.appendChild(content);
+
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    // The real diagram SVG (with id) made it through
+    expect(result).toContain('mermaid-real-diagram');
+    expect(result).toContain('fill="#abcdef"');
+    // The toolbar icon's <line> should NOT be in the figure (its parent SVG was excluded)
+    const figureMatch = result.match(/<figure class="mermaid-print-figure">[\s\S]*?<\/figure>/);
+    expect(figureMatch).toBeTruthy();
+    expect(figureMatch![0]).not.toContain('stroke="currentColor"');
+  });
+
   it('does not touch light fills (no regression on light theme)', () => {
     const el = document.createElement('div');
     const wrapper = document.createElement('div');

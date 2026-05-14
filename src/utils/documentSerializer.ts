@@ -120,10 +120,20 @@ function normalizeMermaidColors(svg: Element): void {
   }
 }
 
+function findDiagramSvg(node: Element): SVGElement | null {
+  // Preferred: SVG inside .mermaid-content (where Mermaid.run() injects it)
+  const inContent = node.querySelector('.mermaid-content svg');
+  if (inContent) return inContent as SVGElement;
+  // Fallback: first SVG that is NOT inside the toolbar (icons live there)
+  const allSvgs = Array.from(node.querySelectorAll('svg'));
+  const diagram = allSvgs.find(s => !s.closest('.mermaid-toolbar'));
+  return (diagram as SVGElement | undefined) ?? null;
+}
+
 function inlineMermaidSvgs(clone: HTMLElement): void {
   const mermaidNodes = Array.from(clone.querySelectorAll('[data-code]'));
   for (const node of mermaidNodes) {
-    const svg = node.querySelector('svg');
+    const svg = findDiagramSvg(node);
     const figure = document.createElement('figure');
     figure.className = 'mermaid-print-figure';
     if (svg) {
