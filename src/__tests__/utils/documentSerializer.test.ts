@@ -170,6 +170,50 @@ describe('serializeEditorContent', () => {
     expect(result).toContain('id="pdf-h-background-context-2"');
   });
 
+  it('strips dark-mode override style block from cloned SVG', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('g'));
+    const content = document.createElement('div');
+    content.className = 'mermaid-content';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.id = 'mermark-mermaid-dark-override';
+    style.textContent = 'rect { fill: #1a1a1a !important; }';
+    svg.appendChild(style);
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('fill', '#1a1a1a');
+    svg.appendChild(rect);
+    content.appendChild(svg);
+    wrapper.appendChild(content);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).not.toContain('mermark-mermaid-dark-override');
+    expect(result).not.toContain('!important');
+    expect(result).toContain('fill="#ffffff"');
+  });
+
+  it('strips !important inline fill from cloned elements', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('g'));
+    const content = document.createElement('div');
+    content.className = 'mermaid-content';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('fill', '#1a1a1a');
+    (rect as SVGRectElement).style.setProperty('fill', '#1a1a1a', 'important');
+    (rect as SVGRectElement).style.setProperty('stroke', '#333', 'important');
+    svg.appendChild(rect);
+    content.appendChild(svg);
+    wrapper.appendChild(content);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).not.toMatch(/!important/);
+  });
+
   it('does not touch light fills (no regression on light theme)', () => {
     const el = document.createElement('div');
     const wrapper = document.createElement('div');

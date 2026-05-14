@@ -88,6 +88,34 @@ function convertForeignObjectsToText(svg: Element): void {
 }
 
 /**
+ * When the app is in dark mode, MermaidNode injects a high-priority
+ * <style id="mermark-mermaid-dark-override"> block inside the SVG with
+ * !important rules that force dark fills/strokes/text. That cascade beats
+ * any fill="white" we set, so PDFs print as dark blobs. Strip it for print.
+ */
+function stripDarkOverrideStyle(svg: Element): void {
+  const override = svg.querySelector('style#mermark-mermaid-dark-override');
+  if (override) override.remove();
+}
+
+/**
+ * Strip any inline style attributes setting fill/stroke/color with !important
+ * priority on individual elements — dark-mode repaint also calls
+ * `el.style.setProperty('fill', ..., 'important')`, which survives the clone
+ * and overrides our attribute-level recoloring.
+ */
+function stripImportantInlineColors(svg: Element): void {
+  const styled = Array.from(svg.querySelectorAll<HTMLElement | SVGElement>('[style]'));
+  for (const el of styled) {
+    const s = el.style;
+    if (s.getPropertyPriority('fill') === 'important') s.removeProperty('fill');
+    if (s.getPropertyPriority('stroke') === 'important') s.removeProperty('stroke');
+    if (s.getPropertyPriority('color') === 'important') s.removeProperty('color');
+    if (s.getPropertyPriority('background-color') === 'important') s.removeProperty('background-color');
+  }
+}
+
+/**
  * Mermaid dark theme paints a dark background rect first.
  * For print, force light backgrounds and dark text to keep readability.
  */
@@ -142,6 +170,8 @@ function inlineMermaidSvgs(clone: HTMLElement): void {
       svgClone.removeAttribute('height');
       svgClone.style.maxWidth = '100%';
       svgClone.style.height = 'auto';
+      stripDarkOverrideStyle(svgClone);
+      stripImportantInlineColors(svgClone);
       convertForeignObjectsToText(svgClone);
       normalizeMermaidColors(svgClone);
       figure.appendChild(svgClone);
