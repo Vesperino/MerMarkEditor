@@ -139,7 +139,7 @@ watch(
           <polyline points="14 2 14 8 20 8" />
         </svg>
       </span>
-      <span class="tree-label" :title="node.path">{{ node.name }}</span>
+      <span class="tree-label" v-tooltip="node.path">{{ node.name }}</span>
     </div>
 
     <div v-if="isFolder && expanded" class="tree-children">

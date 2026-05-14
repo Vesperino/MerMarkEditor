@@ -328,7 +328,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
       <button
         v-if="hasOpen"
         class="ws-header-btn"
-        :title="t.workspaceQuickSwitcher"
+        v-tooltip="t.workspaceQuickSwitcher"
         @click="emit('open-quick-switcher')"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -341,7 +341,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
       <button
         v-if="targetWorkspaceForNewFile"
         class="ws-header-btn"
-        :title="t.newFileInWorkspaceTooltip(targetWorkspaceForNewFile.name)"
+        v-tooltip="t.newFileInWorkspaceTooltip(targetWorkspaceForNewFile.name)"
         @click="startNewFileInActiveWorkspace"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -355,7 +355,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
       <!-- Open folder: adds a workspace. Distinct from "new file" above. -->
       <button
         class="ws-header-btn"
-        :title="t.openFolder"
+        v-tooltip="t.openFolder"
         @click="pickFolder"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -367,7 +367,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
 
       <button
         class="ws-header-btn"
-        :title="t.workspace"
+        v-tooltip="t.workspace"
         @click="showHeaderMenu = !showHeaderMenu"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -390,7 +390,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
             v-for="r in ws.recentWorkspaces.value"
             :key="r"
             class="ws-menu-item recent"
-            :title="r"
+            v-tooltip="r"
             @click="openRecent(r)"
           >
             {{ r.split(/[\/\\]/).filter(Boolean).slice(-1)[0] || r }}
@@ -434,7 +434,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
         <button
           class="ws-add-btn"
           @click="pickFolder"
-          :title="t.openFolder"
+          v-tooltip="t.openFolder"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>

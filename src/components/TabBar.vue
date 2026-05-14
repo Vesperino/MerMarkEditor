@@ -224,7 +224,7 @@ const handleBarMouseLeave = () => {
         height="11"
         viewBox="0 0 24 24"
         fill="currentColor"
-        :title="t.tabPinned"
+        v-tooltip="t.tabPinned"
       >
         <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
       </svg>
@@ -233,7 +233,7 @@ const handleBarMouseLeave = () => {
       <button
         class="tab-close"
         @click.stop="emit('closeTab', tab.id)"
-        :title="t.closeTabTooltip"
+        v-tooltip="t.closeTabTooltip"
       >&times;</button>
     </div>
   </div>

@@ -96,16 +96,16 @@ function onHeaderDragEnd() {
         </svg>
       </span>
 
-      <span class="ws-section-name" :title="workspace.rootPath">
+      <span class="ws-section-name" v-tooltip="workspace.rootPath">
         {{ workspace.name || workspace.rootPath }}
       </span>
 
-      <span v-if="isActiveContext" class="ws-section-active-dot" :title="t.activeWorkspaceContext"></span>
+      <span v-if="isActiveContext" class="ws-section-active-dot" v-tooltip="t.activeWorkspaceContext"></span>
 
       <div ref="menuRoot" class="ws-section-actions" @click.stop>
         <button
           class="ws-section-action"
-          :title="t.refreshTree"
+          v-tooltip="t.refreshTree"
           @click.stop="refresh"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -115,7 +115,7 @@ function onHeaderDragEnd() {
         </button>
         <button
           class="ws-section-action"
-          :title="t.workspaceContextRevealInOs"
+          v-tooltip="t.workspaceContextRevealInOs"
           @click.stop="reveal"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -126,7 +126,7 @@ function onHeaderDragEnd() {
         </button>
         <button
           class="ws-section-action danger"
-          :title="t.closeWorkspace"
+          v-tooltip="t.closeWorkspace"
           @click.stop="close"
         >×</button>
       </div>

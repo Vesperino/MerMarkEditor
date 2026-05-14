@@ -81,7 +81,7 @@ const emit = defineEmits<{
     </template>
     <button
       class="left-bar__expand-toggle"
-      :title="settings.leftBarExpanded ? t.collapseSidebar : t.expandSidebar"
+      v-tooltip="settings.leftBarExpanded ? t.collapseSidebar : t.expandSidebar"
       :aria-label="settings.leftBarExpanded ? t.collapseSidebar : t.expandSidebar"
       @click="toggleLeftBarExpanded"
     >
