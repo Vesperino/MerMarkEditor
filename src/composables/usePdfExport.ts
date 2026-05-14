@@ -133,7 +133,7 @@ export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
     size: '120pt',
   },
   showToc: false,
-  tocDepth: 3,
+  tocDepth: 6,
   tocPageBreak: false,
 };
 

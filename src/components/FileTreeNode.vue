@@ -107,12 +107,19 @@ function onDrop(e: DragEvent) {
  * Auto-scroll the highlighted row into view when it becomes active.
  * Used so clicking a recent file (or switching tabs) reveals the row in
  * the tree even if the user had scrolled away.
+ *
+ * Earlier version compared against `window.innerHeight`, but the sidebar
+ * has its own overflow container (`.ws-body`) — a row scrolled out of the
+ * sidebar could still be inside the viewport, so the inView check passed
+ * and no scroll happened. Use the closest scrolling ancestor's rect.
  */
 function scrollIntoViewIfNeeded() {
   const el = rowEl.value;
   if (!el) return;
+  const scroller = el.closest('.ws-body') as HTMLElement | null;
+  const scrollerRect = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
   const rect = el.getBoundingClientRect();
-  const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+  const inView = rect.top >= scrollerRect.top && rect.bottom <= scrollerRect.bottom;
   if (!inView) {
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
