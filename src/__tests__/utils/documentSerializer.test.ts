@@ -161,6 +161,32 @@ describe('serializeEditorContent', () => {
     expect(result).toContain('↩');
   });
 
+  it('normalizes Vue NodeView footnote section into canonical print form', () => {
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <p>Text<sup data-footnote-ref="1" class="footnote-ref">1</sup> more.</p>
+      <div class="footnote-section-wrapper" data-node-view-wrapper>
+        <div class="footnote-header"><span class="footnote-label">Footnotes</span></div>
+        <ol class="footnote-list">
+          <li class="footnote-item" data-index="0" data-footnote-label="1">
+            <span class="footnote-def-index">1.</span>
+            <span class="footnote-def-content">Footnote body.</span>
+            <button class="footnote-backlink">↩</button>
+          </li>
+        </ol>
+      </div>
+    `;
+    const result = serializeEditorContent(el);
+    expect(result).toContain('data-footnotes');
+    expect(result).toContain('id="fn-1"');
+    expect(result).toContain('href="#fn-1"');
+    expect(result).toContain('id="fnref-1"');
+    expect(result).toContain('Footnote body.');
+    expect(result).not.toContain('footnote-section-wrapper');
+    expect(result).not.toContain('footnote-edit-input');
+    expect(result).not.toContain('footnote-backlink');
+  });
+
   it('assigns slugified IDs to headings', () => {
     const el = document.createElement('div');
     el.innerHTML = `<h1>Introduction</h1><h2>Background &amp; Context</h2><h2>Background &amp; Context</h2>`;

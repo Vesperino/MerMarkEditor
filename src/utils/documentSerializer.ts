@@ -270,6 +270,45 @@ export function assignHeadingIds(root: HTMLElement): HeadingInfo[] {
 }
 
 /**
+ * The live editor renders the footnote section through a Vue NodeView
+ * (FootnoteNode.vue), which produces UI chrome (edit textareas, backlink
+ * buttons, index spans) rather than the canonical `<section data-footnotes>`
+ * + `<li data-footnote-id="LABEL">` form that linkifyFootnotes expects.
+ * Rebuild the clean print form from the visible content so anchor wiring
+ * downstream finds matching targets.
+ */
+export function normalizeFootnoteSection(root: HTMLElement): void {
+  const wrappers = Array.from(root.querySelectorAll('.footnote-section-wrapper'));
+  for (const wrapper of wrappers) {
+    const items = Array.from(wrapper.querySelectorAll<HTMLElement>('li.footnote-item'));
+    if (!items.length) {
+      wrapper.remove();
+      continue;
+    }
+    const section = document.createElement('section');
+    section.className = 'footnotes';
+    section.setAttribute('data-footnotes', '');
+    const ol = document.createElement('ol');
+    for (const item of items) {
+      const label = item.getAttribute('data-footnote-label') ?? '';
+      if (!label) continue;
+      const contentEl = item.querySelector('.footnote-def-content');
+      const editEl = item.querySelector<HTMLTextAreaElement>('.footnote-edit-input');
+      const text = (editEl?.value ?? contentEl?.textContent ?? '').trim();
+      const li = document.createElement('li');
+      li.setAttribute('data-footnote-id', label);
+      const p = document.createElement('p');
+      p.textContent = text;
+      li.appendChild(p);
+      ol.appendChild(li);
+    }
+    section.appendChild(document.createElement('hr'));
+    section.appendChild(ol);
+    wrapper.replaceWith(section);
+  }
+}
+
+/**
  * Convert TipTap footnote markup into clickable internal links:
  *   - Each <sup class="footnote-ref" data-footnote-ref="LABEL">N</sup>
  *     becomes <sup id="fnref-LABEL"><a href="#fn-LABEL">N</a></sup>
@@ -315,6 +354,7 @@ export function serializeEditorContent(editorEl: HTMLElement): string {
   const clone = editorEl.cloneNode(true) as HTMLElement;
   inlineMermaidSvgs(clone);
   inlineTaskCheckboxes(clone);
+  normalizeFootnoteSection(clone);
   assignHeadingIds(clone);
   linkifyFootnotes(clone);
   stripAppAttributes(clone);
