@@ -451,6 +451,7 @@ const {
 // ============ PDF Export ============
 const showPdfDialog = ref(false);
 const pdfContentHtml = ref('');
+const pdfMeta = ref<{ title?: string; path?: string; date?: string }>({});
 const { exportDocx } = useDocxExport();
 usePdfExport();
 
@@ -461,6 +462,15 @@ function openPdfDialog() {
     ) ?? document.querySelector<HTMLElement>('.ProseMirror');
   if (!editorEl) return;
   pdfContentHtml.value = serializeEditorContent(editorEl);
+  const tab = activeTab.value;
+  const fileName = tab?.fileName ?? '';
+  const filePath = tab?.filePath ?? '';
+  const title = fileName.replace(/\.(md|markdown)$/i, '') || 'Dokument';
+  pdfMeta.value = {
+    title,
+    path: filePath,
+    date: new Date().toLocaleDateString(),
+  };
   showPdfDialog.value = true;
 }
 
@@ -1611,6 +1621,7 @@ onUnmounted(async () => {
     <PdfExportDialog
       v-if="showPdfDialog"
       :content-html="pdfContentHtml"
+      :meta="pdfMeta"
       @close="showPdfDialog = false"
     />
 

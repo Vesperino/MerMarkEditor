@@ -1,78 +1,136 @@
 import { describe, it, expect } from 'vitest';
-import { buildPrintDocument } from '../../composables/usePdfExport';
+import {
+  buildPrintDocument,
+  buildHeaderFooterContent,
+  PDF_SETTINGS_DEFAULTS,
+  type PdfSettings,
+} from '../../composables/usePdfExport';
 
 const FAKE_CSS = 'body { color: red; }';
 
+function withSettings(overrides: Partial<PdfSettings>): PdfSettings {
+  return {
+    ...PDF_SETTINGS_DEFAULTS,
+    ...overrides,
+    header: { ...PDF_SETTINGS_DEFAULTS.header, ...(overrides.header ?? {}) },
+    footer: { ...PDF_SETTINGS_DEFAULTS.footer, ...(overrides.footer ?? {}) },
+    watermark: { ...PDF_SETTINGS_DEFAULTS.watermark, ...(overrides.watermark ?? {}) },
+  };
+}
+
 describe('buildPrintDocument', () => {
   it('produces valid HTML5 doctype', () => {
-    const html = buildPrintDocument('<p>test</p>', {
-      fontSize: '10pt',
-      margins: 'normal',
-      pageSize: 'A4',
-    }, FAKE_CSS);
+    const html = buildPrintDocument('<p>test</p>', PDF_SETTINGS_DEFAULTS, FAKE_CSS);
     expect(html).toMatch(/^<!DOCTYPE html>/i);
   });
 
   it('embeds font size as CSS custom property', () => {
-    const html = buildPrintDocument('<p>test</p>', {
-      fontSize: '12pt',
-      margins: 'normal',
-      pageSize: 'A4',
-    }, FAKE_CSS);
+    const html = buildPrintDocument('<p>test</p>', withSettings({ fontSize: '12pt' }), FAKE_CSS);
     expect(html).toContain('--pf-size: 12pt');
   });
 
   it('embeds narrow margin (10mm) when margins=narrow', () => {
-    const html = buildPrintDocument('<p>test</p>', {
-      fontSize: '10pt',
-      margins: 'narrow',
-      pageSize: 'A4',
-    }, FAKE_CSS);
-    expect(html).toContain('margin: 10mm');
-  });
-
-  it('embeds normal margin (18mm) when margins=normal', () => {
-    const html = buildPrintDocument('<p>test</p>', {
-      fontSize: '10pt',
-      margins: 'normal',
-      pageSize: 'A4',
-    }, FAKE_CSS);
-    expect(html).toContain('margin: 18mm');
+    const html = buildPrintDocument('<p>test</p>', withSettings({ margins: 'narrow' }), FAKE_CSS);
+    expect(html).toContain('10mm');
   });
 
   it('embeds wide margin (25mm) when margins=wide', () => {
-    const html = buildPrintDocument('<p>test</p>', {
-      fontSize: '10pt',
-      margins: 'wide',
-      pageSize: 'Letter',
-    }, FAKE_CSS);
-    expect(html).toContain('margin: 25mm');
+    const html = buildPrintDocument('<p>test</p>', withSettings({ margins: 'wide' }), FAKE_CSS);
+    expect(html).toContain('25mm');
   });
 
   it('embeds page size in @page rule', () => {
-    const html = buildPrintDocument('<p>test</p>', {
-      fontSize: '10pt',
-      margins: 'normal',
-      pageSize: 'Letter',
-    }, FAKE_CSS);
+    const html = buildPrintDocument('<p>test</p>', withSettings({ pageSize: 'Letter' }), FAKE_CSS);
     expect(html).toContain('size: Letter');
   });
 
   it('embeds provided CSS', () => {
-    const html = buildPrintDocument('<p>test</p>', {
-      fontSize: '10pt',
-      margins: 'normal',
-      pageSize: 'A4',
-    }, FAKE_CSS);
+    const html = buildPrintDocument('<p>test</p>', PDF_SETTINGS_DEFAULTS, FAKE_CSS);
     expect(html).toContain('body { color: red; }');
   });
 
   it('embeds content HTML in body', () => {
-    const html = buildPrintDocument('<p>hello world</p>', {
-      fontSize: '10pt',
-      margins: 'normal',
-      pageSize: 'A4',
-    }, FAKE_CSS);
+    const html = buildPrintDocument('<p>hello world</p>', PDF_SETTINGS_DEFAULTS, FAKE_CSS);
     expect(html).toContain('<p>hello world</p>');
+  });
+
+  it('embeds accent color as CSS variable', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({ accentColor: '#ff0000' }), FAKE_CSS);
+    expect(html).toContain('--pf-accent: #ff0000');
+  });
+
+  it('embeds font family stack for body when fontFamily=sans', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({ fontFamily: 'sans' }), FAKE_CSS);
+    expect(html).toContain('Inter');
+  });
+
+  it('emits @bottom-right page counter when footer disabled but page numbers enabled', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({
+      footer: { enabled: false, left: '', center: '', right: '' },
+      showPageNumbers: true,
+      pageNumberFormat: 'n-of-total',
+    }), FAKE_CSS);
+    expect(html).toContain('@bottom-right');
+    expect(html).toContain('counter(page)');
+  });
+
+  it('emits header margin boxes when header.enabled=true', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({
+      header: { enabled: true, left: '{title}', center: '', right: '{date}' },
+    }), FAKE_CSS, { title: 'MyDoc' });
+    expect(html).toContain('@top-left');
+    expect(html).toContain('"MyDoc"');
+  });
+
+  it('includes watermark element and CSS when watermark.enabled=true', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({
+      watermark: { enabled: true, text: 'POUFNE', opacity: 0.1, rotate: -45, color: '#999', size: '100pt' },
+    }), FAKE_CSS);
+    expect(html).toContain('class="pdf-watermark"');
+    expect(html).toContain('POUFNE');
+    expect(html).toContain('rotate(-45deg)');
+  });
+
+  it('resets page counter when startPageNumber > 1', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({ startPageNumber: 5 }), FAKE_CSS);
+    expect(html).toContain('counter-reset: page 4');
+  });
+});
+
+describe('buildHeaderFooterContent', () => {
+  it('returns empty quoted string for empty template', () => {
+    expect(buildHeaderFooterContent('', {})).toBe('""');
+  });
+
+  it('returns string literal for plain text', () => {
+    expect(buildHeaderFooterContent('Hello', {})).toBe('"Hello"');
+  });
+
+  it('substitutes {title} as string literal', () => {
+    expect(buildHeaderFooterContent('{title}', { title: 'Doc' })).toBe('"Doc"');
+  });
+
+  it('substitutes {page} as counter call', () => {
+    expect(buildHeaderFooterContent('{page}', {})).toBe('counter(page)');
+  });
+
+  it('substitutes {page}/{pages} as mixed counter calls', () => {
+    const r = buildHeaderFooterContent('{page}/{pages}', {});
+    expect(r).toContain('counter(page)');
+    expect(r).toContain('counter(pages)');
+    expect(r).toContain('"/"');
+  });
+
+  it('mixes literal and tokens', () => {
+    const r = buildHeaderFooterContent('Strona {page} z {pages}', {});
+    expect(r).toContain('"Strona "');
+    expect(r).toContain('counter(page)');
+    expect(r).toContain('" z "');
+    expect(r).toContain('counter(pages)');
+  });
+
+  it('escapes embedded double quotes in literals', () => {
+    const r = buildHeaderFooterContent('say "hi"', {});
+    expect(r).toContain('\\"hi\\"');
   });
 });

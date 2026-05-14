@@ -21,31 +21,42 @@ html, body {
 }
 
 body {
-  font-family: "Charter", "Iowan Old Style", "Palatino Linotype",
-    "Cambria", Georgia, "Times New Roman", serif;
+  font-family: var(--pf-font-body, "Charter", "Iowan Old Style", "Palatino Linotype",
+    "Cambria", Georgia, "Times New Roman", serif);
   font-size: var(--pf-size, 10pt);
   line-height: 1.65;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: "kern" 1, "liga" 1;
+  orphans: 3;
+  widows: 3;
 }
 
 /* ===== Headings ===== */
 h1, h2, h3, h4, h5, h6 {
   color: #1a1a1a;
+  font-family: var(--pf-font-heading, inherit);
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.01em;
-  break-after: avoid;
+  break-after: avoid-page;
   page-break-after: avoid;
+  break-inside: avoid;
+  page-break-inside: avoid;
   margin-top: 0;
+}
+
+/* Keep first sibling after heading on same page (no orphan headings) */
+h1 + *, h2 + *, h3 + *, h4 + *, h5 + *, h6 + * {
+  break-before: avoid-page;
+  page-break-before: avoid;
 }
 
 h1 {
   font-size: calc(var(--pf-size, 10pt) * 1.6);
   margin: 0.4em 0 0.4em;
-  border-bottom: 0.5pt solid #d0d6dc;
+  border-bottom: 0.5pt solid var(--pf-accent, #d0d6dc);
   padding-bottom: 0.2em;
 }
 
@@ -135,10 +146,10 @@ tr {
 }
 
 th {
-  background: #f1f3f5;
+  background: var(--pf-th-bg, #f1f3f5);
   font-weight: 600;
   border: 0.5pt solid #c0c8d0;
-  border-top: 1.2pt solid #14b8a6;
+  border-top: 1.2pt solid var(--pf-accent, #14b8a6);
   padding: 5px 8px;
   text-align: left;
   vertical-align: top;
@@ -170,6 +181,8 @@ li {
   margin-bottom: 0.15em;
   line-height: 1.55;
   color: #1a1a1a;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 /* ===== Blockquotes ===== */
@@ -204,11 +217,10 @@ img {
 }
 
 /* ===== Mermaid diagrams ===== */
+/* Allow splitting tall diagrams across pages to avoid huge empty gaps */
 .mermaid-print-figure {
   margin: 0.8em 0;
   text-align: center;
-  page-break-inside: avoid;
-  break-inside: avoid;
 }
 
 .mermaid-print-figure svg {
