@@ -263,17 +263,29 @@ img {
 }
 
 /* ===== Mermaid diagrams ===== */
-/* Allow splitting tall diagrams across pages to avoid huge empty gaps */
 .mermaid-print-figure {
   margin: 0.8em 0;
   text-align: center;
+  background: #ffffff;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 .mermaid-print-figure svg {
   max-width: 100%;
+  max-height: 220mm;
+  width: auto;
   height: auto;
   display: block;
   margin: 0 auto;
+  background: #ffffff !important;
+}
+
+/* Force any internal SVG group/rect we may have missed onto white bg */
+.mermaid-print-figure svg [fill="#1a1a1a"],
+.mermaid-print-figure svg [fill="#1f2020"],
+.mermaid-print-figure svg [fill="#181818"] {
+  fill: #ffffff;
 }
 
 /* ===== Page breaks ===== */

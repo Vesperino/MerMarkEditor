@@ -56,4 +56,59 @@ describe('serializeEditorContent', () => {
     const result = serializeEditorContent(el);
     expect(typeof result).toBe('string');
   });
+
+  it('converts foreignObject labels to SVG text elements', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('graph LR\n  A-->B'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 200 100');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('x', '10');
+    fo.setAttribute('y', '20');
+    fo.setAttribute('width', '80');
+    fo.setAttribute('height', '40');
+    fo.textContent = 'Node Label';
+    svg.appendChild(fo);
+    wrapper.appendChild(svg);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).not.toContain('foreignObject');
+    expect(result).toContain('Node Label');
+    expect(result).toMatch(/<text[^>]*>Node Label<\/text>/);
+  });
+
+  it('replaces dark background fill with white', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('graph LR'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('width', '500');
+    bgRect.setAttribute('height', '300');
+    bgRect.setAttribute('fill', '#1f2020');
+    svg.appendChild(bgRect);
+    wrapper.appendChild(svg);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).not.toContain('fill="#1f2020"');
+    expect(result).toContain('fill="#ffffff"');
+  });
+
+  it('does not touch light fills (no regression on light theme)', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('x'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('fill', '#f8f8f8');
+    svg.appendChild(r);
+    wrapper.appendChild(svg);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).toContain('fill="#f8f8f8"');
+  });
 });
