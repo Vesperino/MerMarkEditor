@@ -54,12 +54,25 @@
             </select>
           </label>
           <label class="pdf-label">
-            Marginesy
-            <select v-model="settings.margins" class="pdf-select" data-testid="pdf-margins">
+            Marginesy — preset
+            <select v-model="settings.margins" class="pdf-select" data-testid="pdf-margins" @change="onMarginPresetChange">
               <option value="narrow">Wąskie — 10mm</option>
               <option value="normal">Normalne — 18mm</option>
               <option value="wide">Szerokie — 25mm</option>
+              <option value="custom">Niestandardowe</option>
             </select>
+          </label>
+          <label class="pdf-label">
+            Margines ({{ effectiveMarginMm }} mm)
+            <input
+              :value="effectiveMarginMm"
+              type="range"
+              min="5"
+              max="40"
+              step="1"
+              data-testid="pdf-custom-margin"
+              @input="onMarginSliderInput"
+            >
           </label>
           <label class="pdf-label">
             Format strony
@@ -74,19 +87,46 @@
         <div v-if="activeTab === 'typography'" class="pdf-fields">
           <label class="pdf-label">
             Czcionka treści
-            <select v-model="settings.fontFamily" class="pdf-select" data-testid="pdf-font-family">
-              <option value="serif">Szeryfowa (Charter / Georgia)</option>
-              <option value="sans">Bezszeryfowa (Inter / Segoe UI)</option>
-              <option value="mono">Monospace (Fira Code)</option>
+            <select
+              v-model="settings.fontFamily"
+              class="pdf-select pdf-font-select"
+              :style="{ fontFamily: currentBodyStack }"
+              data-testid="pdf-font-family"
+            >
+              <optgroup label="Szeryfowe">
+                <option v-for="f in serifFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
+              </optgroup>
+              <optgroup label="Bezszeryfowe">
+                <option v-for="f in sansFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
+              </optgroup>
+              <optgroup label="Monospace">
+                <option v-for="f in monoFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
+              </optgroup>
             </select>
+            <div class="pdf-font-sample" :style="{ fontFamily: currentBodyStack }">
+              The quick brown fox jumps over the lazy dog · 0123456789
+            </div>
           </label>
           <label class="pdf-label">
             Czcionka nagłówków
-            <select v-model="settings.headingFontFamily" class="pdf-select">
-              <option value="serif">Szeryfowa</option>
-              <option value="sans">Bezszeryfowa</option>
-              <option value="mono">Monospace</option>
+            <select
+              v-model="settings.headingFontFamily"
+              class="pdf-select pdf-font-select"
+              :style="{ fontFamily: currentHeadingStack }"
+            >
+              <optgroup label="Szeryfowe">
+                <option v-for="f in serifFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
+              </optgroup>
+              <optgroup label="Bezszeryfowe">
+                <option v-for="f in sansFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
+              </optgroup>
+              <optgroup label="Monospace">
+                <option v-for="f in monoFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
+              </optgroup>
             </select>
+            <div class="pdf-font-sample" :style="{ fontFamily: currentHeadingStack, fontWeight: 600 }">
+              Nagłówek H1 · Heading sample
+            </div>
           </label>
           <label class="pdf-label">
             Kolor akcentu
@@ -202,9 +242,7 @@
       <iframe
         ref="previewFrame"
         class="pdf-preview-frame"
-        :srcdoc="srcdoc"
         sandbox="allow-scripts allow-same-origin allow-modals"
-        @load="onIframeLoad"
       />
     </div>
 
@@ -222,12 +260,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import printCssRaw from '../styles/print.css?raw';
 import {
   loadPdfSettings,
   savePdfSettings,
   buildPrintDocument,
+  SYSTEM_FONTS,
+  getFontStack,
   type PdfSettings,
   type DocumentMeta,
 } from '../composables/usePdfExport';
@@ -250,6 +290,33 @@ type TabId = typeof TABS[number]['id'];
 const activeTab = ref<TabId>('layout');
 const previewFrame = ref<HTMLIFrameElement | null>(null);
 const settings = reactive<PdfSettings>(loadPdfSettings());
+
+const serifFonts = computed(() => SYSTEM_FONTS.filter(f => f.category === 'serif'));
+const sansFonts = computed(() => SYSTEM_FONTS.filter(f => f.category === 'sans'));
+const monoFonts = computed(() => SYSTEM_FONTS.filter(f => f.category === 'mono'));
+
+const currentBodyStack = computed(() => getFontStack(settings.fontFamily));
+const currentHeadingStack = computed(() => getFontStack(settings.headingFontFamily));
+
+const PRESET_MM: Record<string, number> = { narrow: 10, normal: 18, wide: 25 };
+
+const effectiveMarginMm = computed(() => {
+  if (settings.margins === 'custom') return settings.customMarginMm;
+  return PRESET_MM[settings.margins] ?? 18;
+});
+
+function onMarginPresetChange() {
+  if (settings.margins !== 'custom') {
+    settings.customMarginMm = PRESET_MM[settings.margins] ?? 18;
+  }
+}
+
+function onMarginSliderInput(e: Event) {
+  const v = parseInt((e.target as HTMLInputElement).value, 10);
+  if (!Number.isFinite(v)) return;
+  settings.customMarginMm = v;
+  settings.margins = 'custom';
+}
 
 const { customPresets, allPresets, findPreset, savePreset, deletePreset } = usePdfPresets();
 const builtinPresets = computed(() => allPresets().filter(p => isBuiltinPreset(p.id)));
@@ -290,16 +357,39 @@ function deletePresetById(id: string) {
   if (selectedPresetId.value === id) selectedPresetId.value = '';
 }
 
-function onIframeLoad() {
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function writeIframeContent() {
   const frame = previewFrame.value;
   if (!frame) return;
-  try {
-    const body = frame.contentDocument?.body;
-    if (body) {
-      frame.style.height = body.scrollHeight + 48 + 'px';
-    }
-  } catch {}
+  const doc = frame.contentDocument;
+  if (!doc) return;
+  doc.open();
+  doc.write(srcdoc.value);
+  doc.close();
+  // After write, sync height
+  nextTick(() => {
+    try {
+      const body = doc.body;
+      if (body) {
+        frame.style.height = body.scrollHeight + 48 + 'px';
+      }
+    } catch {}
+  });
 }
+
+watch(srcdoc, () => {
+  if (writeTimer) clearTimeout(writeTimer);
+  writeTimer = setTimeout(writeIframeContent, 120);
+});
+
+onMounted(() => {
+  writeIframeContent();
+});
+
+onBeforeUnmount(() => {
+  if (writeTimer) clearTimeout(writeTimer);
+});
 
 function handlePrint() {
   savePdfSettings({ ...settings });
@@ -431,6 +521,19 @@ function handlePrint() {
   background: var(--bg-input, #ffffff);
   cursor: pointer;
   padding: 2px;
+}
+
+.pdf-font-select { font-size: 13px; }
+
+.pdf-font-sample {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--bg-tertiary, #f4f6f8);
+  border: 1px solid var(--border-primary, #d8dde2);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-primary, #1a1a1a);
+  line-height: 1.4;
 }
 
 .pdf-checkbox-row {

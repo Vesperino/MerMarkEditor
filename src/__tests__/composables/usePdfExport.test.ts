@@ -59,9 +59,29 @@ describe('buildPrintDocument', () => {
     expect(html).toContain('--pf-accent: #ff0000');
   });
 
-  it('embeds font family stack for body when fontFamily=sans', () => {
-    const html = buildPrintDocument('<p>x</p>', withSettings({ fontFamily: 'sans' }), FAKE_CSS);
+  it('embeds font family stack for body when fontFamily=inter', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({ fontFamily: 'inter' }), FAKE_CSS);
     expect(html).toContain('Inter');
+  });
+
+  it('falls back to first font when fontFamily id is unknown', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({ fontFamily: 'nonexistent' }), FAKE_CSS);
+    expect(html).toContain('Charter');
+  });
+
+  it('applies custom margin when margins=custom', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({ margins: 'custom', customMarginMm: 30 }), FAKE_CSS);
+    expect(html).toContain('30mm');
+  });
+
+  it('renders preview header div when header.enabled', () => {
+    const html = buildPrintDocument('<p>x</p>', withSettings({
+      header: { enabled: true, left: 'L', center: 'C', right: 'R' },
+    }), FAKE_CSS);
+    expect(html).toContain('pdf-preview-header');
+    expect(html).toContain('>L<');
+    expect(html).toContain('>C<');
+    expect(html).toContain('>R<');
   });
 
   it('emits @bottom-right page counter when footer disabled but page numbers enabled', () => {

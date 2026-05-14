@@ -2,8 +2,53 @@ import { serializeEditorContent } from '../utils/documentSerializer';
 import printCssRaw from '../styles/print.css?raw';
 import { DOM_SELECTORS } from '../constants';
 
-export type FontFamily = 'serif' | 'sans' | 'mono';
+export type FontCategory = 'serif' | 'sans' | 'mono';
 export type PageNumberFormat = 'n' | 'n-of-total' | 'page-n-of-total';
+
+export interface SystemFont {
+  id: string;
+  label: string;
+  stack: string;
+  category: FontCategory;
+}
+
+export const SYSTEM_FONTS: SystemFont[] = [
+  // Serif
+  { id: 'charter',     label: 'Charter',         category: 'serif', stack: '"Charter", "Iowan Old Style", "Palatino Linotype", "Cambria", Georgia, "Times New Roman", serif' },
+  { id: 'georgia',     label: 'Georgia',         category: 'serif', stack: 'Georgia, "Times New Roman", serif' },
+  { id: 'cambria',     label: 'Cambria',         category: 'serif', stack: '"Cambria", Georgia, "Times New Roman", serif' },
+  { id: 'times',       label: 'Times New Roman', category: 'serif', stack: '"Times New Roman", "Liberation Serif", serif' },
+  { id: 'palatino',    label: 'Palatino',        category: 'serif', stack: '"Palatino Linotype", "Book Antiqua", Palatino, "URW Palladio L", serif' },
+  { id: 'garamond',    label: 'Garamond',        category: 'serif', stack: '"EB Garamond", Garamond, "Apple Garamond", serif' },
+  { id: 'baskerville', label: 'Baskerville',     category: 'serif', stack: '"Baskerville", "Libre Baskerville", "Times New Roman", serif' },
+  // Sans
+  { id: 'inter',     label: 'Inter',         category: 'sans', stack: '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif' },
+  { id: 'segoe',     label: 'Segoe UI',      category: 'sans', stack: '"Segoe UI", "Helvetica Neue", Arial, sans-serif' },
+  { id: 'arial',     label: 'Arial',         category: 'sans', stack: 'Arial, Helvetica, sans-serif' },
+  { id: 'helvetica', label: 'Helvetica',     category: 'sans', stack: '"Helvetica Neue", Helvetica, Arial, sans-serif' },
+  { id: 'verdana',   label: 'Verdana',       category: 'sans', stack: 'Verdana, "DejaVu Sans", sans-serif' },
+  { id: 'tahoma',    label: 'Tahoma',        category: 'sans', stack: 'Tahoma, "DejaVu Sans", sans-serif' },
+  { id: 'calibri',   label: 'Calibri',       category: 'sans', stack: 'Calibri, "Carlito", "Segoe UI", sans-serif' },
+  { id: 'trebuchet', label: 'Trebuchet MS',  category: 'sans', stack: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif' },
+  // Mono
+  { id: 'fira-code',  label: 'Fira Code',       category: 'mono', stack: '"Fira Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace' },
+  { id: 'jetbrains',  label: 'JetBrains Mono',  category: 'mono', stack: '"JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", monospace' },
+  { id: 'consolas',   label: 'Consolas',        category: 'mono', stack: 'Consolas, "Liberation Mono", "Courier New", monospace' },
+  { id: 'courier',    label: 'Courier New',     category: 'mono', stack: '"Courier New", "Liberation Mono", monospace' },
+  { id: 'cascadia',   label: 'Cascadia Code',   category: 'mono', stack: '"Cascadia Code", Consolas, monospace' },
+  { id: 'sf-mono',    label: 'SF Mono',         category: 'mono', stack: '"SF Mono", Menlo, Monaco, Consolas, monospace' },
+];
+
+const FONT_LEGACY_MIGRATION: Record<string, string> = {
+  serif: 'charter',
+  sans: 'inter',
+  mono: 'fira-code',
+};
+
+export function getFontStack(id: string): string {
+  return SYSTEM_FONTS.find(f => f.id === id)?.stack
+    ?? SYSTEM_FONTS[0].stack;
+}
 
 export interface PdfHeaderFooter {
   enabled: boolean;
@@ -21,12 +66,15 @@ export interface PdfWatermark {
   size: string;
 }
 
+export type MarginPreset = 'narrow' | 'normal' | 'wide' | 'custom';
+
 export interface PdfSettings {
   fontSize: '8pt' | '9pt' | '10pt' | '11pt' | '12pt';
-  margins: 'narrow' | 'normal' | 'wide';
+  margins: MarginPreset;
+  customMarginMm: number;
   pageSize: 'A4' | 'Letter' | 'A3';
-  fontFamily: FontFamily;
-  headingFontFamily: FontFamily;
+  fontFamily: string;
+  headingFontFamily: string;
   accentColor: string;
   tableHeaderBg: string;
   header: PdfHeaderFooter;
@@ -42,9 +90,10 @@ export const PDF_SETTINGS_STORAGE_KEY = 'mermark.pdfSettings';
 export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
   fontSize: '10pt',
   margins: 'normal',
+  customMarginMm: 18,
   pageSize: 'A4',
-  fontFamily: 'serif',
-  headingFontFamily: 'serif',
+  fontFamily: 'charter',
+  headingFontFamily: 'charter',
   accentColor: '#14b8a6',
   tableHeaderBg: '#f1f3f5',
   header: {
@@ -72,17 +121,19 @@ export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
   },
 };
 
-const MARGIN_MAP: Record<PdfSettings['margins'], { top: string; right: string; bottom: string; left: string }> = {
-  narrow: { top: '10mm', right: '10mm', bottom: '14mm', left: '10mm' },
-  normal: { top: '18mm', right: '18mm', bottom: '22mm', left: '18mm' },
-  wide: { top: '25mm', right: '25mm', bottom: '28mm', left: '25mm' },
-};
+interface Margins { top: string; right: string; bottom: string; left: string; }
 
-const FONT_FAMILY_MAP: Record<FontFamily, string> = {
-  serif: '"Charter", "Iowan Old Style", "Palatino Linotype", "Cambria", Georgia, "Times New Roman", serif',
-  sans: '"Inter", "Segoe UI", "Helvetica Neue", "Arial", "Noto Sans", sans-serif',
-  mono: '"Fira Code", "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace',
-};
+function resolveMargins(settings: PdfSettings): Margins {
+  if (settings.margins === 'custom') {
+    const v = `${Math.max(3, Math.min(60, settings.customMarginMm | 0))}mm`;
+    return { top: v, right: v, bottom: v, left: v };
+  }
+  switch (settings.margins) {
+    case 'narrow': return { top: '10mm', right: '10mm', bottom: '14mm', left: '10mm' };
+    case 'wide':   return { top: '25mm', right: '25mm', bottom: '28mm', left: '25mm' };
+    default:       return { top: '18mm', right: '18mm', bottom: '22mm', left: '18mm' };
+  }
+}
 
 const PAGE_NUMBER_FORMAT_MAP: Record<PageNumberFormat, string> = {
   n: 'counter(page)',
@@ -100,8 +151,16 @@ function escapeCssString(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /**
- * Build a CSS `content:` value for a header/footer cell.
+ * Build a CSS `content:` value for an @page margin box.
  * Substitutes {title}, {date}, {path}, {page}, {pages}.
  * Page/pages become counter() calls; others become string literals.
  */
@@ -132,6 +191,21 @@ export function buildHeaderFooterContent(template: string, meta: DocumentMeta): 
     parts.push(`"${escapeCssString(template.slice(lastIndex))}"`);
   }
   return parts.length ? parts.join(' ') : '""';
+}
+
+/**
+ * Resolves all tokens to plain strings for screen preview rendering.
+ * {page}/{pages} become "1" since real counters only exist during print.
+ */
+export function resolveTemplateForPreview(template: string, meta: DocumentMeta): string {
+  if (!template) return '';
+  const date = meta.date ?? new Date().toLocaleDateString();
+  return template
+    .replace(/\{title\}/g, meta.title ?? '')
+    .replace(/\{date\}/g, date)
+    .replace(/\{path\}/g, meta.path ?? '')
+    .replace(/\{page\}/g, '1')
+    .replace(/\{pages\}/g, '1');
 }
 
 function buildPageMarginBoxes(settings: PdfSettings, meta: DocumentMeta): string {
@@ -178,20 +252,42 @@ function buildWatermarkCss(w: PdfWatermark): string {
 }`;
 }
 
+function buildPreviewHeaderHtml(hf: PdfHeaderFooter, meta: DocumentMeta, klass: string): string {
+  if (!hf.enabled) return '';
+  const l = escapeHtml(resolveTemplateForPreview(hf.left, meta));
+  const c = escapeHtml(resolveTemplateForPreview(hf.center, meta));
+  const r = escapeHtml(resolveTemplateForPreview(hf.right, meta));
+  return `<div class="${klass}" aria-hidden="true"><span class="hf-l">${l}</span><span class="hf-c">${c}</span><span class="hf-r">${r}</span></div>`;
+}
+
+function buildPreviewPageNumberHtml(settings: PdfSettings): string {
+  if (settings.footer.enabled || !settings.showPageNumbers) return '';
+  let text: string;
+  switch (settings.pageNumberFormat) {
+    case 'n': text = String(settings.startPageNumber); break;
+    case 'n-of-total': text = `${settings.startPageNumber}/1`; break;
+    case 'page-n-of-total': text = `Strona ${settings.startPageNumber} z 1`; break;
+  }
+  return `<div class="pdf-preview-footer pdf-preview-pgnum" aria-hidden="true"><span class="hf-l"></span><span class="hf-c"></span><span class="hf-r">${escapeHtml(text)}</span></div>`;
+}
+
 export function buildPrintDocument(
   contentHtml: string,
   settings: PdfSettings,
   printCss: string,
   meta: DocumentMeta = {},
 ): string {
-  const m = MARGIN_MAP[settings.margins];
-  const bodyFont = FONT_FAMILY_MAP[settings.fontFamily];
-  const headingFont = FONT_FAMILY_MAP[settings.headingFontFamily];
+  const m = resolveMargins(settings);
+  const bodyFont = getFontStack(settings.fontFamily);
+  const headingFont = getFontStack(settings.headingFontFamily);
   const marginBoxes = buildPageMarginBoxes(settings, meta);
   const watermarkCss = buildWatermarkCss(settings.watermark);
   const watermarkHtml = settings.watermark.enabled && settings.watermark.text
     ? '<div class="pdf-watermark" aria-hidden="true"></div>'
     : '';
+  const previewHeader = buildPreviewHeaderHtml(settings.header, meta, 'pdf-preview-header');
+  const previewFooter = buildPreviewHeaderHtml(settings.footer, meta, 'pdf-preview-footer');
+  const previewPgNum = buildPreviewPageNumberHtml(settings);
   const startPage = Math.max(1, settings.startPageNumber | 0);
   const counterReset = startPage > 1 ? `body { counter-reset: page ${startPage - 1}; }` : '';
 
@@ -212,24 +308,35 @@ export function buildPrintDocument(
   --pf-font-heading: ${headingFont};
   --pf-accent: ${settings.accentColor};
   --pf-th-bg: ${settings.tableHeaderBg};
+  --pf-margin-top: ${m.top};
+  --pf-margin-right: ${m.right};
+  --pf-margin-bottom: ${m.bottom};
+  --pf-margin-left: ${m.left};
 }
 ${counterReset}
 ${printCss}
 ${watermarkCss}
 </style>
 </head>
-<body>${watermarkHtml}${contentHtml}</body>
+<body>${watermarkHtml}${previewHeader}${contentHtml}${previewFooter}${previewPgNum}</body>
 </html>`;
 }
 
 function migrateSettings(parsed: Partial<PdfSettings>): PdfSettings {
-  return {
+  const out: PdfSettings = {
     ...PDF_SETTINGS_DEFAULTS,
     ...parsed,
     header: { ...PDF_SETTINGS_DEFAULTS.header, ...(parsed.header ?? {}) },
     footer: { ...PDF_SETTINGS_DEFAULTS.footer, ...(parsed.footer ?? {}) },
     watermark: { ...PDF_SETTINGS_DEFAULTS.watermark, ...(parsed.watermark ?? {}) },
   };
+  if (FONT_LEGACY_MIGRATION[out.fontFamily]) {
+    out.fontFamily = FONT_LEGACY_MIGRATION[out.fontFamily];
+  }
+  if (FONT_LEGACY_MIGRATION[out.headingFontFamily]) {
+    out.headingFontFamily = FONT_LEGACY_MIGRATION[out.headingFontFamily];
+  }
+  return out;
 }
 
 export function loadPdfSettings(): PdfSettings {

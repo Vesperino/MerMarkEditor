@@ -20,6 +20,52 @@ html, body {
   background: #ffffff;
 }
 
+/* Screen preview only: simulate @page margins via body padding,
+   since @page rules are honored only during actual printing. */
+@media screen {
+  body {
+    padding:
+      var(--pf-margin-top, 18mm)
+      var(--pf-margin-right, 18mm)
+      var(--pf-margin-bottom, 22mm)
+      var(--pf-margin-left, 18mm);
+    box-sizing: border-box;
+    min-height: 297mm;
+  }
+}
+
+/* Preview header/footer — shown on screen only; @page margin boxes handle print. */
+.pdf-preview-header,
+.pdf-preview-footer {
+  display: none;
+}
+
+@media screen {
+  .pdf-preview-header,
+  .pdf-preview-footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    font-size: calc(var(--pf-size, 10pt) * 0.85);
+    color: #555;
+    column-gap: 8pt;
+    padding: 4mm 0;
+  }
+  .pdf-preview-header {
+    border-bottom: 0.5pt dashed #c0c8d0;
+    margin-bottom: 6mm;
+  }
+  .pdf-preview-footer {
+    border-top: 0.5pt dashed #c0c8d0;
+    margin-top: 6mm;
+  }
+  .pdf-preview-header .hf-l,
+  .pdf-preview-footer .hf-l { text-align: left; }
+  .pdf-preview-header .hf-c,
+  .pdf-preview-footer .hf-c { text-align: center; }
+  .pdf-preview-header .hf-r,
+  .pdf-preview-footer .hf-r { text-align: right; }
+}
+
 body {
   font-family: var(--pf-font-body, "Charter", "Iowan Old Style", "Palatino Linotype",
     "Cambria", Georgia, "Times New Roman", serif);

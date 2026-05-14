@@ -14,11 +14,10 @@ describe('PdfExportDialog', () => {
     expect(wrapper.exists()).toBe(true);
   });
 
-  it('renders preview iframe with srcdoc', () => {
+  it('renders preview iframe', () => {
     const wrapper = mount(PdfExportDialog, { props: { contentHtml: CONTENT_HTML } });
     const iframe = wrapper.find('iframe');
     expect(iframe.exists()).toBe(true);
-    expect(iframe.attributes('srcdoc')).toContain('Test');
   });
 
   it('emits close on Zamknij click', async () => {
@@ -32,15 +31,13 @@ describe('PdfExportDialog', () => {
     expect(wrapper.find('[data-testid="pdf-confirm"]').exists()).toBe(true);
   });
 
-  it('srcdoc updates when fontSize changes', async () => {
+  it('saves fontSize change to localStorage on print', async () => {
     const wrapper = mount(PdfExportDialog, { props: { contentHtml: CONTENT_HTML } });
-    const iframe = wrapper.find('iframe');
-    const before = iframe.attributes('srcdoc');
     await wrapper.find('[data-testid="pdf-font-size"]').setValue('12pt');
-    await wrapper.vm.$nextTick();
-    const after = iframe.attributes('srcdoc');
-    expect(after).not.toBe(before);
-    expect(after).toContain('12pt');
+    await wrapper.find('[data-testid="pdf-confirm"]').trigger('click');
+    const raw = localStorage.getItem('mermark.pdfSettings');
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw!).fontSize).toBe('12pt');
   });
 
   it('switches to Typography tab and shows font family selector', async () => {
@@ -59,8 +56,9 @@ describe('PdfExportDialog', () => {
     const cb = wrapper.find('[data-testid="pdf-watermark-enabled"]');
     expect(cb.exists()).toBe(true);
     await cb.setValue(true);
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('iframe').attributes('srcdoc')).toContain('pdf-watermark');
+    await wrapper.find('[data-testid="pdf-confirm"]').trigger('click');
+    const raw = localStorage.getItem('mermark.pdfSettings');
+    expect(JSON.parse(raw!).watermark.enabled).toBe(true);
   });
 
   it('preset select includes builtin presets', () => {
