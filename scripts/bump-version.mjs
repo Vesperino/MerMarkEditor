@@ -92,25 +92,23 @@ async function writeCargoToml(file, next) {
   await writeFile(file, updated, 'utf8');
 }
 
-const STUB = (version) => `# Release v${version} — TODO short headline
+// Stub is intentionally user-facing — no "Under the hood" / "Chores" section
+// and the placeholders nudge the author towards outcomes rather than internals.
+const STUB = (version) => `# Release v${version} — TODO short user-facing headline
 
-TODO one-paragraph elevator pitch (optional for patches).
+TODO one-paragraph elevator pitch — write it for the end user (skip for patches).
 
 ## Features
 
-- TODO
+- TODO new things the user can now do
 
 ## Bug fixes
 
-- TODO
+- TODO things that used to be broken and now work (#PR)
 
 ## UI/UX
 
-- TODO
-
-## Under the hood
-
-- TODO
+- TODO visible polish or small UX wins
 `;
 
 async function writeStub(version) {
