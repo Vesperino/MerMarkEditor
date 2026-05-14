@@ -1,5 +1,5 @@
 import type { EditorState, Transaction } from '@tiptap/pm/state';
-import { TextSelection } from '@tiptap/pm/state';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 
 export type MoveBlockDirection = 'up' | 'down';
 
@@ -10,25 +10,31 @@ interface MovableRange {
   rangeStart: number;
   rangeEnd: number;
   insertAnchor: number;
+  isNodeSelection: boolean;
 }
 
 function findMovableRange(
   state: EditorState,
   direction: MoveBlockDirection
 ): MovableRange | null {
-  const { $from, $to } = state.selection;
-  const maxDepth = Math.min($from.depth, $to.depth);
+  const sel = state.selection;
+  const { $from, $to } = sel;
+  const isNodeSel = sel instanceof NodeSelection;
 
-  for (let d = maxDepth; d >= 1; d--) {
+  // For a NodeSelection $from already sits one level above the selected node,
+  // so the relevant "child index" lives at $from.depth itself. For a
+  // TextSelection we must look one depth up to find the surrounding block.
+  const startDepth = isNodeSel ? $from.depth + 1 : Math.min($from.depth, $to.depth);
+
+  for (let d = startDepth; d >= 1; d--) {
     const parentDepth = d - 1;
     const parent = $from.node(parentDepth);
-    if (parent !== $to.node(parentDepth)) continue;
+    if (!parent) continue;
+    if (!isNodeSel && parent !== $to.node(parentDepth)) continue;
 
     const startIndex = $from.index(parentDepth);
-    let endIndex = $to.index(parentDepth);
-    // Non-empty selection ending exactly at the boundary before a child belongs
-    // to the previous child (matches conventional "select-line" behaviour).
-    if ($to.pos > $from.pos && endIndex > startIndex) {
+    let endIndex = isNodeSel ? startIndex : $to.index(parentDepth);
+    if (!isNodeSel && $to.pos > $from.pos && endIndex > startIndex) {
       const boundary = $from.posAtIndex(endIndex, parentDepth);
       if ($to.pos === boundary) endIndex -= 1;
     }
@@ -44,7 +50,15 @@ function findMovableRange(
         ? $from.posAtIndex(startIndex - 1, parentDepth)
         : $from.posAtIndex(endIndex + 2, parentDepth);
 
-    return { parentDepth, startIndex, endIndex, rangeStart, rangeEnd, insertAnchor };
+    return {
+      parentDepth,
+      startIndex,
+      endIndex,
+      rangeStart,
+      rangeEnd,
+      insertAnchor,
+      isNodeSelection: isNodeSel,
+    };
   }
   return null;
 }
@@ -56,7 +70,7 @@ export function buildMoveBlockTransaction(
   const found = findMovableRange(state, direction);
   if (!found) return null;
 
-  const { rangeStart, rangeEnd, insertAnchor } = found;
+  const { rangeStart, rangeEnd, insertAnchor, isNodeSelection } = found;
   const slice = state.doc.slice(rangeStart, rangeEnd);
 
   const fromOffset = state.selection.$from.pos - rangeStart;
@@ -66,14 +80,19 @@ export function buildMoveBlockTransaction(
   tr.delete(rangeStart, rangeEnd);
   const insertPos = tr.mapping.map(insertAnchor);
   tr.insert(insertPos, slice.content);
+  tr.setMeta('addToHistory', true);
 
   const docSize = tr.doc.content.size;
-  const newFrom = Math.min(insertPos + fromOffset, docSize);
-  const newTo = Math.min(insertPos + toOffset, docSize);
   try {
-    tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo));
+    if (isNodeSelection) {
+      tr.setSelection(NodeSelection.create(tr.doc, insertPos));
+    } else {
+      const newFrom = Math.min(insertPos + fromOffset, docSize);
+      const newTo = Math.min(insertPos + toOffset, docSize);
+      tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo));
+    }
   } catch {
-    tr.setSelection(TextSelection.create(tr.doc, insertPos));
+    tr.setSelection(TextSelection.create(tr.doc, Math.min(insertPos, docSize)));
   }
   tr.scrollIntoView();
   return tr;

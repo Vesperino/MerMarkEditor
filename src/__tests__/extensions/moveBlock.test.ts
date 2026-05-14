@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import { NodeSelection } from '@tiptap/pm/state';
 import { buildMoveBlockTransaction } from '../../extensions/move-block/moveBlock';
 
 const createdEditors: Editor[] = [];
@@ -81,6 +82,37 @@ describe('MoveBlockExtension — mixed block types', () => {
     // Tiptap may emit a trailing empty paragraph; normalise before comparing.
     const html = editor.getHTML().replace(/<p><\/p>$/, '');
     expect(html).toBe('<p>after</p><pre><code>x</code></pre>');
+  });
+});
+
+describe('MoveBlockExtension — atom node selection', () => {
+  it('moves a horizontal rule selected as a node up', () => {
+    const editor = makeEditor('<p>aaa</p><hr><p>ccc</p>');
+    // doc: paragraph(aaa) [size 5], hr [size 1], paragraph(ccc).
+    // Position before hr = 5.
+    const trSel = editor.state.tr.setSelection(
+      NodeSelection.create(editor.state.doc, 5)
+    );
+    editor.view.dispatch(trSel);
+    expect(editor.state.selection instanceof NodeSelection).toBe(true);
+    expect(fireShortcut(editor, 'up')).toBe(true);
+    const html = editor.getHTML().replace(/<p><\/p>$/, '');
+    expect(html).toBe('<hr><p>aaa</p><p>ccc</p>');
+    // After the move the selection should still target the moved HR.
+    expect(editor.state.selection instanceof NodeSelection).toBe(true);
+    expect((editor.state.selection as NodeSelection).node.type.name).toBe('horizontalRule');
+  });
+
+  it('moves a horizontal rule selected as a node down', () => {
+    const editor = makeEditor('<hr><p>aaa</p><p>bbb</p>');
+    const trSel = editor.state.tr.setSelection(
+      NodeSelection.create(editor.state.doc, 0)
+    );
+    editor.view.dispatch(trSel);
+    expect(fireShortcut(editor, 'down')).toBe(true);
+    const html = editor.getHTML().replace(/<p><\/p>$/, '');
+    expect(html).toBe('<p>aaa</p><hr><p>bbb</p>');
+    expect((editor.state.selection as NodeSelection).node.type.name).toBe('horizontalRule');
   });
 });
 
