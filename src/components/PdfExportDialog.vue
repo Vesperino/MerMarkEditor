@@ -2,29 +2,29 @@
   <div class="pdf-overlay">
     <div class="pdf-sidebar">
       <div class="pdf-sidebar-header">
-        <h3 class="pdf-title">Podgląd PDF</h3>
+        <h3 class="pdf-title">{{ t.pdfPreviewTitle }}</h3>
         <select
           v-model="selectedPresetId"
           class="pdf-select pdf-preset-select"
           data-testid="pdf-preset-select"
           @change="applyPreset"
         >
-          <option value="">— Bez presetu —</option>
-          <optgroup label="Wbudowane">
+          <option value="">{{ t.pdfNoPreset }}</option>
+          <optgroup :label="t.pdfBuiltinPresets">
             <option v-for="p in builtinPresets" :key="p.id" :value="p.id">{{ p.name }}</option>
           </optgroup>
-          <optgroup v-if="customPresetsList.length" label="Własne">
+          <optgroup v-if="customPresetsList.length" :label="t.pdfCustomPresets">
             <option v-for="p in customPresetsList" :key="p.id" :value="p.id">{{ p.name }}</option>
           </optgroup>
         </select>
         <div class="pdf-preset-actions">
-          <button class="pdf-mini-btn" data-testid="pdf-save-preset" @click="openSavePreset">Zapisz preset</button>
+          <button class="pdf-mini-btn" data-testid="pdf-save-preset" @click="openSavePreset">{{ t.pdfSavePreset }}</button>
           <button
             v-if="selectedPresetId && !isBuiltin(selectedPresetId)"
             class="pdf-mini-btn pdf-mini-btn--danger"
             @click="deletePresetById(selectedPresetId)"
           >
-            Usuń
+            {{ t.pdfDeletePreset }}
           </button>
         </div>
       </div>
@@ -44,27 +44,27 @@
       <div class="pdf-tab-body">
         <div v-if="activeTab === 'layout'" class="pdf-fields">
           <label class="pdf-label">
-            Rozmiar czcionki
+            {{ t.pdfFontSize }}
             <select v-model="settings.fontSize" class="pdf-select" data-testid="pdf-font-size">
-              <option value="8pt">XS — 8pt</option>
-              <option value="9pt">S — 9pt</option>
-              <option value="10pt">M — 10pt</option>
-              <option value="11pt">L — 11pt</option>
-              <option value="12pt">XL — 12pt</option>
+              <option value="8pt">{{ t.pdfFontSizeXs }}</option>
+              <option value="9pt">{{ t.pdfFontSizeS }}</option>
+              <option value="10pt">{{ t.pdfFontSizeM }}</option>
+              <option value="11pt">{{ t.pdfFontSizeL }}</option>
+              <option value="12pt">{{ t.pdfFontSizeXl }}</option>
             </select>
           </label>
           <label class="pdf-label">
-            Marginesy — preset
+            {{ t.pdfMarginPreset }}
             <select v-model="settings.margins" class="pdf-select" data-testid="pdf-margins" @change="onMarginPresetChange">
-              <option value="narrow">Wąskie — 10mm</option>
-              <option value="normal">Normalne — 18mm</option>
-              <option value="wide">Szerokie — 25mm</option>
-              <option value="custom">Niestandardowe</option>
+              <option value="narrow">{{ t.pdfMarginNarrow }}</option>
+              <option value="normal">{{ t.pdfMarginNormal }}</option>
+              <option value="wide">{{ t.pdfMarginWide }}</option>
+              <option value="custom">{{ t.pdfMarginCustom }}</option>
             </select>
           </label>
           <div class="pdf-margin-grid">
             <label class="pdf-label pdf-label--sm">
-              Górny ({{ effectiveMargins.top }} mm)
+              {{ t.pdfMarginTop }} ({{ effectiveMargins.top }} mm)
               <input
                 :value="effectiveMargins.top"
                 type="range"
@@ -76,7 +76,7 @@
               >
             </label>
             <label class="pdf-label pdf-label--sm">
-              Prawy ({{ effectiveMargins.right }} mm)
+              {{ t.pdfMarginRight }} ({{ effectiveMargins.right }} mm)
               <input
                 :value="effectiveMargins.right"
                 type="range"
@@ -88,7 +88,7 @@
               >
             </label>
             <label class="pdf-label pdf-label--sm">
-              Dolny ({{ effectiveMargins.bottom }} mm)
+              {{ t.pdfMarginBottom }} ({{ effectiveMargins.bottom }} mm)
               <input
                 :value="effectiveMargins.bottom"
                 type="range"
@@ -100,7 +100,7 @@
               >
             </label>
             <label class="pdf-label pdf-label--sm">
-              Lewy ({{ effectiveMargins.left }} mm)
+              {{ t.pdfMarginLeft }} ({{ effectiveMargins.left }} mm)
               <input
                 :value="effectiveMargins.left"
                 type="range"
@@ -113,7 +113,7 @@
             </label>
           </div>
           <label class="pdf-label">
-            Format strony
+            {{ t.pdfPageSize }}
             <select v-model="settings.pageSize" class="pdf-select" data-testid="pdf-page-size">
               <option value="A4">A4</option>
               <option value="Letter">Letter (US)</option>
@@ -124,54 +124,54 @@
 
         <div v-if="activeTab === 'typography'" class="pdf-fields">
           <label class="pdf-label">
-            Czcionka treści
+            {{ t.pdfBodyFont }}
             <select
               v-model="settings.fontFamily"
               class="pdf-select pdf-font-select"
               :style="{ fontFamily: currentBodyStack }"
               data-testid="pdf-font-family"
             >
-              <optgroup label="Szeryfowe">
+              <optgroup :label="t.pdfFontGroupSerif">
                 <option v-for="f in serifFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
-              <optgroup label="Bezszeryfowe">
+              <optgroup :label="t.pdfFontGroupSans">
                 <option v-for="f in sansFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
-              <optgroup label="Monospace">
+              <optgroup :label="t.pdfFontGroupMono">
                 <option v-for="f in monoFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
             </select>
             <div class="pdf-font-sample" :style="{ fontFamily: currentBodyStack }">
-              The quick brown fox jumps over the lazy dog · 0123456789
+              {{ t.pdfFontSampleBody }}
             </div>
           </label>
           <label class="pdf-label">
-            Czcionka nagłówków
+            {{ t.pdfHeadingFont }}
             <select
               v-model="settings.headingFontFamily"
               class="pdf-select pdf-font-select"
               :style="{ fontFamily: currentHeadingStack }"
             >
-              <optgroup label="Szeryfowe">
+              <optgroup :label="t.pdfFontGroupSerif">
                 <option v-for="f in serifFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
-              <optgroup label="Bezszeryfowe">
+              <optgroup :label="t.pdfFontGroupSans">
                 <option v-for="f in sansFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
-              <optgroup label="Monospace">
+              <optgroup :label="t.pdfFontGroupMono">
                 <option v-for="f in monoFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
             </select>
             <div class="pdf-font-sample" :style="{ fontFamily: currentHeadingStack, fontWeight: 600 }">
-              Nagłówek H1 · Heading sample
+              {{ t.pdfFontSampleHeading }}
             </div>
           </label>
           <label class="pdf-label">
-            Kolor akcentu
+            {{ t.pdfAccentColor }}
             <input v-model="settings.accentColor" type="color" class="pdf-color" data-testid="pdf-accent">
           </label>
           <label class="pdf-label">
-            Tło nagłówka tabeli
+            {{ t.pdfTableHeaderBg }}
             <input v-model="settings.tableHeaderBg" type="color" class="pdf-color">
           </label>
         </div>
@@ -179,61 +179,61 @@
         <div v-if="activeTab === 'header'" class="pdf-fields">
           <label class="pdf-checkbox-row">
             <input v-model="settings.header.enabled" type="checkbox" data-testid="pdf-header-enabled">
-            <span>Nagłówek strony</span>
+            <span>{{ t.pdfHeaderEnabled }}</span>
           </label>
           <div v-if="settings.header.enabled" class="pdf-three-col">
             <label class="pdf-label pdf-label--sm">
-              Lewy
+              {{ t.pdfPositionLeft }}
               <input v-model="settings.header.left" type="text" class="pdf-input" placeholder="{title}">
             </label>
             <label class="pdf-label pdf-label--sm">
-              Środkowy
+              {{ t.pdfPositionCenter }}
               <input v-model="settings.header.center" type="text" class="pdf-input">
             </label>
             <label class="pdf-label pdf-label--sm">
-              Prawy
+              {{ t.pdfPositionRight }}
               <input v-model="settings.header.right" type="text" class="pdf-input" placeholder="{date}">
             </label>
           </div>
 
           <label class="pdf-checkbox-row">
             <input v-model="settings.footer.enabled" type="checkbox" data-testid="pdf-footer-enabled">
-            <span>Stopka strony</span>
+            <span>{{ t.pdfFooterEnabled }}</span>
           </label>
           <div v-if="settings.footer.enabled" class="pdf-three-col">
             <label class="pdf-label pdf-label--sm">
-              Lewy
+              {{ t.pdfPositionLeft }}
               <input v-model="settings.footer.left" type="text" class="pdf-input" placeholder="{path}">
             </label>
             <label class="pdf-label pdf-label--sm">
-              Środkowy
+              {{ t.pdfPositionCenter }}
               <input v-model="settings.footer.center" type="text" class="pdf-input">
             </label>
             <label class="pdf-label pdf-label--sm">
-              Prawy
+              {{ t.pdfPositionRight }}
               <input v-model="settings.footer.right" type="text" class="pdf-input" placeholder="{page}/{pages}">
             </label>
           </div>
 
           <p class="pdf-hint">
-            Zmienne: <code>{{ '{title}' }}</code> <code>{{ '{date}' }}</code> <code>{{ '{path}' }}</code>
+            {{ t.pdfTemplateVars }} <code>{{ '{title}' }}</code> <code>{{ '{date}' }}</code> <code>{{ '{path}' }}</code>
             <code>{{ '{page}' }}</code> <code>{{ '{pages}' }}</code>
           </p>
 
           <label class="pdf-checkbox-row">
             <input v-model="settings.showPageNumbers" type="checkbox">
-            <span>Numery stron (gdy stopka wyłączona)</span>
+            <span>{{ t.pdfShowPageNumbers }}</span>
           </label>
           <label v-if="settings.showPageNumbers" class="pdf-label">
-            Format numeru
+            {{ t.pdfPageNumberFormat }}
             <select v-model="settings.pageNumberFormat" class="pdf-select">
-              <option value="n">1, 2, 3…</option>
-              <option value="n-of-total">1/12</option>
-              <option value="page-n-of-total">Strona 1 z 12</option>
+              <option value="n">{{ t.pdfPageNumberFormatN }}</option>
+              <option value="n-of-total">{{ t.pdfPageNumberFormatNOfTotal }}</option>
+              <option value="page-n-of-total">{{ t.pdfPageNumberFormatPageNOfTotal }}</option>
             </select>
           </label>
           <label class="pdf-label">
-            Numer pierwszej strony
+            {{ t.pdfStartPageNumber }}
             <input v-model.number="settings.startPageNumber" type="number" min="1" class="pdf-input">
           </label>
         </div>
@@ -241,27 +241,27 @@
         <div v-if="activeTab === 'watermark'" class="pdf-fields">
           <label class="pdf-checkbox-row">
             <input v-model="settings.watermark.enabled" type="checkbox" data-testid="pdf-watermark-enabled">
-            <span>Watermark / tekst tła</span>
+            <span>{{ t.pdfWatermarkEnabled }}</span>
           </label>
           <template v-if="settings.watermark.enabled">
             <label class="pdf-label">
-              Tekst
+              {{ t.pdfWatermarkText }}
               <input v-model="settings.watermark.text" type="text" class="pdf-input">
             </label>
             <label class="pdf-label">
-              Kolor
+              {{ t.pdfWatermarkColor }}
               <input v-model="settings.watermark.color" type="color" class="pdf-color">
             </label>
             <label class="pdf-label">
-              Krycie ({{ Math.round(settings.watermark.opacity * 100) }}%)
+              {{ t.pdfWatermarkOpacity(Math.round(settings.watermark.opacity * 100)) }}
               <input v-model.number="settings.watermark.opacity" type="range" min="0.02" max="0.5" step="0.01">
             </label>
             <label class="pdf-label">
-              Obrót ({{ settings.watermark.rotate }}°)
+              {{ t.pdfWatermarkRotate(settings.watermark.rotate) }}
               <input v-model.number="settings.watermark.rotate" type="range" min="-90" max="90" step="5">
             </label>
             <label class="pdf-label">
-              Rozmiar
+              {{ t.pdfWatermarkSize }}
               <input v-model="settings.watermark.size" type="text" class="pdf-input" placeholder="120pt">
             </label>
           </template>
@@ -269,9 +269,9 @@
       </div>
 
       <div class="pdf-actions">
-        <button class="pdf-btn pdf-btn--secondary" data-testid="pdf-close" @click="$emit('close')">Zamknij</button>
+        <button class="pdf-btn pdf-btn--secondary" data-testid="pdf-close" @click="$emit('close')">{{ t.pdfBtnClose }}</button>
         <button class="pdf-btn pdf-btn--primary" data-testid="pdf-confirm" @click="handlePrint">
-          Drukuj / PDF
+          {{ t.pdfBtnPrint }}
         </button>
       </div>
     </div>
@@ -286,11 +286,11 @@
 
     <div v-if="showSavePresetModal" class="pdf-mini-modal" @click.self="showSavePresetModal = false">
       <div class="pdf-mini-modal-body">
-        <h4>Zapisz preset</h4>
-        <input v-model="newPresetName" type="text" class="pdf-input" placeholder="Nazwa presetu">
+        <h4>{{ t.pdfSavePresetTitle }}</h4>
+        <input v-model="newPresetName" type="text" class="pdf-input" :placeholder="t.pdfPresetNamePlaceholder">
         <div class="pdf-mini-modal-actions">
-          <button class="pdf-btn pdf-btn--secondary" @click="showSavePresetModal = false">Anuluj</button>
-          <button class="pdf-btn pdf-btn--primary" data-testid="pdf-save-preset-confirm" @click="confirmSavePreset">Zapisz</button>
+          <button class="pdf-btn pdf-btn--secondary" @click="showSavePresetModal = false">{{ t.pdfBtnCancel }}</button>
+          <button class="pdf-btn pdf-btn--primary" data-testid="pdf-save-preset-confirm" @click="confirmSavePreset">{{ t.pdfBtnSave }}</button>
         </div>
       </div>
     </div>
@@ -310,6 +310,7 @@ import {
   type DocumentMeta,
 } from '../composables/usePdfExport';
 import { usePdfPresets, isBuiltinPreset } from '../composables/usePdfPresets';
+import { t } from '../i18n';
 
 const props = defineProps<{
   contentHtml: string;
@@ -317,13 +318,13 @@ const props = defineProps<{
 }>();
 defineEmits<{ close: [] }>();
 
-const TABS = [
-  { id: 'layout', label: 'Układ' },
-  { id: 'typography', label: 'Typografia' },
-  { id: 'header', label: 'Nagłówek/Stopka' },
-  { id: 'watermark', label: 'Watermark' },
-] as const;
-type TabId = typeof TABS[number]['id'];
+const TABS = computed(() => [
+  { id: 'layout' as const, label: t.value.pdfTabLayout },
+  { id: 'typography' as const, label: t.value.pdfTabTypography },
+  { id: 'header' as const, label: t.value.pdfTabHeader },
+  { id: 'watermark' as const, label: t.value.pdfTabWatermark },
+]);
+type TabId = 'layout' | 'typography' | 'header' | 'watermark';
 
 const activeTab = ref<TabId>('layout');
 const previewFrame = ref<HTMLIFrameElement | null>(null);
@@ -402,7 +403,7 @@ function confirmSavePreset() {
 }
 
 function deletePresetById(id: string) {
-  if (!confirm('Usunąć preset?')) return;
+  if (!confirm(t.value.pdfConfirmDeletePreset)) return;
   deletePreset(id);
   if (selectedPresetId.value === id) selectedPresetId.value = '';
 }

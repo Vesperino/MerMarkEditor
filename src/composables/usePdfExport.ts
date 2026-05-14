@@ -1,6 +1,7 @@
 import { serializeEditorContent } from '../utils/documentSerializer';
 import printCssRaw from '../styles/print.css?raw';
 import { DOM_SELECTORS } from '../constants';
+import { t } from '../i18n';
 
 export type FontCategory = 'serif' | 'sans' | 'mono';
 export type PageNumberFormat = 'n' | 'n-of-total' | 'page-n-of-total';
@@ -153,11 +154,18 @@ function resolveMargins(settings: PdfSettings): Margins {
   }
 }
 
-const PAGE_NUMBER_FORMAT_MAP: Record<PageNumberFormat, string> = {
-  n: 'counter(page)',
-  'n-of-total': 'counter(page) "/" counter(pages)',
-  'page-n-of-total': '"Strona " counter(page) " z " counter(pages)',
-};
+function getPageNumberCssExpr(format: PageNumberFormat): string {
+  if (format === 'n') return 'counter(page)';
+  if (format === 'n-of-total') return 'counter(page) "/" counter(pages)';
+  // 'page-n-of-total' — build locale-aware "Page X of Y" with literals around counters
+  const sample = t.value.pdfPageNumberFormatPageNOfTotalLive(0, 0);
+  // Split on "0" placeholders to extract literal prefix/middle/suffix
+  const m = sample.match(/^(.*)0(.*)0(.*)$/);
+  if (!m) return 'counter(page) " / " counter(pages)';
+  const [, prefix, middle, suffix] = m;
+  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${esc(prefix)}" counter(page) "${esc(middle)}" counter(pages) "${esc(suffix)}"`;
+}
 
 export interface DocumentMeta {
   title?: string;
@@ -238,7 +246,7 @@ function buildPageMarginBoxes(settings: PdfSettings, meta: DocumentMeta): string
     boxes.push(`@bottom-center { content: ${buildHeaderFooterContent(settings.footer.center, meta)}; font-size: 9pt; color: #555; }`);
     boxes.push(`@bottom-right { content: ${buildHeaderFooterContent(settings.footer.right, meta)}; font-size: 9pt; color: #555; }`);
   } else if (settings.showPageNumbers) {
-    const fmt = PAGE_NUMBER_FORMAT_MAP[settings.pageNumberFormat];
+    const fmt = getPageNumberCssExpr(settings.pageNumberFormat);
     boxes.push(`@bottom-right { content: ${fmt}; font-size: 9pt; color: #555; }`);
   }
   return boxes.join(' ');
@@ -284,7 +292,7 @@ function buildPreviewPageNumberHtml(settings: PdfSettings): string {
   switch (settings.pageNumberFormat) {
     case 'n': text = String(settings.startPageNumber); break;
     case 'n-of-total': text = `${settings.startPageNumber}/1`; break;
-    case 'page-n-of-total': text = `Strona ${settings.startPageNumber} z 1`; break;
+    case 'page-n-of-total': text = t.value.pdfPageNumberFormatPageNOfTotalLive(settings.startPageNumber, 1); break;
   }
   return `<div class="pdf-preview-footer pdf-preview-pgnum" aria-hidden="true"><span class="hf-l"></span><span class="hf-c"></span><span class="hf-r">${escapeHtml(text)}</span></div>`;
 }

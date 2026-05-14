@@ -43,16 +43,16 @@ describe('PdfExportDialog', () => {
   it('switches to Typography tab and shows font family selector', async () => {
     const wrapper = mount(PdfExportDialog, { props: { contentHtml: CONTENT_HTML } });
     const tabBtns = wrapper.findAll('.pdf-tab');
-    const typoTab = tabBtns.find(b => b.text() === 'Typografia');
-    await typoTab!.trigger('click');
+    // Typography is the 2nd tab regardless of locale
+    await tabBtns[1].trigger('click');
     expect(wrapper.find('[data-testid="pdf-font-family"]').exists()).toBe(true);
   });
 
   it('switches to Watermark tab and toggles watermark', async () => {
     const wrapper = mount(PdfExportDialog, { props: { contentHtml: CONTENT_HTML } });
     const tabBtns = wrapper.findAll('.pdf-tab');
-    const wmTab = tabBtns.find(b => b.text() === 'Watermark');
-    await wmTab!.trigger('click');
+    // Watermark is the 4th tab regardless of locale
+    await tabBtns[3].trigger('click');
     const cb = wrapper.find('[data-testid="pdf-watermark-enabled"]');
     expect(cb.exists()).toBe(true);
     await cb.setValue(true);
@@ -61,11 +61,14 @@ describe('PdfExportDialog', () => {
     expect(JSON.parse(raw!).watermark.enabled).toBe(true);
   });
 
-  it('preset select includes builtin presets', () => {
+  it('preset select includes 3 builtin presets and "no preset" option', () => {
     const wrapper = mount(PdfExportDialog, { props: { contentHtml: CONTENT_HTML } });
     const opts = wrapper.find('[data-testid="pdf-preset-select"]').findAll('option');
-    const labels = opts.map(o => o.text());
-    expect(labels).toContain('Raport firmowy');
-    expect(labels).toContain('Notatki');
+    // 1 "no preset" + 3 builtins = at least 4 options
+    expect(opts.length).toBeGreaterThanOrEqual(4);
+    const values = opts.map(o => o.attributes('value'));
+    expect(values).toContain('builtin-report');
+    expect(values).toContain('builtin-notes');
+    expect(values).toContain('builtin-draft');
   });
 });

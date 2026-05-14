@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import type { PdfSettings } from './usePdfExport';
 import { PDF_SETTINGS_DEFAULTS } from './usePdfExport';
+import { t } from '../i18n';
 
 export interface PdfPreset {
   id: string;
@@ -10,44 +11,40 @@ export interface PdfPreset {
 
 export const PDF_PRESETS_STORAGE_KEY = 'mermark.pdfPresets';
 
-const BUILTIN_PRESETS: PdfPreset[] = [
-  {
-    id: 'builtin-report',
-    name: 'Raport firmowy',
-    settings: {
-      ...PDF_SETTINGS_DEFAULTS,
-      fontSize: '11pt',
-      margins: 'wide',
-      fontFamily: 'serif',
-      header: { enabled: true, left: '{title}', center: '', right: '{date}' },
-      footer: { enabled: true, left: '{path}', center: '', right: '{page}/{pages}' },
-      showPageNumbers: true,
-    },
+const BUILTIN_PRESET_SETTINGS: Record<string, PdfSettings> = {
+  'builtin-report': {
+    ...PDF_SETTINGS_DEFAULTS,
+    fontSize: '11pt',
+    margins: 'wide',
+    fontFamily: 'charter',
+    header: { enabled: true, left: '{title}', center: '', right: '{date}' },
+    footer: { enabled: true, left: '{path}', center: '', right: '{page}/{pages}' },
+    showPageNumbers: true,
   },
-  {
-    id: 'builtin-notes',
-    name: 'Notatki',
-    settings: {
-      ...PDF_SETTINGS_DEFAULTS,
-      fontSize: '10pt',
-      margins: 'narrow',
-      fontFamily: 'sans',
-      headingFontFamily: 'sans',
-      header: { ...PDF_SETTINGS_DEFAULTS.header, enabled: false },
-      footer: { ...PDF_SETTINGS_DEFAULTS.footer, enabled: false },
-      showPageNumbers: true,
-      pageNumberFormat: 'n',
-    },
+  'builtin-notes': {
+    ...PDF_SETTINGS_DEFAULTS,
+    fontSize: '10pt',
+    margins: 'narrow',
+    fontFamily: 'inter',
+    headingFontFamily: 'inter',
+    header: { ...PDF_SETTINGS_DEFAULTS.header, enabled: false },
+    footer: { ...PDF_SETTINGS_DEFAULTS.footer, enabled: false },
+    showPageNumbers: true,
+    pageNumberFormat: 'n',
   },
-  {
-    id: 'builtin-draft',
-    name: 'Draft (z watermarkiem)',
-    settings: {
-      ...PDF_SETTINGS_DEFAULTS,
-      watermark: { ...PDF_SETTINGS_DEFAULTS.watermark, enabled: true, text: 'DRAFT' },
-    },
+  'builtin-draft': {
+    ...PDF_SETTINGS_DEFAULTS,
+    watermark: { ...PDF_SETTINGS_DEFAULTS.watermark, enabled: true, text: 'DRAFT' },
   },
-];
+};
+
+function builtinPresets(): PdfPreset[] {
+  return [
+    { id: 'builtin-report', name: t.value.pdfPresetReport, settings: BUILTIN_PRESET_SETTINGS['builtin-report'] },
+    { id: 'builtin-notes',  name: t.value.pdfPresetNotes,  settings: BUILTIN_PRESET_SETTINGS['builtin-notes'] },
+    { id: 'builtin-draft',  name: t.value.pdfPresetDraft,  settings: BUILTIN_PRESET_SETTINGS['builtin-draft'] },
+  ];
+}
 
 function loadCustomPresets(): PdfPreset[] {
   try {
@@ -72,7 +69,7 @@ export function usePdfPresets() {
   const customPresets = ref<PdfPreset[]>(loadCustomPresets());
 
   function allPresets(): PdfPreset[] {
-    return [...BUILTIN_PRESETS, ...customPresets.value];
+    return [...builtinPresets(), ...customPresets.value];
   }
 
   function findPreset(id: string): PdfPreset | undefined {
