@@ -51,6 +51,7 @@ import { useRecentFiles } from './composables/useRecentFiles';
 import { useWorkspace } from './composables/useWorkspace';
 import { useAiMermaidTarget } from './composables/useAiMermaidTarget';
 import { useDocumentSearch, type DocumentSearchMatch, type VisualSearchMatch } from './composables/useDocumentSearch';
+import { useImageDrop } from './composables/useImageDrop';
 import { t } from './i18n';
 
 // ============ Split View & Tab Management ============
@@ -496,6 +497,14 @@ const documentSearchBarRef = ref<InstanceType<typeof DocumentSearchBar> | null>(
 const getCodeTextarea = (): HTMLTextAreaElement | null => {
   return (codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | null | undefined) ?? null;
 };
+
+// ============ Image Drag & Drop ============
+const { handleDrop: handleImageDrop } = useImageDrop({
+  codeView,
+  codeEditorTextarea: getCodeTextarea,
+  activeFilePath: () => activeTab.value?.filePath ?? null,
+  findVisualTargetAt: (x, y) => splitContainerRef.value?.findVisualTargetAt?.(x, y) ?? null,
+});
 
 const scrollCodeMatchIntoView = (textarea: HTMLTextAreaElement, match: DocumentSearchMatch) => {
   const computedStyle = window.getComputedStyle(textarea);
@@ -1346,13 +1355,22 @@ onMounted(async () => {
     unlistenDragLeave = await listen('tauri://drag-leave', () => {
       isDragOver.value = false;
     });
-    unlistenDragDrop = await listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
-      isDragOver.value = false;
-      const mdPaths = event.payload.paths.filter(p => p.toLowerCase().endsWith('.md'));
-      for (const filePath of mdPaths) {
-        await openFileWithCrossWindowCheck(filePath);
-      }
-    });
+    unlistenDragDrop = await listen<{ paths: string[]; position: { x: number; y: number } }>(
+      'tauri://drag-drop',
+      async (event) => {
+        isDragOver.value = false;
+        const { paths, position } = event.payload;
+
+        const mdPaths = paths.filter(p => p.toLowerCase().endsWith('.md'));
+        for (const filePath of mdPaths) {
+          await openFileWithCrossWindowCheck(filePath);
+        }
+
+        if (position) {
+          await handleImageDrop(paths, position);
+        }
+      },
+    );
   } catch (error) {
     console.error('Błąd nasłuchiwania drag-drop:', error);
   }

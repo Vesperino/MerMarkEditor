@@ -655,8 +655,40 @@ const focusSearchMatch = (match: VisualSearchMatch) => {
   });
 };
 
+async function insertImagesByPath(items: { path: string; alt: string }[]) {
+  const ed = editor.value;
+  if (!ed || items.length === 0) return;
+
+  for (const item of items) {
+    ed.chain().focus().setImage({
+      src: item.path,
+      alt: item.alt,
+      'data-original-src': item.path,
+    } as Parameters<typeof ed.commands.setImage>[0]).run();
+  }
+
+  await nextTick();
+  if (!props.filePath) return;
+
+  const editorEl = editorContainerRef.value?.querySelector('.ProseMirror');
+  if (!editorEl) return;
+  const baseDir = getDirectoryFromFilePath(props.filePath);
+  if (!baseDir) return;
+
+  imageResolutionInProgress = true;
+  const domObs = (ed.view as any).domObserver;
+  domObs?.stop();
+  try {
+    await resolveEditorImages(editorEl, baseDir);
+  } finally {
+    domObs?.start();
+    imageResolutionInProgress = false;
+  }
+}
+
 defineExpose({
   editor,
+  insertImagesByPath,
   getSearchTextMap,
   setSearchHighlights,
   clearSearchHighlights,

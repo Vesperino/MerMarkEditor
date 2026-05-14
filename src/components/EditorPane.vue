@@ -135,6 +135,10 @@ const handleFileDrop = (e: DragEvent) => {
 
 defineExpose({
   editor: computed(() => editorRef.value?.editor),
+  paneId: computed(() => props.pane.id),
+  getFilePath: () => activeTab.value?.filePath ?? null,
+  insertImagesByPath: (items: { path: string; alt: string }[]) =>
+    editorRef.value?.insertImagesByPath?.(items),
   getEditorContent: () => editorRef.value?.editor?.getHTML() || '',
   setEditorContent: (_content: string) => { /* handled reactively via modelValue prop */ },
   getSearchTextMap: () => editorRef.value?.getSearchTextMap?.() ?? null,

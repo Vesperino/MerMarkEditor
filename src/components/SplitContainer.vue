@@ -217,6 +217,28 @@ const setActiveEditorContent = (content: string) => {
   setEditorContent(activePaneId.value, content);
 };
 
+const findVisualTargetAt = (x: number, y: number) => {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+
+  const paneEl = (el as Element).closest('.editor-pane') as HTMLElement | null;
+  if (!paneEl) return null;
+
+  const container = containerRef.value;
+  if (!container) return null;
+
+  const panes = Array.from(container.querySelectorAll(':scope > .editor-pane')) as HTMLElement[];
+  const idx = panes.indexOf(paneEl);
+  const targetRef = idx === 0 ? leftPaneRef.value : rightPaneRef.value;
+  if (!targetRef) return null;
+
+  return {
+    filePath: targetRef.getFilePath?.() ?? null,
+    insertImages: (items: { path: string; alt: string }[]) =>
+      targetRef.insertImagesByPath?.(items),
+  };
+};
+
 const getActiveVisualSearchApi = () => {
   const paneRef = activePaneId.value === 'left' ? leftPaneRef.value : rightPaneRef.value;
   if (!paneRef) return null;
@@ -243,6 +265,7 @@ defineExpose({
   getActiveEditorContent,
   setActiveEditorContent,
   getActiveVisualSearchApi,
+  findVisualTargetAt,
   leftPaneRef,
   rightPaneRef,
 });
