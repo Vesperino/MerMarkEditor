@@ -40,7 +40,10 @@ test-results/
 docs/superpowers/
 
 # Local Claude Code workspace + worktrees
-.claude/
+.claude/*
+# Keep project-level skills and slash commands so they ship with the repo.
+!.claude/skills/
+!.claude/commands/
 
 # Playwright MCP run artifacts
 .playwright-mcp/
