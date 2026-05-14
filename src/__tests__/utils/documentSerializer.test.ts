@@ -74,7 +74,7 @@ describe('serializeEditorContent', () => {
     el.appendChild(wrapper);
 
     const result = serializeEditorContent(el);
-    expect(result).not.toContain('foreignObject');
+    expect(result).not.toMatch(/<foreignObject[\s>]/);
     expect(result).toContain('Node Label');
     expect(result).toMatch(/<text[^>]*>Node Label<\/text>/);
   });
@@ -190,8 +190,9 @@ describe('serializeEditorContent', () => {
 
     const result = serializeEditorContent(el);
     expect(result).not.toContain('mermark-mermaid-dark-override');
-    expect(result).not.toContain('!important');
+    // Original dark fill replaced; our own light-override style is allowed to have !important
     expect(result).toContain('fill="#ffffff"');
+    expect(result).toContain('mermark-print-light-override');
   });
 
   it('strips !important inline fill from cloned elements', () => {
@@ -211,7 +212,14 @@ describe('serializeEditorContent', () => {
     el.appendChild(wrapper);
 
     const result = serializeEditorContent(el);
-    expect(result).not.toMatch(/!important/);
+    // The rect's own inline !important fill should be gone; the injected
+    // light-override style block contains !important by design (skip it).
+    const figureMatch = result.match(/<figure class="mermaid-print-figure">[\s\S]*?<\/figure>/);
+    expect(figureMatch).toBeTruthy();
+    const figure = figureMatch![0];
+    // Strip our injected style block before asserting
+    const withoutOverride = figure.replace(/<style id="mermark-print-light-override">[\s\S]*?<\/style>/, '');
+    expect(withoutOverride).not.toMatch(/!important/);
   });
 
   it('does not touch light fills (no regression on light theme)', () => {

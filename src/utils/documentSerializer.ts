@@ -158,6 +158,45 @@ function findDiagramSvg(node: Element): SVGElement | null {
   return (diagram as SVGElement | undefined) ?? null;
 }
 
+const PRINT_LIGHT_OVERRIDE_ID = 'mermark-print-light-override';
+
+/**
+ * Mermaid's internal <style> uses class selectors (`.cluster rect`, `.node rect`)
+ * to set dark fills baked from themeVariables. Those don't show up as `fill`
+ * attributes, so attribute-based recoloring misses them. Inject a final
+ * <style> with !important light values to override whatever Mermaid emitted.
+ */
+function injectPrintLightOverride(svg: Element): void {
+  const style = document.createElementNS(SVG_NS, 'style');
+  style.id = PRINT_LIGHT_OVERRIDE_ID;
+  style.textContent = `
+    g.node rect, g.node polygon, g.node ellipse, g.node circle, g.node path:not(.arrowMarkerPath),
+    .label-container, .basic.label-container {
+      fill: #ffffff !important;
+      stroke: #333333 !important;
+    }
+    .cluster rect, .cluster polygon {
+      fill: #f4f6f8 !important;
+      stroke: #aaaaaa !important;
+    }
+    text, tspan, .nodeLabel, .edgeLabel, .cluster-label {
+      fill: #1a1a1a !important;
+      color: #1a1a1a !important;
+    }
+    .edgeLabel rect, .edgeLabel foreignObject { fill: #ffffff !important; background: #ffffff !important; }
+    .edgePath path:not(.arrowMarkerPath), .flowchart-link, path.path,
+    line, .messageLine0, .messageLine1 {
+      stroke: #333333 !important;
+    }
+    marker path { fill: #333333 !important; stroke: #333333 !important; }
+    /* Sequence diagram actors / gantt */
+    .actor { fill: #f4f6f8 !important; stroke: #333333 !important; }
+    .section0, .section1 { fill: #f0f0f0 !important; }
+    .task { fill: #d0e0f0 !important; stroke: #333333 !important; }
+  `;
+  svg.appendChild(style);
+}
+
 function inlineMermaidSvgs(clone: HTMLElement): void {
   const mermaidNodes = Array.from(clone.querySelectorAll('[data-code]'));
   for (const node of mermaidNodes) {
@@ -168,12 +207,16 @@ function inlineMermaidSvgs(clone: HTMLElement): void {
       const svgClone = svg.cloneNode(true) as SVGElement;
       svgClone.removeAttribute('width');
       svgClone.removeAttribute('height');
+      // Wipe any background-color set by Mermaid's dark theme on the root SVG
+      svgClone.style.cssText = '';
       svgClone.style.maxWidth = '100%';
       svgClone.style.height = 'auto';
+      svgClone.style.background = '#ffffff';
       stripDarkOverrideStyle(svgClone);
       stripImportantInlineColors(svgClone);
       convertForeignObjectsToText(svgClone);
       normalizeMermaidColors(svgClone);
+      injectPrintLightOverride(svgClone);
       figure.appendChild(svgClone);
     }
     node.replaceWith(figure);
