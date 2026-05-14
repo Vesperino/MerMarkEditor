@@ -1,3 +1,43 @@
+# Changelog
+
+> Auto-generated from docs/release-notes/. Run `pnpm gen:changelog` after editing.
+
+---
+
+# Release v0.2.14 — Per-version release notes + /release-prep
+
+## Features
+
+- **Browse the full changelog inside the app** (#87) — a new **Full changelog →** button on the What's New modal opens a side-by-side history view: every published version on the left, the rendered notes on the right. Translations: `en`, `pl`, `zh-CN`.
+- **`/release-prep` slash command + `mermark-release-notes` skill** (#87) — invoke after `gh pr create` to bump the version, author a per-version release-notes file from the PR context, and regenerate `CHANGELOG.md` in one step.
+
+## Under the hood
+
+- **Release notes now live in `docs/release-notes/vX.Y.Z/RELEASE_NOTES.md`** (#87) — one folder per release. The app reads them straight from the bundle via Vite `import.meta.glob('?raw')` instead of fetching the GitHub Releases API at runtime. Root `RELEASE_NOTES.md` migrated to `docs/release-notes/v0.2.12/`; `v0.2.13` backfilled with the actual Alt+Up/Down content (its GitHub release body had been a copy of v0.2.12).
+- **`scripts/gen-changelog.mjs`** (#87) — aggregates the folder into a root `CHANGELOG.md` in semver-desc order. Supports `--check` so CI can fail when the file is stale.
+- **`scripts/bump-version.mjs`** (#87) — single source of truth for a release bump: writes `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, creates the per-version stub, and runs `gen-changelog`. Resolves the current version from `gh release list` (fallback `git describe --tags`).
+- **Shared release-notes stylesheet** (#87) — the rendered-markdown CSS that lived inside `WhatsNewModal.vue` moved to `src/styles/release-notes.css` so both modals share one selector (`.release-notes-content`).
+
+---
+
+# Release v0.2.13 — Move lines / blocks with Alt+Up/Down
+
+## Features
+
+- **Alt+Up / Alt+Down — move the current line or block** (#80, #86) — Typora/Zettlr-style hotkey that reorders content without cut-and-paste. In the WYSIWYG editor it walks the schema up to the shallowest depth with a movable sibling, so paragraphs, headings, code blocks, blockquotes and list items all reorder at their natural level. Multi-block selections move as one unit, and atom nodes (Mermaid diagrams, horizontal rules, page breaks) keep their selection after the move so chained Alt+Up/Down presses work. In the source/code view the same shortcut reorders raw markdown lines; selections that end at column 0 of the next line are treated exclusively (matching VS Code / Sublime / IntelliJ).
+- **Shortcut listed in Keyboard Shortcuts (`Ctrl+/`)** — with `en`, `pl`, and `zh-CN` translations.
+
+---
+
+# Release v0.2.12 — PDF fixes
+
+## Bug fixes
+
+- **PDF export now respects diagram size** — diagrams set to a smaller size are no longer stretched to full page width in the exported PDF.
+- **Split view no longer duplicates content in PDF** — only the active (left) pane is printed when the editor is in split mode.
+
+---
+
 # Release v0.2.8 — Workspaces, Minimal Theme, AI in Diagrams
 
 Workspace folders, a brand-new Minimal theme, AI editing for Mermaid diagrams, a near-WYSIWYG PDF export — the editor finally feels like a place you can stay in for hours, not just a quick-note tool.

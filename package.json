@@ -1,7 +1,7 @@
 {
   "name": "mermark-editor",
   "private": false,
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "Modern Markdown editor with Mermaid diagram support",
   "author": "Vesperino",
   "license": "MIT",
@@ -29,7 +29,9 @@
     "test:run": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "generate-icons": "node scripts/generate-icons.mjs"
+    "generate-icons": "node scripts/generate-icons.mjs",
+    "gen:changelog": "node scripts/gen-changelog.mjs",
+    "bump:version": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "@tauri-apps/plugin-dialog": "^2.7.1",
@@ -77,6 +79,7 @@
     "@playwright/test": "^1.58.2",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/cli": "^2.5.0",
+    "@types/node": "^25.8.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/test-utils": "^2.4.6",
     "ico-endec": "^0.1.6",
