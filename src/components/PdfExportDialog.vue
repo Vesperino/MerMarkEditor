@@ -336,8 +336,6 @@ const monoFonts = computed(() => SYSTEM_FONTS.filter(f => f.category === 'mono')
 const currentBodyStack = computed(() => getFontStack(settings.fontFamily));
 const currentHeadingStack = computed(() => getFontStack(settings.headingFontFamily));
 
-const PRESET_MM: Record<string, number> = { narrow: 10, normal: 18, wide: 25 };
-
 const PRESET_MARGINS_FULL: Record<string, { top: number; right: number; bottom: number; left: number }> = {
   narrow: { top: 10, right: 10, bottom: 14, left: 10 },
   normal: { top: 18, right: 18, bottom: 22, left: 18 },
