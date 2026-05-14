@@ -18,6 +18,7 @@ const errorById = ref<Record<string, string | null>>({});
 
 /** Set of folder paths the user has expanded in any workspace's tree. */
 const expandedFolders = ref<Set<string>>(new Set());
+const autoExpandedSeen = new Set<string>();
 /** Workspace ids the user has collapsed in the multi-root sidebar (default expanded). */
 const collapsedWorkspaceIds = ref<Set<string>>(new Set());
 /** File path that should be highlighted in the tree (usually the active editor tab). */
@@ -85,6 +86,7 @@ export function useWorkspace() {
     try {
       const node = await workspaceFs.readTree(entry.rootPath);
       treesById.value[entry.id] = node;
+      autoExpandTopLevel(node);
       return node;
     } catch (e) {
       const msg = String(e);
@@ -282,6 +284,25 @@ export function useWorkspace() {
 
   function isFolderExpanded(path: string): boolean {
     return expandedFolders.value.has(path);
+  }
+
+  /**
+   * Mark workspace root's immediate folder children as expanded by default,
+   * but only the first time they appear — once the user collapses one, the
+   * next refresh won't auto-expand it again.
+   */
+  function autoExpandTopLevel(root: WorkspaceNode) {
+    if (!root.children || root.children.length === 0) return;
+    const next = new Set(expandedFolders.value);
+    let changed = false;
+    for (const child of root.children) {
+      if (child.kind !== 'folder') continue;
+      if (autoExpandedSeen.has(child.path)) continue;
+      autoExpandedSeen.add(child.path);
+      next.add(child.path);
+      changed = true;
+    }
+    if (changed) expandedFolders.value = next;
   }
 
   function expandFolder(path: string) {

@@ -29,16 +29,14 @@ const isFolder = computed(() => props.node.kind === 'folder');
 const indentPx = computed(() => `${props.depth * 12}px`);
 
 /**
- * Folder is expanded when:
- *   - It's the workspace root (always renders its children), OR
- *   - It's tracked in the shared expanded-folders set, OR
- *   - It's depth=0 (top-level entries auto-expand for parity with v1 UX).
+ * Folder is expanded when it's the workspace root (always renders its
+ * children) or when its path is tracked in the shared expanded-folders set.
+ * Top-level folders get added to that set automatically on first tree load,
+ * which gives the "expanded by default" feel while still letting the user
+ * collapse them.
  */
 const expanded = computed(
-  () =>
-    props.isRoot === true ||
-    props.depth === 0 ||
-    ws.isFolderExpanded(props.node.path),
+  () => props.isRoot === true || ws.isFolderExpanded(props.node.path),
 );
 
 const isDropTarget = computed(
