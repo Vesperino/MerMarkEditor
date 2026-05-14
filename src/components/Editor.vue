@@ -55,6 +55,7 @@ import { useSettings } from "../composables/useSettings";
 import { useFootnotes } from "../composables/useFootnotes";
 import { useLineNumbers } from "../composables/useLineNumbers";
 import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
+import { importImageBytes } from "../services/imageImport";
 import TableContextMenu from "./TableContextMenu.vue";
 import ImagePreview from "./ImagePreview.vue";
 import EditorGutter from "./EditorGutter.vue";
@@ -324,6 +325,37 @@ const emit = defineEmits<{
   "linkClick": [href: string];
 }>();
 
+function pickImageFile(data: DataTransfer): File | null {
+  for (let i = 0; i < data.items.length; i++) {
+    const item = data.items[i];
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) return file;
+    }
+  }
+  return null;
+}
+
+function mimeToExtension(mime: string): string {
+  const m = mime.toLowerCase();
+  if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
+  if (m === 'image/svg+xml') return 'svg';
+  const slash = m.indexOf('/');
+  return slash >= 0 ? m.slice(slash + 1) : 'png';
+}
+
+async function handlePastedImage(file: File): Promise<void> {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const ext = mimeToExtension(file.type);
+    const stemHint = file.name ? file.name.replace(/\.[^.]+$/, '') : 'pasted-image';
+    const result = await importImageBytes(bytes, ext, props.filePath ?? null, stemHint);
+    await insertImagesByPath([{ path: result.markdownPath, alt: result.altText }]);
+  } catch (e) {
+    console.warn('[Editor] Failed to import pasted image:', e);
+  }
+}
+
 const editor = useEditor({
   content: props.modelValue || `<p>${t.value.placeholder}</p>`,
   // Resolve local image paths to blob URLs when the editor is first created.
@@ -442,6 +474,13 @@ const editor = useEditor({
     handlePaste: (_view, event) => {
       const clipboardData = event.clipboardData;
       if (!clipboardData) return false;
+
+      const imageFile = pickImageFile(clipboardData);
+      if (imageFile) {
+        event.preventDefault();
+        void handlePastedImage(imageFile);
+        return true;
+      }
 
       // Try HTML table first (case-insensitive check)
       const html = clipboardData.getData("text/html");

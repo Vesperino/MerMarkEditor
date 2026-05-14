@@ -25,6 +25,10 @@
       "allow": [{ "path": "**" }]
     },
     {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
       "identifier": "fs:allow-copy-file",
       "allow": [{ "path": "**" }]
     },
@@ -44,7 +48,10 @@
       "identifier": "fs:allow-watch",
       "allow": [{ "path": "**" }]
     },
-    "fs:allow-exists",
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "**" }]
+    },
     "shell:allow-open",
     "deep-link:default",
     "updater:default",
