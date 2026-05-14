@@ -378,11 +378,44 @@ sup.footnote-ref a { color: var(--pf-accent, #0b56c4); text-decoration: none; }
 .pdf-toc-list a {
   color: #1a1a1a;
   text-decoration: none;
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   padding: 1pt 0;
 }
 
 .pdf-toc-list a:hover { color: var(--pf-accent, #0b56c4); }
+
+.pdf-toc-text { flex: 0 0 auto; }
+
+/* Page numbers next to each TOC entry. Chromium honours target-counter()
+   in @media print, resolving to the destination page for the anchor's
+   href. The leader fills the gap with dots so the eye tracks the row.
+   Hide both helpers on screen so the live preview doesn't show empty
+   space; only the print stage cares about page numbers. */
+.pdf-toc-leader,
+.pdf-toc-page { display: none; }
+
+@media print {
+  .pdf-toc-leader {
+    flex: 1;
+    margin: 0 4pt;
+    border-bottom: 0.4pt dotted #888;
+    align-self: flex-end;
+    transform: translateY(-3pt);
+    min-width: 8pt;
+    display: inline-block;
+  }
+  .pdf-toc-page {
+    display: inline-block;
+    color: #555;
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+  }
+  .pdf-toc-page::after {
+    content: target-counter(attr(href url), page);
+  }
+}
 
 .pdf-toc-l1 a { font-weight: 600; }
 .pdf-toc-l2 a { font-weight: 500; font-size: 0.95em; }

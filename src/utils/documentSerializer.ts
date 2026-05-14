@@ -190,12 +190,29 @@ function normalizeMermaidColors(svg: Element): void {
       el.setAttribute('style', cleaned + ';fill:#ffffff');
     }
   }
-  // Light-colored text → dark for contrast on white bg
-  const texts = Array.from(svg.querySelectorAll('text, tspan')) as Element[];
+  // Force every <text>/<tspan> to a dark, normal-weight, regular-style label
+  // for print, regardless of what Mermaid's classDef or themeVariables left
+  // behind. Three vectors override SVG/HTML text rendering:
+  //   1. presentation attributes (fill=, font-weight=, font-style=) → set them
+  //   2. inline style with !important → walk the style declaration
+  //   3. CSS class rules from Mermaid's own <style> → handled by
+  //      injectPrintLightOverride elsewhere
+  // Without (1)+(2), <text fill="green" font-weight="bold"> survived all our
+  // overrides and PDFs showed colored, mega-bold labels.
+  const texts = Array.from(svg.querySelectorAll<SVGElement>('text, tspan'));
   for (const t of texts) {
-    const fill = t.getAttribute('fill');
-    if (!fill || !isDarkColor(fill)) {
-      t.setAttribute('fill', '#1a1a1a');
+    t.setAttribute('fill', '#1a1a1a');
+    t.setAttribute('font-weight', 'normal');
+    t.setAttribute('font-style', 'normal');
+    const style = t.getAttribute('style');
+    if (style) {
+      const stripped = style
+        .replace(/(?:^|;)\s*fill\s*:[^;]*;?/gi, '')
+        .replace(/(?:^|;)\s*color\s*:[^;]*;?/gi, '')
+        .replace(/(?:^|;)\s*font-weight\s*:[^;]*;?/gi, '')
+        .replace(/(?:^|;)\s*font-style\s*:[^;]*;?/gi, '');
+      if (stripped.trim()) t.setAttribute('style', stripped);
+      else t.removeAttribute('style');
     }
   }
 }

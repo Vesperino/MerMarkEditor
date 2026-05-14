@@ -279,7 +279,9 @@ function buildTocHtml(contentHtml: string, settings: PdfSettings, tocTitle: stri
   const lis = items.map(h => {
     const indent = h.level - minLevel;
     const safe = h.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return `<li class="pdf-toc-l${h.level}" style="padding-left:${indent * 16}px"><a href="#${h.id}">${safe}</a></li>`;
+    // Three flex children — print CSS reveals the leader+page span via
+    // @media print so screen preview stays clean.
+    return `<li class="pdf-toc-l${h.level}" style="padding-left:${indent * 16}px"><a href="#${h.id}"><span class="pdf-toc-text">${safe}</span><span class="pdf-toc-leader" aria-hidden="true"></span><span class="pdf-toc-page" aria-hidden="true"></span></a></li>`;
   }).join('');
 
   const breakClass = settings.tocPageBreak ? ' pdf-toc--break-after' : '';
