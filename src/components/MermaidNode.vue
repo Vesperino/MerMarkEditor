@@ -1430,6 +1430,43 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
   stroke: #aaaaaa !important;
 }
 
+/* Dark mode: force readable labels regardless of diagram-side classDef.
+   Mermaid's "dark" theme handles its own palette, but diagrams that ship
+   classDef fill:#fff (or any light fill) leave the label text in a low-
+   contrast color. Re-paint labels light + nodes mid-dark so every box
+   stays readable in both default and minimal app variants. */
+html.dark .mermaid-content :deep(svg .nodeLabel),
+html.dark .mermaid-content :deep(svg .nodeLabel *),
+html.dark .mermaid-content :deep(svg .nodeLabel span),
+html.dark .mermaid-content :deep(svg .label text),
+html.dark .mermaid-content :deep(svg text),
+html.dark .mermaid-content :deep(svg tspan) {
+  fill: #e2e8f0 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .mermaid-content :deep(svg .node rect),
+html.dark .mermaid-content :deep(svg .node polygon),
+html.dark .mermaid-content :deep(svg .node ellipse),
+html.dark .mermaid-content :deep(svg .node circle),
+html.dark .mermaid-content :deep(svg .node path),
+html.dark .mermaid-content :deep(svg .label-container),
+html.dark .mermaid-content :deep(svg .basic.label-container) {
+  fill: #2d3748 !important;
+  stroke: #6b7280 !important;
+}
+
+html.dark .mermaid-content :deep(svg .edgeLabel),
+html.dark .mermaid-content :deep(svg .edgeLabel rect) {
+  background-color: #1f2937 !important;
+  fill: #1f2937 !important;
+}
+
+html.dark .mermaid-content :deep(svg .cluster rect) {
+  fill: rgba(45, 55, 72, 0.4) !important;
+  stroke: #6b7280 !important;
+}
+
 .btn-fullscreen {
   background: var(--primary) !important;
   color: white !important;
