@@ -9,11 +9,15 @@ The MerMark repo keeps release notes in `docs/release-notes/vX.Y.Z/RELEASE_NOTES
 
 ## Critical context
 
-- **Tags trigger CI.** Pushing a `vX.Y.Z` git tag triggers GitHub Actions to build and publish the release. **Bump the version files BEFORE the tag is pushed.** That means the bump+notes commit lands on `master` first; the tag is pushed last.
+- **Push to `master` triggers CI.** `.github/workflows/release.yml` runs on every push to `master` and creates the GitHub release + tag automatically. Tag creation is a *side effect* of the workflow, not the trigger.
+- **Workflow has dual-mode behaviour.** It checks for `docs/release-notes/v${currentPackageVersion}/RELEASE_NOTES.md`:
+  - **Prepared mode (`/release-prep` was used):** the file exists → workflow skips its own bump, tags `v${currentPackageVersion}`, and publishes the release with `body_path` pointing at that file.
+  - **Legacy fallback:** the file is missing → workflow bumps patch +1, stubs the new notes file, commits, and publishes.
+- **Always run `/release-prep` before merging.** The legacy fallback is a safety net, not a happy path — the auto-stub release notes are placeholders and the bump may collide with the version the team intended.
 - **Current version = the latest published tag**, not whatever `package.json` says. `package.json` may already be ahead of the last tag if a previous release flow stopped mid-way. Always resolve via:
   1. `gh release list --limit 1 --json tagName --jq '.[0].tagName'`
   2. fallback `git describe --tags --abbrev=0`
-- The release-notes commit and the version-bump commit should be the **same commit** so reviewers see them together.
+- The release-notes commit and the version-bump commit produced by `bump-version.mjs` should be the **same commit** so reviewers see them together.
 
 ## Section convention
 

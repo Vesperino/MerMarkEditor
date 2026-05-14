@@ -30,37 +30,75 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Bump version
-        id: version
+      # If the PR that landed already added docs/release-notes/v${current}/RELEASE_NOTES.md
+      # (i.e. the author ran /release-prep), the current package.json version is the
+      # release we want to publish — do not bump again, just tag and create the release.
+      # Otherwise fall back to the legacy auto-bump path so plain-PR merges keep working.
+      - name: Detect prepared release notes
+        id: notes
         run: |
           CURRENT="${{ steps.current_version.outputs.version }}"
-          # Split version into parts
+          FILE="docs/release-notes/v${CURRENT}/RELEASE_NOTES.md"
+          if [ -f "$FILE" ]; then
+            echo "prepared=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT" >> $GITHUB_OUTPUT
+            echo "body_path=$FILE" >> $GITHUB_OUTPUT
+            echo "Release notes already prepared at $FILE — skipping auto-bump."
+          else
+            echo "prepared=false" >> $GITHUB_OUTPUT
+            echo "No release notes folder for v${CURRENT}; will auto-bump and create a stub."
+          fi
+
+      - name: Bump version (legacy fallback)
+        id: bump
+        if: steps.notes.outputs.prepared == 'false'
+        run: |
+          CURRENT="${{ steps.current_version.outputs.version }}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          # Increment patch version
           PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "New version: $NEW_VERSION"
 
-      - name: Update version in package.json
+      - name: Update version files (legacy fallback)
+        if: steps.notes.outputs.prepared == 'false'
         run: |
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          NEW="${{ steps.bump.outputs.version }}"
+          npm version "$NEW" --no-git-tag-version
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW\"/" src-tauri/tauri.conf.json
+          sed -i "s/^version = \"[^\"]*\"/version = \"$NEW\"/" src-tauri/Cargo.toml
 
-      - name: Update version in tauri.conf.json
+      - name: Create release-notes stub (legacy fallback)
+        if: steps.notes.outputs.prepared == 'false'
         run: |
-          sed -i 's/"version": "[^"]*"/"version": "${{ steps.version.outputs.version }}"/' src-tauri/tauri.conf.json
+          NEW="${{ steps.bump.outputs.version }}"
+          DIR="docs/release-notes/v${NEW}"
+          mkdir -p "$DIR"
+          cat > "$DIR/RELEASE_NOTES.md" <<EOF
+          # Release v${NEW}
 
-      - name: Update version in Cargo.toml
-        run: |
-          sed -i 's/^version = "[^"]*"/version = "${{ steps.version.outputs.version }}"/' src-tauri/Cargo.toml
+          Auto-generated release. Edit \`${DIR}/RELEASE_NOTES.md\` to describe the changes.
+          EOF
 
-      - name: Commit version bump
+      - name: Commit version bump (legacy fallback)
+        if: steps.notes.outputs.prepared == 'false'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml \
+                  docs/release-notes/v${{ steps.bump.outputs.version }}/RELEASE_NOTES.md
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.version }}"
           git push
+
+      - name: Resolve release version
+        id: version
+        run: |
+          if [ "${{ steps.notes.outputs.prepared }}" = "true" ]; then
+            echo "version=${{ steps.notes.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "body_path=${{ steps.notes.outputs.body_path }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ steps.bump.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "body_path=docs/release-notes/v${{ steps.bump.outputs.version }}/RELEASE_NOTES.md" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Release
         id: create_release
@@ -68,7 +106,7 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: MerMark Editor v${{ steps.version.outputs.version }}
-          body_path: RELEASE_NOTES.md
+          body_path: ${{ steps.version.outputs.body_path }}
           draft: false
           prerelease: false
 
