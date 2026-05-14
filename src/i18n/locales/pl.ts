@@ -557,6 +557,10 @@ const pl: Translations = {
   pdfPresetReport: 'Raport firmowy',
   pdfPresetNotes: 'Notatki',
   pdfPresetDraft: 'Draft (z watermarkiem)',
+  pdfTabToc: 'Spis treści',
+  pdfShowToc: 'Generuj spis treści',
+  pdfTocTitle: 'Spis treści',
+  pdfTocDepth: 'Głębokość (poziomy nagłówków)',
 };
 
 export default pl;

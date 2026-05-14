@@ -92,6 +92,8 @@ export interface PdfSettings {
   pageNumberFormat: PageNumberFormat;
   startPageNumber: number;
   watermark: PdfWatermark;
+  showToc: boolean;
+  tocDepth: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 export const PDF_SETTINGS_STORAGE_KEY = 'mermark.pdfSettings';
@@ -129,6 +131,8 @@ export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
     color: '#888888',
     size: '120pt',
   },
+  showToc: false,
+  tocDepth: 3,
 };
 
 interface Margins { top: string; right: string; bottom: string; left: string; }
@@ -252,6 +256,33 @@ function buildPageMarginBoxes(settings: PdfSettings, meta: DocumentMeta): string
   return boxes.join(' ');
 }
 
+function buildTocHtml(contentHtml: string, settings: PdfSettings, tocTitle: string): string {
+  if (!settings.showToc) return '';
+  // Parse cloned content to walk headings already with IDs assigned by serializer
+  const doc = new DOMParser().parseFromString(`<div>${contentHtml}</div>`, 'text/html');
+  const root = doc.body.firstElementChild;
+  if (!root) return '';
+  const allH = Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+  const items = allH
+    .filter(h => !h.closest('[data-footnotes], section.footnotes, nav.pdf-toc'))
+    .map(h => ({
+      level: Number(h.tagName.charAt(1)),
+      text: (h.textContent ?? '').trim(),
+      id: h.id,
+    }))
+    .filter(h => h.level <= settings.tocDepth && h.id);
+  if (!items.length) return '';
+
+  const minLevel = Math.min(...items.map(i => i.level));
+  const lis = items.map(h => {
+    const indent = h.level - minLevel;
+    const safe = h.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<li class="pdf-toc-l${h.level}" style="padding-left:${indent * 16}px"><a href="#${h.id}">${safe}</a></li>`;
+  }).join('');
+
+  return `<nav class="pdf-toc" aria-label="Table of contents"><h2 class="pdf-toc-title">${tocTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h2><ul class="pdf-toc-list">${lis}</ul></nav>`;
+}
+
 function buildWatermarkCss(w: PdfWatermark): string {
   if (!w.enabled || !w.text) return '';
   const text = escapeCssString(w.text);
@@ -314,6 +345,7 @@ export function buildPrintDocument(
   const previewHeader = buildPreviewHeaderHtml(settings.header, meta, 'pdf-preview-header');
   const previewFooter = buildPreviewHeaderHtml(settings.footer, meta, 'pdf-preview-footer');
   const previewPgNum = buildPreviewPageNumberHtml(settings);
+  const tocHtml = buildTocHtml(contentHtml, settings, t.value.pdfTocTitle);
   const startPage = Math.max(1, settings.startPageNumber | 0);
   const counterReset = startPage > 1 ? `body { counter-reset: page ${startPage - 1}; }` : '';
 
@@ -344,7 +376,7 @@ ${printCss}
 ${watermarkCss}
 </style>
 </head>
-<body>${watermarkHtml}${previewHeader}${contentHtml}${previewFooter}${previewPgNum}</body>
+<body>${watermarkHtml}${previewHeader}${tocHtml}${contentHtml}${previewFooter}${previewPgNum}</body>
 </html>`;
 }
 

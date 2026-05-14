@@ -323,6 +323,56 @@ sub { font-size: 0.75em; line-height: 0; vertical-align: sub; }
   color: #555555;
 }
 
+.footnotes a { color: var(--pf-accent, #0b56c4); text-decoration: none; }
+.footnotes a:hover { text-decoration: underline; }
+.footnotes .fn-back { margin-left: 4pt; color: var(--pf-accent, #14b8a6); text-decoration: none; }
+sup.footnote-ref a { color: var(--pf-accent, #0b56c4); text-decoration: none; }
+
+/* ===== Table of Contents ===== */
+.pdf-toc {
+  margin: 0 0 1.6em;
+  padding-bottom: 0.6em;
+  border-bottom: 0.5pt solid #d0d6dc;
+  page-break-after: always;
+  break-after: page;
+}
+
+.pdf-toc-title {
+  font-size: calc(var(--pf-size, 10pt) * 1.6);
+  margin: 0.4em 0 0.6em;
+  border-bottom: 0.5pt solid var(--pf-accent, #d0d6dc);
+  padding-bottom: 0.2em;
+  font-family: var(--pf-font-heading, inherit);
+}
+
+.pdf-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pdf-toc-list li {
+  margin: 0.15em 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.pdf-toc-list a {
+  color: #1a1a1a;
+  text-decoration: none;
+  display: block;
+  padding: 1pt 0;
+}
+
+.pdf-toc-list a:hover { color: var(--pf-accent, #0b56c4); }
+
+.pdf-toc-l1 a { font-weight: 600; }
+.pdf-toc-l2 a { font-weight: 500; font-size: 0.95em; }
+.pdf-toc-l3 a, .pdf-toc-l4 a, .pdf-toc-l5 a, .pdf-toc-l6 a {
+  font-size: 0.9em;
+  color: #444;
+}
+
 /* ===== Text decoration ===== */
 del, s { text-decoration: line-through; color: #666666; }
 u { text-decoration: underline; }

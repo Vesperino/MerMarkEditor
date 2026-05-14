@@ -238,6 +238,24 @@
           </label>
         </div>
 
+        <div v-if="activeTab === 'toc'" class="pdf-fields">
+          <label class="pdf-checkbox-row">
+            <input v-model="settings.showToc" type="checkbox" data-testid="pdf-show-toc">
+            <span>{{ t.pdfShowToc }}</span>
+          </label>
+          <label v-if="settings.showToc" class="pdf-label">
+            {{ t.pdfTocDepth }}
+            <select v-model.number="settings.tocDepth" class="pdf-select" data-testid="pdf-toc-depth">
+              <option :value="1">H1</option>
+              <option :value="2">H1–H2</option>
+              <option :value="3">H1–H3</option>
+              <option :value="4">H1–H4</option>
+              <option :value="5">H1–H5</option>
+              <option :value="6">H1–H6</option>
+            </select>
+          </label>
+        </div>
+
         <div v-if="activeTab === 'watermark'" class="pdf-fields">
           <label class="pdf-checkbox-row">
             <input v-model="settings.watermark.enabled" type="checkbox" data-testid="pdf-watermark-enabled">
@@ -322,9 +340,10 @@ const TABS = computed(() => [
   { id: 'layout' as const, label: t.value.pdfTabLayout },
   { id: 'typography' as const, label: t.value.pdfTabTypography },
   { id: 'header' as const, label: t.value.pdfTabHeader },
+  { id: 'toc' as const, label: t.value.pdfTabToc },
   { id: 'watermark' as const, label: t.value.pdfTabWatermark },
 ]);
-type TabId = 'layout' | 'typography' | 'header' | 'watermark';
+type TabId = 'layout' | 'typography' | 'header' | 'toc' | 'watermark';
 
 const activeTab = ref<TabId>('layout');
 const previewFrame = ref<HTMLIFrameElement | null>(null);

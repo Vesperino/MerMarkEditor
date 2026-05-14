@@ -557,6 +557,10 @@ const en: Translations = {
   pdfPresetReport: 'Corporate Report',
   pdfPresetNotes: 'Notes',
   pdfPresetDraft: 'Draft (with watermark)',
+  pdfTabToc: 'TOC',
+  pdfShowToc: 'Generate Table of Contents',
+  pdfTocTitle: 'Table of Contents',
+  pdfTocDepth: 'Depth (heading levels)',
 };
 
 export default en;

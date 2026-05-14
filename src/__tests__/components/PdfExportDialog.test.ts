@@ -51,8 +51,8 @@ describe('PdfExportDialog', () => {
   it('switches to Watermark tab and toggles watermark', async () => {
     const wrapper = mount(PdfExportDialog, { props: { contentHtml: CONTENT_HTML } });
     const tabBtns = wrapper.findAll('.pdf-tab');
-    // Watermark is the 4th tab regardless of locale
-    await tabBtns[3].trigger('click');
+    // Watermark is the 5th tab (Layout/Typography/Header/TOC/Watermark)
+    await tabBtns[4].trigger('click');
     const cb = wrapper.find('[data-testid="pdf-watermark-enabled"]');
     expect(cb.exists()).toBe(true);
     await cb.setValue(true);

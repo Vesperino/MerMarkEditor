@@ -143,6 +143,33 @@ describe('serializeEditorContent', () => {
     expect(figureMatch![0]).not.toContain('stroke="currentColor"');
   });
 
+  it('linkifies footnote refs and definitions', () => {
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <p>Text<sup data-footnote-ref="1" class="footnote-ref">1</sup> more.</p>
+      <section data-footnotes class="footnotes">
+        <ol>
+          <li data-footnote-id="1"><p>Footnote body.</p></li>
+        </ol>
+      </section>
+    `;
+    const result = serializeEditorContent(el);
+    expect(result).toContain('id="fnref-1"');
+    expect(result).toContain('href="#fn-1"');
+    expect(result).toContain('id="fn-1"');
+    expect(result).toContain('href="#fnref-1"');
+    expect(result).toContain('↩');
+  });
+
+  it('assigns slugified IDs to headings', () => {
+    const el = document.createElement('div');
+    el.innerHTML = `<h1>Introduction</h1><h2>Background &amp; Context</h2><h2>Background &amp; Context</h2>`;
+    const result = serializeEditorContent(el);
+    expect(result).toContain('id="pdf-h-introduction"');
+    expect(result).toContain('id="pdf-h-background-context"');
+    expect(result).toContain('id="pdf-h-background-context-2"');
+  });
+
   it('does not touch light fills (no regression on light theme)', () => {
     const el = document.createElement('div');
     const wrapper = document.createElement('div');

@@ -126,6 +126,29 @@ describe('buildPrintDocument', () => {
     const html = buildPrintDocument('<p>x</p>', withSettings({ startPageNumber: 5 }), FAKE_CSS);
     expect(html).toContain('counter-reset: page 4');
   });
+
+  it('does not generate TOC when showToc=false', () => {
+    const html = buildPrintDocument('<h1 id="pdf-h-a">A</h1>', withSettings({ showToc: false }), FAKE_CSS);
+    expect(html).not.toContain('pdf-toc');
+  });
+
+  it('generates TOC nav with anchor links when showToc=true', () => {
+    const content = '<h1 id="pdf-h-intro">Intro</h1><h2 id="pdf-h-body">Body</h2>';
+    const html = buildPrintDocument(content, withSettings({ showToc: true, tocDepth: 3 }), FAKE_CSS);
+    expect(html).toContain('class="pdf-toc"');
+    expect(html).toContain('href="#pdf-h-intro"');
+    expect(html).toContain('href="#pdf-h-body"');
+    expect(html).toContain('>Intro<');
+    expect(html).toContain('>Body<');
+  });
+
+  it('respects tocDepth (skips deeper headings)', () => {
+    const content = '<h1 id="pdf-h-a">A</h1><h2 id="pdf-h-b">B</h2><h3 id="pdf-h-c">C</h3>';
+    const html = buildPrintDocument(content, withSettings({ showToc: true, tocDepth: 2 }), FAKE_CSS);
+    expect(html).toContain('href="#pdf-h-a"');
+    expect(html).toContain('href="#pdf-h-b"');
+    expect(html).not.toContain('href="#pdf-h-c"');
+  });
 });
 
 describe('buildHeaderFooterContent', () => {

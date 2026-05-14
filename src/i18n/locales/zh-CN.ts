@@ -557,6 +557,10 @@ const zhCN: Translations = {
   pdfPresetReport: '公司报告',
   pdfPresetNotes: '笔记',
   pdfPresetDraft: '草稿（带水印）',
+  pdfTabToc: '目录',
+  pdfShowToc: '生成目录',
+  pdfTocTitle: '目录',
+  pdfTocDepth: '深度（标题级别）',
 };
 
 export default zhCN;

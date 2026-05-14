@@ -567,6 +567,10 @@ export interface Translations {
   pdfPresetReport: string;
   pdfPresetNotes: string;
   pdfPresetDraft: string;
+  pdfTabToc: string;
+  pdfShowToc: string;
+  pdfTocTitle: string;
+  pdfTocDepth: string;
 }
 
 const translations: Record<Locale, Translations> = {
