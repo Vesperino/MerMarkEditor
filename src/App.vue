@@ -909,7 +909,21 @@ const { settings } = useSettings();
 
 // ============ Workspace ============
 const workspace = useWorkspace();
+const insertImageIntoActivePane = (path: string) => {
+  const paneEl = document.querySelector<HTMLElement>(`.editor-pane.active`)
+    ?? document.querySelector<HTMLElement>('.editor-pane');
+  const rect = paneEl?.getBoundingClientRect();
+  const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+  const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+  const dpr = window.devicePixelRatio || 1;
+  void handleImageDrop([path], { x: x * dpr, y: y * dpr });
+};
+
 const handleWorkspaceOpenFile = (path: string) => {
+  if (isImageFile(path)) {
+    insertImageIntoActivePane(path);
+    return;
+  }
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
@@ -917,14 +931,7 @@ const handleWorkspaceOpenFile = (path: string) => {
 const handleWorkspaceDropFile = (paneId: string, path: string) => {
   splitState.value.activePaneId = paneId;
   if (isImageFile(path)) {
-    // Center of pane is good enough — exact position from this event isn't tracked.
-    const paneEl = document.querySelector<HTMLElement>(`.editor-pane.active`)
-      ?? document.querySelector<HTMLElement>('.editor-pane');
-    const rect = paneEl?.getBoundingClientRect();
-    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
-    const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
-    const dpr = window.devicePixelRatio || 1;
-    void handleImageDrop([path], { x: x * dpr, y: y * dpr });
+    insertImageIntoActivePane(path);
     return;
   }
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
