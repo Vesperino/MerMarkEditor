@@ -55,10 +55,52 @@ function isDarkColor(color: string | null): boolean {
 }
 
 /**
+ * Walk a node tree and produce plain text with sensible whitespace.
+ *   - Text nodes contribute as-is (whitespace collapsed per HTML rules).
+ *   - <br> → newline.
+ *   - Block elements (<p>, <div>, <li>) get a newline boundary so adjacent
+ *     elements never glue their text together ("F1Wykres przypisanydo…").
+ *   - Inline siblings (<span>, <strong>) get a single space between them so
+ *     Mermaid's HTML labels — which often render `<span>F1</span>` next to
+ *     `<span>Wykres…</span>` — stay readable as separate words.
+ */
+const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'BR']);
+
+function extractLabelLines(node: Node): string[] {
+  const out: string[] = [];
+  let current = '';
+  const flush = () => {
+    const trimmed = current.replace(/[ \t]+/g, ' ').trim();
+    if (trimmed) out.push(trimmed);
+    current = '';
+  };
+  const walk = (n: Node) => {
+    if (n.nodeType === Node.TEXT_NODE) {
+      current += n.textContent ?? '';
+      return;
+    }
+    if (n.nodeType !== Node.ELEMENT_NODE) return;
+    const el = n as Element;
+    const tag = el.tagName.toUpperCase();
+    if (tag === 'BR') { flush(); return; }
+    const isBlock = BLOCK_TAGS.has(tag);
+    if (isBlock && current) flush();
+    for (const child of Array.from(el.childNodes)) walk(child);
+    if (isBlock) flush();
+    else if (current && !current.endsWith(' ')) current += ' ';
+  };
+  walk(node);
+  flush();
+  return out;
+}
+
+/**
  * Mermaid renders text labels inside <foreignObject> with HTML divs.
  * Those rely on CSS scoped to the live Mermaid component.
  * When cloned into a print iframe that CSS is gone, so labels disappear.
- * Convert each foreignObject to a plain SVG <text> with the same content.
+ * Convert each foreignObject to a plain SVG <text> with the same content,
+ * preserving line breaks via <tspan dy>. Multi-span labels keep word spacing
+ * so node text stays readable in the PDF.
  */
 function convertForeignObjectsToText(svg: Element): void {
   const fos = Array.from(svg.querySelectorAll('foreignObject'));
@@ -67,22 +109,32 @@ function convertForeignObjectsToText(svg: Element): void {
     const y = parseFloat(fo.getAttribute('y') ?? '0');
     const w = parseFloat(fo.getAttribute('width') ?? '0');
     const h = parseFloat(fo.getAttribute('height') ?? '0');
-    const raw = (fo.textContent ?? '').replace(/\s+/g, ' ').trim();
-    if (!raw) {
+    const lines = extractLabelLines(fo);
+    if (lines.length === 0) {
       fo.remove();
       continue;
     }
     const cx = x + w / 2;
     const cy = y + h / 2;
+    const lineHeight = 14;
+    const totalHeight = (lines.length - 1) * lineHeight;
+    const startY = cy - totalHeight / 2;
     const text = document.createElementNS(SVG_NS, 'text');
     text.setAttribute('x', String(cx));
-    text.setAttribute('y', String(cy));
+    text.setAttribute('y', String(startY));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'central');
     text.setAttribute('font-size', '12');
+    text.setAttribute('font-weight', 'normal');
     text.setAttribute('font-family', 'inherit');
     text.setAttribute('fill', '#1a1a1a');
-    text.textContent = raw;
+    for (let i = 0; i < lines.length; i++) {
+      const tspan = document.createElementNS(SVG_NS, 'tspan');
+      tspan.setAttribute('x', String(cx));
+      if (i > 0) tspan.setAttribute('dy', String(lineHeight));
+      tspan.textContent = lines[i];
+      text.appendChild(tspan);
+    }
     fo.replaceWith(text);
   }
 }
@@ -182,6 +234,8 @@ function injectPrintLightOverride(svg: Element): void {
     text, tspan, .nodeLabel, .edgeLabel, .cluster-label {
       fill: #1a1a1a !important;
       color: #1a1a1a !important;
+      font-weight: normal !important;
+      font-family: inherit !important;
     }
     .edgeLabel rect, .edgeLabel foreignObject { fill: #ffffff !important; background: #ffffff !important; }
     .edgePath path:not(.arrowMarkerPath), .flowchart-link, path.path,

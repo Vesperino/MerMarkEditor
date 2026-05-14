@@ -184,11 +184,26 @@ table {
   page-break-inside: auto;
 }
 
-thead { display: table-header-group; }
+thead {
+  display: table-header-group;
+  /* Without this Chromium happily leaves the <thead> alone at the bottom of a
+   * page when the first body row would overflow — readers then see column
+   * titles with no data underneath. break-after: avoid forces the page break
+   * to happen before the thead so it stays attached to its first row. */
+  break-after: avoid;
+  page-break-after: avoid;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
 tr {
   page-break-inside: avoid;
   break-inside: avoid;
+}
+
+tbody tr:first-child {
+  break-before: avoid;
+  page-break-before: avoid;
 }
 
 th {

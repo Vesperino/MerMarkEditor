@@ -76,7 +76,50 @@ describe('serializeEditorContent', () => {
     const result = serializeEditorContent(el);
     expect(result).not.toMatch(/<foreignObject[\s>]/);
     expect(result).toContain('Node Label');
-    expect(result).toMatch(/<text[^>]*>Node Label<\/text>/);
+    expect(result).toMatch(/<text[^>]*>[\s\S]*Node Label[\s\S]*<\/text>/);
+  });
+
+  it('preserves word spacing between sibling spans in Mermaid labels', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('graph LR'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('x', '0');
+    fo.setAttribute('y', '0');
+    fo.setAttribute('width', '100');
+    fo.setAttribute('height', '40');
+    // Mermaid emits multi-span labels — earlier serializer concatenated them
+    // into `F1Wykres przypisanydo konkretnego` (no spaces).
+    fo.innerHTML = '<div><span>F1</span><span>Wykres przypisany</span><span>do konkretnego</span></div>';
+    svg.appendChild(fo);
+    wrapper.appendChild(svg);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).toContain('F1 Wykres przypisany do konkretnego');
+    expect(result).not.toContain('F1Wykres');
+  });
+
+  it('splits Mermaid labels on <br> / <p> into separate tspan lines', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('graph LR'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('x', '0');
+    fo.setAttribute('y', '0');
+    fo.setAttribute('width', '120');
+    fo.setAttribute('height', '60');
+    fo.innerHTML = '<p>Line one</p><p>Line two</p>';
+    svg.appendChild(fo);
+    wrapper.appendChild(svg);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).toContain('Line one');
+    expect(result).toContain('Line two');
+    expect((result.match(/<tspan/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
   it('replaces dark background fill with white', () => {
