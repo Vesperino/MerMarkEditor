@@ -204,6 +204,7 @@ export interface Translations {
   whatsNewIn: string;
   noReleaseNotesForBuild: string;
   fullChangelog: string;
+  changelog: string;
   supportDev: string;
   supportDevTooltip: string;
   buyMeACoffee: string;

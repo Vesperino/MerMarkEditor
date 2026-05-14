@@ -25,6 +25,7 @@ import TableOfContents from './components/TableOfContents.vue';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import WhatsNewModal from './components/WhatsNewModal.vue';
+import ChangelogModal from './components/ChangelogModal.vue';
 import WorkspaceSidebar from './components/WorkspaceSidebar.vue';
 import WorkspaceQuickSwitcher from './components/WorkspaceQuickSwitcher.vue';
 import DocumentSearchBar from './components/DocumentSearchBar.vue';
@@ -837,6 +838,18 @@ function onTmpShowDiff() {
 
 // ============ What's New Modal ============
 const showWhatsNewModal = ref(false);
+const showChangelogModal = ref(false);
+const changelogInitialVersion = ref<string | null>(null);
+
+const handleOpenChangelog = async () => {
+  try {
+    changelogInitialVersion.value = await getVersion();
+  } catch {
+    changelogInitialVersion.value = null;
+  }
+  showWhatsNewModal.value = false;
+  showChangelogModal.value = true;
+};
 
 // ============ Auto Update ============
 const {
@@ -1661,6 +1674,14 @@ onUnmounted(async () => {
     <WhatsNewModal
       v-if="showWhatsNewModal"
       @close="showWhatsNewModal = false"
+      @open-changelog="handleOpenChangelog"
+    />
+
+    <!-- Changelog Modal -->
+    <ChangelogModal
+      v-if="showChangelogModal"
+      :initial-version="changelogInitialVersion ?? undefined"
+      @close="showChangelogModal = false"
     />
 
     <!-- Pre-Save Conflict Modal (file changed on disk since last load/save) -->

@@ -198,6 +198,7 @@ const pl: Translations = {
   whatsNewIn: 'Co nowego w',
   noReleaseNotesForBuild: 'Brak notatek do tej wersji.',
   fullChangelog: 'Pełna historia zmian',
+  changelog: 'Historia zmian',
   supportDev: 'Wesprzyj rozwój',
   supportDevTooltip: 'MerMark jest darmowy i open source. Jeśli ci pomaga, możesz postawić mi kawę — całkowicie opcjonalnie.',
   buyMeACoffee: 'Postaw mi kawę',
