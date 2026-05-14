@@ -571,6 +571,7 @@ export interface Translations {
   pdfShowToc: string;
   pdfTocTitle: string;
   pdfTocDepth: string;
+  pdfTocPageBreak: string;
 }
 
 const translations: Record<Locale, Translations> = {

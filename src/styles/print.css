@@ -333,6 +333,9 @@ sup.footnote-ref a { color: var(--pf-accent, #0b56c4); text-decoration: none; }
   margin: 0 0 1.6em;
   padding-bottom: 0.6em;
   border-bottom: 0.5pt solid #d0d6dc;
+}
+
+.pdf-toc--break-after {
   page-break-after: always;
   break-after: page;
 }

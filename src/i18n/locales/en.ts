@@ -561,6 +561,7 @@ const en: Translations = {
   pdfShowToc: 'Generate Table of Contents',
   pdfTocTitle: 'Table of Contents',
   pdfTocDepth: 'Depth (heading levels)',
+  pdfTocPageBreak: 'TOC on its own page',
 };
 
 export default en;

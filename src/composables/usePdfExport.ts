@@ -94,6 +94,7 @@ export interface PdfSettings {
   watermark: PdfWatermark;
   showToc: boolean;
   tocDepth: 1 | 2 | 3 | 4 | 5 | 6;
+  tocPageBreak: boolean;
 }
 
 export const PDF_SETTINGS_STORAGE_KEY = 'mermark.pdfSettings';
@@ -133,6 +134,7 @@ export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
   },
   showToc: false,
   tocDepth: 3,
+  tocPageBreak: false,
 };
 
 interface Margins { top: string; right: string; bottom: string; left: string; }
@@ -280,7 +282,8 @@ function buildTocHtml(contentHtml: string, settings: PdfSettings, tocTitle: stri
     return `<li class="pdf-toc-l${h.level}" style="padding-left:${indent * 16}px"><a href="#${h.id}">${safe}</a></li>`;
   }).join('');
 
-  return `<nav class="pdf-toc" aria-label="Table of contents"><h2 class="pdf-toc-title">${tocTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h2><ul class="pdf-toc-list">${lis}</ul></nav>`;
+  const breakClass = settings.tocPageBreak ? ' pdf-toc--break-after' : '';
+  return `<nav class="pdf-toc${breakClass}" aria-label="Table of contents"><h2 class="pdf-toc-title">${tocTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h2><ul class="pdf-toc-list">${lis}</ul></nav>`;
 }
 
 function buildWatermarkCss(w: PdfWatermark): string {

@@ -254,6 +254,10 @@
               <option :value="6">H1–H6</option>
             </select>
           </label>
+          <label v-if="settings.showToc" class="pdf-checkbox-row">
+            <input v-model="settings.tocPageBreak" type="checkbox" data-testid="pdf-toc-page-break">
+            <span>{{ t.pdfTocPageBreak }}</span>
+          </label>
         </div>
 
         <div v-if="activeTab === 'watermark'" class="pdf-fields">

@@ -561,6 +561,7 @@ const pl: Translations = {
   pdfShowToc: 'Generuj spis treści',
   pdfTocTitle: 'Spis treści',
   pdfTocDepth: 'Głębokość (poziomy nagłówków)',
+  pdfTocPageBreak: 'Spis treści na osobnej stronie',
 };
 
 export default pl;

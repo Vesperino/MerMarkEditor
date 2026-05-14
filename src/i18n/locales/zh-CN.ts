@@ -561,6 +561,7 @@ const zhCN: Translations = {
   pdfShowToc: '生成目录',
   pdfTocTitle: '目录',
   pdfTocDepth: '深度（标题级别）',
+  pdfTocPageBreak: '目录单独一页',
 };
 
 export default zhCN;
