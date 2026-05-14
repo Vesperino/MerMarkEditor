@@ -136,6 +136,7 @@ const en: Translations = {
   templates: 'Templates',
   basic: 'Basic',
   deleteDiagram: 'Delete',
+  deleteImage: 'Delete image',
   moreTemplates: 'More templates...',
   mermaidDiagramTemplates: 'Mermaid Diagram Templates',
   enterMermaidCode: 'Enter Mermaid code...',

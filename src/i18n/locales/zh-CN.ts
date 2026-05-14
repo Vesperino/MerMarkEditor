@@ -136,6 +136,7 @@ const zhCN: Translations = {
   templates: '模板',
   basic: '基础',
   deleteDiagram: '删除',
+  deleteImage: '删除图片',
   moreTemplates: '更多模板...',
   mermaidDiagramTemplates: 'Mermaid 图表模板',
   enterMermaidCode: '输入 Mermaid 代码...',

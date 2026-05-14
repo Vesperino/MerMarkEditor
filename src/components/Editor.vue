@@ -180,6 +180,61 @@ const showImagePreview = ref(false);
 const previewImageSrc = ref('');
 const previewImageAlt = ref('');
 
+// Floating overlay for the currently-hovered editor image. Positioned with
+// fixed coords against the viewport so it tracks the image during scroll
+// without needing a per-image NodeView (which would conflict with the
+// blob-url image-resolver that mutates img.src directly).
+const hoveredImage = ref<HTMLImageElement | null>(null);
+const imageOverlayRect = ref<{ top: number; right: number } | null>(null);
+let hideOverlayTimer: number | null = null;
+
+function showOverlayFor(img: HTMLImageElement) {
+  if (hideOverlayTimer !== null) {
+    window.clearTimeout(hideOverlayTimer);
+    hideOverlayTimer = null;
+  }
+  const rect = img.getBoundingClientRect();
+  imageOverlayRect.value = { top: rect.top + 6, right: window.innerWidth - rect.right - 6 };
+  hoveredImage.value = img;
+}
+
+function scheduleHideOverlay() {
+  if (hideOverlayTimer !== null) window.clearTimeout(hideOverlayTimer);
+  hideOverlayTimer = window.setTimeout(() => {
+    hoveredImage.value = null;
+    imageOverlayRect.value = null;
+    hideOverlayTimer = null;
+  }, 120);
+}
+
+function deleteHoveredImage() {
+  const img = hoveredImage.value;
+  const ed = editor.value;
+  if (!img || !ed) return;
+  try {
+    const pos = ed.view.posAtDOM(img, 0);
+    ed.chain().focus().setNodeSelection(pos).deleteSelection().run();
+  } catch (e) {
+    console.warn('[Editor] Failed to delete image:', e);
+  }
+  hoveredImage.value = null;
+  imageOverlayRect.value = null;
+}
+
+const handleEditorMouseOver = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+  if (target?.tagName === 'IMG' && target.classList.contains('editor-image')) {
+    showOverlayFor(target as HTMLImageElement);
+  }
+};
+
+const handleEditorMouseOut = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+  if (target?.tagName === 'IMG' && target.classList.contains('editor-image')) {
+    scheduleHideOverlay();
+  }
+};
+
 
 
 // Custom extension for list keyboard shortcuts (Tab/Shift+Tab indentation)
@@ -736,7 +791,14 @@ defineExpose({
 </script>
 
 <template>
-  <div class="editor-container" ref="editorContainerRef" @click="handleEditorClick" @contextmenu="handleContextMenu" @mouseover="footnotes.handleMouseOver" @mouseout="footnotes.handleMouseOut">
+  <div
+    class="editor-container"
+    ref="editorContainerRef"
+    @click="handleEditorClick"
+    @contextmenu="handleContextMenu"
+    @mouseover="(e) => { footnotes.handleMouseOver(e); handleEditorMouseOver(e); }"
+    @mouseout="(e) => { footnotes.handleMouseOut(e); handleEditorMouseOut(e); }"
+  >
     <div
       ref="contentWrapperRef"
       class="editor-content-wrapper"
@@ -787,6 +849,28 @@ defineExpose({
         <button class="footnote-popover-save" @click="footnotes.savePopover">Save</button>
       </div>
     </div>
+    <Teleport to="body">
+      <div
+        v-if="imageOverlayRect && hoveredImage"
+        class="editor-image-toolbar"
+        :style="{ top: imageOverlayRect.top + 'px', right: imageOverlayRect.right + 'px' }"
+        @mouseenter="showOverlayFor(hoveredImage)"
+        @mouseleave="scheduleHideOverlay"
+      >
+        <button
+          class="editor-image-toolbar-btn danger"
+          v-tooltip="t.deleteImage"
+          @click.stop="deleteHoveredImage"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+          </svg>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -1347,5 +1431,43 @@ defineExpose({
 .editor-content .tiptap section.footnotes li p {
   margin: 0;
   display: inline;
+}
+
+.editor-image-toolbar {
+  position: fixed;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--dialog-bg, rgba(30, 30, 30, 0.95));
+  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.editor-image-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #d4d4d4);
+  cursor: pointer;
+  padding: 0;
+}
+
+.editor-image-toolbar-btn:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, #fff);
+}
+
+.editor-image-toolbar-btn.danger:hover {
+  background: var(--danger-text-bg, rgba(229, 76, 76, 0.18));
+  color: var(--danger, #f56565);
 }
 </style>

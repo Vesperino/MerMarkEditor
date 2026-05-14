@@ -142,6 +142,7 @@ export interface Translations {
   templates: string;
   basic: string;
   deleteDiagram: string;
+  deleteImage: string;
   moreTemplates: string;
   mermaidDiagramTemplates: string;
   enterMermaidCode: string;
