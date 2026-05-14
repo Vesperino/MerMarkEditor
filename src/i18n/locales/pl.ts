@@ -13,6 +13,8 @@ const pl: Translations = {
   // Toolbar - Edit operations
   undo: 'Cofnij',
   redo: 'Ponów',
+  moveLineUp: 'Przenieś linię w górę',
+  moveLineDown: 'Przenieś linię w dół',
 
   // Toolbar - Text styles
   paragraph: 'Paragraf',
@@ -195,8 +197,9 @@ const pl: Translations = {
   updateNow: 'Aktualizuj teraz',
   whatsNew: 'Co nowego',
   whatsNewIn: 'Co nowego w',
-  loadingChangelog: 'Wczytywanie zmian...',
-  changelogError: 'Nie udało się wczytać zmian.',
+  noReleaseNotesForBuild: 'Brak notatek do tej wersji.',
+  fullChangelog: 'Pełna historia zmian',
+  changelog: 'Historia zmian',
   supportDev: 'Wesprzyj rozwój',
   supportDevTooltip: 'MerMark jest darmowy i open source. Jeśli ci pomaga, możesz postawić mi kawę — całkowicie opcjonalnie.',
   buyMeACoffee: 'Postaw mi kawę',

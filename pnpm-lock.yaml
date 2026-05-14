@@ -122,9 +122,12 @@ importers:
       '@tauri-apps/cli':
         specifier: ^2.5.0
         version: 2.9.6
+      '@types/node':
+        specifier: ^25.8.0
+        version: 25.8.0
       '@vitejs/plugin-vue':
         specifier: ^5.2.4
-        version: 5.2.4(vite@6.4.1(@types/node@22.19.6))(vue@3.5.26(typescript@5.7.3))
+        version: 5.2.4(vite@6.4.1(@types/node@25.8.0))(vue@3.5.26(typescript@5.7.3))
       '@vue/test-utils':
         specifier: ^2.4.6
         version: 2.4.6
@@ -145,10 +148,10 @@ importers:
         version: 5.7.3
       vite:
         specifier: ^6.3.5
-        version: 6.4.1(@types/node@22.19.6)
+        version: 6.4.1(@types/node@25.8.0)
       vitest:
         specifier: ^4.0.17
-        version: 4.0.17(@types/node@22.19.6)(jsdom@27.4.0)
+        version: 4.0.17(@types/node@25.8.0)(jsdom@27.4.0)
       vue-tsc:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.7.3)
@@ -1197,6 +1200,9 @@ packages:
   '@types/node@22.19.6':
     resolution: {integrity: sha512-qm+G8HuG6hOHQigsi7VGuLjUVu6TtBo/F05zvX04Mw2uCg9Dv0Qxy3Qw7j41SidlTcl5D/5yg0SEZqOB+EqZnQ==}
 
+  '@types/node@25.8.0':
+    resolution: {integrity: sha512-TCFSk8IZh+iLX1xtksoBVtdmgL+1IX0fC9BeU4QqFSuNdN/K+HUlhqOzEmSYYpZUVsLYcPqc9KX+60iDuninSQ==}
+
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
@@ -2111,6 +2117,9 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  undici-types@7.24.6:
+    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
 
   uuid@11.1.0:
     resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
@@ -3130,14 +3139,18 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/node@25.8.0':
+    dependencies:
+      undici-types: 7.24.6
+
   '@types/trusted-types@2.0.7':
     optional: true
 
   '@types/unist@3.0.3': {}
 
-  '@vitejs/plugin-vue@5.2.4(vite@6.4.1(@types/node@22.19.6))(vue@3.5.26(typescript@5.7.3))':
+  '@vitejs/plugin-vue@5.2.4(vite@6.4.1(@types/node@25.8.0))(vue@3.5.26(typescript@5.7.3))':
     dependencies:
-      vite: 6.4.1(@types/node@22.19.6)
+      vite: 6.4.1(@types/node@25.8.0)
       vue: 3.5.26(typescript@5.7.3)
 
   '@vitest/expect@4.0.17':
@@ -3149,13 +3162,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.0.3
 
-  '@vitest/mocker@4.0.17(vite@6.4.1(@types/node@22.19.6))':
+  '@vitest/mocker@4.0.17(vite@6.4.1(@types/node@25.8.0))':
     dependencies:
       '@vitest/spy': 4.0.17
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 6.4.1(@types/node@22.19.6)
+      vite: 6.4.1(@types/node@25.8.0)
 
   '@vitest/pretty-format@4.0.17':
     dependencies:
@@ -4195,9 +4208,11 @@ snapshots:
 
   undici-types@6.21.0: {}
 
+  undici-types@7.24.6: {}
+
   uuid@11.1.0: {}
 
-  vite@6.4.1(@types/node@22.19.6):
+  vite@6.4.1(@types/node@25.8.0):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.4)
@@ -4206,13 +4221,13 @@ snapshots:
       rollup: 4.59.0
       tinyglobby: 0.2.15
     optionalDependencies:
-      '@types/node': 22.19.6
+      '@types/node': 25.8.0
       fsevents: 2.3.3
 
-  vitest@4.0.17(@types/node@22.19.6)(jsdom@27.4.0):
+  vitest@4.0.17(@types/node@25.8.0)(jsdom@27.4.0):
     dependencies:
       '@vitest/expect': 4.0.17
-      '@vitest/mocker': 4.0.17(vite@6.4.1(@types/node@22.19.6))
+      '@vitest/mocker': 4.0.17(vite@6.4.1(@types/node@25.8.0))
       '@vitest/pretty-format': 4.0.17
       '@vitest/runner': 4.0.17
       '@vitest/snapshot': 4.0.17
@@ -4229,10 +4244,10 @@ snapshots:
       tinyexec: 1.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 3.0.3
-      vite: 6.4.1(@types/node@22.19.6)
+      vite: 6.4.1(@types/node@25.8.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 22.19.6
+      '@types/node': 25.8.0
       jsdom: 27.4.0
     transitivePeerDependencies:
       - jiti

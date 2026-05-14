@@ -13,6 +13,8 @@ const zhCN: Translations = {
   // Toolbar - Edit operations
   undo: '撤销',
   redo: '重做',
+  moveLineUp: '向上移动行',
+  moveLineDown: '向下移动行',
 
   // Toolbar - Text styles
   paragraph: '段落',
@@ -195,8 +197,9 @@ const zhCN: Translations = {
   updateNow: '立即更新',
   whatsNew: '新功能',
   whatsNewIn: '新功能 -',
-  loadingChangelog: '正在加载更新日志...',
-  changelogError: '无法加载更新日志。',
+  noReleaseNotesForBuild: '此版本尚无发行说明。',
+  fullChangelog: '完整更新日志',
+  changelog: '更新日志',
   supportDev: '支持开发',
   supportDevTooltip: 'MerMark 免费且开源。如果它帮助到你，可以请我喝杯咖啡 — 完全自愿。',
   buyMeACoffee: '请我喝咖啡',

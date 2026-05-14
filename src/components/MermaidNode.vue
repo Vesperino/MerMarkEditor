@@ -68,11 +68,14 @@ const MAX_USER_WIDTH = 1600;
 const userWidth = computed(() => props.node.attrs.userWidth);
 
 const wrapperStyle = computed(() => {
-  if (!userWidth.value) return undefined;
-  return {
-    width: `${userWidth.value}px`,
-    maxWidth: '100%',
-  } as Record<string, string>;
+  const style: Record<string, string> = {
+    '--diagram-print-scale': `${diagramSize.value}%`,
+  };
+  if (userWidth.value) {
+    style.width = `${userWidth.value}px`;
+    style.maxWidth = '100%';
+  }
+  return style;
 });
 
 let resizeStartX = 0;
@@ -1582,11 +1585,13 @@ html.dark .mermaid-content :deep(svg .messageLine1) {
      slightly undersized after the getBBox() adjustment, content won't
      be hard-clipped by the SVG viewport. */
   .mermaid-content :deep(svg) {
-    width: 100% !important;
-    max-width: 100% !important;
+    width: var(--diagram-print-scale, 100%) !important;
+    max-width: var(--diagram-print-scale, 100%) !important;
     height: auto !important;
     overflow: visible !important;
     background: white !important;
+    display: block !important;
+    margin: 0 auto !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }

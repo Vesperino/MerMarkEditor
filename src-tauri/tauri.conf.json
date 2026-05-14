@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MerMark Editor",
-  "version": "0.2.11",
+  "version": "0.2.15",
   "identifier": "com.mermark.editor",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -39,10 +39,16 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": "",
       "wix": {
-        "language": ["en-US", "pl-PL"]
+        "language": [
+          "en-US",
+          "pl-PL"
+        ]
       },
       "nsis": {
-        "languages": ["English", "Polish"],
+        "languages": [
+          "English",
+          "Polish"
+        ],
         "displayLanguageSelector": true,
         "installMode": "perMachine"
       }
@@ -57,7 +63,10 @@
         "bundleMediaFramework": false
       },
       "deb": {
-        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ]
       }
     },
     "category": "Productivity",
@@ -65,7 +74,10 @@
     "longDescription": "MerMark Editor is a modern, open-source Markdown editor with built-in Mermaid diagram support. Create beautiful documents with flowcharts, sequence diagrams, and more.",
     "fileAssociations": [
       {
-        "ext": ["md", "markdown"],
+        "ext": [
+          "md",
+          "markdown"
+        ],
         "name": "Markdown Document",
         "description": "Markdown text file",
         "role": "Editor",
@@ -82,7 +94,9 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["mermark"]
+        "schemes": [
+          "mermark"
+        ]
       }
     }
   }

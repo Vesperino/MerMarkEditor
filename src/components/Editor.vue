@@ -74,6 +74,7 @@ import { MermaidExtension } from "../extensions/MermaidExtension";
 import { PageBreakExtension } from "../extensions/PageBreakExtension";
 import { FootnoteRef, FootnoteSection } from "../extensions/FootnoteExtension";
 import { DocumentSearchExtension } from "../extensions/DocumentSearchExtension";
+import { MoveBlockExtension } from "../extensions/MoveBlockExtension";
 import type { VisualSearchMatch, VisualTextMap } from "../composables/useDocumentSearch";
 import { useI18n } from "../i18n";
 
@@ -481,6 +482,7 @@ const editor = useEditor({
     FootnoteRef,
     FootnoteSection,
     DocumentSearchExtension,
+    MoveBlockExtension,
     CharacterCount.configure({
       limit: null,
     }),
