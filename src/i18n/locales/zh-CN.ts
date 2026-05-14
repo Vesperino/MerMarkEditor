@@ -13,6 +13,8 @@ const zhCN: Translations = {
   // Toolbar - Edit operations
   undo: '撤销',
   redo: '重做',
+  moveLineUp: '向上移动行',
+  moveLineDown: '向下移动行',
 
   // Toolbar - Text styles
   paragraph: '段落',

@@ -13,6 +13,8 @@ const en: Translations = {
   // Toolbar - Edit operations
   undo: 'Undo',
   redo: 'Redo',
+  moveLineUp: 'Move line up',
+  moveLineDown: 'Move line down',
 
   // Toolbar - Text styles
   paragraph: 'Paragraph',

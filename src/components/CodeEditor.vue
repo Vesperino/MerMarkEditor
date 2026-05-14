@@ -2,6 +2,7 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
+import { useTextareaLineMove } from '../composables/useTextareaLineMove';
 
 const { zoomScale } = useEditorZoom();
 const { settings } = useSettings();
@@ -130,6 +131,11 @@ const handleInput = (event: Event) => {
   emit('update:modelValue', target.value);
 };
 
+const { handleKeydown: handleLineMoveKeydown } = useTextareaLineMove({
+  textareaRef,
+  onChange: (value) => emit('update:modelValue', value),
+});
+
 const handleScroll = (event: Event) => {
   const target = event.target as HTMLTextAreaElement;
   if (gutterRef.value) {
@@ -167,6 +173,7 @@ const handleScroll = (event: Event) => {
       :style="codeZoomStyle"
       :value="modelValue"
       @input="handleInput"
+      @keydown="handleLineMoveKeydown"
       @scroll="handleScroll"
       spellcheck="false"
       autocomplete="off"

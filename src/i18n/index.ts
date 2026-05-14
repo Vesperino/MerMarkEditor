@@ -19,6 +19,8 @@ export interface Translations {
   // Toolbar - Edit operations
   undo: string;
   redo: string;
+  moveLineUp: string;
+  moveLineDown: string;
 
   // Toolbar - Text styles
   paragraph: string;

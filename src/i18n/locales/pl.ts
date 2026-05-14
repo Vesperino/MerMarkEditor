@@ -13,6 +13,8 @@ const pl: Translations = {
   // Toolbar - Edit operations
   undo: 'Cofnij',
   redo: 'Ponów',
+  moveLineUp: 'Przenieś linię w górę',
+  moveLineDown: 'Przenieś linię w dół',
 
   // Toolbar - Text styles
   paragraph: 'Paragraf',
