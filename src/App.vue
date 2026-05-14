@@ -315,9 +315,23 @@ const handleCloseTabRequest = (paneId: string, tabId: string) => {
 
 function handleTabTogglePin(paneId: string, tabId: string) {
   const pane = splitState.value.panes.find((p) => p.id === paneId);
-  const tab = pane?.tabs.find((t) => t.id === tabId);
+  if (!pane) return;
+  const tab = pane.tabs.find((t) => t.id === tabId);
   if (!tab) return;
   tab.pinned = !tab.pinned;
+
+  // Keep pinned tabs at the front of the tab bar (Chrome / VS Code style).
+  // After toggling, move the tab so the layout is `[pinned…, unpinned…]`:
+  //   - pin:  insert at end of the pinned block
+  //   - unpin: insert at the head of the unpinned block (right after the
+  //     last still-pinned tab)
+  const currentIdx = pane.tabs.findIndex((t) => t.id === tabId);
+  if (currentIdx === -1) return;
+  pane.tabs.splice(currentIdx, 1);
+  const pinnedCount = pane.tabs.filter((t) => t.pinned).length;
+  // After the splice, both branches drop the tab at index `pinnedCount`
+  // — the boundary between pinned and unpinned blocks.
+  pane.tabs.splice(pinnedCount, 0, tab);
 }
 
 /** Close every tab in a pane that satisfies `predicate`. Pinned tabs and
@@ -919,11 +933,12 @@ const insertImageIntoActivePane = (path: string) => {
   void handleImageDrop([path], { x: x * dpr, y: y * dpr });
 };
 
+// Triggered by the workspace tree's double-click (single click only selects
+// the row now). Markdown opens as a tab; images intentionally noop — the user
+// inserts them by dragging into the editor, which keeps select / insert
+// gestures distinct and prevents accidental document mutation on dblclick.
 const handleWorkspaceOpenFile = (path: string) => {
-  if (isImageFile(path)) {
-    insertImageIntoActivePane(path);
-    return;
-  }
+  if (isImageFile(path)) return;
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
