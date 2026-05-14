@@ -27,3 +27,13 @@ Object.defineProperty(global, 'localStorage', {
   value: localStorageMock,
   writable: true,
 });
+
+// Register custom tooltip directive globally so components using `v-tooltip`
+// mount without warnings. Production tooltip sets data-tooltip-text on the
+// element; tests query via that attribute.
+import { config } from '@vue/test-utils';
+import { vTooltip } from './src/directives/tooltip';
+config.global.directives = {
+  ...(config.global.directives ?? {}),
+  tooltip: vTooltip,
+};

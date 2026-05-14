@@ -55,6 +55,11 @@ import { useDocumentSearch, type DocumentSearchMatch, type VisualSearchMatch } f
 import { useImageDrop } from './composables/useImageDrop';
 import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
+import PdfExportDialog from './components/PdfExportDialog.vue';
+import { usePdfExport } from './composables/usePdfExport';
+import { useDocxExport } from './composables/useDocxExport';
+import { serializeEditorContent } from './utils/documentSerializer';
+import { DOM_SELECTORS } from './constants';
 
 // ============ Split View & Tab Management ============
 const {
@@ -399,7 +404,6 @@ const {
   openFileFromPath,
   saveFile,
   saveFileAs,
-  exportPdf,
   handleLinkClick,
   confirmExternalLink,
   cancelExternalLink,
@@ -443,6 +447,32 @@ const {
     });
   },
 });
+
+// ============ PDF Export ============
+const showPdfDialog = ref(false);
+const pdfContentHtml = ref('');
+const pdfMeta = ref<{ title?: string; path?: string; date?: string }>({});
+const { exportDocx } = useDocxExport();
+usePdfExport();
+
+function openPdfDialog() {
+  const editorEl =
+    document.querySelector<HTMLElement>(
+      `${DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER} .ProseMirror`,
+    ) ?? document.querySelector<HTMLElement>('.ProseMirror');
+  if (!editorEl) return;
+  pdfContentHtml.value = serializeEditorContent(editorEl);
+  const tab = activeTab.value;
+  const fileName = tab?.fileName ?? '';
+  const filePath = tab?.filePath ?? '';
+  const title = fileName.replace(/\.(md|markdown)$/i, '') || 'Dokument';
+  pdfMeta.value = {
+    title,
+    path: filePath,
+    date: new Date().toLocaleDateString(),
+  };
+  showPdfDialog.value = true;
+}
 
 // ============ Code View ============
 const codeEditorComponentRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -1109,7 +1139,7 @@ const handleKeyboard = (event: KeyboardEvent) => {
         break;
       case 'p':
         event.preventDefault();
-        exportPdf();
+        openPdfDialog();
         break;
       case 'd':
         if (event.shiftKey && canShowDiff.value) {
@@ -1464,7 +1494,8 @@ onUnmounted(async () => {
       @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
-      @export-pdf="exportPdf"
+      @export-pdf="openPdfDialog"
+      @export-docx="exportDocx"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
@@ -1503,7 +1534,8 @@ onUnmounted(async () => {
         @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
         @save-file="saveFile"
         @save-file-as="saveFileAs"
-        @export-pdf="exportPdf"
+        @export-pdf="openPdfDialog"
+        @export-docx="exportDocx"
         @toggle-code-view="toggleCodeView"
         @toggle-split="toggleSplit"
         @toggle-diff-preview="toggleDiffPreview"
@@ -1573,7 +1605,8 @@ onUnmounted(async () => {
       @open-recent-workspace="handleOpenRecentWorkspaceFromToolbar"
       @save-file="saveFile"
       @save-file-as="saveFileAs"
-      @export-pdf="exportPdf"
+      @export-pdf="openPdfDialog"
+      @export-docx="exportDocx"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
@@ -1582,6 +1615,14 @@ onUnmounted(async () => {
       @show-settings="showSettingsModal = true"
       @toggle-toc="toggleTocPanel"
       @toggle-ai="toggleAiPanel"
+    />
+
+    <!-- PDF Export Dialog -->
+    <PdfExportDialog
+      v-if="showPdfDialog"
+      :content-html="pdfContentHtml"
+      :meta="pdfMeta"
+      @close="showPdfDialog = false"
     />
 
     <!-- Loading Overlay -->

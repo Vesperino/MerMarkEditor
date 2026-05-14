@@ -11,4 +11,7 @@ export default defineConfig({
       ignored: ["**/src-tauri/**"],
     },
   },
+  optimizeDeps: {
+    entries: ["index.html"],
+  },
 });

@@ -105,7 +105,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const saveButton = wrapper.find('button[title*="Save (Ctrl+S)"]');
+      const saveButton = wrapper.find('button[data-tooltip-text*="Save (Ctrl+S)"]');
       await saveButton.trigger('click');
 
       expect(wrapper.emitted('saveFile')).toBeTruthy();
@@ -120,7 +120,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const saveAsButton = wrapper.find('button[title*="Save As"]');
+      const saveAsButton = wrapper.find('button[data-tooltip-text*="Save As"]');
       await saveAsButton.trigger('click');
 
       expect(wrapper.emitted('saveFileAs')).toBeTruthy();
@@ -135,7 +135,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const pdfButton = wrapper.find('button[title="PDF"]');
+      const pdfButton = wrapper.find('button[data-tooltip-text="PDF"]');
       await pdfButton.trigger('click');
 
       expect(wrapper.emitted('exportPdf')).toBeTruthy();
@@ -191,7 +191,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const undoButton = wrapper.find('button[title*="Undo"]');
+      const undoButton = wrapper.find('button[data-tooltip-text*="Undo"]');
       expect(undoButton.attributes('disabled')).toBeDefined();
     });
 
@@ -204,7 +204,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const redoButton = wrapper.find('button[title*="Redo"]');
+      const redoButton = wrapper.find('button[data-tooltip-text*="Redo"]');
       expect(redoButton.attributes('disabled')).toBeDefined();
     });
 
@@ -217,7 +217,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const undoButton = wrapper.find('button[title*="Undo"]');
+      const undoButton = wrapper.find('button[data-tooltip-text*="Undo"]');
       expect(undoButton.attributes('disabled')).toBeUndefined();
     });
   });
@@ -234,7 +234,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const boldButton = wrapper.find('button[title*="Bold"]');
+      const boldButton = wrapper.find('button[data-tooltip-text*="Bold"]');
       expect(boldButton.classes()).toContain('active');
     });
 
@@ -249,7 +249,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const italicButton = wrapper.find('button[title*="Italic"]');
+      const italicButton = wrapper.find('button[data-tooltip-text*="Italic"]');
       expect(italicButton.classes()).toContain('active');
     });
 
@@ -264,7 +264,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const strikeButton = wrapper.find('button[title*="Strikethrough"]');
+      const strikeButton = wrapper.find('button[data-tooltip-text*="Strikethrough"]');
       expect(strikeButton.classes()).toContain('active');
     });
 
@@ -279,7 +279,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const codeButton = wrapper.find('button[title*="Inline code"]');
+      const codeButton = wrapper.find('button[data-tooltip-text*="Inline code"]');
       expect(codeButton.classes()).toContain('active');
     });
   });
@@ -296,7 +296,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const bulletButton = wrapper.find('button[title*="Bullet list"]');
+      const bulletButton = wrapper.find('button[data-tooltip-text*="Bullet list"]');
       expect(bulletButton.classes()).toContain('active');
     });
 
@@ -311,7 +311,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const orderedButton = wrapper.find('button[title*="Numbered list"]');
+      const orderedButton = wrapper.find('button[data-tooltip-text*="Numbered list"]');
       expect(orderedButton.classes()).toContain('active');
     });
 
@@ -326,7 +326,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const taskButton = wrapper.find('button[title*="Task list"]');
+      const taskButton = wrapper.find('button[data-tooltip-text*="Task list"]');
       expect(taskButton.classes()).toContain('active');
     });
   });
@@ -341,7 +341,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const tableButton = wrapper.find('button[title*="Table"]');
+      const tableButton = wrapper.find('button[data-tooltip-text*="Table"]');
       await tableButton.trigger('click');
 
       expect(wrapper.find('.dropdown-menu').exists()).toBe(true);
@@ -356,7 +356,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const tableButton = wrapper.find('button[title*="Table"]');
+      const tableButton = wrapper.find('button[data-tooltip-text*="Table"]');
       // Ensure menu is closed first
       if (wrapper.find('.dropdown-menu').exists()) {
         await tableButton.trigger('click');
@@ -381,7 +381,7 @@ describe('Toolbar Component', () => {
         },
       });
 
-      const tableButton = wrapper.find('button[title*="Table"]');
+      const tableButton = wrapper.find('button[data-tooltip-text*="Table"]');
       // Ensure menu is closed first, then open
       if (wrapper.find('.dropdown-menu').exists()) {
         await tableButton.trigger('click');

@@ -28,6 +28,7 @@ const emit = defineEmits<{
   saveFile: [];
   saveFileAs: [];
   exportPdf: [];
+  exportDocx: [];
   toggleCodeView: [];
   toggleSplit: [];
   toggleDiffPreview: [];
@@ -61,6 +62,7 @@ const emit = defineEmits<{
         @save-file="emit('saveFile')"
         @save-file-as="emit('saveFileAs')"
         @export-pdf="emit('exportPdf')"
+        @export-docx="emit('exportDocx')"
         @toggle-code-view="emit('toggleCodeView')"
         @toggle-split="emit('toggleSplit')"
         @toggle-diff-preview="emit('toggleDiffPreview')"

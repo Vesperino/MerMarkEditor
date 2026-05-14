@@ -68,14 +68,11 @@ const MAX_USER_WIDTH = 1600;
 const userWidth = computed(() => props.node.attrs.userWidth);
 
 const wrapperStyle = computed(() => {
-  const style: Record<string, string> = {
-    '--diagram-print-scale': `${diagramSize.value}%`,
-  };
-  if (userWidth.value) {
-    style.width = `${userWidth.value}px`;
-    style.maxWidth = '100%';
-  }
-  return style;
+  if (!userWidth.value) return undefined;
+  return {
+    width: `${userWidth.value}px`,
+    maxWidth: '100%',
+  } as Record<string, string>;
 });
 
 let resizeStartX = 0;
@@ -229,7 +226,6 @@ const fixMermaidViewBox = async (containerEl: HTMLElement): Promise<void> => {
   const svgEl = containerEl.querySelector('svg') as SVGSVGElement | null;
   if (!svgEl) return;
 
-  // Wait for the browser to lay out HTML content inside foreignObject elements.
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
   if (!containerEl.isConnected) return;
@@ -482,9 +478,9 @@ const renderMermaid = async () => {
     const { svg } = await mermaid.render(id, codeForRender);
     if (!containerRef.value) return;
     containerRef.value.innerHTML = svg;
-    await fixMermaidViewBox(containerRef.value);
-    if (!containerRef.value) return;
+    // Apply current size to rendered SVG
     applySvgSize();
+    await fixMermaidViewBox(containerRef.value);
     if (isDark.value) repaintMermaidDark(containerRef.value);
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t.value.diagramError;
@@ -1449,7 +1445,6 @@ watch(aiPreviewCode, () => {
 .editor-preview-content :deep(svg) {
   max-width: 100%;
   height: auto;
-  overflow: visible;
 }
 
 .btn-more-templates {
@@ -1586,7 +1581,6 @@ watch(aiPreviewCode, () => {
 .mermaid-content :deep(svg) {
   transition: width 0.2s ease, max-width 0.2s ease;
   display: block;
-  overflow: visible;
 }
 
 /* Dark mode: ensure edge paths and arrows are visible */
@@ -1776,149 +1770,6 @@ html.dark .mermaid-content :deep(svg .node g > path) {
   width: 100% !important;
   max-width: 100% !important;
   height: auto !important;
-  overflow: visible !important;
 }
 
-/* ========== Print Styles ========== */
-@media print {
-  .mermaid-wrapper {
-    border: none !important;
-    background: white !important;
-    padding: 10px 0 !important;
-    margin: 15px 0 !important;
-    page-break-inside: avoid;
-  }
-
-  .mermaid-header,
-  .mermaid-header-right,
-  .mermaid-actions,
-  .mermaid-editor,
-  .mermaid-error,
-  .zoom-controls,
-  .size-control {
-    display: none !important;
-  }
-
-  .mermaid-viewport {
-    overflow: visible !important;
-    max-height: none !important;
-    min-height: auto !important;
-    border: none !important;
-    background: white !important;
-  }
-
-  .mermaid-content {
-    display: block !important;
-    transform: none !important;
-    text-align: center !important;
-    background: white !important;
-    padding: 10px 0 !important;
-    width: 100% !important;
-  }
-
-  /* SVG root — force light background, fit to page width.
-     overflow:visible is a secondary safety net: if viewBox is still
-     slightly undersized after the getBBox() adjustment, content won't
-     be hard-clipped by the SVG viewport. */
-  .mermaid-content :deep(svg) {
-    width: var(--diagram-print-scale, 100%) !important;
-    max-width: var(--diagram-print-scale, 100%) !important;
-    height: auto !important;
-    overflow: visible !important;
-    background: white !important;
-    display: block !important;
-    margin: 0 auto !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  .mermaid-content :deep(svg *) {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* Background rect used by Mermaid dark theme */
-  .mermaid-content :deep(svg > rect),
-  .mermaid-content :deep(svg > style + rect),
-  .mermaid-content :deep(svg > g > rect) {
-    fill: white !important;
-  }
-
-  /* Text — dark on light */
-  .mermaid-content :deep(svg text),
-  .mermaid-content :deep(svg .nodeLabel),
-  .mermaid-content :deep(svg .edgeLabel .label),
-  .mermaid-content :deep(svg .label text),
-  .mermaid-content :deep(svg .legend text),
-  .mermaid-content :deep(svg tspan) {
-    fill: #333 !important;
-    color: #333 !important;
-    stroke: none !important;
-  }
-
-  /* Node shapes — light fill */
-  .mermaid-content :deep(svg .node rect),
-  .mermaid-content :deep(svg .node circle),
-  .mermaid-content :deep(svg .node ellipse),
-  .mermaid-content :deep(svg .node polygon),
-  .mermaid-content :deep(svg .node path),
-  .mermaid-content :deep(svg .label-container),
-  .mermaid-content :deep(svg .basic.label-container) {
-    fill: #f8f8f8 !important;
-    stroke: #333 !important;
-    stroke-width: 1px !important;
-  }
-
-  /* Edges and arrows */
-  .mermaid-content :deep(svg .edgePath path),
-  .mermaid-content :deep(svg .flowchart-link),
-  .mermaid-content :deep(svg path.path) {
-    stroke: #333 !important;
-    stroke-width: 1px !important;
-  }
-
-  .mermaid-content :deep(svg marker path) {
-    fill: #333 !important;
-  }
-
-  /* Edge labels */
-  .mermaid-content :deep(svg .edgeLabel) {
-    background-color: white !important;
-  }
-
-  .mermaid-content :deep(svg .edgeLabel rect) {
-    fill: white !important;
-    opacity: 1 !important;
-  }
-
-  /* Clusters / subgraphs */
-  .mermaid-content :deep(svg .cluster rect) {
-    fill: #f8f8f8 !important;
-    stroke: #ccc !important;
-  }
-
-  /* Lines (sequence diagrams etc.) */
-  .mermaid-content :deep(svg line),
-  .mermaid-content :deep(svg .messageLine0),
-  .mermaid-content :deep(svg .messageLine1) {
-    stroke: #333 !important;
-  }
-
-  /* Sequence diagram actors */
-  .mermaid-content :deep(svg .actor) {
-    stroke: #333 !important;
-    fill: #f8f8f8 !important;
-  }
-
-  /* Gantt chart */
-  .mermaid-content :deep(svg .section0),
-  .mermaid-content :deep(svg .section1) {
-    fill: #f0f0f0 !important;
-  }
-
-  .mermaid-content :deep(svg .task) {
-    stroke: #333 !important;
-    fill: #d0e0f0 !important;
-  }
-}
 </style>

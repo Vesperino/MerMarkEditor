@@ -15,6 +15,7 @@ export interface Translations {
   save: string;
   saveAs: string;
   exportPdf: string;
+  exportDocx: string;
 
   // Toolbar - Edit operations
   undo: string;
@@ -500,6 +501,77 @@ export interface Translations {
 
   // Open split-button
   openMenuTooltip: string;
+
+  // PDF export dialog
+  pdfPreviewTitle: string;
+  pdfNoPreset: string;
+  pdfBuiltinPresets: string;
+  pdfCustomPresets: string;
+  pdfSavePreset: string;
+  pdfDeletePreset: string;
+  pdfConfirmDeletePreset: string;
+  pdfPresetNamePlaceholder: string;
+  pdfSavePresetTitle: string;
+  pdfTabLayout: string;
+  pdfTabTypography: string;
+  pdfTabHeader: string;
+  pdfTabWatermark: string;
+  pdfFontSize: string;
+  pdfFontSizeXs: string;
+  pdfFontSizeS: string;
+  pdfFontSizeM: string;
+  pdfFontSizeL: string;
+  pdfFontSizeXl: string;
+  pdfMarginPreset: string;
+  pdfMarginNarrow: string;
+  pdfMarginNormal: string;
+  pdfMarginWide: string;
+  pdfMarginCustom: string;
+  pdfMarginTop: string;
+  pdfMarginRight: string;
+  pdfMarginBottom: string;
+  pdfMarginLeft: string;
+  pdfPageSize: string;
+  pdfBodyFont: string;
+  pdfHeadingFont: string;
+  pdfFontGroupSerif: string;
+  pdfFontGroupSans: string;
+  pdfFontGroupMono: string;
+  pdfFontSampleBody: string;
+  pdfFontSampleHeading: string;
+  pdfAccentColor: string;
+  pdfTableHeaderBg: string;
+  pdfHeaderEnabled: string;
+  pdfFooterEnabled: string;
+  pdfPositionLeft: string;
+  pdfPositionCenter: string;
+  pdfPositionRight: string;
+  pdfTemplateVars: string;
+  pdfShowPageNumbers: string;
+  pdfPageNumberFormat: string;
+  pdfPageNumberFormatN: string;
+  pdfPageNumberFormatNOfTotal: string;
+  pdfPageNumberFormatPageNOfTotal: string;
+  pdfPageNumberFormatPageNOfTotalLive: (n: number, total: number) => string;
+  pdfStartPageNumber: string;
+  pdfWatermarkEnabled: string;
+  pdfWatermarkText: string;
+  pdfWatermarkColor: string;
+  pdfWatermarkOpacity: (pct: number) => string;
+  pdfWatermarkRotate: (deg: number) => string;
+  pdfWatermarkSize: string;
+  pdfBtnClose: string;
+  pdfBtnPrint: string;
+  pdfBtnCancel: string;
+  pdfBtnSave: string;
+  pdfPresetReport: string;
+  pdfPresetNotes: string;
+  pdfPresetDraft: string;
+  pdfTabToc: string;
+  pdfShowToc: string;
+  pdfTocTitle: string;
+  pdfTocDepth: string;
+  pdfTocPageBreak: string;
 }
 
 const translations: Record<Locale, Translations> = {
