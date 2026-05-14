@@ -505,41 +505,73 @@ function repaintMermaidDark(container: HTMLElement): void {
   const svg = container.querySelector("svg");
   if (!svg) return;
 
-  svg.querySelectorAll<SVGElement>(".node > rect, .node > polygon, .node > ellipse, .node > circle, .node > path:not(.arrowMarkerPath), g.node rect, g.node polygon, g.node ellipse, g.node circle, g.node path:not(.arrowMarkerPath), .label-container, .basic.label-container").forEach((el) => {
+  // Nuke Mermaid's own <style> blocks — those carry the light classDef
+  // colors and would otherwise beat plain inline style. Mermaid emits
+  // them as direct children of the root svg.
+  svg.querySelectorAll("style").forEach((s) => s.remove());
+
+  const setStyleImportant = (el: SVGElement | HTMLElement, prop: string, val: string) => {
+    el.style.setProperty(prop, val, "important");
+  };
+
+  const isInsideMarker = (el: Element): boolean => !!el.closest("marker");
+
+  // 1) Every shape inside a node group — flowchart nodes, sequence
+  // actors, etc. Walk every rect/polygon/ellipse/circle/path under a
+  // .node (no matter how deep), skipping arrow-marker geometry.
+  svg.querySelectorAll<SVGElement>(
+    "g.node rect, g.node polygon, g.node ellipse, g.node circle, g.node path"
+  ).forEach((el) => {
+    if (isInsideMarker(el)) return;
     el.setAttribute("fill", DARK_NODE_FILL);
     el.setAttribute("stroke", DARK_NODE_STROKE);
-    el.style.fill = DARK_NODE_FILL;
-    el.style.stroke = DARK_NODE_STROKE;
+    setStyleImportant(el, "fill", DARK_NODE_FILL);
+    setStyleImportant(el, "stroke", DARK_NODE_STROKE);
   });
 
-  svg.querySelectorAll<SVGElement>(".cluster > rect, .cluster > polygon").forEach((el) => {
+  // 2) Free-standing label containers Mermaid emits outside .node groups.
+  svg.querySelectorAll<SVGElement>(".label-container, .basic.label-container").forEach((el) => {
+    el.setAttribute("fill", DARK_NODE_FILL);
+    el.setAttribute("stroke", DARK_NODE_STROKE);
+    setStyleImportant(el, "fill", DARK_NODE_FILL);
+    setStyleImportant(el, "stroke", DARK_NODE_STROKE);
+  });
+
+  // 3) Subgraph / cluster backgrounds — slightly darker, distinct border.
+  svg.querySelectorAll<SVGElement>(".cluster rect, .cluster polygon, .cluster path").forEach((el) => {
+    if (isInsideMarker(el)) return;
     el.setAttribute("fill", DARK_CLUSTER_FILL);
     el.setAttribute("stroke", "#6b7280");
-    el.style.fill = DARK_CLUSTER_FILL;
-    el.style.stroke = "#6b7280";
+    setStyleImportant(el, "fill", DARK_CLUSTER_FILL);
+    setStyleImportant(el, "stroke", "#6b7280");
   });
 
+  // 4) SVG <text> + <tspan> — all label text rendered as plain SVG.
   svg.querySelectorAll<SVGElement>("text, tspan").forEach((el) => {
-    if (el.closest(".arrowMarkerPath")) return;
+    if (isInsideMarker(el)) return;
     el.setAttribute("fill", DARK_TEXT);
-    el.style.fill = DARK_TEXT;
+    setStyleImportant(el, "fill", DARK_TEXT);
   });
 
-  svg.querySelectorAll<HTMLElement>("foreignObject *, .nodeLabel, .nodeLabel *, .cluster-label *, .edgeLabel *").forEach((el) => {
-    el.style.color = DARK_TEXT;
+  // 5) foreignObject labels — Mermaid renders HTML inside SVG for many
+  // diagram types. Force a light color across the entire HTML subtree.
+  svg.querySelectorAll<HTMLElement>("foreignObject *").forEach((el) => {
+    setStyleImportant(el, "color", DARK_TEXT);
     if (el.style.backgroundColor && el.style.backgroundColor !== "transparent") {
-      el.style.backgroundColor = DARK_CLUSTER_FILL;
+      setStyleImportant(el, "background-color", DARK_CLUSTER_FILL);
     }
   });
 
+  // 6) Edges and arrows.
   svg.querySelectorAll<SVGElement>(".edgePath path, .flowchart-link, path.path, line, .messageLine0, .messageLine1").forEach((el) => {
     el.setAttribute("stroke", DARK_EDGE);
-    el.style.stroke = DARK_EDGE;
+    setStyleImportant(el, "stroke", DARK_EDGE);
   });
 
-  svg.querySelectorAll<SVGElement>("marker path").forEach((el) => {
+  // 7) Arrow markers — fill, not stroke.
+  svg.querySelectorAll<SVGElement>("marker path, marker polygon").forEach((el) => {
     el.setAttribute("fill", DARK_EDGE);
-    el.style.fill = DARK_EDGE;
+    setStyleImportant(el, "fill", DARK_EDGE);
   });
 }
 
