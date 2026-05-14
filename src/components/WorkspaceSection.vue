@@ -196,6 +196,11 @@ function onHeaderDragEnd() {
   width: 12px;
   color: var(--text-faint);
   transition: transform 0.12s ease;
+  pointer-events: none;
+}
+
+.ws-section-chevron svg {
+  pointer-events: none;
 }
 
 .ws-section-chevron.expanded {

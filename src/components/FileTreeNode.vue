@@ -117,7 +117,7 @@ watch(
       :style="{ paddingLeft: indentPx }"
       :draggable="!isRoot"
       @click="onRowClick"
-      @contextmenu="onContextMenu"
+      @contextmenu.prevent.stop="onContextMenu"
       @dragstart="onDragStart"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
@@ -212,6 +212,12 @@ watch(
   justify-content: center;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+.tree-row svg,
+.tree-row .tree-icon,
+.tree-row .tree-chevron {
+  pointer-events: none;
 }
 
 .tree-row.folder .tree-icon {
