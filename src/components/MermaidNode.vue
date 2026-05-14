@@ -505,10 +505,36 @@ function repaintMermaidDark(container: HTMLElement): void {
   const svg = container.querySelector("svg");
   if (!svg) return;
 
-  // Nuke Mermaid's own <style> blocks — those carry the light classDef
-  // colors and would otherwise beat plain inline style. Mermaid emits
-  // them as direct children of the root svg.
-  svg.querySelectorAll("style").forEach((s) => s.remove());
+  // Inject a high-priority style block AFTER Mermaid's own <style>. Cascade
+  // order means later rules win on tie — combined with `!important` this
+  // beats any classDef-emitted fill without removing Mermaid's own style
+  // (which carries marker geometry / display rules we must keep).
+  const overrideStyleId = "mermark-mermaid-dark-override";
+  let overrideStyle = svg.querySelector(`style#${overrideStyleId}`);
+  if (!overrideStyle) {
+    overrideStyle = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    overrideStyle.id = overrideStyleId;
+    svg.appendChild(overrideStyle);
+  }
+  overrideStyle.textContent = `
+    g.node rect, g.node polygon, g.node ellipse, g.node circle, g.node path:not(.arrowMarkerPath),
+    .label-container, .basic.label-container {
+      fill: ${DARK_NODE_FILL} !important;
+      stroke: ${DARK_NODE_STROKE} !important;
+    }
+    .cluster rect, .cluster polygon {
+      fill: ${DARK_CLUSTER_FILL} !important;
+      stroke: #6b7280 !important;
+    }
+    text, tspan { fill: ${DARK_TEXT} !important; }
+    foreignObject *, .nodeLabel, .nodeLabel *, .cluster-label *, .edgeLabel * {
+      color: ${DARK_TEXT} !important;
+    }
+    .edgePath path:not(.arrowMarkerPath), .flowchart-link, path.path,
+    line, .messageLine0, .messageLine1 {
+      stroke: ${DARK_EDGE} !important;
+    }
+  `;
 
   const setStyleImportant = (el: SVGElement | HTMLElement, prop: string, val: string) => {
     el.style.setProperty(prop, val, "important");
@@ -562,8 +588,12 @@ function repaintMermaidDark(container: HTMLElement): void {
     }
   });
 
-  // 6) Edges and arrows.
+  // 6) Edges and arrows — strokes only. Exclude paths inside <marker>
+  // (arrow heads) so we don't paint over the marker-defined fill or add
+  // an oversized stroke that warps the arrow geometry.
   svg.querySelectorAll<SVGElement>(".edgePath path, .flowchart-link, path.path, line, .messageLine0, .messageLine1").forEach((el) => {
+    if (isInsideMarker(el)) return;
+    if (el.classList.contains("arrowMarkerPath")) return;
     el.setAttribute("stroke", DARK_EDGE);
     setStyleImportant(el, "stroke", DARK_EDGE);
   });
