@@ -16,6 +16,14 @@ describe('useAutoUpdate', () => {
     mockCheckResult.value = null;
     // Prevent real network calls via fetch
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })));
+    // The composable uses module-level singleton refs (so App.vue and the
+    // settings modal share state). Reset them between tests to avoid leakage.
+    const { showUpdateDialog, updateInfo, updateError, isUpdating, noUpdateFound } = useAutoUpdate();
+    showUpdateDialog.value = false;
+    updateInfo.value = null;
+    updateError.value = null;
+    isUpdating.value = false;
+    noUpdateFound.value = false;
   });
 
   afterEach(() => {
