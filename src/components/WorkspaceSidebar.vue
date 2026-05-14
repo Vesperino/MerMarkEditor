@@ -52,6 +52,7 @@ function closeContext() {
 // matching dialog, and run the actual fs op when the user confirms.
 type PendingAction =
   | { kind: 'new-file'; parent: string }
+  | { kind: 'new-folder'; parent: string }
   | { kind: 'rename'; from: string; originalName: string }
   | { kind: 'delete'; path: string; name: string };
 
@@ -68,6 +69,16 @@ async function onContextAction(action: WorkspaceContextAction) {
   if (action === 'new-file') {
     if (node.kind !== 'folder') return;
     pendingAction.value = { kind: 'new-file', parent: node.path };
+    return;
+  }
+  if (action === 'new-folder') {
+    if (node.kind !== 'folder') return;
+    pendingAction.value = { kind: 'new-folder', parent: node.path };
+    return;
+  }
+  if (action === 'copy-path') {
+    try { await navigator.clipboard.writeText(node.path); }
+    catch (e) { console.error('copy path:', e); }
     return;
   }
   if (action === 'rename') {
@@ -92,6 +103,18 @@ async function onConfirmNewFile(name: string) {
     emit('open-file', created);
   } catch (e) {
     console.error('createFile:', e);
+    window.alert(String(e));
+  }
+}
+
+async function onConfirmNewFolder(name: string) {
+  const a = pendingAction.value;
+  if (!a || a.kind !== 'new-folder') return;
+  pendingAction.value = null;
+  try {
+    await ws.createFolder(a.parent, name);
+  } catch (e) {
+    console.error('createFolder:', e);
     window.alert(String(e));
   }
 }
@@ -448,6 +471,19 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
       :validate="validateNewFileName"
       :select-basename="true"
       @confirm="onConfirmNewFile"
+      @cancel="dismissDialog"
+    />
+
+    <WorkspaceInputDialog
+      v-if="pendingAction?.kind === 'new-folder'"
+      :title="t.workspaceContextNewFolder"
+      :label="t.workspaceNewFolderPrompt"
+      initial-value="folder"
+      :placeholder="'folder'"
+      :confirm-label="t.create"
+      :cancel-label="t.cancel"
+      :validate="validateNewFileName"
+      @confirm="onConfirmNewFolder"
       @cancel="dismissDialog"
     />
 

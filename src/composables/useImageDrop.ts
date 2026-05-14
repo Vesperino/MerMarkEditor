@@ -21,6 +21,7 @@ export interface UseImageDropOptions {
   codeEditorTextarea: () => HTMLTextAreaElement | null;
   activeFilePath: () => string | null;
   findVisualTargetAt: (x: number, y: number) => ImageDropTarget | null;
+  onImagesImported?: () => void;
   onError?: (message: string) => void;
 }
 
@@ -35,10 +36,11 @@ export function useImageDrop(options: UseImageDropOptions): UseImageDropReturn {
 
     if (options.codeView.value) {
       await insertIntoTextarea(imagePaths, options);
-      return;
+    } else {
+      await insertIntoVisualPane(imagePaths, position, options);
     }
 
-    await insertIntoVisualPane(imagePaths, position, options);
+    options.onImagesImported?.();
   };
 
   return { handleDrop };

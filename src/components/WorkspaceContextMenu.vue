@@ -2,7 +2,13 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from '../i18n';
 
-export type WorkspaceContextAction = 'new-file' | 'rename' | 'delete' | 'reveal';
+export type WorkspaceContextAction =
+  | 'new-file'
+  | 'new-folder'
+  | 'rename'
+  | 'delete'
+  | 'reveal'
+  | 'copy-path';
 
 const { t } = useI18n();
 
@@ -76,8 +82,18 @@ const handle = (action: WorkspaceContextAction) => {
       >
         {{ t.workspaceContextNewFile }}
       </button>
+      <button
+        v-if="kind === 'folder'"
+        class="context-menu-item"
+        @click="handle('new-folder')"
+      >
+        {{ t.workspaceContextNewFolder }}
+      </button>
       <button class="context-menu-item" @click="handle('rename')">
         {{ t.workspaceContextRename }}
+      </button>
+      <button class="context-menu-item" @click="handle('copy-path')">
+        {{ t.workspaceContextCopyPath }}
       </button>
       <button class="context-menu-item" @click="handle('reveal')">
         {{ t.workspaceContextRevealInOs }}

@@ -504,6 +504,7 @@ const { handleDrop: handleImageDrop } = useImageDrop({
   codeEditorTextarea: getCodeTextarea,
   activeFilePath: () => activeTab.value?.filePath ?? null,
   findVisualTargetAt: (x, y) => splitContainerRef.value?.findVisualTargetAt?.(x, y) ?? null,
+  onImagesImported: () => { void workspace.refreshAll(); },
 });
 
 const scrollCodeMatchIntoView = (textarea: HTMLTextAreaElement, match: DocumentSearchMatch) => {

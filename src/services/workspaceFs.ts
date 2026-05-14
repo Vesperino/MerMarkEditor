@@ -33,6 +33,10 @@ export const workspaceFs = {
   createFile: (parent: string, name: string): Promise<string> =>
     invoke<string>('create_md_file', { parent, name }),
 
+  /** Create an empty folder under `parent`. */
+  createFolder: (parent: string, name: string): Promise<string> =>
+    invoke<string>('create_folder', { parent, name }),
+
   /** Move/rename a file or folder. */
   rename: (from: string, to: string): Promise<void> =>
     invoke<void>('rename_path', { from, to }),

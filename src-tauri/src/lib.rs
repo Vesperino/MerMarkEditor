@@ -301,6 +301,17 @@ fn is_workspace_markdown(name: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".mdx")
 }
 
+fn is_workspace_image(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp"]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+}
+
+fn is_workspace_visible(name: &str) -> bool {
+    is_workspace_markdown(name) || is_workspace_image(name)
+}
+
 fn is_workspace_hidden(name: &str) -> bool {
     name.starts_with('.') || name == "node_modules"
 }
@@ -346,7 +357,7 @@ fn read_workspace_subtree(path: &Path, depth: usize) -> Result<WorkspaceNode, St
             if entry_type.is_dir() {
                 folders.push(entry_path);
             } else if entry_type.is_file() {
-                if is_workspace_markdown(&entry_name) {
+                if is_workspace_visible(&entry_name) {
                     files.push(entry_path);
                 }
             }
@@ -421,6 +432,27 @@ fn create_md_file(parent: String, name: String) -> Result<String, String> {
         return Err(format!("file already exists: {}", full.display()));
     }
     std::fs::write(&full, "").map_err(|e| format!("create file: {}", e))?;
+    Ok(full.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn create_folder(parent: String, name: String) -> Result<String, String> {
+    let parent_path = Path::new(&parent);
+    if !parent_path.is_dir() {
+        return Err(format!("parent is not a directory: {}", parent));
+    }
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("folder name cannot be empty".into());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("folder name cannot contain path separators".into());
+    }
+    let full = parent_path.join(trimmed);
+    if full.exists() {
+        return Err(format!("folder already exists: {}", full.display()));
+    }
+    std::fs::create_dir(&full).map_err(|e| format!("create folder: {}", e))?;
     Ok(full.to_string_lossy().into_owned())
 }
 
@@ -727,6 +759,7 @@ pub fn run() {
             list_system_fonts,
             read_workspace_tree,
             create_md_file,
+            create_folder,
             rename_path,
             delete_path,
             reveal_in_os,

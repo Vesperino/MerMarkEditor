@@ -249,6 +249,12 @@ export function useWorkspace() {
     return created;
   }
 
+  async function createFolder(parent: string, name: string): Promise<string> {
+    const created = await workspaceFs.createFolder(parent, name);
+    await refreshAll();
+    return created;
+  }
+
   async function renamePath(from: string, to: string): Promise<void> {
     await workspaceFs.rename(from, to);
     await refreshAll();
@@ -405,6 +411,7 @@ export function useWorkspace() {
 
     // File operations
     createFile,
+    createFolder,
     renamePath,
     deletePath,
     revealInOs,
