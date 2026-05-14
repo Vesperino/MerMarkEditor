@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { getVersion } from '@tauri-apps/api/app';
 import { markdownToHtml } from '../utils/markdown-converter';
 import { useI18n } from '../i18n';
+import '../styles/release-notes.css';
 
 const { t } = useI18n();
 
@@ -110,7 +111,7 @@ onUnmounted(() => {
         <div v-else-if="hasError" class="whats-new-error">
           {{ t.changelogError }}
         </div>
-        <div v-else class="whats-new-content" v-html="renderedHtml"></div>
+        <div v-else class="release-notes-content" v-html="renderedHtml"></div>
       </div>
     </div>
   </div>
@@ -192,97 +193,5 @@ onUnmounted(() => {
 
 .whats-new-error {
   color: var(--error-color);
-}
-</style>
-
-<style>
-/* Unscoped styles for rendered markdown content */
-.whats-new-content {
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.whats-new-content h1,
-.whats-new-content h2,
-.whats-new-content h3 {
-  color: var(--text-primary);
-  margin: 1.2em 0 0.5em;
-  font-weight: 600;
-}
-
-.whats-new-content h1:first-child,
-.whats-new-content h2:first-child,
-.whats-new-content h3:first-child {
-  margin-top: 0;
-}
-
-.whats-new-content h1 { font-size: 1.4em; }
-.whats-new-content h2 { font-size: 1.2em; }
-.whats-new-content h3 { font-size: 1.05em; }
-
-.whats-new-content p {
-  margin: 0.6em 0;
-}
-
-.whats-new-content ul,
-.whats-new-content ol {
-  margin: 0.6em 0;
-  padding-left: 1.5em;
-}
-
-.whats-new-content li {
-  margin: 0.3em 0;
-}
-
-.whats-new-content code {
-  background: var(--code-inline-bg, rgba(0,0,0,0.1));
-  padding: 2px 5px;
-  border-radius: 3px;
-  font-size: 0.9em;
-}
-
-.whats-new-content pre {
-  background: var(--code-block-bg);
-  padding: 12px 16px;
-  border-radius: 6px;
-  overflow-x: auto;
-  margin: 0.8em 0;
-}
-
-.whats-new-content pre code {
-  background: none;
-  padding: 0;
-}
-
-.whats-new-content img {
-  max-width: 100%;
-  border-radius: 8px;
-  margin: 0.8em 0;
-  border: 1px solid var(--border-primary);
-}
-
-.whats-new-content a {
-  color: var(--primary);
-  text-decoration: none;
-}
-
-.whats-new-content a:hover {
-  text-decoration: underline;
-}
-
-.whats-new-content blockquote {
-  border-left: 3px solid var(--primary);
-  margin: 0.8em 0;
-  padding: 0.5em 1em;
-  color: var(--text-muted);
-  background: var(--bg-secondary);
-  border-radius: 0 6px 6px 0;
-}
-
-.whats-new-content hr {
-  border: none;
-  border-top: 1px solid var(--border-primary);
-  margin: 1em 0;
 }
 </style>
