@@ -263,26 +263,37 @@ const renderPreview = async () => {
 
   mermaid.initialize({
     startOnLoad: false,
-    theme: isDark.value ? "dark" : "default",
+    theme: "base",
     securityLevel: "loose",
     themeVariables: isDark.value
       ? {
-          primaryColor: "#2d3748",
-          primaryTextColor: "#e2e8f0",
-          primaryBorderColor: "#9ca3af",
-          lineColor: "#9ca3af",
-          secondaryColor: "#374151",
-          tertiaryColor: "#1f2937",
+          // Dark palette — overrides every Mermaid "base" theme color so
+          // diagrams stay legible even when the markdown ships its own
+          // classDef fill:#... declarations.
           background: "#1a202c",
+          primaryColor: "#2d3748",
+          primaryTextColor: "#f1f5f9",
+          primaryBorderColor: "#94a3b8",
+          secondaryColor: "#374151",
+          secondaryTextColor: "#f1f5f9",
+          secondaryBorderColor: "#94a3b8",
+          tertiaryColor: "#1f2937",
+          tertiaryTextColor: "#f1f5f9",
+          tertiaryBorderColor: "#94a3b8",
           mainBkg: "#2d3748",
           secondBkg: "#374151",
-          textColor: "#e2e8f0",
-          nodeTextColor: "#e2e8f0",
-          edgeLabelBackground: "#1f2937",
-          clusterBkg: "rgba(45, 55, 72, 0.4)",
+          tertiaryBkg: "#1f2937",
+          nodeBorder: "#94a3b8",
+          clusterBkg: "#1f2937",
           clusterBorder: "#6b7280",
-          titleColor: "#e2e8f0",
-          labelTextColor: "#e2e8f0",
+          defaultLinkColor: "#cbd5e1",
+          titleColor: "#f1f5f9",
+          edgeLabelBackground: "#1f2937",
+          textColor: "#f1f5f9",
+          nodeTextColor: "#f1f5f9",
+          lineColor: "#cbd5e1",
+          labelTextColor: "#f1f5f9",
+          labelBackground: "#1f2937",
         }
       : undefined,
   });
@@ -299,6 +310,7 @@ const renderPreview = async () => {
     const { svg } = await mermaid.render(id, codeForRender);
     previewContainerRef.value.innerHTML = svg;
     await fixMermaidViewBox(previewContainerRef.value);
+    if (isDark.value) repaintMermaidDark(previewContainerRef.value);
   } catch (e: unknown) {
     previewError.value = e instanceof Error ? e.message : t.value.diagramError;
     previewContainerRef.value.innerHTML = "";
@@ -422,26 +434,37 @@ const renderMermaid = async () => {
 
   mermaid.initialize({
     startOnLoad: false,
-    theme: isDark.value ? "dark" : "default",
+    theme: "base",
     securityLevel: "loose",
     themeVariables: isDark.value
       ? {
-          primaryColor: "#2d3748",
-          primaryTextColor: "#e2e8f0",
-          primaryBorderColor: "#9ca3af",
-          lineColor: "#9ca3af",
-          secondaryColor: "#374151",
-          tertiaryColor: "#1f2937",
+          // Dark palette — overrides every Mermaid "base" theme color so
+          // diagrams stay legible even when the markdown ships its own
+          // classDef fill:#... declarations.
           background: "#1a202c",
+          primaryColor: "#2d3748",
+          primaryTextColor: "#f1f5f9",
+          primaryBorderColor: "#94a3b8",
+          secondaryColor: "#374151",
+          secondaryTextColor: "#f1f5f9",
+          secondaryBorderColor: "#94a3b8",
+          tertiaryColor: "#1f2937",
+          tertiaryTextColor: "#f1f5f9",
+          tertiaryBorderColor: "#94a3b8",
           mainBkg: "#2d3748",
           secondBkg: "#374151",
-          textColor: "#e2e8f0",
-          nodeTextColor: "#e2e8f0",
-          edgeLabelBackground: "#1f2937",
-          clusterBkg: "rgba(45, 55, 72, 0.4)",
+          tertiaryBkg: "#1f2937",
+          nodeBorder: "#94a3b8",
+          clusterBkg: "#1f2937",
           clusterBorder: "#6b7280",
-          titleColor: "#e2e8f0",
-          labelTextColor: "#e2e8f0",
+          defaultLinkColor: "#cbd5e1",
+          titleColor: "#f1f5f9",
+          edgeLabelBackground: "#1f2937",
+          textColor: "#f1f5f9",
+          nodeTextColor: "#f1f5f9",
+          lineColor: "#cbd5e1",
+          labelTextColor: "#f1f5f9",
+          labelBackground: "#1f2937",
         }
       : undefined,
   });
@@ -462,11 +485,63 @@ const renderMermaid = async () => {
     await fixMermaidViewBox(containerRef.value);
     if (!containerRef.value) return;
     applySvgSize();
+    if (isDark.value) repaintMermaidDark(containerRef.value);
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t.value.diagramError;
     if (containerRef.value) containerRef.value.innerHTML = "";
   }
 };
+
+// Post-process the rendered SVG to force a dark palette. Mermaid's inline
+// <style> + classDef styles win against scoped CSS, so we walk the DOM and
+// set attributes/inline styles directly — that wins against everything.
+const DARK_NODE_FILL = "#2d3748";
+const DARK_NODE_STROKE = "#94a3b8";
+const DARK_CLUSTER_FILL = "#1f2937";
+const DARK_TEXT = "#f1f5f9";
+const DARK_EDGE = "#cbd5e1";
+
+function repaintMermaidDark(container: HTMLElement): void {
+  const svg = container.querySelector("svg");
+  if (!svg) return;
+
+  svg.querySelectorAll<SVGElement>(".node > rect, .node > polygon, .node > ellipse, .node > circle, .node > path:not(.arrowMarkerPath), g.node rect, g.node polygon, g.node ellipse, g.node circle, g.node path:not(.arrowMarkerPath), .label-container, .basic.label-container").forEach((el) => {
+    el.setAttribute("fill", DARK_NODE_FILL);
+    el.setAttribute("stroke", DARK_NODE_STROKE);
+    el.style.fill = DARK_NODE_FILL;
+    el.style.stroke = DARK_NODE_STROKE;
+  });
+
+  svg.querySelectorAll<SVGElement>(".cluster > rect, .cluster > polygon").forEach((el) => {
+    el.setAttribute("fill", DARK_CLUSTER_FILL);
+    el.setAttribute("stroke", "#6b7280");
+    el.style.fill = DARK_CLUSTER_FILL;
+    el.style.stroke = "#6b7280";
+  });
+
+  svg.querySelectorAll<SVGElement>("text, tspan").forEach((el) => {
+    if (el.closest(".arrowMarkerPath")) return;
+    el.setAttribute("fill", DARK_TEXT);
+    el.style.fill = DARK_TEXT;
+  });
+
+  svg.querySelectorAll<HTMLElement>("foreignObject *, .nodeLabel, .nodeLabel *, .cluster-label *, .edgeLabel *").forEach((el) => {
+    el.style.color = DARK_TEXT;
+    if (el.style.backgroundColor && el.style.backgroundColor !== "transparent") {
+      el.style.backgroundColor = DARK_CLUSTER_FILL;
+    }
+  });
+
+  svg.querySelectorAll<SVGElement>(".edgePath path, .flowchart-link, path.path, line, .messageLine0, .messageLine1").forEach((el) => {
+    el.setAttribute("stroke", DARK_EDGE);
+    el.style.stroke = DARK_EDGE;
+  });
+
+  svg.querySelectorAll<SVGElement>("marker path").forEach((el) => {
+    el.setAttribute("fill", DARK_EDGE);
+    el.style.fill = DARK_EDGE;
+  });
+}
 
 onMounted(() => {
   renderMermaid();
