@@ -151,7 +151,7 @@ watch(
         selected: isSelectedRow,
       }"
       :style="{ paddingLeft: indentPx }"
-      :draggable="!isRoot"
+      draggable="true"
       @click="onRowClick"
       @dblclick="onRowDblClick"
       @contextmenu.prevent.stop="onContextMenu"
