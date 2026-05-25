@@ -474,6 +474,7 @@ export interface Translations {
   sortModifiedAsc: string;
   sortInherit: string;
   workspaceViewChanges: string;
+  workspaceItemsLabel: string;
   activeWorkspaceContext: string;
   workspaceEmptyRecentHint: string;
   workspaceQuickSwitcher: string;

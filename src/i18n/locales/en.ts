@@ -468,6 +468,7 @@ const en: Translations = {
   sortModifiedAsc: 'Modified: oldest',
   sortInherit: 'Default (inherit)',
   workspaceViewChanges: 'View changes',
+  workspaceItemsLabel: 'items',
   activeWorkspaceContext: 'active',
   workspaceEmptyRecentHint: 'Tip: open the search icon to switch between recent workspaces.',
   workspaceQuickSwitcher: 'Switch workspace (Ctrl+Shift+E)',

@@ -468,6 +468,7 @@ const zhCN: Translations = {
   sortModifiedAsc: '修改：最旧',
   sortInherit: '默认（继承）',
   workspaceViewChanges: '查看更改',
+  workspaceItemsLabel: '项',
   activeWorkspaceContext: '活动',
   workspaceEmptyRecentHint: '提示：点击搜索图标以在最近的工作区之间切换。',
   workspaceQuickSwitcher: '切换工作区 (Ctrl+Shift+E)',

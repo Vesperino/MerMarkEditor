@@ -153,7 +153,19 @@ async function onContextAction(action: WorkspaceContextAction) {
     return;
   }
   if (action === 'delete') {
-    pendingAction.value = { kind: 'delete', path: node.path, name: node.name };
+    // When the right-clicked row is part of a multi-selection, delete the
+    // whole selection (matches the Delete-key behaviour and Explorer/VS).
+    const selected = ws.selectedPaths.value;
+    if (selected.size > 1 && selected.has(node.path)) {
+      const paths = Array.from(selected);
+      pendingAction.value = {
+        kind: 'delete-many',
+        paths,
+        name: `${paths.length} ${t.value.workspaceItemsLabel}`,
+      };
+    } else {
+      pendingAction.value = { kind: 'delete', path: node.path, name: node.name };
+    }
   }
 }
 
@@ -478,7 +490,7 @@ function onKeyDown(e: KeyboardEvent) {
   const paths = Array.from(ws.selectedPaths.value);
   // Multi delete dialog: reuse single confirm. Name shows count if >1.
   const first = paths[0].split(/[/\\]/).pop() || paths[0];
-  const label = paths.length === 1 ? first : `${paths.length} elementów`;
+  const label = paths.length === 1 ? first : `${paths.length} ${t.value.workspaceItemsLabel}`;
   pendingAction.value = { kind: 'delete-many', paths, name: label };
 }
 

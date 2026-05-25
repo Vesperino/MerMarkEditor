@@ -468,6 +468,7 @@ const pl: Translations = {
   sortModifiedAsc: 'Modyfikacja: najstarsze',
   sortInherit: 'Domyślne (dziedzicz)',
   workspaceViewChanges: 'Pokaż zmiany',
+  workspaceItemsLabel: 'elementów',
   activeWorkspaceContext: 'aktywny',
   workspaceEmptyRecentHint: 'Wskazówka: kliknij ikonę lupy, aby przełączać między ostatnimi obszarami.',
   workspaceQuickSwitcher: 'Przełącz obszar (Ctrl+Shift+E)',
