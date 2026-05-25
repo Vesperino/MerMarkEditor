@@ -387,6 +387,15 @@ const widthPx = computed(() => `${ws.sidebarWidth.value}px`);
 const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
 
 const sidebarEl = ref<HTMLElement | null>(null);
+const headerMenuRoot = ref<HTMLElement | null>(null);
+
+// Close the header (3-dots) menu when clicking anywhere outside it.
+function onDocMouseDown(e: MouseEvent) {
+  if (!showHeaderMenu.value) return;
+  const target = e.target as Node | null;
+  if (headerMenuRoot.value && target && headerMenuRoot.value.contains(target)) return;
+  showHeaderMenu.value = false;
+}
 
 // Click outside any row clears the selection. Children with stopPropagation
 // (rows) won't trigger this. Folder/file rows handle their own selection.
@@ -414,9 +423,11 @@ function onKeyDown(e: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
+  document.addEventListener('mousedown', onDocMouseDown);
 });
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown);
+  document.removeEventListener('mousedown', onDocMouseDown);
 });
 </script>
 
@@ -471,6 +482,7 @@ onBeforeUnmount(() => {
         </svg>
       </button>
 
+      <div ref="headerMenuRoot" class="ws-header-menu-root">
       <button
         class="ws-header-btn"
         v-tooltip="t.workspace"
@@ -502,6 +514,7 @@ onBeforeUnmount(() => {
             {{ r.split(/[\/\\]/).filter(Boolean).slice(-1)[0] || r }}
           </button>
         </template>
+      </div>
       </div>
     </header>
 
@@ -690,6 +703,12 @@ onBeforeUnmount(() => {
 .ws-header-btn:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+
+/* Wrapper has no box so the flex header layout and the absolute menu
+   positioning are unaffected; it only exists as a click-outside boundary. */
+.ws-header-menu-root {
+  display: contents;
 }
 
 .ws-menu {
