@@ -323,6 +323,30 @@ img {
   page-break-before: always !important;
 }
 
+/* Real page breaks only happen at print time, so the on-screen PDF preview
+   shows nothing where a break sits. Draw a labelled divider in screen media
+   so the user can see where pages will split. Print media keeps the marker
+   invisible (the @page break does the real work). */
+@media screen {
+  .page-break {
+    height: auto;
+    margin: 1.4em 0;
+    border-top: 1px dashed #b8c0c8;
+    position: relative;
+    text-align: center;
+  }
+  .page-break::after {
+    content: "PAGE BREAK";
+    position: relative;
+    top: -0.7em;
+    background: #ffffff;
+    padding: 0 8px;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: #8a949e;
+  }
+}
+
 /* ===== Task lists ===== */
 .task-cb {
   font-family: "Segoe UI Symbol", "Apple Color Emoji", sans-serif;
