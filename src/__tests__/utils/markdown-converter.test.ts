@@ -211,17 +211,28 @@ describe('htmlToMarkdown', () => {
     });
 
     it('serializes nested task lists with indentation (issue #95)', () => {
+      // Real TipTap shape: the nested <ul> lives INSIDE the content <div>.
       const html = '<ul data-type="taskList">' +
-        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>task 1</p></div>' +
+        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>task 1</p>' +
         '<ul data-type="taskList">' +
         '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>task 1a</p></div></li>' +
         '<li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked></label><div><p>task 1b</p></div></li>' +
-        '</ul></li></ul>';
+        '</ul></div></li></ul>';
       const result = htmlToMarkdown(html);
       expect(result).toBe('- [ ] task 1\n  - [ ] task 1a\n  - [x] task 1b');
-      // No leftover tags from the old non-greedy </ul> match.
+      // No leftover tags / flattened "task 1task 1a" concatenation.
       expect(result).not.toContain('</li>');
       expect(result).not.toContain('</ul>');
+      expect(result).not.toContain('task 1task');
+    });
+
+    it('serializes a 3-level nested checklist without flattening (issue #95)', () => {
+      const html = '<ul data-type="taskList">' +
+        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>parent</p>' +
+        '<ul data-type="taskList"><li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked></label><div><p>child</p>' +
+        '<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>grandchild</p></div></li></ul>' +
+        '</div></li></ul></div></li></ul>';
+      expect(htmlToMarkdown(html)).toBe('- [ ] parent\n  - [x] child\n    - [ ] grandchild');
     });
   });
 

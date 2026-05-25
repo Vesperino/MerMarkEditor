@@ -104,19 +104,36 @@ export function parseHtmlList(html: string, indent = 0, isOrdered = false, start
     let textContent = liContent;
     let nestedListHtml = '';
 
-    const nestedUlMatch = liContent.match(/<ul[^>]*>([\s\S]*)<\/ul>\s*$/i);
-    const nestedOlMatch = liContent.match(/<ol[^>]*>([\s\S]*)<\/ol>\s*$/i);
+    // Locate the FIRST nested list anywhere in the item (not just at the end).
+    // TipTap wraps task-item content in a <div> and puts the nested <ul>
+    // inside it, so the list no longer sits flush against </li> — an
+    // end-anchored match missed it and the nested text got flattened into the
+    // parent (issue #95: "parentchild").
+    const ulIdx = liContent.search(/<ul[\s>]/i);
+    const olIdx = liContent.search(/<ol[\s>]/i);
+    let nestedStart = -1;
+    let nestedIsOrdered = false;
+    if (ulIdx !== -1 && (olIdx === -1 || ulIdx < olIdx)) {
+      nestedStart = ulIdx;
+    } else if (olIdx !== -1) {
+      nestedStart = olIdx;
+      nestedIsOrdered = true;
+    }
 
-    if (nestedUlMatch) {
-      textContent = liContent.slice(0, liContent.indexOf('<ul'));
-      nestedListHtml = nestedUlMatch[0];
-    } else if (nestedOlMatch) {
-      textContent = liContent.slice(0, liContent.indexOf('<ol'));
-      nestedListHtml = nestedOlMatch[0];
+    if (nestedStart !== -1) {
+      textContent = liContent.slice(0, nestedStart);
+      const openTag = nestedIsOrdered ? '<ol' : '<ul';
+      const closeTag = nestedIsOrdered ? '</ol>' : '</ul>';
+      const tagOpenEnd = liContent.indexOf('>', nestedStart) + 1;
+      const closePos = findMatchingCloseTag(liContent, openTag, closeTag, tagOpenEnd);
+      if (closePos !== -1) {
+        nestedListHtml = `${openTag}>${liContent.slice(tagOpenEnd, closePos)}${closeTag}`;
+      }
     }
 
     textContent = textContent
       .replace(/<label[^>]*>[\s\S]*?<\/label>/gi, '')
+      .replace(/<\/?div[^>]*>/gi, '')
       .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1');
 
     // Separate protected block placeholders from text content
