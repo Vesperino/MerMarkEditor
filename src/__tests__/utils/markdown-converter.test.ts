@@ -209,6 +209,20 @@ describe('htmlToMarkdown', () => {
       expect(result).toContain('- [ ] Todo');
       expect(result).toContain('- [x] Done');
     });
+
+    it('serializes nested task lists with indentation (issue #95)', () => {
+      const html = '<ul data-type="taskList">' +
+        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>task 1</p></div>' +
+        '<ul data-type="taskList">' +
+        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>task 1a</p></div></li>' +
+        '<li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked></label><div><p>task 1b</p></div></li>' +
+        '</ul></li></ul>';
+      const result = htmlToMarkdown(html);
+      expect(result).toBe('- [ ] task 1\n  - [ ] task 1a\n  - [x] task 1b');
+      // No leftover tags from the old non-greedy </ul> match.
+      expect(result).not.toContain('</li>');
+      expect(result).not.toContain('</ul>');
+    });
   });
 
   describe('tables', () => {
@@ -382,6 +396,21 @@ describe('markdownToHtml', () => {
       expect(result).toContain('data-type="taskItem"');
       expect(result).toContain('data-checked="false"');
       expect(result).toContain('data-checked="true"');
+    });
+
+    it('parses indented task items into a nested task list (issue #95)', () => {
+      const md = '- [ ] task 1\n  - [ ] task 1a\n  - [x] task 1b';
+      const result = markdownToHtml(md);
+      // The inner items live inside a second nested taskList <ul>.
+      expect((result.match(/data-type="taskList"/g) || []).length).toBe(2);
+      expect((result.match(/data-type="taskItem"/g) || []).length).toBe(3);
+      expect(result).toContain('task 1a');
+      expect(result).toContain('data-checked="true"');
+    });
+
+    it('round-trips indented task lists md → html → md (issue #95)', () => {
+      const md = '- [ ] task 1\n  - [ ] task 1a\n  - [x] task 1b\n  - [ ] task 1c';
+      expect(htmlToMarkdown(markdownToHtml(md))).toBe(md);
     });
   });
 

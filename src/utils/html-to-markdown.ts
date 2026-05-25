@@ -219,9 +219,12 @@ function findMatchingCloseTag(html: string, openTag: string, closeTag: string, s
 export function processHtmlLists(html: string): string {
   let result = html;
 
-  // Process unordered lists with proper nesting support
+  // Process unordered lists with proper nesting support. Task lists are
+  // ordinary <ul data-type="taskList"> elements — parseHtmlList detects the
+  // per-item data-type="taskItem" and emits `- [ ]`, so they're handled by
+  // the same balanced walk (no separate non-greedy pass that broke nesting).
   let ulMatch;
-  const ulRegex = /<ul(?![^>]*data-type=["']taskList["'])[^>]*>/gi;
+  const ulRegex = /<ul[^>]*>/gi;
 
   while ((ulMatch = ulRegex.exec(result)) !== null) {
     const startPos = ulMatch.index;

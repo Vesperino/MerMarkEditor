@@ -23,7 +23,7 @@ export {
 } from './footnote-utils';
 
 import { decodeHtmlEntities, escapeHtml } from './html-entities';
-import { convertInlineToMarkdown, extractMermaidCode, parseHtmlList, processHtmlLists } from './html-to-markdown';
+import { convertInlineToMarkdown, extractMermaidCode, processHtmlLists } from './html-to-markdown';
 import {
   parseMarkdownLists,
   convertMarkdownTables,
@@ -130,12 +130,10 @@ export function htmlToMarkdown(html: string): string {
     return result + '\n';
   });
 
-  // Task lists
-  md = md.replace(/<ul[^>]*data-type=["']taskList["'][^>]*>([\s\S]*?)<\/ul>/gi, (match) => {
-    const content = match.replace(/^<ul[^>]*>([\s\S]*)<\/ul>$/i, '$1');
-    return '\n' + parseHtmlList(content, 0, false);
-  });
-
+  // Lists (regular + task). processHtmlLists walks every <ul>/<ol> with
+  // balanced open/close matching, so nested task lists serialize correctly.
+  // (A previous separate task-list pass used a non-greedy `</ul>` regex that
+  // stopped at the first nested close tag — issue #95.)
   md = processHtmlLists(md);
 
   // Headers
@@ -270,12 +268,9 @@ export function markdownToHtml(md: string): string {
   // Tables
   html = convertMarkdownTables(html);
 
-  // Task lists
-  html = html.replace(/^- \[([ x])\] (.*)$/gim, (_, checked, text) => {
-    const isChecked = checked === 'x';
-    return `<li data-type="taskItem" data-checked="${isChecked}"><label><input type="checkbox" ${isChecked ? 'checked' : ''}></label><p>${text}</p></li>`;
-  });
-  html = html.replace(/(<li data-type="taskItem"[^>]*>[\s\S]*?<\/li>\n?)+/g, '<ul data-type="taskList">$&</ul>');
+  // Task lists are handled inside parseMarkdownLists (below) so indented /
+  // nested checklist items parse correctly (issue #95) — same nesting engine
+  // as bullet/ordered lists.
 
   // Headers
   html = convertMarkdownHeaders(html);
