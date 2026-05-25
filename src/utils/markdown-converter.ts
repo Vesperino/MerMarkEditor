@@ -153,8 +153,11 @@ export function htmlToMarkdown(html: string): string {
     return `\n> ${text}\n\n`;
   });
 
-  // Page breaks
-  md = md.replace(/<div[^>]*class=["']page-break["'][^>]*>\s*<\/div>/gi, '\n<div style="page-break-after: always;"></div>\n');
+  // Page breaks — convert to a text marker that survives the generic
+  // "strip remaining <div>" pass below (which would otherwise delete the
+  // page-break div and lose it on save/reload). Restored to its persisted
+  // HTML form after that strip.
+  md = md.replace(/<div[^>]*class=["']page-break["'][^>]*>\s*<\/div>/gi, '\n__PAGE_BREAK_MARKER__\n');
 
   // Horizontal rule
   md = md.replace(/<hr[^>]*\/?>/gi, '\n---\n');
@@ -204,6 +207,9 @@ export function htmlToMarkdown(html: string): string {
   // Remove remaining tags
   md = md.replace(/<span[^>]*>(.*?)<\/span>/gi, '$1');
   md = md.replace(/<\/?div[^>]*>/gi, '\n');
+
+  // Restore page breaks now that the blanket div strip has run.
+  md = md.replace(/__PAGE_BREAK_MARKER__/g, '<div style="page-break-after: always;"></div>');
 
   md = decodeHtmlEntities(md);
 

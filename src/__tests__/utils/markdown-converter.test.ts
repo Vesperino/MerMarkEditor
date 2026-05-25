@@ -252,6 +252,25 @@ describe('htmlToMarkdown', () => {
   });
 });
 
+describe('page breaks', () => {
+  it('serializes a page-break node to a persistent style div', () => {
+    const md = htmlToMarkdown('<p>a</p><div class="page-break"></div><p>b</p>');
+    expect(md).toContain('<div style="page-break-after: always;"></div>');
+  });
+
+  it('round-trips a page break through save and reload', () => {
+    const original = '<h1>One</h1><div class="page-break"></div><h1>Two</h1>';
+    const md = htmlToMarkdown(original);
+    const back = markdownToHtml(md);
+    expect(back).toContain('class="page-break"');
+  });
+
+  it('restores a saved page-break style div on load', () => {
+    const html = markdownToHtml('a\n\n<div style="page-break-after: always;"></div>\n\nb');
+    expect(html).toContain('class="page-break"');
+  });
+});
+
 describe('markdownToHtml', () => {
   describe('headers', () => {
     it('converts markdown headers to HTML', () => {
