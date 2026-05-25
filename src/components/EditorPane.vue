@@ -28,6 +28,7 @@ const emit = defineEmits<{
   linkClick: [href: string];
   focus: [];
   dropFile: [filePath: string];
+  openDroppedFiles: [files: File[]];
 }>();
 
 const WS_NODE_MIME = 'application/x-mermark-ws-node';
@@ -105,18 +106,34 @@ function isWorkspaceDrag(dt: DataTransfer | null): boolean {
   return Array.from(dt.types as unknown as Iterable<string>).includes(WS_NODE_MIME);
 }
 
+// True for OS file drags (Explorer/Finder/other apps). These carry a "Files"
+// entry in dataTransfer.types. The actual file handling happens in the editor
+// (ProseMirror handleDrop) — here we only need to let the drop through by
+// preventing the default "no-drop" behavior on the pane chrome.
+function isOsFileDrag(dt: DataTransfer | null): boolean {
+  if (!dt) return false;
+  return Array.from(dt.types as unknown as Iterable<string>).includes('Files');
+}
+
 const handleFileDragEnter = (e: DragEvent) => {
-  if (!isWorkspaceDrag(e.dataTransfer)) return;
+  const osFile = isOsFileDrag(e.dataTransfer);
+  if (!isWorkspaceDrag(e.dataTransfer) && !osFile) return;
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-  isFileDragOver.value = true;
+  // Only paint the pane-wide overlay for workspace drags; OS file drops are
+  // handled inline by the editor at the cursor, no full-pane highlight.
+  if (!osFile) isFileDragOver.value = true;
 };
 
 const handleFileDragOver = (e: DragEvent) => {
-  if (!isWorkspaceDrag(e.dataTransfer)) return;
+  const osFile = isOsFileDrag(e.dataTransfer);
+  if (!isWorkspaceDrag(e.dataTransfer) && !osFile) return;
   e.preventDefault();
-  e.stopPropagation();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  // For OS file drags, don't stopPropagation — the event must reach the
+  // editor (ProseMirror handleDrop) which does the actual import/insert.
+  if (osFile) return;
+  e.stopPropagation();
   isFileDragOver.value = true;
 };
 
@@ -215,6 +232,7 @@ defineExpose({
         @update:model-value="handleContentUpdate"
         @update:has-changes="handleChangesUpdate"
         @link-click="handleLinkClick"
+        @open-dropped-files="(files) => emit('openDroppedFiles', files)"
       />
 
       <!-- Empty state - shown when no tabs -->

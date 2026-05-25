@@ -6,7 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { writeTextFile, exists, readTextFile, remove } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
-import { htmlToMarkdown, detectLineEnding, applyLineEnding } from './utils/markdown-converter';
+import { htmlToMarkdown, detectLineEnding, applyLineEnding, markdownToHtml } from './utils/markdown-converter';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 // Components
@@ -943,6 +943,27 @@ const handleWorkspaceOpenFile = (path: string) => {
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
 
+/**
+ * OS files dropped onto the editor that aren't images (md/txt/markdown).
+ * With Tauri's dragDropEnabled=false we receive the browser File objects but
+ * no absolute path, so we read the text and open each as a fresh unsaved tab
+ * in the active pane. The user gives it a real path on first Save.
+ */
+const handleOpenDroppedFiles = async (files: File[]) => {
+  for (const file of files) {
+    const name = file.name.toLowerCase();
+    const isText = /\.(md|markdown|txt|mermark)$/.test(name) || file.type.startsWith('text/');
+    if (!isText) continue;
+    try {
+      const text = await file.text();
+      const html = markdownToHtml(text);
+      createNewTab(null, html, file.name);
+    } catch (e) {
+      console.error('[App] open dropped file:', file.name, e);
+    }
+  }
+};
+
 const handleWorkspaceDropFile = (paneId: string, path: string) => {
   splitState.value.activePaneId = paneId;
   if (isImageFile(path)) {
@@ -1588,6 +1609,7 @@ onUnmounted(async () => {
           @close-all-but-pinned="handleTabCloseAllButPinned"
           @close-saved="handleTabCloseSaved"
           @drop-file="handleWorkspaceDropFile"
+          @open-dropped-files="handleOpenDroppedFiles"
         />
       </div>
 

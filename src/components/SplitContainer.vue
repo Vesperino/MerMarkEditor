@@ -45,6 +45,7 @@ const emit = defineEmits<{
   closeAllButPinned: [paneId: string];
   closeSaved: [paneId: string];
   dropFile: [paneId: string, filePath: string];
+  openDroppedFiles: [files: File[]];
 }>();
 
 const leftPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
@@ -295,6 +296,7 @@ defineExpose({
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('left')"
       @drop-file="(filePath) => emit('dropFile', 'left', filePath)"
+      @open-dropped-files="(files) => emit('openDroppedFiles', files)"
     />
 
     <!-- Divider (only visible in split mode) -->
@@ -326,6 +328,7 @@ defineExpose({
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('right')"
       @drop-file="(filePath) => emit('dropFile', 'right', filePath)"
+      @open-dropped-files="(files) => emit('openDroppedFiles', files)"
     />
   </div>
 </template>

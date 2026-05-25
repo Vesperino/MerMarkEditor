@@ -379,6 +379,8 @@ const emit = defineEmits<{
   "update:modelValue": [value: string];
   "update:hasChanges": [value: boolean];
   "linkClick": [href: string];
+  /** Non-image OS files (md/txt) dropped onto the editor — host opens them as tabs. */
+  "openDroppedFiles": [files: File[]];
 }>();
 
 function pickImageFile(data: DataTransfer): File | null {
@@ -560,6 +562,25 @@ const editor = useEditor({
       }
 
       return false; // Let default paste handler work
+    },
+    // OS file drops (from Explorer/Finder/other apps). With Tauri's
+    // dragDropEnabled=false the webview gets native HTML5 drops, so the
+    // dropped files arrive here as File objects in dataTransfer.files —
+    // image files are imported + inserted inline (same path as paste),
+    // text/markdown files bubble up to the host to open as new tabs.
+    // Workspace-internal drags carry no files (custom MIME only), so they
+    // fall through to EditorPane.handleFileDrop untouched.
+    handleDrop: (_view, event) => {
+      const dt = (event as DragEvent).dataTransfer;
+      if (!dt || dt.files.length === 0) return false;
+      const files = Array.from(dt.files);
+      const images = files.filter((f) => f.type.startsWith('image/'));
+      const others = files.filter((f) => !f.type.startsWith('image/'));
+      if (images.length === 0 && others.length === 0) return false;
+      event.preventDefault();
+      for (const img of images) void handlePastedImage(img);
+      if (others.length) emit('openDroppedFiles', others);
+      return true;
     },
   },
 });
