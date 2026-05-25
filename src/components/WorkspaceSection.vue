@@ -28,6 +28,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
+  (e: 'view-changes', path: string): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
   (e: 'node-dragstart', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
   (e: 'node-dragover', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
@@ -197,6 +198,7 @@ function newFolderHere(ev: MouseEvent) {
         :is-root="true"
         :drag-over-path="dragOverPath"
         @open-file="(p) => emit('open-file', p)"
+        @view-changes="(p) => emit('view-changes', p)"
         @context="(payload) => emit('context', payload)"
         @node-dragstart="(payload) => emit('node-dragstart', payload)"
         @node-dragover="(payload) => emit('node-dragover', payload)"

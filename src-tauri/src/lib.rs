@@ -292,6 +292,9 @@ struct WorkspaceNode {
     kind: &'static str,
     /// None for files; Some for folders (may be empty).
     children: Option<Vec<WorkspaceNode>>,
+    /// Last-modified time in milliseconds since the Unix epoch (0 if unavailable).
+    /// Used by the frontend to offer "sort by modified" in the workspace tree.
+    modified: u64,
 }
 
 const WORKSPACE_TREE_MAX_DEPTH: usize = 50;
@@ -324,6 +327,12 @@ fn read_workspace_subtree(path: &Path, depth: usize) -> Result<WorkspaceNode, St
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.to_string_lossy().into_owned());
     let path_str = path.to_string_lossy().into_owned();
+    let modified_ms = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
 
     if metadata.is_file() {
         return Ok(WorkspaceNode {
@@ -331,6 +340,7 @@ fn read_workspace_subtree(path: &Path, depth: usize) -> Result<WorkspaceNode, St
             path: path_str,
             kind: "file",
             children: None,
+            modified: modified_ms,
         });
     }
 
@@ -387,6 +397,7 @@ fn read_workspace_subtree(path: &Path, depth: usize) -> Result<WorkspaceNode, St
         path: path_str,
         kind: "folder",
         children: Some(children),
+        modified: modified_ms,
     })
 }
 

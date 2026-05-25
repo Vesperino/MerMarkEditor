@@ -34,6 +34,9 @@ const isDraggingNode = ref<boolean>(false);
 /** Snapshot of paths being dragged (single, or full selection when source row is part of it). */
 const draggedPaths = ref<string[]>([]);
 
+/** File paths open in an editor tab with unsaved changes — drives the tree's dirty dot. */
+const dirtyPaths = ref<Set<string>>(new Set());
+
 function moveToFront(list: string[], item: string, limit: number): string[] {
   const filtered = list.filter((p) => p !== item);
   filtered.unshift(item);
@@ -55,6 +58,7 @@ export function useWorkspace() {
     setWorkspaceRecents,
     setSidebarVisible,
     setSidebarWidth,
+    setWorkspaceSortMode,
     toggleSidebarVisible,
   } = useSettings();
 
@@ -73,6 +77,37 @@ export function useWorkspace() {
   const recentWorkspaces = computed<string[]>(() => settings.value.workspace.recentRoots);
   const sidebarVisible = computed<boolean>(() => settings.value.workspace.sidebarVisible);
   const sidebarWidth = computed<number>(() => settings.value.workspace.sidebarWidth);
+  const sortMode = computed(() => settings.value.workspace.sortMode ?? 'name');
+
+  /**
+   * Orders a folder's children for display: folders first, then files, each
+   * group ordered by the active sort mode (name A→Z or last-modified newest
+   * first). Returns a new array — never mutates the cached tree.
+   */
+  function sortChildren(children: WorkspaceNode[]): WorkspaceNode[] {
+    const cmp = sortMode.value === 'modified'
+      ? (a: WorkspaceNode, b: WorkspaceNode) => (b.modified ?? 0) - (a.modified ?? 0)
+      : (a: WorkspaceNode, b: WorkspaceNode) => a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    const folders = children.filter((c) => c.kind === 'folder').sort(cmp);
+    const files = children.filter((c) => c.kind === 'file').sort(cmp);
+    return [...folders, ...files];
+  }
+
+  function toggleSortMode() {
+    setWorkspaceSortMode(sortMode.value === 'name' ? 'modified' : 'name');
+  }
+
+  /** Replace the set of dirty (unsaved) file paths shown with a marker in the tree. */
+  function setDirtyPaths(paths: string[]) {
+    // Normalize separators so tree paths (which may use \ on Windows) match
+    // tab file paths regardless of slash direction.
+    dirtyPaths.value = new Set(paths.map((p) => p.replace(/\\/g, '/')));
+  }
+
+  function isDirty(path: string): boolean {
+    if (dirtyPaths.value.size === 0) return false;
+    return dirtyPaths.value.has(path.replace(/\\/g, '/'));
+  }
 
   // Tree view state — scoped to the currently active workspace.
   const tree = computed<WorkspaceNode | null>(() => {
@@ -424,7 +459,7 @@ export function useWorkspace() {
       if (node.kind !== 'folder') return;
       const isExpanded = isWorkspaceRoot || expandedFolders.value.has(node.path);
       if (!isExpanded) return;
-      for (const child of node.children ?? []) walk(child, false);
+      for (const child of sortChildren(node.children ?? [])) walk(child, false);
     };
     for (const ws of openWorkspaces.value) {
       if (collapsedWorkspaceIds.value.has(ws.id)) continue;
@@ -498,6 +533,9 @@ export function useWorkspace() {
     recentWorkspaces,
     sidebarVisible,
     sidebarWidth,
+    sortMode,
+    sortChildren,
+    toggleSortMode,
     tree,
     isLoading,
     error,
@@ -509,6 +547,9 @@ export function useWorkspace() {
     lastSelectedPath,
     isDraggingNode,
     draggedPaths,
+    dirtyPaths,
+    setDirtyPaths,
+    isDirty,
 
     // Workspace lifecycle
     openWorkspace,

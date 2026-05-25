@@ -993,6 +993,35 @@ watch(
   { immediate: true },
 );
 
+// Mirror unsaved-tab state into the workspace tree so dirty files show a
+// marker. Watches every pane's tabs (filePath + hasChanges) and republishes
+// the set of dirty paths whenever it changes.
+watch(
+  () => splitState.value.panes.flatMap((p) =>
+    p.tabs.filter((tb) => tb.hasChanges && tb.filePath).map((tb) => tb.filePath as string),
+  ),
+  (paths) => {
+    workspace.setDirtyPaths(paths);
+  },
+  { immediate: true, deep: true },
+);
+
+// Open the changes (diff) preview for a specific workspace file. Works for any
+// open tab — uses its in-memory original vs current markdown — even if it
+// isn't the active tab.
+// eslint-disable-next-line @typescript-eslint/no-use-before-define
+const handleWorkspaceViewChanges = (path: string) => {
+  const norm = path.replace(/\\/g, '/');
+  const result = findTabByFilePathSplit(path);
+  const tab = result?.tab
+    ?? splitState.value.panes.flatMap((p) => p.tabs).find((tb) => (tb.filePath ?? '').replace(/\\/g, '/') === norm);
+  if (!tab || !tab.filePath) return;
+  const original = tab.originalMarkdown ?? '';
+  const current = htmlToMarkdown(tab.content || '').trimEnd();
+  // No explicit names → DiffPreview falls back to its "Changes" title.
+  openComparePreview(original, current);
+};
+
 // ============ Layout Config ============
 const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
 
@@ -1558,6 +1587,7 @@ onUnmounted(async () => {
         v-if="workspace.sidebarVisible.value"
         @open-file="handleWorkspaceOpenFile"
         @open-quick-switcher="showWorkspaceQuickSwitcher = true"
+        @view-changes="handleWorkspaceViewChanges"
       />
 
       <!-- Left Bar (configurable) -->

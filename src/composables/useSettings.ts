@@ -30,7 +30,11 @@ export interface WorkspaceSettings {
   sidebarVisible: boolean;
   /** Pixel width of the workspace sidebar. */
   sidebarWidth: number;
+  /** Tree sort order: by name (A→Z) or last-modified (newest first). */
+  sortMode: WorkspaceSortMode;
 }
+
+export type WorkspaceSortMode = 'name' | 'modified';
 
 export const RECENT_WORKSPACES_LIMIT = 10;
 export const OPEN_WORKSPACES_LIMIT = 8;
@@ -292,6 +296,7 @@ function getDefaultSettings(): AppSettings {
       recentRoots: [],
       sidebarVisible: true,
       sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
+      sortMode: 'name',
     },
     ai: {
       enabled: true,
@@ -413,6 +418,10 @@ export function useSettings() {
     );
   };
 
+  const setWorkspaceSortMode = (mode: WorkspaceSortMode) => {
+    settings.value.workspace.sortMode = mode;
+  };
+
   const toggleCodeWordWrap = () => {
     settings.value.codeWordWrap = !settings.value.codeWordWrap;
   };
@@ -515,6 +524,7 @@ export function useSettings() {
     setSidebarVisible,
     toggleSidebarVisible,
     setSidebarWidth,
+    setWorkspaceSortMode,
     setAiEnabled,
     setAiDefaultCli,
     setAiDefaultModelClaude,

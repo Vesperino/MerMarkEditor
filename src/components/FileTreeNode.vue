@@ -2,8 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import type { WorkspaceNode } from '../composables/useWorkspace';
 import { useWorkspace } from '../composables/useWorkspace';
+import { useI18n } from '../i18n';
 
 defineOptions({ name: 'FileTreeNode' });
+
+const { t } = useI18n();
+const wsViewChangesLabel = computed(() => t.value.workspaceViewChanges);
 
 const props = defineProps<{
   node: WorkspaceNode;
@@ -16,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
+  (e: 'view-changes', path: string): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
   (e: 'node-dragstart', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
   (e: 'node-dragover', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
@@ -48,8 +53,14 @@ const isHighlighted = computed(
 );
 
 const isSelectedRow = computed(() => ws.isSelected(props.node.path));
+const isDirtyRow = computed(() => !isFolder.value && ws.isDirty(props.node.path));
 
 const rowEl = ref<HTMLDivElement | null>(null);
+
+function onViewChanges(e: MouseEvent) {
+  e.stopPropagation();
+  emit('view-changes', props.node.path);
+}
 
 /**
  * Single click = select (with Ctrl=toggle, Shift=range). Folders toggle on the
@@ -176,16 +187,31 @@ watch(
         </svg>
       </span>
       <span class="tree-label" v-tooltip="node.path">{{ node.name }}</span>
+      <!-- Changes button: visible on hover for unsaved files; opens the diff. -->
+      <button
+        v-if="isDirtyRow"
+        class="tree-changes-btn"
+        v-tooltip=" wsViewChangesLabel"
+        @click="onViewChanges"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
+      <!-- Dirty dot: shown when the file has unsaved changes (hidden while the
+           changes button is hovered to avoid overlap). -->
+      <span v-if="isDirtyRow" class="tree-dirty-dot" aria-hidden="true"></span>
     </div>
 
     <div v-if="isFolder && expanded" class="tree-children">
       <FileTreeNode
-        v-for="child in node.children || []"
+        v-for="child in ws.sortChildren(node.children || [])"
         :key="child.path"
         :node="child"
         :depth="isRoot ? depth : depth + 1"
         :drag-over-path="dragOverPath"
         @open-file="(p) => emit('open-file', p)"
+        @view-changes="(p) => emit('view-changes', p)"
         @context="(payload) => emit('context', payload)"
         @node-dragstart="(payload) => emit('node-dragstart', payload)"
         @node-dragover="(payload) => emit('node-dragover', payload)"
@@ -279,5 +305,44 @@ watch(
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Unsaved marker — small accent dot, hidden while the changes button shows. */
+.tree-dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.tree-row:hover .tree-dirty-dot {
+  display: none;
+}
+
+/* Changes button — only visible on row hover (and only rendered for dirty files). */
+.tree-changes-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tree-row:hover .tree-changes-btn {
+  display: flex;
+}
+
+.tree-changes-btn:hover {
+  background: var(--hover-bg);
+  color: var(--primary);
 }
 </style>

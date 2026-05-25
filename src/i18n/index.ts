@@ -463,6 +463,9 @@ export interface Translations {
   addWorkspace: string;
   expandAllSections: string;
   collapseAllSections: string;
+  workspaceSortByName: string;
+  workspaceSortByModified: string;
+  workspaceViewChanges: string;
   activeWorkspaceContext: string;
   workspaceEmptyRecentHint: string;
   workspaceQuickSwitcher: string;

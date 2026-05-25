@@ -13,6 +13,8 @@ export interface WorkspaceNode {
   path: string;
   kind: 'file' | 'folder';
   children?: WorkspaceNode[];
+  /** Last-modified time in ms since epoch (0 if unavailable). For sort-by-modified. */
+  modified?: number;
 }
 
 export interface ContentSearchHit {

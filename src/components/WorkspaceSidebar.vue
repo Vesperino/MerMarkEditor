@@ -29,6 +29,7 @@ const ws = useWorkspace();
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
   (e: 'open-quick-switcher'): void;
+  (e: 'view-changes', path: string): void;
 }>();
 
 const showHeaderMenu = ref(false);
@@ -466,6 +467,27 @@ onBeforeUnmount(() => {
         </svg>
       </button>
 
+      <!-- Sort toggle: alphabetical ⇄ last-modified. -->
+      <button
+        v-if="hasOpen"
+        class="ws-header-btn"
+        :class="{ 'ws-header-btn--active': ws.sortMode.value === 'modified' }"
+        v-tooltip="ws.sortMode.value === 'modified' ? t.workspaceSortByModified : t.workspaceSortByName"
+        @click="ws.toggleSortMode"
+      >
+        <svg v-if="ws.sortMode.value === 'modified'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <polyline points="12 7 12 12 15 14"/>
+        </svg>
+        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="6" x2="13" y2="6"/>
+          <line x1="4" y1="12" x2="11" y2="12"/>
+          <line x1="4" y1="18" x2="9" y2="18"/>
+          <polyline points="17 8 20 5 20 5"/>
+          <path d="M20 5v14l-3-3"/>
+        </svg>
+      </button>
+
       <!-- New file: creates an empty .md in the active workspace root. -->
       <button
         v-if="targetWorkspaceForNewFile"
@@ -551,6 +573,7 @@ onBeforeUnmount(() => {
           :is-active-context="activeContextWorkspaceId === w.id"
           :drag-over-path="dragOverFolderPath"
           @open-file="(p) => emit('open-file', p)"
+          @view-changes="(p) => emit('view-changes', p)"
           @context="openContext"
           @new-file-at="(parent) => (pendingAction = { kind: 'new-file', parent })"
           @new-folder-at="(parent) => (pendingAction = { kind: 'new-folder', parent })"
@@ -715,6 +738,10 @@ onBeforeUnmount(() => {
 .ws-header-btn:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+
+.ws-header-btn--active {
+  color: var(--primary);
 }
 
 /* Wrapper has no box so the flex header layout and the absolute menu
