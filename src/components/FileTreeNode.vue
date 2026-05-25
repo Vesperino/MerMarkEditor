@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import type { WorkspaceNode } from '../composables/useWorkspace';
 import { useWorkspace } from '../composables/useWorkspace';
 import { useI18n } from '../i18n';
@@ -117,25 +117,34 @@ function onDrop(e: DragEvent) {
 }
 
 /**
- * Auto-scroll the highlighted row into view when it becomes active.
- * Used so clicking a recent file (or switching tabs) reveals the row in
- * the tree even if the user had scrolled away.
+ * Auto-scroll the highlighted row into view when it becomes active, so
+ * opening a file (click, dbl-click, workspace drag, recent, or switching
+ * tabs) reveals it even if the user had scrolled away.
  *
- * Earlier version compared against `window.innerHeight`, but the sidebar
- * has its own overflow container (`.ws-body`) — a row scrolled out of the
- * sidebar could still be inside the viewport, so the inView check passed
- * and no scroll happened. Use the closest scrolling ancestor's rect.
+ * Two timing guards matter:
+ *  - inView is measured against the sidebar's own scroll container
+ *    (`.ws-body`), not the window — a row scrolled out of the sidebar can
+ *    still be inside the viewport.
+ *  - the scroll runs after nextTick + a rAF, because highlighting a file in
+ *    a collapsed folder first expands ancestors; the row only gets its
+ *    final layout position once that re-render has flushed.
  */
 function scrollIntoViewIfNeeded() {
-  const el = rowEl.value;
-  if (!el) return;
-  const scroller = el.closest('.ws-body') as HTMLElement | null;
-  const scrollerRect = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
-  const rect = el.getBoundingClientRect();
-  const inView = rect.top >= scrollerRect.top && rect.bottom <= scrollerRect.bottom;
-  if (!inView) {
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = rowEl.value;
+      if (!el || !isHighlighted.value) return;
+      const scroller = el.closest('.ws-body') as HTMLElement | null;
+      const scrollerRect = scroller
+        ? scroller.getBoundingClientRect()
+        : { top: 0, bottom: window.innerHeight };
+      const rect = el.getBoundingClientRect();
+      const inView = rect.top >= scrollerRect.top && rect.bottom <= scrollerRect.bottom;
+      if (!inView) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    });
+  });
 }
 
 onMounted(() => {
