@@ -466,6 +466,13 @@ export interface Translations {
   collapseAllSections: string;
   workspaceSortByName: string;
   workspaceSortByModified: string;
+  workspaceSortMenu: string;
+  workspaceSortFolder: string;
+  sortNameAsc: string;
+  sortNameDesc: string;
+  sortModifiedDesc: string;
+  sortModifiedAsc: string;
+  sortInherit: string;
   workspaceViewChanges: string;
   activeWorkspaceContext: string;
   workspaceEmptyRecentHint: string;

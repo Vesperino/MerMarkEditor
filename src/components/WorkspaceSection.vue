@@ -3,7 +3,9 @@ import { computed, ref } from 'vue';
 import { useI18n } from '../i18n';
 import { useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
 import type { OpenWorkspaceEntry } from '../composables/useSettings';
+import type { WorkspaceSortMode } from '../utils/workspace-sort';
 import FileTreeNode from './FileTreeNode.vue';
+import WorkspaceSortMenu from './WorkspaceSortMenu.vue';
 
 /**
  * One workspace as a collapsible section in the sidebar (VS Code "Folders"
@@ -49,6 +51,20 @@ const collapsed = computed(() => ws.isWorkspaceSectionCollapsed(props.workspace.
 const tree = computed<WorkspaceNode | null>(() => ws.treesById.value[props.workspace.id] ?? null);
 
 const menuRoot = ref<HTMLElement | null>(null);
+
+// Per-workspace sort menu (overrides the global default for this section).
+const sortMenu = ref<{ x: number; y: number } | null>(null);
+const sortCurrent = computed<WorkspaceSortMode>(() => ws.effectiveSortMode(null, props.workspace.id));
+const sortHasOverride = computed<boolean>(() => !!ws.sortByWorkspace.value[props.workspace.id]);
+
+function openSortMenu(ev: MouseEvent) {
+  ev.stopPropagation();
+  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+  sortMenu.value = { x: r.left, y: r.bottom + 4 };
+}
+function onSortSelect(mode: WorkspaceSortMode | null) {
+  ws.setWorkspaceSort(props.workspace.id, mode);
+}
 
 function toggleCollapsed() {
   ws.toggleWorkspaceSection(props.workspace.id);
@@ -134,6 +150,20 @@ function newFolderHere(ev: MouseEvent) {
       <div ref="menuRoot" class="ws-section-actions" @click.stop>
         <button
           class="ws-section-action"
+          :class="{ 'ws-section-action--active': sortHasOverride }"
+          v-tooltip="t.workspaceSortMenu"
+          @click="openSortMenu"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="13" y2="6"/>
+            <line x1="4" y1="12" x2="11" y2="12"/>
+            <line x1="4" y1="18" x2="9" y2="18"/>
+            <polyline points="17 8 20 5 20 5"/>
+            <path d="M20 5v14l-3-3"/>
+          </svg>
+        </button>
+        <button
+          class="ws-section-action"
           v-tooltip="t.workspaceContextNewFile"
           @click="newFileHere"
         >
@@ -197,6 +227,7 @@ function newFolderHere(ev: MouseEvent) {
         :depth="0"
         :is-root="true"
         :drag-over-path="dragOverPath"
+        :workspace-id="workspace.id"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
         @context="(payload) => emit('context', payload)"
@@ -206,6 +237,17 @@ function newFolderHere(ev: MouseEvent) {
         @node-drop="(payload) => emit('node-drop', payload)"
       />
     </div>
+
+    <WorkspaceSortMenu
+      v-if="sortMenu"
+      :x="sortMenu.x"
+      :y="sortMenu.y"
+      :current="sortCurrent"
+      :allow-inherit="true"
+      :has-override="sortHasOverride"
+      @select="onSortSelect"
+      @close="sortMenu = null"
+    />
   </section>
 </template>
 
@@ -308,6 +350,11 @@ function newFolderHere(ev: MouseEvent) {
 .ws-section-action:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+
+.ws-section-action--active {
+  color: var(--primary);
+  opacity: 1;
 }
 
 .ws-section-action.danger:hover {

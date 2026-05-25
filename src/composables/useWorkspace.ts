@@ -8,6 +8,11 @@ import {
 } from './useSettings';
 import { workspaceFs, type WorkspaceNode } from '../services/workspaceFs';
 import { basenameOf, isAncestor } from '../utils/path-utils';
+import {
+  sortNodes,
+  resolveSortMode,
+  type WorkspaceSortMode,
+} from '../utils/workspace-sort';
 
 export type { WorkspaceNode } from '../services/workspaceFs';
 
@@ -59,6 +64,8 @@ export function useWorkspace() {
     setSidebarVisible,
     setSidebarWidth,
     setWorkspaceSortMode,
+    setWorkspaceSortOverride,
+    setFolderSortOverride,
     toggleSidebarVisible,
   } = useSettings();
 
@@ -77,24 +84,37 @@ export function useWorkspace() {
   const recentWorkspaces = computed<string[]>(() => settings.value.workspace.recentRoots);
   const sidebarVisible = computed<boolean>(() => settings.value.workspace.sidebarVisible);
   const sidebarWidth = computed<number>(() => settings.value.workspace.sidebarWidth);
-  const sortMode = computed(() => settings.value.workspace.sortMode ?? 'name');
+  // ===== Sorting (global default + per-workspace + per-folder overrides) =====
+  // All ordering logic lives in utils/workspace-sort (pure, unit-tested);
+  // this composable only resolves the effective mode and persists choices.
+  const sortMode = computed<WorkspaceSortMode>(() => settings.value.workspace.sortMode);
+  const sortByWorkspace = computed(() => settings.value.workspace.sortByWorkspace ?? {});
+  const sortByFolder = computed(() => settings.value.workspace.sortByFolder ?? {});
 
-  /**
-   * Orders a folder's children for display: folders first, then files, each
-   * group ordered by the active sort mode (name A→Z or last-modified newest
-   * first). Returns a new array — never mutates the cached tree.
-   */
-  function sortChildren(children: WorkspaceNode[]): WorkspaceNode[] {
-    const cmp = sortMode.value === 'modified'
-      ? (a: WorkspaceNode, b: WorkspaceNode) => (b.modified ?? 0) - (a.modified ?? 0)
-      : (a: WorkspaceNode, b: WorkspaceNode) => a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-    const folders = children.filter((c) => c.kind === 'folder').sort(cmp);
-    const files = children.filter((c) => c.kind === 'file').sort(cmp);
-    return [...folders, ...files];
+  /** Effective mode for a folder's children — folder override → workspace → global. */
+  function effectiveSortMode(folderPath?: string | null, workspaceId?: string | null): WorkspaceSortMode {
+    return resolveSortMode({
+      folderPath,
+      workspaceId,
+      folderOverrides: sortByFolder.value,
+      workspaceOverrides: sortByWorkspace.value,
+      globalMode: sortMode.value,
+    });
   }
 
-  function toggleSortMode() {
-    setWorkspaceSortMode(sortMode.value === 'name' ? 'modified' : 'name');
+  /** Order a folder's children using the resolved mode for its scope. */
+  function sortChildren(children: WorkspaceNode[], folderPath?: string | null, workspaceId?: string | null): WorkspaceNode[] {
+    return sortNodes(children, effectiveSortMode(folderPath, workspaceId));
+  }
+
+  function setGlobalSortMode(mode: WorkspaceSortMode) {
+    setWorkspaceSortMode(mode);
+  }
+  function setWorkspaceSort(workspaceId: string, mode: WorkspaceSortMode | null) {
+    setWorkspaceSortOverride(workspaceId, mode);
+  }
+  function setFolderSort(folderPath: string, mode: WorkspaceSortMode | null) {
+    setFolderSortOverride(folderPath, mode);
   }
 
   /** Replace the set of dirty (unsaved) file paths shown with a marker in the tree. */
@@ -453,18 +473,20 @@ export function useWorkspace() {
    */
   const visibleNodePaths = computed<string[]>(() => {
     const out: string[] = [];
-    const walk = (node: WorkspaceNode, isWorkspaceRoot: boolean) => {
+    const walk = (node: WorkspaceNode, isWorkspaceRoot: boolean, workspaceId: string) => {
       // Workspace root is invisible in the tree — only its children render.
       if (!isWorkspaceRoot) out.push(node.path);
       if (node.kind !== 'folder') return;
       const isExpanded = isWorkspaceRoot || expandedFolders.value.has(node.path);
       if (!isExpanded) return;
-      for (const child of sortChildren(node.children ?? [])) walk(child, false);
+      for (const child of sortChildren(node.children ?? [], node.path, workspaceId)) {
+        walk(child, false, workspaceId);
+      }
     };
     for (const ws of openWorkspaces.value) {
       if (collapsedWorkspaceIds.value.has(ws.id)) continue;
       const tree = treesById.value[ws.id];
-      if (tree) walk(tree, true);
+      if (tree) walk(tree, true, ws.id);
     }
     return out;
   });
@@ -534,8 +556,13 @@ export function useWorkspace() {
     sidebarVisible,
     sidebarWidth,
     sortMode,
+    sortByWorkspace,
+    sortByFolder,
     sortChildren,
-    toggleSortMode,
+    effectiveSortMode,
+    setGlobalSortMode,
+    setWorkspaceSort,
+    setFolderSort,
     tree,
     isLoading,
     error,

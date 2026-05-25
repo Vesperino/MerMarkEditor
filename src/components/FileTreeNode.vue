@@ -16,6 +16,8 @@ const props = defineProps<{
   isRoot?: boolean;
   /** Path of the folder currently highlighted as a drop target (for visual feedback). */
   dragOverPath?: string | null;
+  /** Id of the owning workspace — used to resolve per-workspace/folder sort. */
+  workspaceId: string;
 }>();
 
 const emit = defineEmits<{
@@ -198,18 +200,19 @@ watch(
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
       </button>
-      <!-- Dirty dot: shown when the file has unsaved changes (hidden while the
-           changes button is hovered to avoid overlap). -->
-      <span v-if="isDirtyRow" class="tree-dirty-dot" aria-hidden="true"></span>
+      <!-- Dirty star: clearly flags an edited/unsaved file (hidden on row
+           hover, where the changes button takes its place). -->
+      <span v-if="isDirtyRow" class="tree-dirty-star" v-tooltip="wsViewChangesLabel" aria-hidden="true">*</span>
     </div>
 
     <div v-if="isFolder && expanded" class="tree-children">
       <FileTreeNode
-        v-for="child in ws.sortChildren(node.children || [])"
+        v-for="child in ws.sortChildren(node.children || [], node.path, workspaceId)"
         :key="child.path"
         :node="child"
         :depth="isRoot ? depth : depth + 1"
         :drag-over-path="dragOverPath"
+        :workspace-id="workspaceId"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
         @context="(payload) => emit('context', payload)"
@@ -307,17 +310,18 @@ watch(
   text-overflow: ellipsis;
 }
 
-/* Unsaved marker — small accent dot, hidden while the changes button shows. */
-.tree-dirty-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--primary);
+/* Unsaved marker — bold accent star, hidden while the changes button shows. */
+.tree-dirty-star {
   flex-shrink: 0;
   margin-right: 2px;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  transform: translateY(2px);
 }
 
-.tree-row:hover .tree-dirty-dot {
+.tree-row:hover .tree-dirty-star {
   display: none;
 }
 

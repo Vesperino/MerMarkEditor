@@ -5,8 +5,10 @@ import { useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
 import { SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '../composables/useSettings';
 import WorkspaceSection from './WorkspaceSection.vue';
 import WorkspaceContextMenu, { type WorkspaceContextAction } from './WorkspaceContextMenu.vue';
+import WorkspaceSortMenu from './WorkspaceSortMenu.vue';
 import WorkspaceInputDialog from './WorkspaceInputDialog.vue';
 import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
+import type { WorkspaceSortMode } from '../utils/workspace-sort';
 
 /**
  * Multi-root workspace sidebar (VS Code / Obsidian inspired).
@@ -33,6 +35,42 @@ const emit = defineEmits<{
 }>();
 
 const showHeaderMenu = ref(false);
+
+// ===== Sort menu state =====
+// Reused for the global default (scope='global') and per-folder overrides
+// (scope='folder' carries the folder path). Per-workspace sort is handled by
+// WorkspaceSection directly.
+type SortMenuState =
+  | { scope: 'global'; x: number; y: number }
+  | { scope: 'folder'; x: number; y: number; folderPath: string };
+const sortMenu = ref<SortMenuState | null>(null);
+
+function openGlobalSortMenu(e: MouseEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  sortMenu.value = { scope: 'global', x: r.left, y: r.bottom + 4 };
+}
+
+const sortMenuCurrent = computed<WorkspaceSortMode>(() => {
+  const s = sortMenu.value;
+  if (!s) return ws.sortMode.value;
+  if (s.scope === 'folder') return ws.effectiveSortMode(s.folderPath, ws.findOwningWorkspace(s.folderPath)?.id ?? null);
+  return ws.sortMode.value;
+});
+const sortMenuHasOverride = computed<boolean>(() => {
+  const s = sortMenu.value;
+  if (s?.scope === 'folder') return !!ws.sortByFolder.value[s.folderPath];
+  return false;
+});
+
+function onSortMenuSelect(mode: WorkspaceSortMode | null) {
+  const s = sortMenu.value;
+  if (!s) return;
+  if (s.scope === 'global') {
+    if (mode) ws.setGlobalSortMode(mode);
+  } else {
+    ws.setFolderSort(s.folderPath, mode);
+  }
+}
 
 // ===== Context menu state (right-click on tree node) =====
 const ctxX = ref(0);
@@ -93,6 +131,12 @@ async function onContextAction(action: WorkspaceContextAction) {
       kind: action === 'new-file-sibling' ? 'new-file' : 'new-folder',
       parent,
     };
+    return;
+  }
+  if (action === 'sort-folder') {
+    if (node.kind !== 'folder') return;
+    // Reopen as the sort menu at the same spot the context menu was.
+    sortMenu.value = { scope: 'folder', x: ctxX.value, y: ctxY.value, folderPath: node.path };
     return;
   }
   if (action === 'copy-path') {
@@ -467,19 +511,14 @@ onBeforeUnmount(() => {
         </svg>
       </button>
 
-      <!-- Sort toggle: alphabetical ⇄ last-modified. -->
+      <!-- Sort: opens a menu to set the global default order. -->
       <button
         v-if="hasOpen"
         class="ws-header-btn"
-        :class="{ 'ws-header-btn--active': ws.sortMode.value === 'modified' }"
-        v-tooltip="ws.sortMode.value === 'modified' ? t.workspaceSortByModified : t.workspaceSortByName"
-        @click="ws.toggleSortMode"
+        v-tooltip="t.workspaceSortMenu"
+        @click="openGlobalSortMenu"
       >
-        <svg v-if="ws.sortMode.value === 'modified'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <polyline points="12 7 12 12 15 14"/>
-        </svg>
-        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="4" y1="6" x2="13" y2="6"/>
           <line x1="4" y1="12" x2="11" y2="12"/>
           <line x1="4" y1="18" x2="9" y2="18"/>
@@ -614,6 +653,17 @@ onBeforeUnmount(() => {
       :is-root="ctxIsRoot"
       @action="onContextAction"
       @close="closeContext"
+    />
+
+    <WorkspaceSortMenu
+      v-if="sortMenu"
+      :x="sortMenu.x"
+      :y="sortMenu.y"
+      :current="sortMenuCurrent"
+      :allow-inherit="sortMenu.scope === 'folder'"
+      :has-override="sortMenuHasOverride"
+      @select="onSortMenuSelect"
+      @close="sortMenu = null"
     />
 
     <!-- Styled prompts replacing native window.prompt / confirm -->
