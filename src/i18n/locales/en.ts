@@ -101,6 +101,7 @@ const en: Translations = {
   zoomInOut: 'Zoom in / out',
   resetZoom: 'Reset zoom',
   findInCurrentDocument: 'Find in current document',
+  searchWorkspace: 'Search workspace (files & content)',
   documentSearch: 'Document search',
   documentSearchPlaceholder: 'Find in document',
   documentSearchPrevious: 'Previous match',

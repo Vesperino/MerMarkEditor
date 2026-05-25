@@ -101,6 +101,7 @@ const pl: Translations = {
   zoomInOut: 'Powiększ / pomniejsz',
   resetZoom: 'Reset powiększenia',
   findInCurrentDocument: 'Znajdź w bieżącym dokumencie',
+  searchWorkspace: 'Szukaj w obszarze (pliki i treść)',
   documentSearch: 'Wyszukiwanie w dokumencie',
   documentSearchPlaceholder: 'Znajdź w dokumencie',
   documentSearchPrevious: 'Poprzednie dopasowanie',

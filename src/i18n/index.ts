@@ -107,6 +107,7 @@ export interface Translations {
   zoomInOut: string;
   resetZoom: string;
   findInCurrentDocument: string;
+  searchWorkspace: string;
   documentSearch: string;
   documentSearchPlaceholder: string;
   documentSearchPrevious: string;

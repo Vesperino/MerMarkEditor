@@ -101,6 +101,7 @@ const zhCN: Translations = {
   zoomInOut: '放大 / 缩小',
   resetZoom: '重置缩放',
   findInCurrentDocument: '在当前文档中查找',
+  searchWorkspace: '搜索工作区（文件和内容）',
   documentSearch: '文档内搜索',
   documentSearchPlaceholder: '在文档中查找',
   documentSearchPrevious: '上一个匹配',
