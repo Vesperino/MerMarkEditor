@@ -1094,14 +1094,35 @@ defineExpose({
   gap: 8px;
 }
 
+/* Align the checkbox to the centre of the item's first text line. The label
+   box is made exactly one line tall (line-height × font-size) and centres the
+   checkbox inside it, so it lines up with the text regardless of font size
+   and stays top-anchored for multi-line items. */
 .editor-content .tiptap ul[data-type="taskList"] li > label {
-  margin-top: 0.25em;
+  margin: 0;
+  height: calc(var(--editor-line-height, 1.6) * var(--editor-font-size, 16px));
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .editor-content .tiptap ul[data-type="taskList"] li > label input[type="checkbox"] {
   width: 16px;
   height: 16px;
   cursor: pointer;
+}
+
+/* The item's content wrapper carries the default paragraph margin, which
+   pushed the text off the checkbox line — zero it so the first line sits at
+   the row top. */
+.editor-content .tiptap ul[data-type="taskList"] li > div {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-content .tiptap ul[data-type="taskList"] li > div > p {
+  margin: 0;
 }
 
 .editor-content .tiptap hr {
