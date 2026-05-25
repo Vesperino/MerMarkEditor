@@ -2,6 +2,7 @@ import { ref, watch } from 'vue';
 import type { TokenModelId } from '../services/tokenCounter';
 import { TOKEN_MODELS } from '../services/tokenCounter';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { DEFAULT_SORT_MODE, migrateSortMode, type WorkspaceSortMode } from '../utils/workspace-sort';
 
 export type ThemeMode = 'light' | 'dark';
 export type ThemeVariant = 'default' | 'minimal';
@@ -30,7 +31,15 @@ export interface WorkspaceSettings {
   sidebarVisible: boolean;
   /** Pixel width of the workspace sidebar. */
   sidebarWidth: number;
+  /** Global default tree sort order. */
+  sortMode: WorkspaceSortMode;
+  /** Per-workspace sort overrides, keyed by workspace id. */
+  sortByWorkspace: Record<string, WorkspaceSortMode>;
+  /** Per-folder sort overrides, keyed by absolute folder path. */
+  sortByFolder: Record<string, WorkspaceSortMode>;
 }
+
+export type { WorkspaceSortMode } from '../utils/workspace-sort';
 
 export const RECENT_WORKSPACES_LIMIT = 10;
 export const OPEN_WORKSPACES_LIMIT = 8;
@@ -203,6 +212,10 @@ function loadSettings(): AppSettings {
       // even when localStorage holds an older partial ai object.
       const mergedAi = { ...defaults.ai, ...(parsed.ai ?? {}) };
       const mergedWorkspace = { ...defaults.workspace, ...(parsed.workspace ?? {}) };
+      // Normalize sort settings — legacy builds stored 'name' | 'modified'.
+      mergedWorkspace.sortMode = migrateSortMode(mergedWorkspace.sortMode as unknown as string);
+      mergedWorkspace.sortByWorkspace = mergedWorkspace.sortByWorkspace ?? {};
+      mergedWorkspace.sortByFolder = mergedWorkspace.sortByFolder ?? {};
 
       // Clamp sidebar width to valid range in case storage holds out-of-range value
       mergedWorkspace.sidebarWidth = Math.max(
@@ -292,6 +305,9 @@ function getDefaultSettings(): AppSettings {
       recentRoots: [],
       sidebarVisible: true,
       sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
+      sortMode: DEFAULT_SORT_MODE,
+      sortByWorkspace: {},
+      sortByFolder: {},
     },
     ai: {
       enabled: true,
@@ -413,6 +429,24 @@ export function useSettings() {
     );
   };
 
+  const setWorkspaceSortMode = (mode: WorkspaceSortMode) => {
+    settings.value.workspace.sortMode = mode;
+  };
+
+  const setWorkspaceSortOverride = (workspaceId: string, mode: WorkspaceSortMode | null) => {
+    const map = { ...settings.value.workspace.sortByWorkspace };
+    if (mode === null) delete map[workspaceId];
+    else map[workspaceId] = mode;
+    settings.value.workspace.sortByWorkspace = map;
+  };
+
+  const setFolderSortOverride = (folderPath: string, mode: WorkspaceSortMode | null) => {
+    const map = { ...settings.value.workspace.sortByFolder };
+    if (mode === null) delete map[folderPath];
+    else map[folderPath] = mode;
+    settings.value.workspace.sortByFolder = map;
+  };
+
   const toggleCodeWordWrap = () => {
     settings.value.codeWordWrap = !settings.value.codeWordWrap;
   };
@@ -515,6 +549,9 @@ export function useSettings() {
     setSidebarVisible,
     toggleSidebarVisible,
     setSidebarWidth,
+    setWorkspaceSortMode,
+    setWorkspaceSortOverride,
+    setFolderSortOverride,
     setAiEnabled,
     setAiDefaultCli,
     setAiDefaultModelClaude,

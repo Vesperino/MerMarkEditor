@@ -15,7 +15,9 @@ export type TabContextAction =
   | 'close-others'
   | 'close-all'
   | 'close-all-but-pinned'
-  | 'close-saved';
+  | 'close-saved'
+  | 'copy-path'
+  | 'reveal-in-os';
 
 const { t } = useI18n();
 
@@ -25,6 +27,8 @@ const props = defineProps<{
   isPinned: boolean;
   /** When true, the user clicked an unpinned tab — affects pin/unpin label. */
   hasOtherTabs: boolean;
+  /** Disable copy-path / reveal when the tab has no associated file (unsaved scratch). */
+  hasFilePath?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -85,6 +89,15 @@ const handle = (action: TabContextAction) => {
           <path d="M5 17h14l-1.7-3.4A2 2 0 0 1 17 12.7V7a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.7a2 2 0 0 1-.3 1.1z"/>
         </svg>
         <span>{{ isPinned ? t.tabUnpin : t.tabPin }}</span>
+      </button>
+
+      <div class="ctx-divider"></div>
+
+      <button class="ctx-item" :disabled="!hasFilePath" @click="handle('copy-path')">
+        {{ t.workspaceContextCopyPath }}
+      </button>
+      <button class="ctx-item" :disabled="!hasFilePath" @click="handle('reveal-in-os')">
+        {{ t.workspaceContextRevealInOs }}
       </button>
 
       <div class="ctx-divider"></div>

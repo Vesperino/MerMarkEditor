@@ -47,6 +47,7 @@ export interface Translations {
   blockquote: string;
   codeBlock: string;
   horizontalRule: string;
+  pageBreak: string;
 
   // Toolbar - Links & Media
   link: string;
@@ -107,6 +108,7 @@ export interface Translations {
   zoomInOut: string;
   resetZoom: string;
   findInCurrentDocument: string;
+  searchWorkspace: string;
   documentSearch: string;
   documentSearchPlaceholder: string;
   documentSearchPrevious: string;
@@ -444,6 +446,8 @@ export interface Translations {
   workspaceSidebarHide: string;
   workspaceContextNewFile: string;
   workspaceContextNewFolder: string;
+  workspaceContextNewFileSibling: string;
+  workspaceContextNewFolderSibling: string;
   workspaceContextRename: string;
   workspaceContextCopyPath: string;
   workspaceContextDelete: string;
@@ -460,6 +464,17 @@ export interface Translations {
   addWorkspace: string;
   expandAllSections: string;
   collapseAllSections: string;
+  workspaceSortByName: string;
+  workspaceSortByModified: string;
+  workspaceSortMenu: string;
+  workspaceSortFolder: string;
+  sortNameAsc: string;
+  sortNameDesc: string;
+  sortModifiedDesc: string;
+  sortModifiedAsc: string;
+  sortInherit: string;
+  workspaceViewChanges: string;
+  workspaceItemsLabel: string;
   activeWorkspaceContext: string;
   workspaceEmptyRecentHint: string;
   workspaceQuickSwitcher: string;

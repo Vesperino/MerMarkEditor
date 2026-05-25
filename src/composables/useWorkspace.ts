@@ -8,6 +8,11 @@ import {
 } from './useSettings';
 import { workspaceFs, type WorkspaceNode } from '../services/workspaceFs';
 import { basenameOf, isAncestor } from '../utils/path-utils';
+import {
+  sortNodes,
+  resolveSortMode,
+  type WorkspaceSortMode,
+} from '../utils/workspace-sort';
 
 export type { WorkspaceNode } from '../services/workspaceFs';
 
@@ -23,6 +28,19 @@ const autoExpandedSeen = new Set<string>();
 const collapsedWorkspaceIds = ref<Set<string>>(new Set());
 /** File path that should be highlighted in the tree (usually the active editor tab). */
 const highlightedPath = ref<string | null>(null);
+
+/** User-selected node paths (click / Ctrl-click / Shift-click). Multi-select. */
+const selectedPaths = ref<Set<string>>(new Set());
+/** Anchor for shift-range selection. */
+const lastSelectedPath = ref<string | null>(null);
+
+/** True while a workspace tree drag is in flight; lets drop targets accept without MIME-type sniffing. */
+const isDraggingNode = ref<boolean>(false);
+/** Snapshot of paths being dragged (single, or full selection when source row is part of it). */
+const draggedPaths = ref<string[]>([]);
+
+/** File paths open in an editor tab with unsaved changes — drives the tree's dirty dot. */
+const dirtyPaths = ref<Set<string>>(new Set());
 
 function moveToFront(list: string[], item: string, limit: number): string[] {
   const filtered = list.filter((p) => p !== item);
@@ -45,6 +63,9 @@ export function useWorkspace() {
     setWorkspaceRecents,
     setSidebarVisible,
     setSidebarWidth,
+    setWorkspaceSortMode,
+    setWorkspaceSortOverride,
+    setFolderSortOverride,
     toggleSidebarVisible,
   } = useSettings();
 
@@ -63,6 +84,50 @@ export function useWorkspace() {
   const recentWorkspaces = computed<string[]>(() => settings.value.workspace.recentRoots);
   const sidebarVisible = computed<boolean>(() => settings.value.workspace.sidebarVisible);
   const sidebarWidth = computed<number>(() => settings.value.workspace.sidebarWidth);
+  // ===== Sorting (global default + per-workspace + per-folder overrides) =====
+  // All ordering logic lives in utils/workspace-sort (pure, unit-tested);
+  // this composable only resolves the effective mode and persists choices.
+  const sortMode = computed<WorkspaceSortMode>(() => settings.value.workspace.sortMode);
+  const sortByWorkspace = computed(() => settings.value.workspace.sortByWorkspace ?? {});
+  const sortByFolder = computed(() => settings.value.workspace.sortByFolder ?? {});
+
+  /** Effective mode for a folder's children — folder override → workspace → global. */
+  function effectiveSortMode(folderPath?: string | null, workspaceId?: string | null): WorkspaceSortMode {
+    return resolveSortMode({
+      folderPath,
+      workspaceId,
+      folderOverrides: sortByFolder.value,
+      workspaceOverrides: sortByWorkspace.value,
+      globalMode: sortMode.value,
+    });
+  }
+
+  /** Order a folder's children using the resolved mode for its scope. */
+  function sortChildren(children: WorkspaceNode[], folderPath?: string | null, workspaceId?: string | null): WorkspaceNode[] {
+    return sortNodes(children, effectiveSortMode(folderPath, workspaceId));
+  }
+
+  function setGlobalSortMode(mode: WorkspaceSortMode) {
+    setWorkspaceSortMode(mode);
+  }
+  function setWorkspaceSort(workspaceId: string, mode: WorkspaceSortMode | null) {
+    setWorkspaceSortOverride(workspaceId, mode);
+  }
+  function setFolderSort(folderPath: string, mode: WorkspaceSortMode | null) {
+    setFolderSortOverride(folderPath, mode);
+  }
+
+  /** Replace the set of dirty (unsaved) file paths shown with a marker in the tree. */
+  function setDirtyPaths(paths: string[]) {
+    // Normalize separators so tree paths (which may use \ on Windows) match
+    // tab file paths regardless of slash direction.
+    dirtyPaths.value = new Set(paths.map((p) => p.replace(/\\/g, '/')));
+  }
+
+  function isDirty(path: string): boolean {
+    if (dirtyPaths.value.size === 0) return false;
+    return dirtyPaths.value.has(path.replace(/\\/g, '/'));
+  }
 
   // Tree view state — scoped to the currently active workspace.
   const tree = computed<WorkspaceNode | null>(() => {
@@ -400,6 +465,88 @@ export function useWorkspace() {
     collapsedWorkspaceIds.value = next;
   }
 
+  // ===== Selection (single + multi: Ctrl, Shift) =====
+
+  /**
+   * Flat list of currently visible row paths (depth-first, top→bottom across
+   * all open workspaces). Used as the index for shift-range selection.
+   */
+  const visibleNodePaths = computed<string[]>(() => {
+    const out: string[] = [];
+    const walk = (node: WorkspaceNode, isWorkspaceRoot: boolean, workspaceId: string) => {
+      // Workspace root is invisible in the tree — only its children render.
+      if (!isWorkspaceRoot) out.push(node.path);
+      if (node.kind !== 'folder') return;
+      const isExpanded = isWorkspaceRoot || expandedFolders.value.has(node.path);
+      if (!isExpanded) return;
+      for (const child of sortChildren(node.children ?? [], node.path, workspaceId)) {
+        walk(child, false, workspaceId);
+      }
+    };
+    for (const ws of openWorkspaces.value) {
+      if (collapsedWorkspaceIds.value.has(ws.id)) continue;
+      const tree = treesById.value[ws.id];
+      if (tree) walk(tree, true, ws.id);
+    }
+    return out;
+  });
+
+  function isSelected(path: string): boolean {
+    return selectedPaths.value.has(path);
+  }
+
+  function selectOnly(path: string) {
+    selectedPaths.value = new Set([path]);
+    lastSelectedPath.value = path;
+  }
+
+  function toggleSelect(path: string) {
+    const next = new Set(selectedPaths.value);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    selectedPaths.value = next;
+    lastSelectedPath.value = path;
+  }
+
+  /** Shift-click: select range between anchor (lastSelectedPath) and path. */
+  function rangeSelect(path: string) {
+    const order = visibleNodePaths.value;
+    const anchor = lastSelectedPath.value;
+    if (!anchor || order.length === 0) {
+      selectOnly(path);
+      return;
+    }
+    const a = order.indexOf(anchor);
+    const b = order.indexOf(path);
+    if (a < 0 || b < 0) {
+      selectOnly(path);
+      return;
+    }
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    selectedPaths.value = new Set(order.slice(lo, hi + 1));
+  }
+
+  function clearSelection() {
+    if (selectedPaths.value.size > 0) selectedPaths.value = new Set();
+    lastSelectedPath.value = null;
+  }
+
+  // ===== Drag (workspace tree → editor or workspace tree → tree folder) =====
+
+  /** Begin a drag — if path is part of current selection, drag whole set; else drag just that path. */
+  function beginNodeDrag(path: string): string[] {
+    const set = selectedPaths.value;
+    const paths = set.size > 0 && set.has(path) ? Array.from(set) : [path];
+    draggedPaths.value = paths;
+    isDraggingNode.value = true;
+    return paths;
+  }
+
+  function endNodeDrag() {
+    isDraggingNode.value = false;
+    draggedPaths.value = [];
+  }
+
   return {
     // State
     openWorkspaces,
@@ -408,6 +555,14 @@ export function useWorkspace() {
     recentWorkspaces,
     sidebarVisible,
     sidebarWidth,
+    sortMode,
+    sortByWorkspace,
+    sortByFolder,
+    sortChildren,
+    effectiveSortMode,
+    setGlobalSortMode,
+    setWorkspaceSort,
+    setFolderSort,
     tree,
     isLoading,
     error,
@@ -415,6 +570,13 @@ export function useWorkspace() {
     expandedFolders,
     collapsedWorkspaceIds,
     highlightedPath,
+    selectedPaths,
+    lastSelectedPath,
+    isDraggingNode,
+    draggedPaths,
+    dirtyPaths,
+    setDirtyPaths,
+    isDirty,
 
     // Workspace lifecycle
     openWorkspace,
@@ -458,5 +620,17 @@ export function useWorkspace() {
     setSidebarVisible,
     toggleSidebarVisible,
     setSidebarWidth,
+
+    // Selection
+    visibleNodePaths,
+    isSelected,
+    selectOnly,
+    toggleSelect,
+    rangeSelect,
+    clearSelection,
+
+    // Drag
+    beginNodeDrag,
+    endNodeDrag,
   };
 }

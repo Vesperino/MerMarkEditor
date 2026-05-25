@@ -85,7 +85,7 @@ const needsEditor = (id: string) => {
   const editorItems = [
     'undo', 'redo', 'heading-select', 'bold', 'italic', 'strikethrough', 'inline-code',
     'bullet-list', 'ordered-list', 'task-list', 'blockquote', 'code-block', 'horizontal-rule',
-    'link', 'image', 'table', 'mermaid', 'footnote',
+    'page-break', 'link', 'image', 'table', 'mermaid', 'footnote',
   ];
   return editorItems.includes(id);
 };
@@ -303,6 +303,17 @@ const showLabel = (id: string) => {
   <button v-else-if="itemId === 'horizontal-rule'" @click="runCommand(e => e.chain().focus().setHorizontalRule().run())" class="toolbar-btn icon-only" v-tooltip="t.horizontalRule" :disabled="isDisabled(itemId)">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
       <line x1="3" y1="12" x2="21" y2="12"/>
+    </svg>
+  </button>
+
+  <!-- Page break — forces a new page in PDF export -->
+  <button v-else-if="itemId === 'page-break'" @click="runCommand(e => e.chain().focus().insertContent({ type: 'pageBreak' }).run())" class="toolbar-btn icon-only" v-tooltip="t.pageBreak" :disabled="isDisabled(itemId)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="3" y1="4" x2="21" y2="4"/>
+      <line x1="3" y1="20" x2="21" y2="20"/>
+      <line x1="4" y1="12" x2="9" y2="12"/>
+      <line x1="15" y1="12" x2="20" y2="12"/>
+      <polyline points="12 9 12 15"/>
     </svg>
   </button>
 

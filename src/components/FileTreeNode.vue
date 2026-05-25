@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import type { WorkspaceNode } from '../composables/useWorkspace';
 import { useWorkspace } from '../composables/useWorkspace';
+import { useI18n } from '../i18n';
 
 defineOptions({ name: 'FileTreeNode' });
+
+const { t } = useI18n();
+const wsViewChangesLabel = computed(() => t.value.workspaceViewChanges);
+const wsSortFolderLabel = computed(() => t.value.workspaceSortFolder);
 
 const props = defineProps<{
   node: WorkspaceNode;
@@ -12,10 +17,14 @@ const props = defineProps<{
   isRoot?: boolean;
   /** Path of the folder currently highlighted as a drop target (for visual feedback). */
   dragOverPath?: string | null;
+  /** Id of the owning workspace — used to resolve per-workspace/folder sort. */
+  workspaceId: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
+  (e: 'view-changes', path: string): void;
+  (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
   (e: 'node-dragstart', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
   (e: 'node-dragover', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
@@ -47,9 +56,33 @@ const isHighlighted = computed(
   () => !isFolder.value && ws.highlightedPath.value === props.node.path,
 );
 
+const isSelectedRow = computed(() => ws.isSelected(props.node.path));
+const isDirtyRow = computed(() => !isFolder.value && ws.isDirty(props.node.path));
+
 const rowEl = ref<HTMLDivElement | null>(null);
 
-function onRowClick() {
+function onViewChanges(e: MouseEvent) {
+  e.stopPropagation();
+  emit('view-changes', props.node.path);
+}
+
+/**
+ * Single click = select (with Ctrl=toggle, Shift=range). Folders toggle on the
+ * chevron only — clicking the row never opens or expands. Use double-click to
+ * open files / expand folders, drag to insert/open in editor.
+ */
+function onRowClick(e: MouseEvent) {
+  const path = props.node.path;
+  if (e.shiftKey) {
+    ws.rangeSelect(path);
+  } else if (e.ctrlKey || e.metaKey) {
+    ws.toggleSelect(path);
+  } else {
+    ws.selectOnly(path);
+  }
+}
+
+function onRowDblClick() {
   if (isFolder.value) {
     ws.toggleFolder(props.node.path);
   } else {
@@ -57,13 +90,29 @@ function onRowClick() {
   }
 }
 
+function onChevronClick(e: MouseEvent) {
+  e.stopPropagation();
+  if (isFolder.value) ws.toggleFolder(props.node.path);
+}
+
 function onContextMenu(e: MouseEvent) {
   e.preventDefault();
+  // Right-click on an unselected row replaces the selection — matches Explorer/VS.
+  if (!ws.isSelected(props.node.path)) ws.selectOnly(props.node.path);
   emit('context', { x: e.clientX, y: e.clientY, node: props.node });
+}
+
+function onSortFolder(e: MouseEvent) {
+  e.stopPropagation();
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  emit('sort-folder', { path: props.node.path, x: r.left, y: r.bottom + 4 });
 }
 
 function onDragStart(e: DragEvent) {
   emit('node-dragstart', { path: props.node.path, kind: props.node.kind, ev: e });
+}
+function onDragEnd() {
+  ws.endNodeDrag();
 }
 function onDragOver(e: DragEvent) {
   emit('node-dragover', { path: props.node.path, kind: props.node.kind, ev: e });
@@ -76,18 +125,34 @@ function onDrop(e: DragEvent) {
 }
 
 /**
- * Auto-scroll the highlighted row into view when it becomes active.
- * Used so clicking a recent file (or switching tabs) reveals the row in
- * the tree even if the user had scrolled away.
+ * Auto-scroll the highlighted row into view when it becomes active, so
+ * opening a file (click, dbl-click, workspace drag, recent, or switching
+ * tabs) reveals it even if the user had scrolled away.
+ *
+ * Two timing guards matter:
+ *  - inView is measured against the sidebar's own scroll container
+ *    (`.ws-body`), not the window — a row scrolled out of the sidebar can
+ *    still be inside the viewport.
+ *  - the scroll runs after nextTick + a rAF, because highlighting a file in
+ *    a collapsed folder first expands ancestors; the row only gets its
+ *    final layout position once that re-render has flushed.
  */
 function scrollIntoViewIfNeeded() {
-  const el = rowEl.value;
-  if (!el) return;
-  const rect = el.getBoundingClientRect();
-  const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
-  if (!inView) {
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = rowEl.value;
+      if (!el || !isHighlighted.value) return;
+      const scroller = el.closest('.ws-body') as HTMLElement | null;
+      const scrollerRect = scroller
+        ? scroller.getBoundingClientRect()
+        : { top: 0, bottom: window.innerHeight };
+      const rect = el.getBoundingClientRect();
+      const inView = rect.top >= scrollerRect.top && rect.bottom <= scrollerRect.bottom;
+      if (!inView) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    });
+  });
 }
 
 onMounted(() => {
@@ -113,17 +178,20 @@ watch(
         file: !isFolder,
         'drop-target': isDropTarget,
         active: isHighlighted,
+        selected: isSelectedRow,
       }"
       :style="{ paddingLeft: indentPx }"
-      :draggable="!isRoot"
+      draggable="true"
       @click="onRowClick"
+      @dblclick="onRowDblClick"
       @contextmenu.prevent.stop="onContextMenu"
       @dragstart="onDragStart"
+      @dragend="onDragEnd"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
       @drop="onDrop"
     >
-      <span class="tree-chevron" :class="{ expanded, hidden: !isFolder }">
+      <span class="tree-chevron" :class="{ expanded, hidden: !isFolder }" @click="onChevronClick">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="9 18 15 12 9 6" />
         </svg>
@@ -138,16 +206,48 @@ watch(
         </svg>
       </span>
       <span class="tree-label" v-tooltip="node.path">{{ node.name }}</span>
+      <!-- Sort button: visible on hover for folders; opens the per-folder sort menu. -->
+      <button
+        v-if="isFolder"
+        class="tree-sort-btn"
+        v-tooltip="wsSortFolderLabel"
+        @click="onSortFolder"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="6" x2="13" y2="6"/>
+          <line x1="4" y1="12" x2="11" y2="12"/>
+          <line x1="4" y1="18" x2="9" y2="18"/>
+          <polyline points="17 8 20 5 20 5"/>
+          <path d="M20 5v14l-3-3"/>
+        </svg>
+      </button>
+      <!-- Changes button: visible on hover for unsaved files; opens the diff. -->
+      <button
+        v-if="isDirtyRow"
+        class="tree-changes-btn"
+        v-tooltip=" wsViewChangesLabel"
+        @click="onViewChanges"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
+      <!-- Dirty star: clearly flags an edited/unsaved file (hidden on row
+           hover, where the changes button takes its place). -->
+      <span v-if="isDirtyRow" class="tree-dirty-star" v-tooltip="wsViewChangesLabel" aria-hidden="true">*</span>
     </div>
 
     <div v-if="isFolder && expanded" class="tree-children">
       <FileTreeNode
-        v-for="child in node.children || []"
+        v-for="child in ws.sortChildren(node.children || [], node.path, workspaceId)"
         :key="child.path"
         :node="child"
         :depth="isRoot ? depth : depth + 1"
         :drag-over-path="dragOverPath"
+        :workspace-id="workspaceId"
         @open-file="(p) => emit('open-file', p)"
+        @view-changes="(p) => emit('view-changes', p)"
+        @sort-folder="(payload) => emit('sort-folder', payload)"
         @context="(payload) => emit('context', payload)"
         @node-dragstart="(payload) => emit('node-dragstart', payload)"
         @node-dragover="(payload) => emit('node-dragover', payload)"
@@ -215,9 +315,18 @@ watch(
 }
 
 .tree-row svg,
-.tree-row .tree-icon,
-.tree-row .tree-chevron {
+.tree-row .tree-icon {
   pointer-events: none;
+}
+
+.tree-row .tree-chevron {
+  cursor: pointer;
+}
+
+.tree-row.selected {
+  background: var(--active-bg);
+  outline: 1px solid var(--primary);
+  outline-offset: -1px;
 }
 
 .tree-row.folder .tree-icon {
@@ -232,5 +341,70 @@ watch(
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Unsaved marker — bold accent star, hidden while the changes button shows. */
+.tree-dirty-star {
+  flex-shrink: 0;
+  margin-right: 2px;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  transform: translateY(2px);
+}
+
+.tree-row:hover .tree-dirty-star {
+  display: none;
+}
+
+/* Changes button — only visible on row hover (and only rendered for dirty files). */
+.tree-changes-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tree-row:hover .tree-changes-btn {
+  display: flex;
+}
+
+.tree-changes-btn:hover {
+  background: var(--hover-bg);
+  color: var(--primary);
+}
+
+/* Per-folder sort button — appears on folder-row hover. */
+.tree-sort-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tree-row:hover .tree-sort-btn {
+  display: flex;
+}
+
+.tree-sort-btn:hover {
+  background: var(--hover-bg);
+  color: var(--primary);
 }
 </style>

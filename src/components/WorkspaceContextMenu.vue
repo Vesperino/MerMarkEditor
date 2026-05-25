@@ -5,6 +5,9 @@ import { useI18n } from '../i18n';
 export type WorkspaceContextAction =
   | 'new-file'
   | 'new-folder'
+  | 'new-file-sibling'
+  | 'new-folder-sibling'
+  | 'sort-folder'
   | 'rename'
   | 'delete'
   | 'reveal'
@@ -17,6 +20,9 @@ const props = defineProps<{
   y: number;
   /** 'file' rows offer rename/delete/reveal; 'folder' rows additionally show 'New file…'. */
   kind: 'file' | 'folder';
+  /** Right-click on a workspace root section: show new-file/new-folder/reveal,
+   *  hide rename/delete (those would destroy the workspace folder itself). */
+  isRoot?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -75,6 +81,7 @@ const handle = (action: WorkspaceContextAction) => {
       class="workspace-context-menu"
       :style="{ left: adjustedX + 'px', top: adjustedY + 'px' }"
     >
+      <!-- Folder: create inside it -->
       <button
         v-if="kind === 'folder'"
         class="context-menu-item"
@@ -89,7 +96,46 @@ const handle = (action: WorkspaceContextAction) => {
       >
         {{ t.workspaceContextNewFolder }}
       </button>
-      <button class="context-menu-item" @click="handle('rename')">
+      <!-- File: create alongside it (same parent). Folder root has no parent
+           inside the workspace, so siblings are only offered for non-root. -->
+      <button
+        v-if="kind === 'file'"
+        class="context-menu-item"
+        @click="handle('new-file-sibling')"
+      >
+        {{ t.workspaceContextNewFile }}
+      </button>
+      <button
+        v-if="kind === 'file'"
+        class="context-menu-item"
+        @click="handle('new-folder-sibling')"
+      >
+        {{ t.workspaceContextNewFolder }}
+      </button>
+      <!-- Folder (non-root): also offer creating alongside it -->
+      <button
+        v-if="kind === 'folder' && !isRoot"
+        class="context-menu-item"
+        @click="handle('new-file-sibling')"
+      >
+        {{ t.workspaceContextNewFileSibling }}
+      </button>
+      <button
+        v-if="kind === 'folder' && !isRoot"
+        class="context-menu-item"
+        @click="handle('new-folder-sibling')"
+      >
+        {{ t.workspaceContextNewFolderSibling }}
+      </button>
+      <button
+        v-if="kind === 'folder'"
+        class="context-menu-item"
+        @click="handle('sort-folder')"
+      >
+        {{ t.workspaceSortFolder }}
+      </button>
+      <div class="context-menu-divider"></div>
+      <button v-if="!isRoot" class="context-menu-item" @click="handle('rename')">
         {{ t.workspaceContextRename }}
       </button>
       <button class="context-menu-item" @click="handle('copy-path')">
@@ -98,10 +144,12 @@ const handle = (action: WorkspaceContextAction) => {
       <button class="context-menu-item" @click="handle('reveal')">
         {{ t.workspaceContextRevealInOs }}
       </button>
-      <div class="context-menu-divider"></div>
-      <button class="context-menu-item danger" @click="handle('delete')">
-        {{ t.workspaceContextDelete }}
-      </button>
+      <template v-if="!isRoot">
+        <div class="context-menu-divider"></div>
+        <button class="context-menu-item danger" @click="handle('delete')">
+          {{ t.workspaceContextDelete }}
+        </button>
+      </template>
     </div>
   </Teleport>
 </template>

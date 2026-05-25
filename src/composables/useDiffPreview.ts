@@ -1,11 +1,19 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue';
-import { diffLines } from 'diff';
+import { diffLines, diffWordsWithSpace } from 'diff';
+
+export interface DiffSegment {
+  value: string;
+  /** True when this slice differs from the paired line (intra-line highlight). */
+  highlight: boolean;
+}
 
 export interface DiffLine {
   type: 'added' | 'removed' | 'unchanged';
   content: string;
   oldLineNumber: number | null;
   newLineNumber: number | null;
+  /** Word-level breakdown for changed lines paired across a remove/add run. */
+  segments?: DiffSegment[];
 }
 
 export interface DiffStats {
@@ -77,9 +85,41 @@ export function applyHunkSelections(hunks: DiffHunk[], acceptedIds: Set<number>)
   return lines.join('\n');
 }
 
+/**
+ * Strip trailing whitespace from every line. The WYSIWYG → markdown
+ * serializer can emit inconsistent trailing spaces, which made a single
+ * real edit light up every following line as "changed". Comparing on
+ * trimmed lines collapses those spurious whitespace-only diffs so the
+ * preview shows just the lines the user actually touched.
+ */
+function stripTrailingWhitespace(text: string): string {
+  return text.replace(/[ \t]+(\r?\n)/g, '$1').replace(/[ \t]+$/, '');
+}
+
+/**
+ * Build intra-line word segments for a paired removed/added line. `which`
+ * picks which side's slices to keep: a removed line keeps removed+common
+ * words, an added line keeps added+common words. The differing slices are
+ * flagged so the UI can highlight exactly what changed within the line.
+ */
+function buildSegments(oldLine: string, newLine: string, which: 'removed' | 'added'): DiffSegment[] {
+  const parts = diffWordsWithSpace(oldLine, newLine);
+  const segments: DiffSegment[] = [];
+  for (const part of parts) {
+    if (which === 'removed') {
+      if (part.added) continue;
+      segments.push({ value: part.value, highlight: !!part.removed });
+    } else {
+      if (part.removed) continue;
+      segments.push({ value: part.value, highlight: !!part.added });
+    }
+  }
+  return segments;
+}
+
 export function generateDiff(oldText: string, newText: string): { lines: DiffLine[]; stats: DiffStats } {
-  const normalizedOld = oldText.replace(/\r\n/g, '\n');
-  const normalizedNew = newText.replace(/\r\n/g, '\n');
+  const normalizedOld = stripTrailingWhitespace(oldText.replace(/\r\n/g, '\n'));
+  const normalizedNew = stripTrailingWhitespace(newText.replace(/\r\n/g, '\n'));
 
   const changes = diffLines(normalizedOld, normalizedNew);
 
@@ -105,7 +145,34 @@ export function generateDiff(oldText: string, newText: string): { lines: DiffLin
     }
   }
 
+  attachWordSegments(lines);
+
   return { lines, stats: { additions: addCount, deletions: removeCount } };
+}
+
+/**
+ * Walk the flat diff and, for each maximal run of removed lines immediately
+ * followed by added lines, pair them up index-wise and compute word-level
+ * segments. Pairing the i-th removed with the i-th added is a good heuristic
+ * for the common "edited this line" case and keeps the highlight focused.
+ */
+function attachWordSegments(lines: DiffLine[]): void {
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].type !== 'removed') { i++; continue; }
+    let r = i;
+    while (r < lines.length && lines[r].type === 'removed') r++;
+    let a = r;
+    while (a < lines.length && lines[a].type === 'added') a++;
+    const removed = lines.slice(i, r);
+    const added = lines.slice(r, a);
+    const pairs = Math.min(removed.length, added.length);
+    for (let k = 0; k < pairs; k++) {
+      removed[k].segments = buildSegments(removed[k].content, added[k].content, 'removed');
+      added[k].segments = buildSegments(removed[k].content, added[k].content, 'added');
+    }
+    i = a > i ? a : i + 1;
+  }
 }
 
 export function useDiffPreview(options: UseDiffPreviewOptions): UseDiffPreviewReturn {

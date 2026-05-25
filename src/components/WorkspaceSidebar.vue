@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from '../i18n';
 import { useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
 import { SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '../composables/useSettings';
 import WorkspaceSection from './WorkspaceSection.vue';
 import WorkspaceContextMenu, { type WorkspaceContextAction } from './WorkspaceContextMenu.vue';
+import WorkspaceSortMenu from './WorkspaceSortMenu.vue';
 import WorkspaceInputDialog from './WorkspaceInputDialog.vue';
 import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
+import type { WorkspaceSortMode } from '../utils/workspace-sort';
 
 /**
  * Multi-root workspace sidebar (VS Code / Obsidian inspired).
@@ -29,19 +31,65 @@ const ws = useWorkspace();
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
   (e: 'open-quick-switcher'): void;
+  (e: 'view-changes', path: string): void;
 }>();
 
 const showHeaderMenu = ref(false);
+
+// ===== Sort menu state =====
+// Reused for the global default (scope='global') and per-folder overrides
+// (scope='folder' carries the folder path). Per-workspace sort is handled by
+// WorkspaceSection directly.
+type SortMenuState =
+  | { scope: 'global'; x: number; y: number }
+  | { scope: 'folder'; x: number; y: number; folderPath: string };
+const sortMenu = ref<SortMenuState | null>(null);
+
+function openGlobalSortMenu(e: MouseEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  sortMenu.value = { scope: 'global', x: r.left, y: r.bottom + 4 };
+}
+
+function onFolderSortRequest(payload: { path: string; x: number; y: number }) {
+  sortMenu.value = { scope: 'folder', x: payload.x, y: payload.y, folderPath: payload.path };
+}
+
+const sortMenuCurrent = computed<WorkspaceSortMode>(() => {
+  const s = sortMenu.value;
+  if (!s) return ws.sortMode.value;
+  if (s.scope === 'folder') return ws.effectiveSortMode(s.folderPath, ws.findOwningWorkspace(s.folderPath)?.id ?? null);
+  return ws.sortMode.value;
+});
+const sortMenuHasOverride = computed<boolean>(() => {
+  const s = sortMenu.value;
+  if (s?.scope === 'folder') return !!ws.sortByFolder.value[s.folderPath];
+  return false;
+});
+
+function onSortMenuSelect(mode: WorkspaceSortMode | null) {
+  const s = sortMenu.value;
+  if (!s) return;
+  if (s.scope === 'global') {
+    if (mode) ws.setGlobalSortMode(mode);
+  } else {
+    ws.setFolderSort(s.folderPath, mode);
+  }
+}
 
 // ===== Context menu state (right-click on tree node) =====
 const ctxX = ref(0);
 const ctxY = ref(0);
 const ctxNode = ref<WorkspaceNode | null>(null);
+const ctxIsRoot = ref(false);
 
 function openContext(payload: { x: number; y: number; node: WorkspaceNode }) {
   ctxX.value = payload.x;
   ctxY.value = payload.y;
   ctxNode.value = payload.node;
+  // A right-click on a workspace section header carries a synthetic node whose
+  // path matches one of the open workspace roots — flag it so the menu hides
+  // rename/delete (those would target the workspace folder itself).
+  ctxIsRoot.value = ws.openWorkspaces.value.some((w) => w.rootPath === payload.node.path);
 }
 function closeContext() {
   ctxNode.value = null;
@@ -54,7 +102,8 @@ type PendingAction =
   | { kind: 'new-file'; parent: string }
   | { kind: 'new-folder'; parent: string }
   | { kind: 'rename'; from: string; originalName: string }
-  | { kind: 'delete'; path: string; name: string };
+  | { kind: 'delete'; path: string; name: string }
+  | { kind: 'delete-many'; paths: string[]; name: string };
 
 const pendingAction = ref<PendingAction | null>(null);
 
@@ -76,6 +125,24 @@ async function onContextAction(action: WorkspaceContextAction) {
     pendingAction.value = { kind: 'new-folder', parent: node.path };
     return;
   }
+  // Sibling actions create in the node's PARENT directory — "alongside" the
+  // clicked file/folder. Strip the last path segment to get the parent.
+  if (action === 'new-file-sibling' || action === 'new-folder-sibling') {
+    const sepIdx = Math.max(node.path.lastIndexOf('/'), node.path.lastIndexOf('\\'));
+    if (sepIdx < 0) return;
+    const parent = node.path.slice(0, sepIdx);
+    pendingAction.value = {
+      kind: action === 'new-file-sibling' ? 'new-file' : 'new-folder',
+      parent,
+    };
+    return;
+  }
+  if (action === 'sort-folder') {
+    if (node.kind !== 'folder') return;
+    // Reopen as the sort menu at the same spot the context menu was.
+    sortMenu.value = { scope: 'folder', x: ctxX.value, y: ctxY.value, folderPath: node.path };
+    return;
+  }
   if (action === 'copy-path') {
     try { await navigator.clipboard.writeText(node.path); }
     catch (e) { console.error('copy path:', e); }
@@ -86,7 +153,19 @@ async function onContextAction(action: WorkspaceContextAction) {
     return;
   }
   if (action === 'delete') {
-    pendingAction.value = { kind: 'delete', path: node.path, name: node.name };
+    // When the right-clicked row is part of a multi-selection, delete the
+    // whole selection (matches the Delete-key behaviour and Explorer/VS).
+    const selected = ws.selectedPaths.value;
+    if (selected.size > 1 && selected.has(node.path)) {
+      const paths = Array.from(selected);
+      pendingAction.value = {
+        kind: 'delete-many',
+        paths,
+        name: `${paths.length} ${t.value.workspaceItemsLabel}`,
+      };
+    } else {
+      pendingAction.value = { kind: 'delete', path: node.path, name: node.name };
+    }
   }
 }
 
@@ -138,13 +217,26 @@ async function onConfirmRename(newName: string) {
 
 async function onConfirmDelete() {
   const a = pendingAction.value;
-  if (!a || a.kind !== 'delete') return;
+  if (!a) return;
   pendingAction.value = null;
-  try {
-    await ws.deletePath(a.path);
-  } catch (e) {
-    console.error('delete:', e);
-    window.alert(String(e));
+  if (a.kind === 'delete') {
+    try {
+      await ws.deletePath(a.path);
+    } catch (e) {
+      console.error('delete:', e);
+      window.alert(String(e));
+    }
+    return;
+  }
+  if (a.kind === 'delete-many') {
+    for (const p of a.paths) {
+      try {
+        await ws.deletePath(p);
+      } catch (e) {
+        console.error('delete:', p, e);
+      }
+    }
+    ws.clearSelection();
   }
 }
 
@@ -224,10 +316,61 @@ function startNewFileInActiveWorkspace() {
 // ===== Tree drag&drop (file -> folder = move via rename) =====
 const dragOverFolderPath = ref<string | null>(null);
 
+// Document-level capture listeners installed for the duration of a workspace
+// tree drag. WebView2 / ProseMirror occasionally swallow the dragover that
+// reaches the editor pane, leaving the cursor stuck in `no-drop` state even
+// though our handler would have accepted it. Forcing preventDefault at the
+// document capture level is a belt-and-braces guarantee that every element
+// becomes a valid drop target while the drag is in flight; the actual drop
+// is still routed to whichever target Vue/DOM picks (EditorPane.handleFileDrop
+// or onTreeDrop). They both read `ws.draggedPaths` so the payload still flows.
+let globalDragOver: ((e: DragEvent) => void) | null = null;
+let globalDragEnd: ((e: DragEvent) => void) | null = null;
+let globalDrop: ((e: DragEvent) => void) | null = null;
+
+function installGlobalDragHandlers() {
+  removeGlobalDragHandlers();
+  globalDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  };
+  globalDragEnd = () => {
+    ws.endNodeDrag();
+    removeGlobalDragHandlers();
+  };
+  globalDrop = () => {
+    // Any drop ends the workspace drag. If a pane handler accepted it, the
+    // payload was already consumed; otherwise dragend would fire too.
+    ws.endNodeDrag();
+    removeGlobalDragHandlers();
+  };
+  document.addEventListener('dragover', globalDragOver, true);
+  document.addEventListener('dragend', globalDragEnd, true);
+  document.addEventListener('drop', globalDrop, true);
+}
+function removeGlobalDragHandlers() {
+  if (globalDragOver) document.removeEventListener('dragover', globalDragOver, true);
+  if (globalDragEnd) document.removeEventListener('dragend', globalDragEnd, true);
+  if (globalDrop) document.removeEventListener('drop', globalDrop, true);
+  globalDragOver = null;
+  globalDragEnd = null;
+  globalDrop = null;
+}
+
 function onTreeDragStart(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
-  if (!payload.ev.dataTransfer) return;
-  payload.ev.dataTransfer.setData('application/x-mermark-ws-node', JSON.stringify({ path: payload.path, kind: payload.kind }));
-  payload.ev.dataTransfer.effectAllowed = 'copyMove';
+  // Begin shared drag state — captures the full selection if the source row
+  // is part of it; otherwise just this one path. EditorPane and onTreeDrop
+  // read `ws.draggedPaths` instead of sniffing dataTransfer types, which is
+  // unreliable across the iframe/webview boundary.
+  const paths = ws.beginNodeDrag(payload.path);
+  if (payload.ev.dataTransfer) {
+    payload.ev.dataTransfer.setData(
+      'application/x-mermark-ws-node',
+      JSON.stringify({ paths, primary: payload.path, kind: payload.kind }),
+    );
+    payload.ev.dataTransfer.effectAllowed = 'copyMove';
+  }
+  installGlobalDragHandlers();
 }
 function onTreeDragOver(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
   if (payload.kind !== 'folder') return;
@@ -242,22 +385,25 @@ async function onTreeDrop(payload: { path: string; kind: 'file' | 'folder'; ev: 
   payload.ev.preventDefault();
   dragOverFolderPath.value = null;
   if (payload.kind !== 'folder') return;
-  const raw = payload.ev.dataTransfer?.getData('application/x-mermark-ws-node');
-  if (!raw) return;
-  let info: { path: string; kind: 'file' | 'folder' };
-  try { info = JSON.parse(raw); } catch { return; }
-  if (info.path === payload.path) return;
-  const fromName = info.path.split(/[/\\]/).pop() || '';
-  if (!fromName) return;
+  const sources = ws.draggedPaths.value.length > 0
+    ? [...ws.draggedPaths.value]
+    : [];
+  ws.endNodeDrag();
+  if (sources.length === 0) return;
   const sep = payload.path.includes('\\') ? '\\' : '/';
-  const dest = `${payload.path}${sep}${fromName}`;
-  if (dest === info.path) return;
-  if (info.kind === 'folder' && payload.path.startsWith(info.path)) return;
-  try {
-    await ws.renamePath(info.path, dest);
-  } catch (e) {
-    console.error('move:', e);
-    window.alert(String(e));
+  for (const src of sources) {
+    if (src === payload.path) continue;
+    if (payload.path.startsWith(src + sep) || payload.path.startsWith(src + '/') || payload.path.startsWith(src + '\\')) continue;
+    const fromName = src.split(/[/\\]/).pop() || '';
+    if (!fromName) continue;
+    const dest = `${payload.path}${sep}${fromName}`;
+    if (dest === src) continue;
+    try {
+      await ws.renamePath(src, dest);
+    } catch (e) {
+      console.error('move:', e);
+      window.alert(String(e));
+    }
   }
 }
 
@@ -312,6 +458,50 @@ function onResizeEnd() {
 
 const widthPx = computed(() => `${ws.sidebarWidth.value}px`);
 const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
+
+const sidebarEl = ref<HTMLElement | null>(null);
+const headerMenuRoot = ref<HTMLElement | null>(null);
+
+// Close the header (3-dots) menu when clicking anywhere outside it.
+function onDocMouseDown(e: MouseEvent) {
+  if (!showHeaderMenu.value) return;
+  const target = e.target as Node | null;
+  if (headerMenuRoot.value && target && headerMenuRoot.value.contains(target)) return;
+  showHeaderMenu.value = false;
+}
+
+// Click outside any row clears the selection. Children with stopPropagation
+// (rows) won't trigger this. Folder/file rows handle their own selection.
+function onBodyMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+  if (target.closest('.tree-row') || target.closest('.ws-section-header')) return;
+  ws.clearSelection();
+}
+
+// Delete key removes selected nodes after a single confirm dialog.
+function onKeyDown(e: KeyboardEvent) {
+  // Ignore when typing in an input/textarea/contenteditable inside the sidebar.
+  const target = e.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  if (ws.selectedPaths.value.size === 0) return;
+  e.preventDefault();
+  const paths = Array.from(ws.selectedPaths.value);
+  // Multi delete dialog: reuse single confirm. Name shows count if >1.
+  const first = paths[0].split(/[/\\]/).pop() || paths[0];
+  const label = paths.length === 1 ? first : `${paths.length} ${t.value.workspaceItemsLabel}`;
+  pendingAction.value = { kind: 'delete-many', paths, name: label };
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown);
+  document.addEventListener('mousedown', onDocMouseDown);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeyDown);
+  document.removeEventListener('mousedown', onDocMouseDown);
+});
 </script>
 
 <template>
@@ -334,6 +524,22 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7"/>
           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
+
+      <!-- Sort: opens a menu to set the global default order. -->
+      <button
+        v-if="hasOpen"
+        class="ws-header-btn"
+        v-tooltip="t.workspaceSortMenu"
+        @click="openGlobalSortMenu"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="6" x2="13" y2="6"/>
+          <line x1="4" y1="12" x2="11" y2="12"/>
+          <line x1="4" y1="18" x2="9" y2="18"/>
+          <polyline points="17 8 20 5 20 5"/>
+          <path d="M20 5v14l-3-3"/>
         </svg>
       </button>
 
@@ -365,6 +571,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
         </svg>
       </button>
 
+      <div ref="headerMenuRoot" class="ws-header-menu-root">
       <button
         class="ws-header-btn"
         v-tooltip="t.workspace"
@@ -397,9 +604,10 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
           </button>
         </template>
       </div>
+      </div>
     </header>
 
-    <div class="ws-body">
+    <div class="ws-body" ref="sidebarEl" @mousedown="onBodyMouseDown">
       <div v-if="!hasOpen" class="ws-empty">
         <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -420,7 +628,11 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
           :is-active-context="activeContextWorkspaceId === w.id"
           :drag-over-path="dragOverFolderPath"
           @open-file="(p) => emit('open-file', p)"
+          @view-changes="(p) => emit('view-changes', p)"
+          @sort-folder="onFolderSortRequest"
           @context="openContext"
+          @new-file-at="(parent) => (pendingAction = { kind: 'new-file', parent })"
+          @new-folder-at="(parent) => (pendingAction = { kind: 'new-folder', parent })"
           @node-dragstart="onTreeDragStart"
           @node-dragover="onTreeDragOver"
           @node-dragleave="onTreeDragLeave"
@@ -455,8 +667,20 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
       :x="ctxX"
       :y="ctxY"
       :kind="ctxNode.kind"
+      :is-root="ctxIsRoot"
       @action="onContextAction"
       @close="closeContext"
+    />
+
+    <WorkspaceSortMenu
+      v-if="sortMenu"
+      :x="sortMenu.x"
+      :y="sortMenu.y"
+      :current="sortMenuCurrent"
+      :allow-inherit="sortMenu.scope === 'folder'"
+      :has-override="sortMenuHasOverride"
+      @select="onSortMenuSelect"
+      @close="sortMenu = null"
     />
 
     <!-- Styled prompts replacing native window.prompt / confirm -->
@@ -501,7 +725,7 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
     />
 
     <WorkspaceConfirmDialog
-      v-if="pendingAction?.kind === 'delete'"
+      v-if="pendingAction?.kind === 'delete' || pendingAction?.kind === 'delete-many'"
       :title="t.workspaceContextDelete"
       :message="t.workspaceConfirmDelete(pendingAction.name)"
       :confirm-label="t.workspaceContextDelete"
@@ -581,6 +805,16 @@ const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
 .ws-header-btn:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+
+.ws-header-btn--active {
+  color: var(--primary);
+}
+
+/* Wrapper has no box so the flex header layout and the absolute menu
+   positioning are unaffected; it only exists as a click-outside boundary. */
+.ws-header-menu-root {
+  display: contents;
 }
 
 .ws-menu {

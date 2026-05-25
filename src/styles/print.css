@@ -184,11 +184,26 @@ table {
   page-break-inside: auto;
 }
 
-thead { display: table-header-group; }
+thead {
+  display: table-header-group;
+  /* Without this Chromium happily leaves the <thead> alone at the bottom of a
+   * page when the first body row would overflow — readers then see column
+   * titles with no data underneath. break-after: avoid forces the page break
+   * to happen before the thead so it stays attached to its first row. */
+  break-after: avoid;
+  page-break-after: avoid;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 
 tr {
   page-break-inside: avoid;
   break-inside: avoid;
+}
+
+tbody tr:first-child {
+  break-before: avoid;
+  page-break-before: avoid;
 }
 
 th {
@@ -298,6 +313,40 @@ img {
   border: none;
 }
 
+/* Chromium/WebView2 frequently drops `break-after` on an empty zero-height
+   box, so the marker div alone didn't force a new page in the exported PDF.
+   Forcing `break-before` on the element that FOLLOWS the marker is reliable
+   because that element generates a real box. Belt-and-braces with the
+   break-after above. */
+.page-break + * {
+  break-before: page !important;
+  page-break-before: always !important;
+}
+
+/* Real page breaks only happen at print time, so the on-screen PDF preview
+   shows nothing where a break sits. Draw a labelled divider in screen media
+   so the user can see where pages will split. Print media keeps the marker
+   invisible (the @page break does the real work). */
+@media screen {
+  .page-break {
+    height: auto;
+    margin: 1.4em 0;
+    border-top: 1px dashed #b8c0c8;
+    position: relative;
+    text-align: center;
+  }
+  .page-break::after {
+    content: "PAGE BREAK";
+    position: relative;
+    top: -0.7em;
+    background: #ffffff;
+    padding: 0 8px;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: #8a949e;
+  }
+}
+
 /* ===== Task lists ===== */
 .task-cb {
   font-family: "Segoe UI Symbol", "Apple Color Emoji", sans-serif;
@@ -363,11 +412,44 @@ sup.footnote-ref a { color: var(--pf-accent, #0b56c4); text-decoration: none; }
 .pdf-toc-list a {
   color: #1a1a1a;
   text-decoration: none;
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   padding: 1pt 0;
 }
 
 .pdf-toc-list a:hover { color: var(--pf-accent, #0b56c4); }
+
+.pdf-toc-text { flex: 0 0 auto; }
+
+/* Page numbers next to each TOC entry. Chromium honours target-counter()
+   in @media print, resolving to the destination page for the anchor's
+   href. The leader fills the gap with dots so the eye tracks the row.
+   Hide both helpers on screen so the live preview doesn't show empty
+   space; only the print stage cares about page numbers. */
+.pdf-toc-leader,
+.pdf-toc-page { display: none; }
+
+@media print {
+  .pdf-toc-leader {
+    flex: 1;
+    margin: 0 4pt;
+    border-bottom: 0.4pt dotted #888;
+    align-self: flex-end;
+    transform: translateY(-3pt);
+    min-width: 8pt;
+    display: inline-block;
+  }
+  .pdf-toc-page {
+    display: inline-block;
+    color: #555;
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+  }
+  .pdf-toc-page::after {
+    content: target-counter(attr(href url), page);
+  }
+}
 
 .pdf-toc-l1 a { font-weight: 600; }
 .pdf-toc-l2 a { font-weight: 500; font-size: 0.95em; }

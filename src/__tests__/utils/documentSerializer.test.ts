@@ -76,7 +76,50 @@ describe('serializeEditorContent', () => {
     const result = serializeEditorContent(el);
     expect(result).not.toMatch(/<foreignObject[\s>]/);
     expect(result).toContain('Node Label');
-    expect(result).toMatch(/<text[^>]*>Node Label<\/text>/);
+    expect(result).toMatch(/<text[^>]*>[\s\S]*Node Label[\s\S]*<\/text>/);
+  });
+
+  it('preserves word spacing between sibling spans in Mermaid labels', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('graph LR'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('x', '0');
+    fo.setAttribute('y', '0');
+    fo.setAttribute('width', '100');
+    fo.setAttribute('height', '40');
+    // Mermaid emits multi-span labels — earlier serializer concatenated them
+    // into `F1Wykres przypisanydo konkretnego` (no spaces).
+    fo.innerHTML = '<div><span>F1</span><span>Wykres przypisany</span><span>do konkretnego</span></div>';
+    svg.appendChild(fo);
+    wrapper.appendChild(svg);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).toContain('F1 Wykres przypisany do konkretnego');
+    expect(result).not.toContain('F1Wykres');
+  });
+
+  it('splits Mermaid labels on <br> / <p> into separate tspan lines', () => {
+    const el = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-code', encodeURIComponent('graph LR'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('x', '0');
+    fo.setAttribute('y', '0');
+    fo.setAttribute('width', '120');
+    fo.setAttribute('height', '60');
+    fo.innerHTML = '<p>Line one</p><p>Line two</p>';
+    svg.appendChild(fo);
+    wrapper.appendChild(svg);
+    el.appendChild(wrapper);
+
+    const result = serializeEditorContent(el);
+    expect(result).toContain('Line one');
+    expect(result).toContain('Line two');
+    expect((result.match(/<tspan/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
   it('replaces dark background fill with white', () => {
@@ -159,6 +202,32 @@ describe('serializeEditorContent', () => {
     expect(result).toContain('id="fn-1"');
     expect(result).toContain('href="#fnref-1"');
     expect(result).toContain('↩');
+  });
+
+  it('normalizes Vue NodeView footnote section into canonical print form', () => {
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <p>Text<sup data-footnote-ref="1" class="footnote-ref">1</sup> more.</p>
+      <div class="footnote-section-wrapper" data-node-view-wrapper>
+        <div class="footnote-header"><span class="footnote-label">Footnotes</span></div>
+        <ol class="footnote-list">
+          <li class="footnote-item" data-index="0" data-footnote-label="1">
+            <span class="footnote-def-index">1.</span>
+            <span class="footnote-def-content">Footnote body.</span>
+            <button class="footnote-backlink">↩</button>
+          </li>
+        </ol>
+      </div>
+    `;
+    const result = serializeEditorContent(el);
+    expect(result).toContain('data-footnotes');
+    expect(result).toContain('id="fn-1"');
+    expect(result).toContain('href="#fn-1"');
+    expect(result).toContain('id="fnref-1"');
+    expect(result).toContain('Footnote body.');
+    expect(result).not.toContain('footnote-section-wrapper');
+    expect(result).not.toContain('footnote-edit-input');
+    expect(result).not.toContain('footnote-backlink');
   });
 
   it('assigns slugified IDs to headings', () => {

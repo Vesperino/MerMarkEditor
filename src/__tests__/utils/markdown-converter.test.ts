@@ -209,6 +209,31 @@ describe('htmlToMarkdown', () => {
       expect(result).toContain('- [ ] Todo');
       expect(result).toContain('- [x] Done');
     });
+
+    it('serializes nested task lists with indentation (issue #95)', () => {
+      // Real TipTap shape: the nested <ul> lives INSIDE the content <div>.
+      const html = '<ul data-type="taskList">' +
+        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>task 1</p>' +
+        '<ul data-type="taskList">' +
+        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>task 1a</p></div></li>' +
+        '<li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked></label><div><p>task 1b</p></div></li>' +
+        '</ul></div></li></ul>';
+      const result = htmlToMarkdown(html);
+      expect(result).toBe('- [ ] task 1\n  - [ ] task 1a\n  - [x] task 1b');
+      // No leftover tags / flattened "task 1task 1a" concatenation.
+      expect(result).not.toContain('</li>');
+      expect(result).not.toContain('</ul>');
+      expect(result).not.toContain('task 1task');
+    });
+
+    it('serializes a 3-level nested checklist without flattening (issue #95)', () => {
+      const html = '<ul data-type="taskList">' +
+        '<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>parent</p>' +
+        '<ul data-type="taskList"><li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked></label><div><p>child</p>' +
+        '<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>grandchild</p></div></li></ul>' +
+        '</div></li></ul></div></li></ul>';
+      expect(htmlToMarkdown(html)).toBe('- [ ] parent\n  - [x] child\n    - [ ] grandchild');
+    });
   });
 
   describe('tables', () => {
@@ -249,6 +274,25 @@ describe('htmlToMarkdown', () => {
       const result = htmlToMarkdown(html);
       expect(result).toBe('`ICommandHandler<T,R>`');
     });
+  });
+});
+
+describe('page breaks', () => {
+  it('serializes a page-break node to a persistent style div', () => {
+    const md = htmlToMarkdown('<p>a</p><div class="page-break"></div><p>b</p>');
+    expect(md).toContain('<div style="page-break-after: always;"></div>');
+  });
+
+  it('round-trips a page break through save and reload', () => {
+    const original = '<h1>One</h1><div class="page-break"></div><h1>Two</h1>';
+    const md = htmlToMarkdown(original);
+    const back = markdownToHtml(md);
+    expect(back).toContain('class="page-break"');
+  });
+
+  it('restores a saved page-break style div on load', () => {
+    const html = markdownToHtml('a\n\n<div style="page-break-after: always;"></div>\n\nb');
+    expect(html).toContain('class="page-break"');
   });
 });
 
@@ -363,6 +407,21 @@ describe('markdownToHtml', () => {
       expect(result).toContain('data-type="taskItem"');
       expect(result).toContain('data-checked="false"');
       expect(result).toContain('data-checked="true"');
+    });
+
+    it('parses indented task items into a nested task list (issue #95)', () => {
+      const md = '- [ ] task 1\n  - [ ] task 1a\n  - [x] task 1b';
+      const result = markdownToHtml(md);
+      // The inner items live inside a second nested taskList <ul>.
+      expect((result.match(/data-type="taskList"/g) || []).length).toBe(2);
+      expect((result.match(/data-type="taskItem"/g) || []).length).toBe(3);
+      expect(result).toContain('task 1a');
+      expect(result).toContain('data-checked="true"');
+    });
+
+    it('round-trips indented task lists md → html → md (issue #95)', () => {
+      const md = '- [ ] task 1\n  - [ ] task 1a\n  - [x] task 1b\n  - [ ] task 1c';
+      expect(htmlToMarkdown(markdownToHtml(md))).toBe(md);
     });
   });
 

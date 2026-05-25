@@ -55,10 +55,52 @@ function isDarkColor(color: string | null): boolean {
 }
 
 /**
+ * Walk a node tree and produce plain text with sensible whitespace.
+ *   - Text nodes contribute as-is (whitespace collapsed per HTML rules).
+ *   - <br> → newline.
+ *   - Block elements (<p>, <div>, <li>) get a newline boundary so adjacent
+ *     elements never glue their text together ("F1Wykres przypisanydo…").
+ *   - Inline siblings (<span>, <strong>) get a single space between them so
+ *     Mermaid's HTML labels — which often render `<span>F1</span>` next to
+ *     `<span>Wykres…</span>` — stay readable as separate words.
+ */
+const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'BR']);
+
+function extractLabelLines(node: Node): string[] {
+  const out: string[] = [];
+  let current = '';
+  const flush = () => {
+    const trimmed = current.replace(/[ \t]+/g, ' ').trim();
+    if (trimmed) out.push(trimmed);
+    current = '';
+  };
+  const walk = (n: Node) => {
+    if (n.nodeType === Node.TEXT_NODE) {
+      current += n.textContent ?? '';
+      return;
+    }
+    if (n.nodeType !== Node.ELEMENT_NODE) return;
+    const el = n as Element;
+    const tag = el.tagName.toUpperCase();
+    if (tag === 'BR') { flush(); return; }
+    const isBlock = BLOCK_TAGS.has(tag);
+    if (isBlock && current) flush();
+    for (const child of Array.from(el.childNodes)) walk(child);
+    if (isBlock) flush();
+    else if (current && !current.endsWith(' ')) current += ' ';
+  };
+  walk(node);
+  flush();
+  return out;
+}
+
+/**
  * Mermaid renders text labels inside <foreignObject> with HTML divs.
  * Those rely on CSS scoped to the live Mermaid component.
  * When cloned into a print iframe that CSS is gone, so labels disappear.
- * Convert each foreignObject to a plain SVG <text> with the same content.
+ * Convert each foreignObject to a plain SVG <text> with the same content,
+ * preserving line breaks via <tspan dy>. Multi-span labels keep word spacing
+ * so node text stays readable in the PDF.
  */
 function convertForeignObjectsToText(svg: Element): void {
   const fos = Array.from(svg.querySelectorAll('foreignObject'));
@@ -67,22 +109,32 @@ function convertForeignObjectsToText(svg: Element): void {
     const y = parseFloat(fo.getAttribute('y') ?? '0');
     const w = parseFloat(fo.getAttribute('width') ?? '0');
     const h = parseFloat(fo.getAttribute('height') ?? '0');
-    const raw = (fo.textContent ?? '').replace(/\s+/g, ' ').trim();
-    if (!raw) {
+    const lines = extractLabelLines(fo);
+    if (lines.length === 0) {
       fo.remove();
       continue;
     }
     const cx = x + w / 2;
     const cy = y + h / 2;
+    const lineHeight = 14;
+    const totalHeight = (lines.length - 1) * lineHeight;
+    const startY = cy - totalHeight / 2;
     const text = document.createElementNS(SVG_NS, 'text');
     text.setAttribute('x', String(cx));
-    text.setAttribute('y', String(cy));
+    text.setAttribute('y', String(startY));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'central');
     text.setAttribute('font-size', '12');
+    text.setAttribute('font-weight', 'normal');
     text.setAttribute('font-family', 'inherit');
     text.setAttribute('fill', '#1a1a1a');
-    text.textContent = raw;
+    for (let i = 0; i < lines.length; i++) {
+      const tspan = document.createElementNS(SVG_NS, 'tspan');
+      tspan.setAttribute('x', String(cx));
+      if (i > 0) tspan.setAttribute('dy', String(lineHeight));
+      tspan.textContent = lines[i];
+      text.appendChild(tspan);
+    }
     fo.replaceWith(text);
   }
 }
@@ -138,12 +190,29 @@ function normalizeMermaidColors(svg: Element): void {
       el.setAttribute('style', cleaned + ';fill:#ffffff');
     }
   }
-  // Light-colored text → dark for contrast on white bg
-  const texts = Array.from(svg.querySelectorAll('text, tspan')) as Element[];
+  // Force every <text>/<tspan> to a dark, normal-weight, regular-style label
+  // for print, regardless of what Mermaid's classDef or themeVariables left
+  // behind. Three vectors override SVG/HTML text rendering:
+  //   1. presentation attributes (fill=, font-weight=, font-style=) → set them
+  //   2. inline style with !important → walk the style declaration
+  //   3. CSS class rules from Mermaid's own <style> → handled by
+  //      injectPrintLightOverride elsewhere
+  // Without (1)+(2), <text fill="green" font-weight="bold"> survived all our
+  // overrides and PDFs showed colored, mega-bold labels.
+  const texts = Array.from(svg.querySelectorAll<SVGElement>('text, tspan'));
   for (const t of texts) {
-    const fill = t.getAttribute('fill');
-    if (!fill || !isDarkColor(fill)) {
-      t.setAttribute('fill', '#1a1a1a');
+    t.setAttribute('fill', '#1a1a1a');
+    t.setAttribute('font-weight', 'normal');
+    t.setAttribute('font-style', 'normal');
+    const style = t.getAttribute('style');
+    if (style) {
+      const stripped = style
+        .replace(/(?:^|;)\s*fill\s*:[^;]*;?/gi, '')
+        .replace(/(?:^|;)\s*color\s*:[^;]*;?/gi, '')
+        .replace(/(?:^|;)\s*font-weight\s*:[^;]*;?/gi, '')
+        .replace(/(?:^|;)\s*font-style\s*:[^;]*;?/gi, '');
+      if (stripped.trim()) t.setAttribute('style', stripped);
+      else t.removeAttribute('style');
     }
   }
 }
@@ -182,6 +251,8 @@ function injectPrintLightOverride(svg: Element): void {
     text, tspan, .nodeLabel, .edgeLabel, .cluster-label {
       fill: #1a1a1a !important;
       color: #1a1a1a !important;
+      font-weight: normal !important;
+      font-family: inherit !important;
     }
     .edgeLabel rect, .edgeLabel foreignObject { fill: #ffffff !important; background: #ffffff !important; }
     .edgePath path:not(.arrowMarkerPath), .flowchart-link, path.path,
@@ -270,6 +341,45 @@ export function assignHeadingIds(root: HTMLElement): HeadingInfo[] {
 }
 
 /**
+ * The live editor renders the footnote section through a Vue NodeView
+ * (FootnoteNode.vue), which produces UI chrome (edit textareas, backlink
+ * buttons, index spans) rather than the canonical `<section data-footnotes>`
+ * + `<li data-footnote-id="LABEL">` form that linkifyFootnotes expects.
+ * Rebuild the clean print form from the visible content so anchor wiring
+ * downstream finds matching targets.
+ */
+export function normalizeFootnoteSection(root: HTMLElement): void {
+  const wrappers = Array.from(root.querySelectorAll('.footnote-section-wrapper'));
+  for (const wrapper of wrappers) {
+    const items = Array.from(wrapper.querySelectorAll<HTMLElement>('li.footnote-item'));
+    if (!items.length) {
+      wrapper.remove();
+      continue;
+    }
+    const section = document.createElement('section');
+    section.className = 'footnotes';
+    section.setAttribute('data-footnotes', '');
+    const ol = document.createElement('ol');
+    for (const item of items) {
+      const label = item.getAttribute('data-footnote-label') ?? '';
+      if (!label) continue;
+      const contentEl = item.querySelector('.footnote-def-content');
+      const editEl = item.querySelector<HTMLTextAreaElement>('.footnote-edit-input');
+      const text = (editEl?.value ?? contentEl?.textContent ?? '').trim();
+      const li = document.createElement('li');
+      li.setAttribute('data-footnote-id', label);
+      const p = document.createElement('p');
+      p.textContent = text;
+      li.appendChild(p);
+      ol.appendChild(li);
+    }
+    section.appendChild(document.createElement('hr'));
+    section.appendChild(ol);
+    wrapper.replaceWith(section);
+  }
+}
+
+/**
  * Convert TipTap footnote markup into clickable internal links:
  *   - Each <sup class="footnote-ref" data-footnote-ref="LABEL">N</sup>
  *     becomes <sup id="fnref-LABEL"><a href="#fn-LABEL">N</a></sup>
@@ -315,6 +425,7 @@ export function serializeEditorContent(editorEl: HTMLElement): string {
   const clone = editorEl.cloneNode(true) as HTMLElement;
   inlineMermaidSvgs(clone);
   inlineTaskCheckboxes(clone);
+  normalizeFootnoteSection(clone);
   assignHeadingIds(clone);
   linkifyFootnotes(clone);
   stripAppAttributes(clone);

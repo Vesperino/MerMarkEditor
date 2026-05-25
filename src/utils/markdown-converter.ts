@@ -23,7 +23,7 @@ export {
 } from './footnote-utils';
 
 import { decodeHtmlEntities, escapeHtml } from './html-entities';
-import { convertInlineToMarkdown, extractMermaidCode, parseHtmlList, processHtmlLists } from './html-to-markdown';
+import { convertInlineToMarkdown, extractMermaidCode, processHtmlLists } from './html-to-markdown';
 import {
   parseMarkdownLists,
   convertMarkdownTables,
@@ -130,12 +130,10 @@ export function htmlToMarkdown(html: string): string {
     return result + '\n';
   });
 
-  // Task lists
-  md = md.replace(/<ul[^>]*data-type=["']taskList["'][^>]*>([\s\S]*?)<\/ul>/gi, (match) => {
-    const content = match.replace(/^<ul[^>]*>([\s\S]*)<\/ul>$/i, '$1');
-    return '\n' + parseHtmlList(content, 0, false);
-  });
-
+  // Lists (regular + task). processHtmlLists walks every <ul>/<ol> with
+  // balanced open/close matching, so nested task lists serialize correctly.
+  // (A previous separate task-list pass used a non-greedy `</ul>` regex that
+  // stopped at the first nested close tag — issue #95.)
   md = processHtmlLists(md);
 
   // Headers
@@ -153,8 +151,11 @@ export function htmlToMarkdown(html: string): string {
     return `\n> ${text}\n\n`;
   });
 
-  // Page breaks
-  md = md.replace(/<div[^>]*class=["']page-break["'][^>]*>\s*<\/div>/gi, '\n<div style="page-break-after: always;"></div>\n');
+  // Page breaks — convert to a text marker that survives the generic
+  // "strip remaining <div>" pass below (which would otherwise delete the
+  // page-break div and lose it on save/reload). Restored to its persisted
+  // HTML form after that strip.
+  md = md.replace(/<div[^>]*class=["']page-break["'][^>]*>\s*<\/div>/gi, '\n__PAGE_BREAK_MARKER__\n');
 
   // Horizontal rule
   md = md.replace(/<hr[^>]*\/?>/gi, '\n---\n');
@@ -204,6 +205,9 @@ export function htmlToMarkdown(html: string): string {
   // Remove remaining tags
   md = md.replace(/<span[^>]*>(.*?)<\/span>/gi, '$1');
   md = md.replace(/<\/?div[^>]*>/gi, '\n');
+
+  // Restore page breaks now that the blanket div strip has run.
+  md = md.replace(/__PAGE_BREAK_MARKER__/g, '<div style="page-break-after: always;"></div>');
 
   md = decodeHtmlEntities(md);
 
@@ -264,12 +268,9 @@ export function markdownToHtml(md: string): string {
   // Tables
   html = convertMarkdownTables(html);
 
-  // Task lists
-  html = html.replace(/^- \[([ x])\] (.*)$/gim, (_, checked, text) => {
-    const isChecked = checked === 'x';
-    return `<li data-type="taskItem" data-checked="${isChecked}"><label><input type="checkbox" ${isChecked ? 'checked' : ''}></label><p>${text}</p></li>`;
-  });
-  html = html.replace(/(<li data-type="taskItem"[^>]*>[\s\S]*?<\/li>\n?)+/g, '<ul data-type="taskList">$&</ul>');
+  // Task lists are handled inside parseMarkdownLists (below) so indented /
+  // nested checklist items parse correctly (issue #95) — same nesting engine
+  // as bullet/ordered lists.
 
   // Headers
   html = convertMarkdownHeaders(html);

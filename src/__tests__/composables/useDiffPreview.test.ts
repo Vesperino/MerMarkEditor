@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computed, ref } from 'vue';
-import { useDiffPreview } from '../../composables/useDiffPreview';
+import { useDiffPreview, generateDiff } from '../../composables/useDiffPreview';
 
 describe('useDiffPreview', () => {
   const createOptions = (opts: {
@@ -176,6 +176,42 @@ describe('useDiffPreview', () => {
       expect(showDiffPreview.value).toBe(false);
       expect(diffPreviewLines.value).toEqual([]);
       expect(diffStats.value).toEqual({ additions: 0, deletions: 0 });
+    });
+  });
+
+  describe('generateDiff', () => {
+    it('reports no changes when only trailing whitespace differs', () => {
+      // The serializer used to emit stray trailing spaces, flooding the diff.
+      const original = 'line one\nline two\nline three';
+      const current = 'line one   \nline two\t\nline three  ';
+      const { lines, stats } = generateDiff(original, current);
+      expect(stats.additions).toBe(0);
+      expect(stats.deletions).toBe(0);
+      expect(lines.every((l) => l.type === 'unchanged')).toBe(true);
+    });
+
+    it('only marks the actually-edited line when one line changes mid-file', () => {
+      const original = 'a\nb\nc\nd\ne';
+      const current = 'a\nb\nc CHANGED\nd\ne';
+      const { stats } = generateDiff(original, current);
+      expect(stats.additions).toBe(1);
+      expect(stats.deletions).toBe(1);
+    });
+
+    it('attaches word-level segments to paired removed/added lines', () => {
+      const { lines } = generateDiff('the quick brown fox', 'the slow brown fox');
+      const removed = lines.find((l) => l.type === 'removed');
+      const added = lines.find((l) => l.type === 'added');
+      expect(removed?.segments?.some((s) => s.highlight && s.value.includes('quick'))).toBe(true);
+      expect(added?.segments?.some((s) => s.highlight && s.value.includes('slow'))).toBe(true);
+      // Shared words stay un-highlighted.
+      expect(removed?.segments?.some((s) => !s.highlight && s.value.includes('brown'))).toBe(true);
+    });
+
+    it('counts a genuine added line', () => {
+      const { stats } = generateDiff('a\nb', 'a\nNEW\nb');
+      expect(stats.additions).toBe(1);
+      expect(stats.deletions).toBe(0);
     });
   });
 });

@@ -379,6 +379,8 @@ const emit = defineEmits<{
   "update:modelValue": [value: string];
   "update:hasChanges": [value: boolean];
   "linkClick": [href: string];
+  /** Non-image OS files (md/txt) dropped onto the editor — host opens them as tabs. */
+  "openDroppedFiles": [files: File[]];
 }>();
 
 function pickImageFile(data: DataTransfer): File | null {
@@ -560,6 +562,25 @@ const editor = useEditor({
       }
 
       return false; // Let default paste handler work
+    },
+    // OS file drops (from Explorer/Finder/other apps). With Tauri's
+    // dragDropEnabled=false the webview gets native HTML5 drops, so the
+    // dropped files arrive here as File objects in dataTransfer.files —
+    // image files are imported + inserted inline (same path as paste),
+    // text/markdown files bubble up to the host to open as new tabs.
+    // Workspace-internal drags carry no files (custom MIME only), so they
+    // fall through to EditorPane.handleFileDrop untouched.
+    handleDrop: (_view, event) => {
+      const dt = (event as DragEvent).dataTransfer;
+      if (!dt || dt.files.length === 0) return false;
+      const files = Array.from(dt.files);
+      const images = files.filter((f) => f.type.startsWith('image/'));
+      const others = files.filter((f) => !f.type.startsWith('image/'));
+      if (images.length === 0 && others.length === 0) return false;
+      event.preventDefault();
+      for (const img of images) void handlePastedImage(img);
+      if (others.length) emit('openDroppedFiles', others);
+      return true;
     },
   },
 });
@@ -761,21 +782,26 @@ async function insertImagesByPath(items: { path: string; alt: string }[]) {
       alt: item.alt,
       'data-original-src': item.path,
     } as Parameters<typeof ed.commands.setImage>[0]).run();
+    // setImage leaves the new image node selected; collapse the cursor to
+    // just after it so the next image appends below instead of replacing
+    // the currently-selected one.
+    ed.commands.setTextSelection(ed.state.selection.to);
   }
 
   await nextTick();
-  if (!props.filePath) return;
 
   const editorEl = editorContainerRef.value?.querySelector('.ProseMirror');
   if (!editorEl) return;
-  const baseDir = getDirectoryFromFilePath(props.filePath);
-  if (!baseDir) return;
+  // baseDir is only needed for relative paths (saved docs). Unsaved-doc images
+  // are stored with an absolute path, which resolveEditorImages handles even
+  // without a baseDir — so resolve in both cases.
+  const baseDir = props.filePath ? getDirectoryFromFilePath(props.filePath) : undefined;
 
   imageResolutionInProgress = true;
   const domObs = (ed.view as any).domObserver;
   domObs?.stop();
   try {
-    await resolveEditorImages(editorEl, baseDir);
+    await resolveEditorImages(editorEl, baseDir || undefined);
   } finally {
     domObs?.start();
     imageResolutionInProgress = false;
@@ -1073,14 +1099,35 @@ defineExpose({
   gap: 8px;
 }
 
+/* Align the checkbox to the centre of the item's first text line. The label
+   box is made exactly one line tall (line-height × font-size) and centres the
+   checkbox inside it, so it lines up with the text regardless of font size
+   and stays top-anchored for multi-line items. */
 .editor-content .tiptap ul[data-type="taskList"] li > label {
-  margin-top: 0.25em;
+  margin: 0;
+  height: calc(var(--editor-line-height, 1.6) * var(--editor-font-size, 16px));
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .editor-content .tiptap ul[data-type="taskList"] li > label input[type="checkbox"] {
   width: 16px;
   height: 16px;
   cursor: pointer;
+}
+
+/* The item's content wrapper carries the default paragraph margin, which
+   pushed the text off the checkbox line — zero it so the first line sits at
+   the row top. */
+.editor-content .tiptap ul[data-type="taskList"] li > div {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-content .tiptap ul[data-type="taskList"] li > div > p {
+  margin: 0;
 }
 
 .editor-content .tiptap hr {

@@ -6,7 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { writeTextFile, exists, readTextFile, remove } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
-import { htmlToMarkdown, detectLineEnding, applyLineEnding } from './utils/markdown-converter';
+import { htmlToMarkdown, detectLineEnding, applyLineEnding, markdownToHtml } from './utils/markdown-converter';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 // Components
@@ -315,9 +315,23 @@ const handleCloseTabRequest = (paneId: string, tabId: string) => {
 
 function handleTabTogglePin(paneId: string, tabId: string) {
   const pane = splitState.value.panes.find((p) => p.id === paneId);
-  const tab = pane?.tabs.find((t) => t.id === tabId);
+  if (!pane) return;
+  const tab = pane.tabs.find((t) => t.id === tabId);
   if (!tab) return;
   tab.pinned = !tab.pinned;
+
+  // Keep pinned tabs at the front of the tab bar (Chrome / VS Code style).
+  // After toggling, move the tab so the layout is `[pinned…, unpinned…]`:
+  //   - pin:  insert at end of the pinned block
+  //   - unpin: insert at the head of the unpinned block (right after the
+  //     last still-pinned tab)
+  const currentIdx = pane.tabs.findIndex((t) => t.id === tabId);
+  if (currentIdx === -1) return;
+  pane.tabs.splice(currentIdx, 1);
+  const pinnedCount = pane.tabs.filter((t) => t.pinned).length;
+  // After the splice, both branches drop the tab at index `pinnedCount`
+  // — the boundary between pinned and unpinned blocks.
+  pane.tabs.splice(pinnedCount, 0, tab);
 }
 
 /** Close every tab in a pane that satisfies `predicate`. Pinned tabs and
@@ -909,22 +923,51 @@ const { settings } = useSettings();
 
 // ============ Workspace ============
 const workspace = useWorkspace();
+const insertImageIntoActivePane = (path: string) => {
+  const paneEl = document.querySelector<HTMLElement>(`.editor-pane.active`)
+    ?? document.querySelector<HTMLElement>('.editor-pane');
+  const rect = paneEl?.getBoundingClientRect();
+  const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+  const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+  const dpr = window.devicePixelRatio || 1;
+  void handleImageDrop([path], { x: x * dpr, y: y * dpr });
+};
+
+// Triggered by the workspace tree's double-click (single click only selects
+// the row now). Markdown opens as a tab; images intentionally noop — the user
+// inserts them by dragging into the editor, which keeps select / insert
+// gestures distinct and prevents accidental document mutation on dblclick.
 const handleWorkspaceOpenFile = (path: string) => {
+  if (isImageFile(path)) return;
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
+};
+
+/**
+ * OS files dropped onto the editor that aren't images (md/txt/markdown).
+ * With Tauri's dragDropEnabled=false we receive the browser File objects but
+ * no absolute path, so we read the text and open each as a fresh unsaved tab
+ * in the active pane. The user gives it a real path on first Save.
+ */
+const handleOpenDroppedFiles = async (files: File[]) => {
+  for (const file of files) {
+    const name = file.name.toLowerCase();
+    const isText = /\.(md|markdown|txt|mermark)$/.test(name) || file.type.startsWith('text/');
+    if (!isText) continue;
+    try {
+      const text = await file.text();
+      const html = markdownToHtml(text);
+      createNewTab(null, html, file.name);
+    } catch (e) {
+      console.error('[App] open dropped file:', file.name, e);
+    }
+  }
 };
 
 const handleWorkspaceDropFile = (paneId: string, path: string) => {
   splitState.value.activePaneId = paneId;
   if (isImageFile(path)) {
-    // Center of pane is good enough — exact position from this event isn't tracked.
-    const paneEl = document.querySelector<HTMLElement>(`.editor-pane.active`)
-      ?? document.querySelector<HTMLElement>('.editor-pane');
-    const rect = paneEl?.getBoundingClientRect();
-    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
-    const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
-    const dpr = window.devicePixelRatio || 1;
-    void handleImageDrop([path], { x: x * dpr, y: y * dpr });
+    insertImageIntoActivePane(path);
     return;
   }
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -949,6 +992,35 @@ watch(
   },
   { immediate: true },
 );
+
+// Mirror unsaved-tab state into the workspace tree so dirty files show a
+// marker. Watches every pane's tabs (filePath + hasChanges) and republishes
+// the set of dirty paths whenever it changes.
+watch(
+  () => splitState.value.panes.flatMap((p) =>
+    p.tabs.filter((tb) => tb.hasChanges && tb.filePath).map((tb) => tb.filePath as string),
+  ),
+  (paths) => {
+    workspace.setDirtyPaths(paths);
+  },
+  { immediate: true, deep: true },
+);
+
+// Open the changes (diff) preview for a specific workspace file. Works for any
+// open tab — uses its in-memory original vs current markdown — even if it
+// isn't the active tab.
+// eslint-disable-next-line @typescript-eslint/no-use-before-define
+const handleWorkspaceViewChanges = (path: string) => {
+  const norm = path.replace(/\\/g, '/');
+  const result = findTabByFilePathSplit(path);
+  const tab = result?.tab
+    ?? splitState.value.panes.flatMap((p) => p.tabs).find((tb) => (tb.filePath ?? '').replace(/\\/g, '/') === norm);
+  if (!tab || !tab.filePath) return;
+  const original = tab.originalMarkdown ?? '';
+  const current = htmlToMarkdown(tab.content || '').trimEnd();
+  // No explicit names → DiffPreview falls back to its "Changes" title.
+  openComparePreview(original, current);
+};
 
 // ============ Layout Config ============
 const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
@@ -1515,6 +1587,7 @@ onUnmounted(async () => {
         v-if="workspace.sidebarVisible.value"
         @open-file="handleWorkspaceOpenFile"
         @open-quick-switcher="showWorkspaceQuickSwitcher = true"
+        @view-changes="handleWorkspaceViewChanges"
       />
 
       <!-- Left Bar (configurable) -->
@@ -1566,6 +1639,7 @@ onUnmounted(async () => {
           @close-all-but-pinned="handleTabCloseAllButPinned"
           @close-saved="handleTabCloseSaved"
           @drop-file="handleWorkspaceDropFile"
+          @open-dropped-files="handleOpenDroppedFiles"
         />
       </div>
 

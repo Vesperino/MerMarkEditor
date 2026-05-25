@@ -60,7 +60,16 @@ onUnmounted(() => {
             <span class="diff-line-number diff-line-number--old">{{ line.oldLineNumber ?? '' }}</span>
             <span class="diff-line-number diff-line-number--new">{{ line.newLineNumber ?? '' }}</span>
             <span class="diff-line-prefix">{{ line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ' }}</span>
-            <span class="diff-line-content">{{ line.content || ' ' }}</span>
+            <span class="diff-line-content">
+              <template v-if="line.segments && line.segments.length">
+                <span
+                  v-for="(seg, si) in line.segments"
+                  :key="si"
+                  :class="seg.highlight ? ('diff-word diff-word--' + line.type) : ''"
+                >{{ seg.value }}</span>
+              </template>
+              <template v-else>{{ line.content || ' ' }}</template>
+            </span>
           </div>
         </div>
       </div>
@@ -210,5 +219,20 @@ onUnmounted(() => {
 .diff-line-content {
   flex: 1;
   padding-right: 16px;
+}
+
+/* Intra-line word highlight — makes the exact changed words pop within an
+   otherwise-unchanged line, instead of flooding the whole row. */
+.diff-word {
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.diff-word--added {
+  background: var(--diff-word-added-bg, rgba(46, 160, 67, 0.4));
+}
+
+.diff-word--removed {
+  background: var(--diff-word-removed-bg, rgba(248, 81, 73, 0.4));
 }
 </style>
