@@ -85,6 +85,38 @@ describe('resolveSortMode', () => {
       }),
     ).toBe('name-desc');
   });
+
+  it('cascades a folder override down to a subfolder (nearest ancestor wins)', () => {
+    expect(
+      resolveSortMode({
+        ...base,
+        folderPath: '/ws/a/b/c',
+        workspaceId: 'w1',
+        folderOverrides: { '/ws/a': 'modified-desc' },
+      }),
+    ).toBe('modified-desc');
+  });
+
+  it('a deeper folder override beats a shallower ancestor override', () => {
+    expect(
+      resolveSortMode({
+        ...base,
+        folderPath: '/ws/a/b/c',
+        workspaceId: 'w1',
+        folderOverrides: { '/ws/a': 'modified-desc', '/ws/a/b': 'name-desc' },
+      }),
+    ).toBe('name-desc');
+  });
+
+  it('handles Windows backslash paths when cascading', () => {
+    expect(
+      resolveSortMode({
+        ...base,
+        folderPath: 'C:\\ws\\a\\b',
+        folderOverrides: { 'C:\\ws\\a': 'modified-asc' },
+      }),
+    ).toBe('modified-asc');
+  });
 });
 
 describe('migrateSortMode', () => {

@@ -46,13 +46,27 @@ export interface SortResolution {
   globalMode: WorkspaceSortMode;
 }
 
+/** Parent of a path, or null at the root. Handles both / and \ separators. */
+function parentPath(path: string): string | null {
+  const sepIdx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  if (sepIdx <= 0) return null;
+  return path.slice(0, sepIdx);
+}
+
 /**
  * Resolves the effective sort mode for a folder's children, most specific
- * wins: explicit folder override → owning workspace override → global default.
+ * wins: a folder override cascades down to its whole subtree (the nearest
+ * ancestor with an override wins) → owning workspace override → global default.
  */
 export function resolveSortMode(opts: SortResolution): WorkspaceSortMode {
   const { folderPath, workspaceId, folderOverrides, workspaceOverrides, globalMode } = opts;
-  if (folderPath && folderOverrides[folderPath]) return folderOverrides[folderPath];
+  let cur: string | null = folderPath ?? null;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    if (folderOverrides[cur]) return folderOverrides[cur];
+    cur = parentPath(cur);
+  }
   if (workspaceId && workspaceOverrides[workspaceId]) return workspaceOverrides[workspaceId];
   return globalMode;
 }
