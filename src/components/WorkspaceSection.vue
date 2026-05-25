@@ -31,6 +31,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
   (e: 'view-changes', path: string): void;
+  (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
   (e: 'node-dragstart', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
   (e: 'node-dragover', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
@@ -230,6 +231,7 @@ function newFolderHere(ev: MouseEvent) {
         :workspace-id="workspace.id"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
+        @sort-folder="(payload) => emit('sort-folder', payload)"
         @context="(payload) => emit('context', payload)"
         @node-dragstart="(payload) => emit('node-dragstart', payload)"
         @node-dragover="(payload) => emit('node-dragover', payload)"
@@ -323,7 +325,10 @@ function newFolderHere(ev: MouseEvent) {
 .ws-section-actions {
   display: flex;
   gap: 2px;
-  opacity: 0;
+  /* Always visible — these actions (sort, new file/folder, refresh, reveal,
+     close) were hover-only and undiscoverable. Muted by default, full
+     contrast on row hover. */
+  opacity: 0.65;
   transition: opacity 0.12s ease;
 }
 

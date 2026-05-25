@@ -8,6 +8,7 @@ defineOptions({ name: 'FileTreeNode' });
 
 const { t } = useI18n();
 const wsViewChangesLabel = computed(() => t.value.workspaceViewChanges);
+const wsSortFolderLabel = computed(() => t.value.workspaceSortFolder);
 
 const props = defineProps<{
   node: WorkspaceNode;
@@ -23,6 +24,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
   (e: 'view-changes', path: string): void;
+  (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
   (e: 'node-dragstart', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
   (e: 'node-dragover', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
@@ -98,6 +100,12 @@ function onContextMenu(e: MouseEvent) {
   // Right-click on an unselected row replaces the selection — matches Explorer/VS.
   if (!ws.isSelected(props.node.path)) ws.selectOnly(props.node.path);
   emit('context', { x: e.clientX, y: e.clientY, node: props.node });
+}
+
+function onSortFolder(e: MouseEvent) {
+  e.stopPropagation();
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  emit('sort-folder', { path: props.node.path, x: r.left, y: r.bottom + 4 });
 }
 
 function onDragStart(e: DragEvent) {
@@ -198,6 +206,21 @@ watch(
         </svg>
       </span>
       <span class="tree-label" v-tooltip="node.path">{{ node.name }}</span>
+      <!-- Sort button: visible on hover for folders; opens the per-folder sort menu. -->
+      <button
+        v-if="isFolder"
+        class="tree-sort-btn"
+        v-tooltip="wsSortFolderLabel"
+        @click="onSortFolder"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="6" x2="13" y2="6"/>
+          <line x1="4" y1="12" x2="11" y2="12"/>
+          <line x1="4" y1="18" x2="9" y2="18"/>
+          <polyline points="17 8 20 5 20 5"/>
+          <path d="M20 5v14l-3-3"/>
+        </svg>
+      </button>
       <!-- Changes button: visible on hover for unsaved files; opens the diff. -->
       <button
         v-if="isDirtyRow"
@@ -224,6 +247,7 @@ watch(
         :workspace-id="workspaceId"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
+        @sort-folder="(payload) => emit('sort-folder', payload)"
         @context="(payload) => emit('context', payload)"
         @node-dragstart="(payload) => emit('node-dragstart', payload)"
         @node-dragover="(payload) => emit('node-dragover', payload)"
@@ -355,6 +379,31 @@ watch(
 }
 
 .tree-changes-btn:hover {
+  background: var(--hover-bg);
+  color: var(--primary);
+}
+
+/* Per-folder sort button — appears on folder-row hover. */
+.tree-sort-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tree-row:hover .tree-sort-btn {
+  display: flex;
+}
+
+.tree-sort-btn:hover {
   background: var(--hover-bg);
   color: var(--primary);
 }

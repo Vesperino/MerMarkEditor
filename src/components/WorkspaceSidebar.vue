@@ -50,6 +50,10 @@ function openGlobalSortMenu(e: MouseEvent) {
   sortMenu.value = { scope: 'global', x: r.left, y: r.bottom + 4 };
 }
 
+function onFolderSortRequest(payload: { path: string; x: number; y: number }) {
+  sortMenu.value = { scope: 'folder', x: payload.x, y: payload.y, folderPath: payload.path };
+}
+
 const sortMenuCurrent = computed<WorkspaceSortMode>(() => {
   const s = sortMenu.value;
   if (!s) return ws.sortMode.value;
@@ -613,6 +617,7 @@ onBeforeUnmount(() => {
           :drag-over-path="dragOverFolderPath"
           @open-file="(p) => emit('open-file', p)"
           @view-changes="(p) => emit('view-changes', p)"
+          @sort-folder="onFolderSortRequest"
           @context="openContext"
           @new-file-at="(parent) => (pendingAction = { kind: 'new-file', parent })"
           @new-folder-at="(parent) => (pendingAction = { kind: 'new-folder', parent })"
