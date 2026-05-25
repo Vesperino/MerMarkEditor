@@ -313,6 +313,16 @@ img {
   border: none;
 }
 
+/* Chromium/WebView2 frequently drops `break-after` on an empty zero-height
+   box, so the marker div alone didn't force a new page in the exported PDF.
+   Forcing `break-before` on the element that FOLLOWS the marker is reliable
+   because that element generates a real box. Belt-and-braces with the
+   break-after above. */
+.page-break + * {
+  break-before: page !important;
+  page-break-before: always !important;
+}
+
 /* ===== Task lists ===== */
 .task-cb {
   font-family: "Segoe UI Symbol", "Apple Color Emoji", sans-serif;
