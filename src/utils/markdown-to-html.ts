@@ -3,8 +3,9 @@ import { escapeHtml, generateSlug } from './html-entities';
 interface ListItem {
   indent: number;
   content: string;
-  type: 'ul' | 'ol';
+  type: 'ul' | 'ol' | 'task';
   number?: number;
+  checked?: boolean;
   extraContent: string[];
 }
 
@@ -14,10 +15,26 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
 
   while (idx < lines.length) {
     const line = lines[idx];
-    const ulMatch = line.match(/^(\s*)- (.*)$/);
+    // Task items must be tested before the generic bullet match — they also
+    // start with "- ". Accept upper/lower "x" for the checked state.
+    const taskMatch = line.match(/^(\s*)- \[([ xX])\] (.*)$/);
+    const ulMatch = taskMatch ? null : line.match(/^(\s*)- (.*)$/);
     const olMatch = line.match(/^(\s*)(\d+)\. (.*)$/);
 
-    if (ulMatch) {
+    if (taskMatch) {
+      const indent = Math.floor(taskMatch[1].length / 2);
+      const content = taskMatch[3].trim();
+      if (content) {
+        items.push({
+          indent,
+          content,
+          type: 'task',
+          checked: taskMatch[2].toLowerCase() === 'x',
+          extraContent: [],
+        });
+      }
+      idx++;
+    } else if (ulMatch) {
       const indent = Math.floor(ulMatch[1].length / 2);
       const content = ulMatch[2].trim();
       if (content) {
@@ -73,7 +90,7 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
     }
 
     const listType = firstItem.type;
-    let html = `<${listType}>`;
+    let html = listType === 'task' ? '<ul data-type="taskList">' : `<${listType}>`;
     let i = startIdx;
 
     while (i < items.length) {
@@ -84,7 +101,13 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
       if (item.indent === baseIndent) {
         if (item.type !== listType) break;
 
-        html += `<li><p>${item.content}</p>`;
+        if (item.type === 'task') {
+          const checked = item.checked ? 'true' : 'false';
+          const checkedAttr = item.checked ? ' checked' : '';
+          html += `<li data-type="taskItem" data-checked="${checked}"><label><input type="checkbox"${checkedAttr}></label><p>${item.content}</p>`;
+        } else {
+          html += `<li><p>${item.content}</p>`;
+        }
 
         // Emit continuation content (code blocks, text paragraphs)
         for (const extra of item.extraContent) {
@@ -111,7 +134,7 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
       }
     }
 
-    html += `</${listType}>`;
+    html += listType === 'task' ? '</ul>' : `</${listType}>`;
     return { html, endIdx: i };
   };
 
@@ -133,7 +156,9 @@ export function parseMarkdownLists(text: string): string {
 
   while (i < lines.length) {
     const line = lines[i];
-    const isUnorderedList = /^\s*- /.test(line) && !/^\s*- \[[ x]\]/.test(line);
+    // Bullets, task items ("- [ ]") and ordered items all start a list block;
+    // parseMarkdownListBlock tells them apart per line.
+    const isUnorderedList = /^\s*- /.test(line);
     const isOrderedList = /^\s*\d+\. /.test(line);
 
     if (isUnorderedList || isOrderedList) {
