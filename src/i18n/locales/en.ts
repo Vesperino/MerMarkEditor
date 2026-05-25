@@ -439,6 +439,8 @@ const en: Translations = {
   workspaceSidebarHide: 'Hide sidebar',
   workspaceContextNewFile: 'New file…',
   workspaceContextNewFolder: 'New folder…',
+  workspaceContextNewFileSibling: 'New file alongside…',
+  workspaceContextNewFolderSibling: 'New folder alongside…',
   workspaceContextRename: 'Rename…',
   workspaceContextCopyPath: 'Copy path',
   workspaceContextDelete: 'Delete',

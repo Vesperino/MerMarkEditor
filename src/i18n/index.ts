@@ -445,6 +445,8 @@ export interface Translations {
   workspaceSidebarHide: string;
   workspaceContextNewFile: string;
   workspaceContextNewFolder: string;
+  workspaceContextNewFileSibling: string;
+  workspaceContextNewFolderSibling: string;
   workspaceContextRename: string;
   workspaceContextCopyPath: string;
   workspaceContextDelete: string;

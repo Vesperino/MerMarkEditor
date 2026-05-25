@@ -82,6 +82,18 @@ async function onContextAction(action: WorkspaceContextAction) {
     pendingAction.value = { kind: 'new-folder', parent: node.path };
     return;
   }
+  // Sibling actions create in the node's PARENT directory — "alongside" the
+  // clicked file/folder. Strip the last path segment to get the parent.
+  if (action === 'new-file-sibling' || action === 'new-folder-sibling') {
+    const sepIdx = Math.max(node.path.lastIndexOf('/'), node.path.lastIndexOf('\\'));
+    if (sepIdx < 0) return;
+    const parent = node.path.slice(0, sepIdx);
+    pendingAction.value = {
+      kind: action === 'new-file-sibling' ? 'new-file' : 'new-folder',
+      parent,
+    };
+    return;
+  }
   if (action === 'copy-path') {
     try { await navigator.clipboard.writeText(node.path); }
     catch (e) { console.error('copy path:', e); }

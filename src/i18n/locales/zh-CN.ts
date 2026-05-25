@@ -439,6 +439,8 @@ const zhCN: Translations = {
   workspaceSidebarHide: '隐藏侧边栏',
   workspaceContextNewFile: '新建文件…',
   workspaceContextNewFolder: '新建文件夹…',
+  workspaceContextNewFileSibling: '在同级新建文件…',
+  workspaceContextNewFolderSibling: '在同级新建文件夹…',
   workspaceContextRename: '重命名…',
   workspaceContextCopyPath: '复制路径',
   workspaceContextDelete: '删除',

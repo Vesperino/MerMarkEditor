@@ -439,6 +439,8 @@ const pl: Translations = {
   workspaceSidebarHide: 'Ukryj panel',
   workspaceContextNewFile: 'Nowy plik…',
   workspaceContextNewFolder: 'Nowy folder…',
+  workspaceContextNewFileSibling: 'Nowy plik obok…',
+  workspaceContextNewFolderSibling: 'Nowy folder obok…',
   workspaceContextRename: 'Zmień nazwę…',
   workspaceContextCopyPath: 'Kopiuj ścieżkę',
   workspaceContextDelete: 'Usuń',

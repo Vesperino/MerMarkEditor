@@ -5,6 +5,8 @@ import { useI18n } from '../i18n';
 export type WorkspaceContextAction =
   | 'new-file'
   | 'new-folder'
+  | 'new-file-sibling'
+  | 'new-folder-sibling'
   | 'rename'
   | 'delete'
   | 'reveal'
@@ -78,6 +80,7 @@ const handle = (action: WorkspaceContextAction) => {
       class="workspace-context-menu"
       :style="{ left: adjustedX + 'px', top: adjustedY + 'px' }"
     >
+      <!-- Folder: create inside it -->
       <button
         v-if="kind === 'folder'"
         class="context-menu-item"
@@ -92,6 +95,38 @@ const handle = (action: WorkspaceContextAction) => {
       >
         {{ t.workspaceContextNewFolder }}
       </button>
+      <!-- File: create alongside it (same parent). Folder root has no parent
+           inside the workspace, so siblings are only offered for non-root. -->
+      <button
+        v-if="kind === 'file'"
+        class="context-menu-item"
+        @click="handle('new-file-sibling')"
+      >
+        {{ t.workspaceContextNewFile }}
+      </button>
+      <button
+        v-if="kind === 'file'"
+        class="context-menu-item"
+        @click="handle('new-folder-sibling')"
+      >
+        {{ t.workspaceContextNewFolder }}
+      </button>
+      <!-- Folder (non-root): also offer creating alongside it -->
+      <button
+        v-if="kind === 'folder' && !isRoot"
+        class="context-menu-item"
+        @click="handle('new-file-sibling')"
+      >
+        {{ t.workspaceContextNewFileSibling }}
+      </button>
+      <button
+        v-if="kind === 'folder' && !isRoot"
+        class="context-menu-item"
+        @click="handle('new-folder-sibling')"
+      >
+        {{ t.workspaceContextNewFolderSibling }}
+      </button>
+      <div class="context-menu-divider"></div>
       <button v-if="!isRoot" class="context-menu-item" @click="handle('rename')">
         {{ t.workspaceContextRename }}
       </button>
