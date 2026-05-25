@@ -1,8 +1,24 @@
 import { copyFile, mkdir, exists, writeFile } from '@tauri-apps/plugin-fs';
+import { appDataDir } from '@tauri-apps/api/path';
 import { getDirectoryFromFilePath } from '../utils/image-resolver';
 import { splitFilename, toForwardSlashes } from '../utils/image-file-utils';
 
 const IMAGES_DIR = 'images';
+/** Where images dropped/pasted into an unsaved document are parked. */
+const UNSAVED_IMAGES_DIR = 'unsaved-images';
+
+/**
+ * Stable app-managed folder for images added before the document has a path.
+ * Returns an absolute, forward-slashed directory (created if missing) so the
+ * markdown references a real file link instead of an inline data: URL — which
+ * otherwise dumped a huge base64 blob into the code view.
+ */
+async function getUnsavedImagesDir(): Promise<string> {
+  const base = toForwardSlashes(await appDataDir()).replace(/\/+$/, '');
+  const dir = `${base}/${UNSAVED_IMAGES_DIR}`;
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
 
 export interface ImportedImage {
   /** Path to use inside markdown — relative when copied, absolute when doc unsaved. */
@@ -55,18 +71,23 @@ export async function importImageBytes(
   stemHint: string = 'pasted-image',
 ): Promise<ImportedImage> {
   const stem = `${stemHint}-${Date.now()}`;
+  const docDir = docPath ? getDirectoryFromFilePath(docPath) : null;
 
-  if (!docPath) {
-    const blob = new Blob([bytes], { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
-    const dataUrl = await blobToDataUrl(blob);
-    return { markdownPath: dataUrl, altText: stem };
-  }
-
-  const docDir = getDirectoryFromFilePath(docPath);
+  // Unsaved document (no anchor directory): park the image in the app's
+  // managed folder and reference it by absolute path. Falls back to a data:
+  // URL only if even that write fails, so the image still shows.
   if (!docDir) {
-    const blob = new Blob([bytes], { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
-    const dataUrl = await blobToDataUrl(blob);
-    return { markdownPath: dataUrl, altText: stem };
+    try {
+      const dir = await getUnsavedImagesDir();
+      const finalName = await resolveCollision(dir, stem, ext);
+      const targetPath = `${dir}/${finalName}`;
+      await writeFile(targetPath, bytes);
+      return { markdownPath: targetPath, altText: stem };
+    } catch {
+      const blob = new Blob([bytes], { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
+      const dataUrl = await blobToDataUrl(blob);
+      return { markdownPath: dataUrl, altText: stem };
+    }
   }
 
   const targetDir = `${docDir}/${IMAGES_DIR}`;

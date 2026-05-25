@@ -782,21 +782,26 @@ async function insertImagesByPath(items: { path: string; alt: string }[]) {
       alt: item.alt,
       'data-original-src': item.path,
     } as Parameters<typeof ed.commands.setImage>[0]).run();
+    // setImage leaves the new image node selected; collapse the cursor to
+    // just after it so the next image appends below instead of replacing
+    // the currently-selected one.
+    ed.commands.setTextSelection(ed.state.selection.to);
   }
 
   await nextTick();
-  if (!props.filePath) return;
 
   const editorEl = editorContainerRef.value?.querySelector('.ProseMirror');
   if (!editorEl) return;
-  const baseDir = getDirectoryFromFilePath(props.filePath);
-  if (!baseDir) return;
+  // baseDir is only needed for relative paths (saved docs). Unsaved-doc images
+  // are stored with an absolute path, which resolveEditorImages handles even
+  // without a baseDir — so resolve in both cases.
+  const baseDir = props.filePath ? getDirectoryFromFilePath(props.filePath) : undefined;
 
   imageResolutionInProgress = true;
   const domObs = (ed.view as any).domObserver;
   domObs?.stop();
   try {
-    await resolveEditorImages(editorEl, baseDir);
+    await resolveEditorImages(editorEl, baseDir || undefined);
   } finally {
     domObs?.start();
     imageResolutionInProgress = false;
