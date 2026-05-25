@@ -62,6 +62,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'blockquote', category: 'blocks', defaultZone: 'toolbar', defaultOrder: 500, needsEditor: true, labelKey: 'blockquote' },
   { id: 'code-block', category: 'blocks', defaultZone: 'toolbar', defaultOrder: 510, needsEditor: true, labelKey: 'codeBlock' },
   { id: 'horizontal-rule', category: 'blocks', defaultZone: 'toolbar', defaultOrder: 520, needsEditor: true, labelKey: 'horizontalRule' },
+  { id: 'page-break', category: 'blocks', defaultZone: 'toolbar', defaultOrder: 530, needsEditor: true, labelKey: 'pageBreak' },
 
   // Links & Media
   { id: 'link', category: 'links-media', defaultZone: 'toolbar', defaultOrder: 600, needsEditor: true, labelKey: 'link' },

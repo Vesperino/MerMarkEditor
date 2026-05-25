@@ -41,6 +41,7 @@ const zhCN: Translations = {
   blockquote: '引用 > 文本',
   codeBlock: '代码块 ```代码```',
   horizontalRule: '水平线 ---',
+  pageBreak: '分页符（PDF 中新起一页）',
 
   // Toolbar - Links & Media
   link: '链接 [文本](网址)',

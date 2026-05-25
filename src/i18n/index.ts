@@ -47,6 +47,7 @@ export interface Translations {
   blockquote: string;
   codeBlock: string;
   horizontalRule: string;
+  pageBreak: string;
 
   // Toolbar - Links & Media
   link: string;

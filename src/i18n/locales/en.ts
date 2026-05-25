@@ -41,6 +41,7 @@ const en: Translations = {
   blockquote: 'Quote > text',
   codeBlock: 'Code block ```code```',
   horizontalRule: 'Horizontal line ---',
+  pageBreak: 'Page break (new page in PDF)',
 
   // Toolbar - Links & Media
   link: 'Link [text](url)',
