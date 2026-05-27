@@ -186,6 +186,9 @@ export interface Translations {
   editorPaddingTop: string;
   editorPaddingBottom: string;
   editorPaddingX: string;
+  mermaidOpeningDelimiter: string;
+  mermaidClosingDelimiter: string;
+  mermaidDelimiterHint: string;
   spellcheck: string;
   showLineNumbers: string;
   expandTabs: string;

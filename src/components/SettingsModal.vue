@@ -23,6 +23,8 @@ const {
   setEditorPaddingTop,
   setEditorPaddingBottom,
   setEditorPaddingX,
+  setMermaidFenceOpen,
+  setMermaidFenceClose,
   setSpellcheck,
   setExpandTabs,
   setShowLineNumbers,
@@ -727,6 +729,32 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <div class="setting-row">
+              <label class="setting-label">{{ t.mermaidOpeningDelimiter }}</label>
+              <div class="setting-control">
+                <input
+                  class="setting-input"
+                  type="text"
+                  :value="settings.mermaidFenceOpen"
+                  @change="(e: Event) => setMermaidFenceOpen((e.target as HTMLInputElement).value)"
+                />
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t.mermaidClosingDelimiter }}</label>
+              <div class="setting-control">
+                <input
+                  class="setting-input"
+                  type="text"
+                  :value="settings.mermaidFenceClose"
+                  @change="(e: Event) => setMermaidFenceClose((e.target as HTMLInputElement).value)"
+                />
+              </div>
+            </div>
+
+            <p class="setting-help">{{ t.mermaidDelimiterHint }}</p>
+
             <!-- Code font preview -->
             <div class="font-preview code-preview" :style="{ fontFamily: `var(--code-font-family)` }">
               <span class="code-token-keyword">const</span> <span class="code-token-name">greeting</span> = <span class="code-token-string">"Hello, World!"</span>;<br>
@@ -1084,14 +1112,33 @@ onUnmounted(() => {
   min-width: 200px;
 }
 
-.setting-select:hover {
+.setting-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-input);
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 200px;
+}
+
+.setting-select:hover,
+.setting-input:hover {
   border-color: var(--border-secondary);
 }
 
-.setting-select:focus {
+.setting-select:focus,
+.setting-input:focus {
   outline: none;
   border-color: var(--focus-ring);
   box-shadow: 0 0 0 2px var(--focus-ring-alpha);
+}
+
+.setting-help {
+  margin: -8px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* Range slider */

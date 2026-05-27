@@ -24,6 +24,7 @@ export {
 
 import { decodeHtmlEntities, escapeHtml } from './html-entities';
 import { convertInlineToMarkdown, extractMermaidCode, processHtmlLists } from './html-to-markdown';
+import { buildMermaidBlock, getCurrentMermaidDelimiters, type MermaidDelimiters } from './mermaid-delimiters';
 import {
   parseMarkdownLists,
   convertMarkdownTables,
@@ -42,7 +43,10 @@ import {
   extractHtmlFootnoteSection,
 } from './footnote-utils';
 
-export function htmlToMarkdown(html: string): string {
+export function htmlToMarkdown(
+  html: string,
+  mermaidDelimiters: MermaidDelimiters = getCurrentMermaidDelimiters(),
+): string {
   let md = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   const protectedBlocks: string[] = [];
@@ -71,7 +75,7 @@ export function htmlToMarkdown(html: string): string {
         attrPairs.push(`splitRatio=${splitRatioMatch[1]}`);
       }
       const attrComment = attrPairs.length ? `<!--mermaid-attrs:${attrPairs.join(',')}-->\n` : '';
-      protectedBlocks.push(`\n${attrComment}\`\`\`mermaid\n${code}\n\`\`\`\n`);
+      protectedBlocks.push(`\n${attrComment}${buildMermaidBlock(code, mermaidDelimiters)}\n`);
       return placeholder;
     }
     return '';
@@ -249,12 +253,15 @@ export function htmlToMarkdown(html: string): string {
   return md;
 }
 
-export function markdownToHtml(md: string): string {
+export function markdownToHtml(
+  md: string,
+  mermaidDelimiters: MermaidDelimiters = getCurrentMermaidDelimiters(),
+): string {
   let html = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   // Extract page breaks and code blocks before escaping
   html = extractPageBreaks(html);
-  const extracted = extractCodeBlocks(html);
+  const extracted = extractCodeBlocks(html, mermaidDelimiters);
   html = extracted.html;
   const codeBlocks = extracted.codeBlocks;
 

@@ -1,4 +1,5 @@
 import type { AccessMap } from '../services/aiCommands';
+import type { MermaidDelimiters } from '../utils/mermaid-delimiters';
 
 export interface PinnedRef {
   id: string;
@@ -23,6 +24,7 @@ export interface PreambleOptions {
   /** True when the panel is bound to a Mermaid edit target (see useAiMermaidTarget).
    *  Adds instructions steering the model toward a single ```mermaid``` reply. */
   mermaidEditMode?: boolean;
+  mermaidDelimiters?: MermaidDelimiters;
 }
 
 interface PinScopeStrings {
@@ -102,10 +104,12 @@ export function buildPreamble(opts: PreambleOptions): string {
     lines.push('', `Note: the active document is large (${opts.docMarkdownLength} bytes). Focus on the first 200KB unless instructed otherwise.`);
   }
   if (opts.mermaidEditMode) {
+    const open = opts.mermaidDelimiters?.open ?? '```mermaid';
+    const close = opts.mermaidDelimiters?.close ?? '```';
     lines.push(
       '',
       'MERMAID EDIT MODE — the user is editing a mermaid diagram and the pinned fragment above is its current source.',
-      'Reply with ONLY one ```mermaid fenced block containing the full updated diagram. Preserve unrelated parts. No prose, no commentary, no other code blocks.',
+      `Reply with ONLY one Mermaid block using exactly these delimiters: "${open}" to open and "${close}" to close. Include the full updated diagram. Preserve unrelated parts. No prose, no commentary, no other code blocks.`,
       'Do NOT call file Edit / Write tools — the host applies your reply to the diagram node directly.',
       'Stay terse — diagrams should not be cluttered with unnecessary nodes.',
     );

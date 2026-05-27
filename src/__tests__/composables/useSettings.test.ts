@@ -103,6 +103,12 @@ describe('useSettings', () => {
       expect(settings.value.codeTheme).toBe('dark');
     });
 
+    it('should have default Mermaid delimiters', () => {
+      const { settings } = useSettings();
+      expect(settings.value.mermaidFenceOpen).toBe('```mermaid');
+      expect(settings.value.mermaidFenceClose).toBe('```');
+    });
+
     it('should set editor font family', () => {
       const { settings, setEditorFontFamily } = useSettings();
       setEditorFontFamily('georgia');
@@ -122,6 +128,16 @@ describe('useSettings', () => {
       setCodeTheme('white');
       expect(settings.value.codeTheme).toBe('white');
       setCodeTheme('dark');
+    });
+
+    it('should set Mermaid delimiters', () => {
+      const { settings, setMermaidFenceOpen, setMermaidFenceClose } = useSettings();
+      setMermaidFenceOpen(':::mermaid');
+      setMermaidFenceClose(':::');
+      expect(settings.value.mermaidFenceOpen).toBe(':::mermaid');
+      expect(settings.value.mermaidFenceClose).toBe(':::');
+      setMermaidFenceOpen('```mermaid');
+      setMermaidFenceClose('```');
     });
 
     it('should set editor line height within bounds', () => {

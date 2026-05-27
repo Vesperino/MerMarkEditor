@@ -1,4 +1,10 @@
 import { ref } from 'vue';
+import {
+  escapeRegExp,
+  getCurrentMermaidDelimiters,
+  normalizeMermaidDelimiters,
+  type MermaidDelimiters,
+} from '../utils/mermaid-delimiters';
 
 /**
  * Bridge between a Mermaid diagram node and the main AI panel.
@@ -29,9 +35,13 @@ const target = ref<MermaidEditTarget | null>(null);
 const candidate = ref<string | null>(null);
 
 /** Extract mermaid source from an AI reply. */
-export function extractMermaidCodeFromResponse(raw: string): string {
+export function extractMermaidCodeFromResponse(
+  raw: string,
+  mermaidDelimiters: MermaidDelimiters = getCurrentMermaidDelimiters(),
+): string {
   if (!raw) return '';
-  const fenced = raw.match(/```mermaid\s*\n([\s\S]*?)```/i);
+  const { open, close } = normalizeMermaidDelimiters(mermaidDelimiters);
+  const fenced = raw.match(new RegExp(`${escapeRegExp(open)}\\s*\\n([\\s\\S]*?)\\n${escapeRegExp(close)}(?=\\s*(?:\\n|$))`, 'i'));
   if (fenced) return fenced[1].trim();
   const anyFence = raw.match(/```[\w-]*\s*\n([\s\S]*?)```/);
   if (anyFence) return anyFence[1].trim();

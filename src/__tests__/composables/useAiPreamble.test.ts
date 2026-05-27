@@ -119,6 +119,16 @@ describe('useAiPreamble.buildPreamble', () => {
     expect(out).not.toMatch(/Note: the active document is large/);
   });
 
+  it('mentions configured Mermaid delimiters in Mermaid edit mode', () => {
+    const out = buildPreamble({
+      ...base(),
+      mermaidEditMode: true,
+      mermaidDelimiters: { open: ':::mermaid', close: ':::' },
+    });
+    expect(out).toContain(':::mermaid');
+    expect(out).toContain('":::"');
+  });
+
   describe('workspace context', () => {
     it('emits no workspace lines when workspaceRoot is empty', () => {
       const out = buildPreamble(base());

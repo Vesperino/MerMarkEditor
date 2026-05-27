@@ -1,4 +1,9 @@
 import { escapeHtml, generateSlug } from './html-entities';
+import {
+  createMermaidBlockRegex,
+  getCurrentMermaidDelimiters,
+  type MermaidDelimiters,
+} from './mermaid-delimiters';
 
 interface ListItem {
   indent: number;
@@ -251,7 +256,10 @@ export function extractPageBreaks(md: string): string {
     '__PAGE_BREAK__');
 }
 
-export function extractCodeBlocks(md: string): { html: string; codeBlocks: string[] } {
+export function extractCodeBlocks(
+  md: string,
+  mermaidDelimiters: MermaidDelimiters = getCurrentMermaidDelimiters(),
+): { html: string; codeBlocks: string[] } {
   let html = md;
   const codeBlocks: string[] = [];
 
@@ -261,7 +269,7 @@ export function extractCodeBlocks(md: string): { html: string; codeBlocks: strin
   // — parse it back into `data-*` attributes so the TipTap node restores
   // its state on reload.
   html = html.replace(
-    /(?:<!--mermaid-attrs:([^>]*?)-->\s*\n)?```mermaid\n([\s\S]*?)```/gi,
+    createMermaidBlockRegex(mermaidDelimiters),
     (_match, attrStr, code) => {
       const placeholder = `__MERMAID_BLOCK_${codeBlocks.length}__`;
       const safeCode = code.trim().replace(/<br\s*\/?>/gi, '__BR__');

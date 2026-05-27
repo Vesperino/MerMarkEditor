@@ -3,6 +3,7 @@ import type { TokenModelId } from '../services/tokenCounter';
 import { TOKEN_MODELS } from '../services/tokenCounter';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { DEFAULT_SORT_MODE, migrateSortMode, type WorkspaceSortMode } from '../utils/workspace-sort';
+import { DEFAULT_MERMAID_DELIMITERS, setCurrentMermaidDelimiters } from '../utils/mermaid-delimiters';
 
 export type ThemeMode = 'light' | 'dark';
 export type ThemeVariant = 'default' | 'minimal';
@@ -132,6 +133,8 @@ export interface AppSettings {
    *  Functions as a soft outer gutter — content max-width is enforced by the
    *  Minimal theme's reading measure independently. */
   editorPaddingX: number;
+  mermaidFenceOpen: string;
+  mermaidFenceClose: string;
   workspace: WorkspaceSettings;
   ai: AiSettings;
 }
@@ -299,6 +302,8 @@ function getDefaultSettings(): AppSettings {
     editorPaddingTop: 16,
     editorPaddingBottom: 32,
     editorPaddingX: 24,
+    mermaidFenceOpen: DEFAULT_MERMAID_DELIMITERS.open,
+    mermaidFenceClose: DEFAULT_MERMAID_DELIMITERS.close,
     workspace: {
       openWorkspaces: [],
       activeWorkspaceId: null,
@@ -502,6 +507,20 @@ export function useSettings() {
     settings.value.editorPaddingX = Math.max(EDITOR_PAD_X_MIN, Math.min(EDITOR_PAD_X_MAX, Math.round(v)));
     applyCssVars(settings.value);
   };
+  const setMermaidFenceOpen = (v: string) => {
+    settings.value.mermaidFenceOpen = v.trim() || DEFAULT_MERMAID_DELIMITERS.open;
+    setCurrentMermaidDelimiters({
+      open: settings.value.mermaidFenceOpen,
+      close: settings.value.mermaidFenceClose,
+    });
+  };
+  const setMermaidFenceClose = (v: string) => {
+    settings.value.mermaidFenceClose = v.trim() || DEFAULT_MERMAID_DELIMITERS.close;
+    setCurrentMermaidDelimiters({
+      open: settings.value.mermaidFenceOpen,
+      close: settings.value.mermaidFenceClose,
+    });
+  };
 
   const setAiEnabled = (v: boolean) => { settings.value.ai.enabled = v; };
   const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
@@ -543,6 +562,8 @@ export function useSettings() {
     setEditorPaddingTop,
     setEditorPaddingBottom,
     setEditorPaddingX,
+    setMermaidFenceOpen,
+    setMermaidFenceClose,
     setOpenWorkspaces,
     setActiveWorkspaceId,
     setWorkspaceRecents,
@@ -632,6 +653,10 @@ function applyCssVars(s: AppSettings) {
 }
 
 // Apply theme and CSS vars on initial load
+setCurrentMermaidDelimiters({
+  open: settings.value.mermaidFenceOpen,
+  close: settings.value.mermaidFenceClose,
+});
 applyTheme(settings.value.theme);
 applyThemeVariant(settings.value.themeVariant);
 applyCssVars(settings.value);

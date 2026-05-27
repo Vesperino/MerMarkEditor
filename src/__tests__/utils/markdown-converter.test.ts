@@ -179,6 +179,13 @@ describe('htmlToMarkdown', () => {
       expect(result).toContain("Error = 'message'");
       expect(result).toContain('<br/>');
     });
+
+    it('uses custom Mermaid delimiters when provided', () => {
+      const html = `<div data-type="mermaid" data-code="${encodeURIComponent('graph LR\n  A --> B')}"></div>`;
+      const result = htmlToMarkdown(html, { open: ':::mermaid', close: ':::' });
+      expect(result).toContain(':::mermaid');
+      expect(result).toContain('\n:::\n');
+    });
   });
 
   describe('lists', () => {
@@ -367,6 +374,13 @@ describe('markdownToHtml', () => {
         expect(decoded).toContain('graph LR');
       }
     });
+
+    it('parses custom Mermaid delimiters when provided', () => {
+      const md = ':::mermaid\ngraph LR\n  A --> B\n:::';
+      const result = markdownToHtml(md, { open: ':::mermaid', close: ':::' });
+      expect(result).toContain('data-type="mermaid"');
+      expect(result).toContain('data-code=');
+    });
   });
 
   describe('links and images', () => {
@@ -511,6 +525,14 @@ describe('round-trip conversion', () => {
     const html = markdownToHtml(original);
     const roundTrip = htmlToMarkdown(html);
     expect(roundTrip).toContain("Error = 'message'");
+  });
+
+  it('round-trips Mermaid diagrams with custom delimiters', () => {
+    const original = ':::mermaid\nA->>B: hello\n:::';
+    const html = markdownToHtml(original, { open: ':::mermaid', close: ':::' });
+    const roundTrip = htmlToMarkdown(html, { open: ':::mermaid', close: ':::' });
+    expect(roundTrip).toContain(':::mermaid');
+    expect(roundTrip).toContain('\n:::' );
   });
 
   it('preserves list items', () => {
