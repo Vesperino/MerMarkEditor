@@ -1,9 +1,9 @@
 import { escapeHtml, generateSlug } from './html-entities';
 import {
-  createMermaidBlockRegex,
-  getCurrentMermaidDelimiters,
-  type MermaidDelimiters,
-} from './mermaid-delimiters';
+  findAllMermaidMatches,
+  getCurrentMermaidReadFormats,
+  type MermaidFormat,
+} from './mermaid-formats';
 
 interface ListItem {
   indent: number;
@@ -256,47 +256,68 @@ export function extractPageBreaks(md: string): string {
     '__PAGE_BREAK__');
 }
 
+function buildMermaidPlaceholder(code: string, attrStr: string | undefined, index: number): { placeholder: string; node: string } {
+  const placeholder = `__MERMAID_BLOCK_${index}__`;
+  const safeCode = code.trim().replace(/<br\s*\/?>/gi, '__BR__');
+  const attrs: string[] = [`data-type="mermaid"`, `data-code="${encodeURIComponent(safeCode)}"`];
+  if (attrStr) {
+    const pairs = attrStr.split(',').map((p) => p.trim()).filter(Boolean);
+    for (const pair of pairs) {
+      const [k, v] = pair.split('=');
+      if (!k || !v) continue;
+      if (k === 'userWidth') {
+        const n = parseInt(v, 10);
+        if (Number.isFinite(n) && n > 0) attrs.push(`data-user-width="${n}"`);
+      } else if (k === 'printScale') {
+        const n = parseInt(v, 10);
+        if (Number.isFinite(n) && n > 0) attrs.push(`data-print-scale="${n}"`);
+      } else if (k === 'splitRatio') {
+        const n = parseInt(v, 10);
+        if (Number.isFinite(n) && n >= 20 && n <= 80) attrs.push(`data-split-ratio="${n}"`);
+      }
+    }
+  }
+  return { placeholder, node: `<div ${attrs.join(' ')}></div>` };
+}
+
+export interface ExtractedBlocks {
+  html: string;
+  codeBlocks: string[];
+  /** Format ids found in the document, in order of first occurrence. Caller
+   *  may persist the first entry to keep round-trip stable. */
+  detectedMermaidFormatIds: string[];
+}
+
 export function extractCodeBlocks(
   md: string,
-  mermaidDelimiters: MermaidDelimiters = getCurrentMermaidDelimiters(),
-): { html: string; codeBlocks: string[] } {
-  let html = md;
+  readFormats: MermaidFormat[] = getCurrentMermaidReadFormats(),
+): ExtractedBlocks {
   const codeBlocks: string[] = [];
+  const detectedIds: string[] = [];
 
-  // Mermaid blocks. An optional `<!--mermaid-attrs:...-->` HTML comment
-  // immediately preceding the fence is written by `htmlToMarkdown` to
-  // persist per-diagram node attributes (user-resized width, print scale)
-  // — parse it back into `data-*` attributes so the TipTap node restores
-  // its state on reload.
-  html = html.replace(
-    createMermaidBlockRegex(mermaidDelimiters),
-    (_match, attrStr, code) => {
-      const placeholder = `__MERMAID_BLOCK_${codeBlocks.length}__`;
-      const safeCode = code.trim().replace(/<br\s*\/?>/gi, '__BR__');
-      const attrs: string[] = [`data-type="mermaid"`, `data-code="${encodeURIComponent(safeCode)}"`];
-      if (attrStr) {
-        const pairs = (attrStr as string).split(',').map((p) => p.trim()).filter(Boolean);
-        for (const pair of pairs) {
-          const [k, v] = pair.split('=');
-          if (!k || !v) continue;
-          if (k === 'userWidth') {
-            const n = parseInt(v, 10);
-            if (Number.isFinite(n) && n > 0) attrs.push(`data-user-width="${n}"`);
-          } else if (k === 'printScale') {
-            const n = parseInt(v, 10);
-            if (Number.isFinite(n) && n > 0) attrs.push(`data-print-scale="${n}"`);
-          } else if (k === 'splitRatio') {
-            const n = parseInt(v, 10);
-            if (Number.isFinite(n) && n >= 20 && n <= 80) attrs.push(`data-split-ratio="${n}"`);
-          }
-        }
-      }
-      codeBlocks.push(`<div ${attrs.join(' ')}></div>`);
-      return placeholder;
-    },
-  );
+  // Mermaid blocks first. An optional `<!--mermaid-attrs:...-->` HTML comment
+  // immediately preceding the fence is written by `htmlToMarkdown` to persist
+  // per-diagram node attributes (user-resized width, print scale) — parse it
+  // back into `data-*` attributes so the TipTap node restores its state on
+  // reload. Multi-format aware: a single document may mix `\`\`\`mermaid`,
+  // `:::mermaid`, `~~~mermaid` and the user's custom pair, so iterate over
+  // every enabled format and merge matches by position.
+  const matches = findAllMermaidMatches(md, readFormats);
+  let html = '';
+  let cursor = 0;
+  for (const m of matches) {
+    html += md.slice(cursor, m.start);
+    if (!detectedIds.includes(m.formatId)) detectedIds.push(m.formatId);
+    const { placeholder, node } = buildMermaidPlaceholder(m.code, m.attrs, codeBlocks.length);
+    codeBlocks.push(node);
+    html += placeholder;
+    cursor = m.end;
+  }
+  html += md.slice(cursor);
 
-  // Code blocks
+  // Generic fenced code blocks (\`\`\`lang ... \`\`\`). These run after mermaid
+  // extraction so a remaining standard fence that happens to also be enabled
+  // as a read format never reaches this pass.
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/gi, (_, lang, code) => {
     const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
     const escapedCode = escapeHtml(code);
@@ -304,7 +325,7 @@ export function extractCodeBlocks(
     return placeholder;
   });
 
-  return { html, codeBlocks };
+  return { html, codeBlocks, detectedMermaidFormatIds: detectedIds };
 }
 
 export function restoreCodeBlocks(html: string, codeBlocks: string[]): string {

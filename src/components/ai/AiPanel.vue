@@ -17,7 +17,8 @@ import { useAiPendingImages, type PendingImage } from '../../composables/useAiPe
 import { buildPreamble } from '../../composables/useAiPreamble';
 import { useAiMermaidTarget, extractMermaidCodeFromResponse } from '../../composables/useAiMermaidTarget';
 import { withWorkspaceReadAccess } from '../../composables/useAiWorkspaceContext';
-import { buildMermaidBlock } from '../../utils/mermaid-delimiters';
+import { buildMermaidBlockFor } from '../../utils/mermaid-formats';
+import { resolveMermaidWriteFormat, resolveMermaidReadFormats } from '../../composables/useSettings';
 import AiPanelTab from './AiPanelTab.vue';
 import AiPanelHeader from './AiPanelHeader.vue';
 import AiPanelContextBar from './AiPanelContextBar.vue';
@@ -128,10 +129,7 @@ watch(
       : `mermaid-pin-${Date.now()}`;
     const pin = {
       id,
-      text: `[Mermaid diagram]\n${buildMermaidBlock(target.initialCode, {
-        open: settings.value.mermaidFenceOpen,
-        close: settings.value.mermaidFenceClose,
-      })}`,
+      text: `[Mermaid diagram]\n${buildMermaidBlockFor(target.initialCode, resolveMermaidWriteFormat(settings.value))}`,
       createdAt: new Date().toISOString(),
     };
     pins.pinnedSelections.value.push(pin);
@@ -271,10 +269,7 @@ function buildPreambleForSend(): string {
     workspaceName: props.workspaceName ?? '',
     workspaceRoot: props.workspaceRoot ?? '',
     mermaidEditMode: mermaidEditMode.value,
-    mermaidDelimiters: {
-      open: settings.value.mermaidFenceOpen,
-      close: settings.value.mermaidFenceClose,
-    },
+    mermaidWriteFormat: resolveMermaidWriteFormat(settings.value),
   });
 }
 
@@ -352,10 +347,7 @@ async function onSend() {
   if (aiMermaid.target.value) {
     const lastMsg = ai.messages.value[ai.messages.value.length - 1];
     if (lastMsg?.role === 'assistant' && lastMsg.text) {
-      const code = extractMermaidCodeFromResponse(lastMsg.text, {
-        open: settings.value.mermaidFenceOpen,
-        close: settings.value.mermaidFenceClose,
-      });
+      const code = extractMermaidCodeFromResponse(lastMsg.text, resolveMermaidReadFormats(settings.value));
       if (code) aiMermaid.pushCandidate(code);
     }
   }

@@ -10,7 +10,7 @@ describe('extractMermaidCodeFromResponse', () => {
   it('extracts Mermaid using configured delimiters', () => {
     const result = extractMermaidCodeFromResponse(
       ':::mermaid\nflowchart TD\n  A --> B\n:::',
-      { open: ':::mermaid', close: ':::' },
+      [{ id: 'admonition', open: ':::mermaid', close: ':::', label: 'Admonition', builtin: true }],
     );
     expect(result).toBe('flowchart TD\n  A --> B');
   });

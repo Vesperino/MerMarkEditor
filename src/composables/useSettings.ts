@@ -4,6 +4,16 @@ import { TOKEN_MODELS } from '../services/tokenCounter';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { DEFAULT_SORT_MODE, migrateSortMode, type WorkspaceSortMode } from '../utils/workspace-sort';
 import { DEFAULT_MERMAID_DELIMITERS, setCurrentMermaidDelimiters } from '../utils/mermaid-delimiters';
+import {
+  BUILTIN_MERMAID_FORMATS,
+  CUSTOM_FORMAT_ID,
+  STANDARD_FORMAT_ID,
+  findFormatById,
+  isValidFormat,
+  setCurrentMermaidReadFormats,
+  setCurrentMermaidWriteFormat,
+  type MermaidFormat,
+} from '../utils/mermaid-formats';
 
 export type ThemeMode = 'light' | 'dark';
 export type ThemeVariant = 'default' | 'minimal';
@@ -133,8 +143,19 @@ export interface AppSettings {
    *  Functions as a soft outer gutter — content max-width is enforced by the
    *  Minimal theme's reading measure independently. */
   editorPaddingX: number;
-  mermaidFenceOpen: string;
-  mermaidFenceClose: string;
+  /** @deprecated kept for migration from older builds — use mermaidWriteFormatId. */
+  mermaidFenceOpen?: string;
+  /** @deprecated kept for migration from older builds — use mermaidWriteFormatId. */
+  mermaidFenceClose?: string;
+  /** Id of the format used when serialising mermaid blocks back to markdown. */
+  mermaidWriteFormatId: string;
+  /** Builtins/custom that the parser will recognise on read. The standard
+   *  format is always parsed even if absent from this list, so dropping it
+   *  from the UI does not break files shared from GitHub etc. */
+  enabledReadFormatIds: string[];
+  /** User-defined mermaid delimiter pair. Active only when its id is selected
+   *  in `mermaidWriteFormatId` or appears in `enabledReadFormatIds`. */
+  customMermaidFormat: { open: string; close: string } | null;
   workspace: WorkspaceSettings;
   ai: AiSettings;
 }
@@ -275,7 +296,40 @@ function loadSettings(): AppSettings {
       }
 
       const themeVariant: ThemeVariant = parsed.themeVariant === 'minimal' ? 'minimal' : 'default';
-      return { ...defaults, ...parsed, themeVariant, workspace: mergedWorkspace, ai: mergedAi };
+      const merged: AppSettings = {
+        ...defaults,
+        ...parsed,
+        themeVariant,
+        workspace: mergedWorkspace,
+        ai: mergedAi,
+      };
+
+      // Migrate v1 single-pair mermaid delimiters to the new format registry.
+      // Older builds stored `mermaidFenceOpen` / `mermaidFenceClose` directly;
+      // map that pair to a builtin format id if possible, otherwise install it
+      // as the user's custom format and switch the write id to "custom".
+      if (typeof parsed.mermaidWriteFormatId !== 'string') {
+        const open = (parsed.mermaidFenceOpen ?? '').trim();
+        const close = (parsed.mermaidFenceClose ?? '').trim();
+        if (open && close) {
+          const builtin = BUILTIN_MERMAID_FORMATS.find((f) => f.open === open && f.close === close);
+          if (builtin) {
+            merged.mermaidWriteFormatId = builtin.id;
+          } else {
+            merged.customMermaidFormat = { open, close };
+            merged.mermaidWriteFormatId = CUSTOM_FORMAT_ID;
+            if (!merged.enabledReadFormatIds.includes(CUSTOM_FORMAT_ID)) {
+              merged.enabledReadFormatIds = [...merged.enabledReadFormatIds, CUSTOM_FORMAT_ID];
+            }
+          }
+        } else {
+          merged.mermaidWriteFormatId = STANDARD_FORMAT_ID;
+        }
+      }
+      if (!Array.isArray(merged.enabledReadFormatIds) || merged.enabledReadFormatIds.length === 0) {
+        merged.enabledReadFormatIds = BUILTIN_MERMAID_FORMATS.map((f) => f.id);
+      }
+      return merged;
     }
   } catch (error) {
     console.error('Error loading settings:', error);
@@ -304,6 +358,9 @@ function getDefaultSettings(): AppSettings {
     editorPaddingX: 24,
     mermaidFenceOpen: DEFAULT_MERMAID_DELIMITERS.open,
     mermaidFenceClose: DEFAULT_MERMAID_DELIMITERS.close,
+    mermaidWriteFormatId: STANDARD_FORMAT_ID,
+    enabledReadFormatIds: BUILTIN_MERMAID_FORMATS.map((f) => f.id),
+    customMermaidFormat: null,
     workspace: {
       openWorkspaces: [],
       activeWorkspaceId: null,
@@ -507,19 +564,71 @@ export function useSettings() {
     settings.value.editorPaddingX = Math.max(EDITOR_PAD_X_MIN, Math.min(EDITOR_PAD_X_MAX, Math.round(v)));
     applyCssVars(settings.value);
   };
-  const setMermaidFenceOpen = (v: string) => {
-    settings.value.mermaidFenceOpen = v.trim() || DEFAULT_MERMAID_DELIMITERS.open;
-    setCurrentMermaidDelimiters({
-      open: settings.value.mermaidFenceOpen,
-      close: settings.value.mermaidFenceClose,
-    });
+  const setMermaidWriteFormatId = (id: string) => {
+    const all = listAllMermaidFormats(settings.value);
+    if (all.some((f) => f.id === id)) {
+      settings.value.mermaidWriteFormatId = id;
+      if (!settings.value.enabledReadFormatIds.includes(id)) {
+        settings.value.enabledReadFormatIds = [...settings.value.enabledReadFormatIds, id];
+      }
+    }
   };
+
+  const setEnabledReadFormatIds = (ids: string[]) => {
+    const all = listAllMermaidFormats(settings.value);
+    const filtered = ids.filter((id) => all.some((f) => f.id === id));
+    const next = filtered.length > 0 ? filtered : [STANDARD_FORMAT_ID];
+    if (!next.includes(settings.value.mermaidWriteFormatId)) {
+      // Keep the write format readable so save→reload stays a no-op.
+      next.push(settings.value.mermaidWriteFormatId);
+    }
+    settings.value.enabledReadFormatIds = next;
+  };
+
+  const setCustomMermaidFormat = (pair: { open: string; close: string } | null) => {
+    if (!pair || !pair.open?.trim() || !pair.close?.trim()) {
+      // Removing the custom format: also drop it from enabled reads and reset
+      // the write format if it was pointing at custom.
+      settings.value.customMermaidFormat = null;
+      settings.value.enabledReadFormatIds = settings.value.enabledReadFormatIds.filter(
+        (id) => id !== CUSTOM_FORMAT_ID,
+      );
+      if (settings.value.mermaidWriteFormatId === CUSTOM_FORMAT_ID) {
+        settings.value.mermaidWriteFormatId = STANDARD_FORMAT_ID;
+      }
+      return;
+    }
+    settings.value.customMermaidFormat = {
+      open: pair.open.trim(),
+      close: pair.close.trim(),
+    };
+    if (!settings.value.enabledReadFormatIds.includes(CUSTOM_FORMAT_ID)) {
+      settings.value.enabledReadFormatIds = [
+        ...settings.value.enabledReadFormatIds,
+        CUSTOM_FORMAT_ID,
+      ];
+    }
+  };
+
+  /** @deprecated kept for tests / older callers. Routes through the custom-format slot. */
+  const setMermaidFenceOpen = (v: string) => {
+    const open = v.trim() || DEFAULT_MERMAID_DELIMITERS.open;
+    const close = settings.value.customMermaidFormat?.close
+      ?? settings.value.mermaidFenceClose
+      ?? DEFAULT_MERMAID_DELIMITERS.close;
+    setCustomMermaidFormat({ open, close });
+    settings.value.mermaidWriteFormatId = CUSTOM_FORMAT_ID;
+    settings.value.mermaidFenceOpen = open;
+  };
+  /** @deprecated kept for tests / older callers. Routes through the custom-format slot. */
   const setMermaidFenceClose = (v: string) => {
-    settings.value.mermaidFenceClose = v.trim() || DEFAULT_MERMAID_DELIMITERS.close;
-    setCurrentMermaidDelimiters({
-      open: settings.value.mermaidFenceOpen,
-      close: settings.value.mermaidFenceClose,
-    });
+    const close = v.trim() || DEFAULT_MERMAID_DELIMITERS.close;
+    const open = settings.value.customMermaidFormat?.open
+      ?? settings.value.mermaidFenceOpen
+      ?? DEFAULT_MERMAID_DELIMITERS.open;
+    setCustomMermaidFormat({ open, close });
+    settings.value.mermaidWriteFormatId = CUSTOM_FORMAT_ID;
+    settings.value.mermaidFenceClose = close;
   };
 
   const setAiEnabled = (v: boolean) => { settings.value.ai.enabled = v; };
@@ -564,6 +673,9 @@ export function useSettings() {
     setEditorPaddingX,
     setMermaidFenceOpen,
     setMermaidFenceClose,
+    setMermaidWriteFormatId,
+    setEnabledReadFormatIds,
+    setCustomMermaidFormat,
     setOpenWorkspaces,
     setActiveWorkspaceId,
     setWorkspaceRecents,
@@ -652,11 +764,56 @@ function applyCssVars(s: AppSettings) {
   applyCodeThemeVars(root, s.codeTheme);
 }
 
+// Build the active format list (builtins + optional custom) and the resolved
+// write/read formats from the current settings shape. Used both at initial
+// load and inside the deep watcher above so the parser/serialiser stay in
+// sync with whatever the user just selected.
+export function listAllMermaidFormats(s: AppSettings): MermaidFormat[] {
+  const out: MermaidFormat[] = [...BUILTIN_MERMAID_FORMATS];
+  const custom = s.customMermaidFormat;
+  if (custom && typeof custom.open === 'string' && typeof custom.close === 'string'
+      && custom.open.trim() && custom.close.trim()) {
+    out.push({
+      id: CUSTOM_FORMAT_ID,
+      open: custom.open.trim(),
+      close: custom.close.trim(),
+      label: 'Custom',
+      builtin: false,
+    });
+  }
+  return out;
+}
+
+export function resolveMermaidWriteFormat(s: AppSettings): MermaidFormat {
+  const all = listAllMermaidFormats(s);
+  const picked = findFormatById(all, s.mermaidWriteFormatId);
+  if (picked && isValidFormat(picked)) return picked;
+  return BUILTIN_MERMAID_FORMATS[0];
+}
+
+export function resolveMermaidReadFormats(s: AppSettings): MermaidFormat[] {
+  const all = listAllMermaidFormats(s);
+  const ids = Array.isArray(s.enabledReadFormatIds) ? s.enabledReadFormatIds : [];
+  const enabled = all.filter((f) => ids.includes(f.id));
+  if (enabled.length === 0) return [BUILTIN_MERMAID_FORMATS[0]];
+  return enabled;
+}
+
+function applyMermaidFormats(s: AppSettings): void {
+  setCurrentMermaidWriteFormat(resolveMermaidWriteFormat(s));
+  setCurrentMermaidReadFormats(resolveMermaidReadFormats(s));
+}
+
+watch(settings, (s) => {
+  applyMermaidFormats(s);
+}, { deep: true, immediate: false });
+
 // Apply theme and CSS vars on initial load
 setCurrentMermaidDelimiters({
   open: settings.value.mermaidFenceOpen,
   close: settings.value.mermaidFenceClose,
 });
+applyMermaidFormats(settings.value);
 applyTheme(settings.value.theme);
 applyThemeVariant(settings.value.themeVariant);
 applyCssVars(settings.value);

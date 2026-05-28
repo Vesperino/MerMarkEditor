@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed } from 'vue';
+import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useI18n } from '../i18n';
 import { useSettings, EDITOR_FONTS, CODE_FONTS } from '../composables/useSettings';
+import { BUILTIN_MERMAID_FORMATS, CUSTOM_FORMAT_ID, type MermaidFormat } from '../utils/mermaid-formats';
 import { useSystemFonts } from '../composables/useSystemFonts';
 import { useLayoutConfig, type LayoutZone } from '../composables/useLayoutConfig';
 import { getItemDef } from '../data/toolbarItems';
@@ -23,8 +24,9 @@ const {
   setEditorPaddingTop,
   setEditorPaddingBottom,
   setEditorPaddingX,
-  setMermaidFenceOpen,
-  setMermaidFenceClose,
+  setMermaidWriteFormatId,
+  setEnabledReadFormatIds,
+  setCustomMermaidFormat,
   setSpellcheck,
   setExpandTabs,
   setShowLineNumbers,
@@ -50,6 +52,95 @@ const codeSystemFonts = computed(() => monoFonts.value);
 
 type SettingsTab = 'appearance' | 'editor' | 'code' | 'general' | 'layout' | 'ai' | 'updates';
 const activeTab = ref<SettingsTab>('editor');
+
+const mermaidFormatOptions = computed<MermaidFormat[]>(() => {
+  const custom = settings.value.customMermaidFormat;
+  const customEntry: MermaidFormat = {
+    id: CUSTOM_FORMAT_ID,
+    open: custom?.open ?? '',
+    close: custom?.close ?? '',
+    label: t.value.mermaidCustomFormat,
+    builtin: false,
+  };
+  return [...BUILTIN_MERMAID_FORMATS, customEntry];
+});
+
+// Render label = `Name open • close`. The bullet separates open from close
+// without resembling any markdown fence character (the previous "/" looked
+// like part of the closing delimiter).
+function formatDisplayLabel(fmt: MermaidFormat): string {
+  if (!fmt.open || !fmt.close) return fmt.label;
+  return `${fmt.label} ${fmt.open} • ${fmt.close}`;
+}
+
+const hasCustomFormat = computed(() => !!settings.value.customMermaidFormat);
+
+// Local buffers for the custom-format inputs so typing into one field doesn't
+// nuke the other while it sits half-filled. Committed via setCustomMermaidFormat
+// once both have content.
+const customOpenInput = ref(settings.value.customMermaidFormat?.open ?? '');
+const customCloseInput = ref(settings.value.customMermaidFormat?.close ?? '');
+
+watch(
+  () => settings.value.customMermaidFormat,
+  (next) => {
+    customOpenInput.value = next?.open ?? '';
+    customCloseInput.value = next?.close ?? '';
+  },
+);
+
+function toggleReadFormat(id: string, enabled: boolean) {
+  const current = settings.value.enabledReadFormatIds;
+  const next = enabled
+    ? Array.from(new Set([...current, id]))
+    : current.filter((x) => x !== id);
+  setEnabledReadFormatIds(next);
+}
+
+function onCustomChange(field: 'open' | 'close', value: string) {
+  if (field === 'open') customOpenInput.value = value;
+  else customCloseInput.value = value;
+  const open = customOpenInput.value.trim();
+  const close = customCloseInput.value.trim();
+  if (!open || !close) {
+    // Both fields must have content before we install the format. Until then
+    // the buffers hold whatever the user typed.
+    if (settings.value.customMermaidFormat) setCustomMermaidFormat(null);
+    return;
+  }
+  setCustomMermaidFormat({ open, close });
+}
+
+function clearCustomFormat() {
+  customOpenInput.value = '';
+  customCloseInput.value = '';
+  setCustomMermaidFormat(null);
+}
+
+// Floating help tooltip — bypasses modal `overflow` clipping and the
+// webview's flaky native `title` rendering by teleporting a positioned
+// panel to <body>. Triggered by hover and keyboard focus.
+const activeHelpTip = ref<{ x: number; y: number; text: string; placement: 'right' | 'left' } | null>(null);
+
+function showHelpTip(e: Event, text: string) {
+  const el = e.currentTarget as HTMLElement | null;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  // Prefer placing to the right; flip left if it would overflow the viewport.
+  const estWidth = 340;
+  const pad = 8;
+  const placeRight = rect.right + estWidth + pad < window.innerWidth;
+  activeHelpTip.value = {
+    x: placeRight ? rect.right + pad : rect.left - estWidth - pad,
+    y: rect.top - 4,
+    text,
+    placement: placeRight ? 'right' : 'left',
+  };
+}
+
+function hideHelpTip() {
+  activeHelpTip.value = null;
+}
 
 const {
   updateInfo,
@@ -730,26 +821,105 @@ onUnmounted(() => {
             </div>
 
             <div class="setting-row">
-              <label class="setting-label">{{ t.mermaidOpeningDelimiter }}</label>
+              <label class="setting-label">
+                {{ t.mermaidWriteFormat }}
+                <span
+                  class="setting-help-icon"
+                  tabindex="0"
+                  role="button"
+                  :aria-label="t.mermaidWriteFormatHelp"
+                  @mouseenter="(e) => showHelpTip(e, t.mermaidWriteFormatHelp)"
+                  @mouseleave="hideHelpTip"
+                  @focus="(e) => showHelpTip(e, t.mermaidWriteFormatHelp)"
+                  @blur="hideHelpTip"
+                >?</span>
+              </label>
               <div class="setting-control">
-                <input
-                  class="setting-input"
-                  type="text"
-                  :value="settings.mermaidFenceOpen"
-                  @change="(e: Event) => setMermaidFenceOpen((e.target as HTMLInputElement).value)"
-                />
+                <select
+                  class="setting-select"
+                  :value="settings.mermaidWriteFormatId"
+                  @change="(e: Event) => setMermaidWriteFormatId((e.target as HTMLSelectElement).value)"
+                >
+                  <option
+                    v-for="fmt in mermaidFormatOptions"
+                    :key="fmt.id"
+                    :value="fmt.id"
+                    :disabled="fmt.id === CUSTOM_FORMAT_ID && !hasCustomFormat"
+                  >
+                    {{ formatDisplayLabel(fmt) }}
+                  </option>
+                </select>
               </div>
             </div>
 
-            <div class="setting-row">
-              <label class="setting-label">{{ t.mermaidClosingDelimiter }}</label>
-              <div class="setting-control">
+            <div class="setting-row setting-row-stacked">
+              <label class="setting-label">
+                {{ t.mermaidReadFormats }}
+                <span
+                  class="setting-help-icon"
+                  tabindex="0"
+                  role="button"
+                  :aria-label="t.mermaidReadFormatsHelp"
+                  @mouseenter="(e) => showHelpTip(e, t.mermaidReadFormatsHelp)"
+                  @mouseleave="hideHelpTip"
+                  @focus="(e) => showHelpTip(e, t.mermaidReadFormatsHelp)"
+                  @blur="hideHelpTip"
+                >?</span>
+              </label>
+              <div class="setting-control setting-control-wrap">
+                <label
+                  v-for="fmt in mermaidFormatOptions"
+                  :key="fmt.id"
+                  class="setting-checkbox"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="settings.enabledReadFormatIds.includes(fmt.id)"
+                    :disabled="(fmt.id === CUSTOM_FORMAT_ID && !hasCustomFormat) || fmt.id === settings.mermaidWriteFormatId"
+                    @change="(e: Event) => toggleReadFormat(fmt.id, (e.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ formatDisplayLabel(fmt) }}</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-row setting-row-stacked">
+              <label class="setting-label">
+                {{ t.mermaidCustomFormat }}
+                <span
+                  class="setting-help-icon"
+                  tabindex="0"
+                  role="button"
+                  :aria-label="t.mermaidCustomFormatHelp"
+                  @mouseenter="(e) => showHelpTip(e, t.mermaidCustomFormatHelp)"
+                  @mouseleave="hideHelpTip"
+                  @focus="(e) => showHelpTip(e, t.mermaidCustomFormatHelp)"
+                  @blur="hideHelpTip"
+                >?</span>
+              </label>
+              <div class="setting-control setting-control-wrap">
                 <input
-                  class="setting-input"
+                  class="setting-input setting-input-narrow"
                   type="text"
-                  :value="settings.mermaidFenceClose"
-                  @change="(e: Event) => setMermaidFenceClose((e.target as HTMLInputElement).value)"
+                  :placeholder="t.mermaidOpeningDelimiter"
+                  :value="customOpenInput"
+                  @change="(e: Event) => onCustomChange('open', (e.target as HTMLInputElement).value)"
                 />
+                <input
+                  class="setting-input setting-input-narrow"
+                  type="text"
+                  :placeholder="t.mermaidClosingDelimiter"
+                  :value="customCloseInput"
+                  @change="(e: Event) => onCustomChange('close', (e.target as HTMLInputElement).value)"
+                />
+                <button
+                  v-if="hasCustomFormat"
+                  type="button"
+                  class="setting-button-subtle"
+                  @click="clearCustomFormat"
+                >
+                  {{ t.mermaidCustomFormatClear }}
+                </button>
               </div>
             </div>
 
@@ -956,6 +1126,17 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+  <Teleport to="body">
+    <div
+      v-if="activeHelpTip"
+      class="help-tooltip-floating"
+      :class="`help-tooltip-${activeHelpTip.placement}`"
+      :style="{ left: activeHelpTip.x + 'px', top: activeHelpTip.y + 'px' }"
+      role="tooltip"
+    >
+      {{ activeHelpTip.text }}
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1079,6 +1260,76 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 16px;
   min-height: 36px;
+}
+
+.setting-row-stacked {
+  align-items: flex-start;
+}
+
+.setting-row-stacked .setting-label {
+  padding-top: 6px;
+}
+
+.setting-control-wrap {
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.setting-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.setting-checkbox input[type="checkbox"]:disabled + span {
+  opacity: 0.5;
+}
+
+.setting-input-narrow {
+  min-width: 0;
+  width: 140px;
+}
+
+.setting-button-subtle {
+  padding: 4px 10px;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.setting-button-subtle:hover {
+  background: var(--bg-hover);
+}
+
+.setting-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: help;
+  user-select: none;
+  vertical-align: middle;
+}
+
+.setting-help-icon:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-secondary);
 }
 
 .setting-label {
@@ -1709,5 +1960,28 @@ html.dark .update-status.up-to-date {
 .workspace-remove-btn:hover {
   color: var(--danger);
   background: var(--danger-text-bg);
+}
+</style>
+
+<style>
+/* Unscoped because the help tooltip is teleported to <body>, outside the
+   component subtree where scoped styles apply. */
+.help-tooltip-floating {
+  position: fixed;
+  z-index: 99999;
+  max-width: 340px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.97);
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+html:not(.dark) .help-tooltip-floating {
+  background: #1e293b;
+  color: #f1f5f9;
 }
 </style>

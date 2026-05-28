@@ -1,7 +1,7 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
-import { getCurrentMermaidDelimiters } from '../utils/mermaid-delimiters';
+import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import {
   DOM_SELECTORS,
   TIMING,
@@ -33,13 +33,23 @@ const getLineFromPosition = (text: string, pos: number): number => {
   return text.slice(0, pos).split('\n').length - 1;
 };
 
+// Build a lookup from `open delimiter line` → matching format. Built per call
+// so a fresh format list (e.g. after the user toggles a format in Settings)
+// is reflected immediately.
+const buildOpenIndex = (formats: MermaidFormat[]): Map<string, MermaidFormat> => {
+  const m = new Map<string, MermaidFormat>();
+  for (const f of formats) m.set(f.open, f);
+  return m;
+};
+
 // Check if cursor position is inside a code block (``` ... ```)
 // Returns { inside: boolean, blockIndex: number } - blockIndex is 0-based index of which code block
 const getCodeBlockInfo = (text: string, cursorPos: number): { inside: boolean; blockIndex: number } => {
-  const { open: mermaidOpen, close: mermaidClose } = getCurrentMermaidDelimiters();
+  const openIndex = buildOpenIndex(getCurrentMermaidReadFormats());
   const textBefore = text.slice(0, cursorPos);
   const lines = textBefore.split('\n');
-  let activeBlock: 'code' | 'mermaid' | null = null;
+  let activeKind: 'code' | 'mermaid' | null = null;
+  let activeCloseDelim: string | null = null;
   let activeIndex = -1;
   let nextIndex = 0;
 
@@ -47,32 +57,37 @@ const getCodeBlockInfo = (text: string, cursorPos: number): { inside: boolean; b
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    if (activeBlock === null) {
-      if (trimmed === mermaidOpen) {
-        activeBlock = 'mermaid';
+    if (activeKind === null) {
+      const fmt = openIndex.get(trimmed);
+      if (fmt) {
+        activeKind = 'mermaid';
+        activeCloseDelim = fmt.close;
         activeIndex = nextIndex++;
         continue;
       }
       if (trimmed.startsWith('```')) {
-        activeBlock = 'code';
+        activeKind = 'code';
+        activeCloseDelim = '```';
         activeIndex = nextIndex++;
       }
       continue;
     }
 
-    if (activeBlock === 'mermaid' && trimmed === mermaidClose) {
-      activeBlock = null;
+    if (activeKind === 'mermaid' && trimmed === activeCloseDelim) {
+      activeKind = null;
+      activeCloseDelim = null;
       activeIndex = -1;
       continue;
     }
 
-    if (activeBlock === 'code' && trimmed.startsWith('```')) {
-      activeBlock = null;
+    if (activeKind === 'code' && trimmed.startsWith('```')) {
+      activeKind = null;
+      activeCloseDelim = null;
       activeIndex = -1;
     }
   }
 
-  return { inside: activeBlock !== null, blockIndex: activeBlock !== null ? activeIndex : -1 };
+  return { inside: activeKind !== null, blockIndex: activeKind !== null ? activeIndex : -1 };
 };
 
 // Inject CSS for cursor highlight animation
@@ -206,7 +221,7 @@ interface MarkdownBlock {
 // Parse markdown into blocks with exact source-line ranges.
 // Each block corresponds to one top-level ProseMirror child element.
 const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
-  const { open: mermaidOpen, close: mermaidClose } = getCurrentMermaidDelimiters();
+  const openIndex = buildOpenIndex(getCurrentMermaidReadFormats());
   const lines = markdown.split('\n');
   const blocks: MarkdownBlock[] = [];
   let i = 0;
@@ -217,11 +232,14 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
 
     if (!trimmed) { i++; continue; }
 
-    // Mermaid blocks: configurable open/close delimiters.
-    if (trimmed === mermaidOpen) {
+    // Mermaid blocks: any enabled format's open delimiter. The matching close
+    // is taken from the format that opened the block so a `:::mermaid` block
+    // doesn't accidentally close on a `\`\`\`` two lines down.
+    const fmt = openIndex.get(trimmed);
+    if (fmt) {
       const startLine = i;
       i++;
-      while (i < lines.length && lines[i].trim() !== mermaidClose) i++;
+      while (i < lines.length && lines[i].trim() !== fmt.close) i++;
       if (i < lines.length) i++;
       blocks.push({ startLine, endLine: i, type: 'mermaid' });
       continue;

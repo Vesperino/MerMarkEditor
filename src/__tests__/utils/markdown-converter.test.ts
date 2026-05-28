@@ -182,9 +182,8 @@ describe('htmlToMarkdown', () => {
 
     it('uses custom Mermaid delimiters when provided', () => {
       const html = `<div data-type="mermaid" data-code="${encodeURIComponent('graph LR\n  A --> B')}"></div>`;
-      const result = htmlToMarkdown(html, { open: ':::mermaid', close: ':::' });
-      expect(result).toContain(':::mermaid');
-      expect(result).toContain('\n:::\n');
+      const result = htmlToMarkdown(html, { id: 'admonition', open: ':::mermaid', close: ':::', label: 'Admonition', builtin: true });
+      expect(result).toMatch(/^:::mermaid\n[\s\S]*\n:::$/);
     });
   });
 
@@ -377,7 +376,7 @@ describe('markdownToHtml', () => {
 
     it('parses custom Mermaid delimiters when provided', () => {
       const md = ':::mermaid\ngraph LR\n  A --> B\n:::';
-      const result = markdownToHtml(md, { open: ':::mermaid', close: ':::' });
+      const result = markdownToHtml(md, [{ id: 'admonition', open: ':::mermaid', close: ':::', label: 'Admonition', builtin: true }]);
       expect(result).toContain('data-type="mermaid"');
       expect(result).toContain('data-code=');
     });
@@ -528,9 +527,10 @@ describe('round-trip conversion', () => {
   });
 
   it('round-trips Mermaid diagrams with custom delimiters', () => {
+    const fmt = { id: 'admonition', open: ':::mermaid', close: ':::', label: 'Admonition', builtin: true };
     const original = ':::mermaid\nA->>B: hello\n:::';
-    const html = markdownToHtml(original, { open: ':::mermaid', close: ':::' });
-    const roundTrip = htmlToMarkdown(html, { open: ':::mermaid', close: ':::' });
+    const html = markdownToHtml(original, [fmt]);
+    const roundTrip = htmlToMarkdown(html, fmt);
     expect(roundTrip).toContain(':::mermaid');
     expect(roundTrip).toContain('\n:::' );
   });

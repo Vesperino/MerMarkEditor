@@ -123,7 +123,7 @@ describe('useAiPreamble.buildPreamble', () => {
     const out = buildPreamble({
       ...base(),
       mermaidEditMode: true,
-      mermaidDelimiters: { open: ':::mermaid', close: ':::' },
+      mermaidWriteFormat: { id: 'admonition', open: ':::mermaid', close: ':::', label: 'Admonition', builtin: true },
     });
     expect(out).toContain(':::mermaid');
     expect(out).toContain('":::"');

@@ -189,6 +189,13 @@ export interface Translations {
   mermaidOpeningDelimiter: string;
   mermaidClosingDelimiter: string;
   mermaidDelimiterHint: string;
+  mermaidWriteFormat: string;
+  mermaidReadFormats: string;
+  mermaidCustomFormat: string;
+  mermaidCustomFormatClear: string;
+  mermaidWriteFormatHelp: string;
+  mermaidReadFormatsHelp: string;
+  mermaidCustomFormatHelp: string;
   spellcheck: string;
   showLineNumbers: string;
   expandTabs: string;

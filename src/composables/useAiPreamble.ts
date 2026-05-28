@@ -1,5 +1,5 @@
 import type { AccessMap } from '../services/aiCommands';
-import type { MermaidDelimiters } from '../utils/mermaid-delimiters';
+import type { MermaidFormat } from '../utils/mermaid-formats';
 
 export interface PinnedRef {
   id: string;
@@ -24,7 +24,10 @@ export interface PreambleOptions {
   /** True when the panel is bound to a Mermaid edit target (see useAiMermaidTarget).
    *  Adds instructions steering the model toward a single ```mermaid``` reply. */
   mermaidEditMode?: boolean;
-  mermaidDelimiters?: MermaidDelimiters;
+  /** Format to instruct the model to use when emitting the diagram. The editor
+   *  parses any enabled read format, but pinning the write format means the
+   *  AI reply round-trips through save without delimiter swaps. */
+  mermaidWriteFormat?: MermaidFormat;
 }
 
 interface PinScopeStrings {
@@ -104,8 +107,8 @@ export function buildPreamble(opts: PreambleOptions): string {
     lines.push('', `Note: the active document is large (${opts.docMarkdownLength} bytes). Focus on the first 200KB unless instructed otherwise.`);
   }
   if (opts.mermaidEditMode) {
-    const open = opts.mermaidDelimiters?.open ?? '```mermaid';
-    const close = opts.mermaidDelimiters?.close ?? '```';
+    const open = opts.mermaidWriteFormat?.open ?? '```mermaid';
+    const close = opts.mermaidWriteFormat?.close ?? '```';
     lines.push(
       '',
       'MERMAID EDIT MODE — the user is editing a mermaid diagram and the pinned fragment above is its current source.',

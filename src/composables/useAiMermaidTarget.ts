@@ -1,10 +1,10 @@
 import { ref } from 'vue';
 import {
-  escapeRegExp,
-  getCurrentMermaidDelimiters,
-  normalizeMermaidDelimiters,
-  type MermaidDelimiters,
-} from '../utils/mermaid-delimiters';
+  createSingleFormatRegex,
+  getCurrentMermaidReadFormats,
+  isValidFormat,
+  type MermaidFormat,
+} from '../utils/mermaid-formats';
 
 /**
  * Bridge between a Mermaid diagram node and the main AI panel.
@@ -34,15 +34,20 @@ export interface MermaidEditTarget {
 const target = ref<MermaidEditTarget | null>(null);
 const candidate = ref<string | null>(null);
 
-/** Extract mermaid source from an AI reply. */
+/** Extract mermaid source from an AI reply. The reply might use any of the
+ *  formats the user has enabled (assistants don't always honour the requested
+ *  delimiter), so try each one in turn before falling back to a generic fence. */
 export function extractMermaidCodeFromResponse(
   raw: string,
-  mermaidDelimiters: MermaidDelimiters = getCurrentMermaidDelimiters(),
+  readFormats: MermaidFormat[] = getCurrentMermaidReadFormats(),
 ): string {
   if (!raw) return '';
-  const { open, close } = normalizeMermaidDelimiters(mermaidDelimiters);
-  const fenced = raw.match(new RegExp(`${escapeRegExp(open)}\\s*\\n([\\s\\S]*?)\\n${escapeRegExp(close)}(?=\\s*(?:\\n|$))`, 'i'));
-  if (fenced) return fenced[1].trim();
+  for (const fmt of readFormats) {
+    if (!isValidFormat(fmt)) continue;
+    const re = createSingleFormatRegex(fmt);
+    const match = re.exec(raw);
+    if (match) return match[2].trim();
+  }
   const anyFence = raw.match(/```[\w-]*\s*\n([\s\S]*?)```/);
   if (anyFence) return anyFence[1].trim();
   return raw.trim();
