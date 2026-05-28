@@ -25,6 +25,12 @@ export {
 import { decodeHtmlEntities, escapeHtml } from './html-entities';
 import { convertInlineToMarkdown, extractMermaidCode, processHtmlLists } from './html-to-markdown';
 import {
+  buildMermaidBlockFor,
+  getCurrentMermaidReadFormats,
+  getCurrentMermaidWriteFormat,
+  type MermaidFormat,
+} from './mermaid-formats';
+import {
   parseMarkdownLists,
   convertMarkdownTables,
   convertMarkdownHeaders,
@@ -42,7 +48,10 @@ import {
   extractHtmlFootnoteSection,
 } from './footnote-utils';
 
-export function htmlToMarkdown(html: string): string {
+export function htmlToMarkdown(
+  html: string,
+  writeFormat: MermaidFormat = getCurrentMermaidWriteFormat(),
+): string {
   let md = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   const protectedBlocks: string[] = [];
@@ -71,7 +80,7 @@ export function htmlToMarkdown(html: string): string {
         attrPairs.push(`splitRatio=${splitRatioMatch[1]}`);
       }
       const attrComment = attrPairs.length ? `<!--mermaid-attrs:${attrPairs.join(',')}-->\n` : '';
-      protectedBlocks.push(`\n${attrComment}\`\`\`mermaid\n${code}\n\`\`\`\n`);
+      protectedBlocks.push(`\n${attrComment}${buildMermaidBlockFor(code, writeFormat)}\n`);
       return placeholder;
     }
     return '';
@@ -249,14 +258,32 @@ export function htmlToMarkdown(html: string): string {
   return md;
 }
 
-export function markdownToHtml(md: string): string {
+export function markdownToHtml(
+  md: string,
+  readFormats: MermaidFormat[] = getCurrentMermaidReadFormats(),
+): string {
+  return markdownToHtmlWithMeta(md, readFormats).html;
+}
+
+export interface MarkdownConversionResult {
+  html: string;
+  /** Format ids found in the document, in order of first occurrence. Empty
+   *  when the document contains no mermaid blocks. */
+  detectedMermaidFormatIds: string[];
+}
+
+export function markdownToHtmlWithMeta(
+  md: string,
+  readFormats: MermaidFormat[] = getCurrentMermaidReadFormats(),
+): MarkdownConversionResult {
   let html = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   // Extract page breaks and code blocks before escaping
   html = extractPageBreaks(html);
-  const extracted = extractCodeBlocks(html);
+  const extracted = extractCodeBlocks(html, readFormats);
   html = extracted.html;
   const codeBlocks = extracted.codeBlocks;
+  const detectedMermaidFormatIds = extracted.detectedMermaidFormatIds;
 
   // Extract footnote definitions before HTML processing
   const footnotes = extractFootnoteDefinitions(html);
@@ -307,7 +334,7 @@ export function markdownToHtml(md: string): string {
   // Append footnotes section
   html += buildFootnoteSectionHtml(footnoteDefs);
 
-  return html.trimEnd();
+  return { html: html.trimEnd(), detectedMermaidFormatIds };
 }
 
 export function detectLineEnding(text: string): string {

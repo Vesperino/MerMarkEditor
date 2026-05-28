@@ -1,6 +1,7 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
+import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import {
   DOM_SELECTORS,
   TIMING,
@@ -32,26 +33,61 @@ const getLineFromPosition = (text: string, pos: number): number => {
   return text.slice(0, pos).split('\n').length - 1;
 };
 
+// Build a lookup from `open delimiter line` → matching format. Built per call
+// so a fresh format list (e.g. after the user toggles a format in Settings)
+// is reflected immediately.
+const buildOpenIndex = (formats: MermaidFormat[]): Map<string, MermaidFormat> => {
+  const m = new Map<string, MermaidFormat>();
+  for (const f of formats) m.set(f.open, f);
+  return m;
+};
+
 // Check if cursor position is inside a code block (``` ... ```)
 // Returns { inside: boolean, blockIndex: number } - blockIndex is 0-based index of which code block
 const getCodeBlockInfo = (text: string, cursorPos: number): { inside: boolean; blockIndex: number } => {
+  const openIndex = buildOpenIndex(getCurrentMermaidReadFormats());
   const textBefore = text.slice(0, cursorPos);
+  const lines = textBefore.split('\n');
+  let activeKind: 'code' | 'mermaid' | null = null;
+  let activeCloseDelim: string | null = null;
+  let activeIndex = -1;
+  let nextIndex = 0;
 
-  // Count code block delimiters before cursor
-  const codeBlockPattern = /^```/gm;
-  const matches = textBefore.match(codeBlockPattern);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
 
-  if (!matches) return { inside: false, blockIndex: -1 };
+    if (activeKind === null) {
+      const fmt = openIndex.get(trimmed);
+      if (fmt) {
+        activeKind = 'mermaid';
+        activeCloseDelim = fmt.close;
+        activeIndex = nextIndex++;
+        continue;
+      }
+      if (trimmed.startsWith('```')) {
+        activeKind = 'code';
+        activeCloseDelim = '```';
+        activeIndex = nextIndex++;
+      }
+      continue;
+    }
 
-  // If odd number of ```, we're inside a code block
-  const inside = matches.length % 2 === 1;
+    if (activeKind === 'mermaid' && trimmed === activeCloseDelim) {
+      activeKind = null;
+      activeCloseDelim = null;
+      activeIndex = -1;
+      continue;
+    }
 
-  // Calculate which code block we're in (0-based)
-  // Each pair of ``` is one code block, so blockIndex = floor(count / 2)
-  // If inside, we're in block at index floor((count-1) / 2) = floor(count/2) when count is odd
-  const blockIndex = inside ? Math.floor((matches.length - 1) / 2) : -1;
+    if (activeKind === 'code' && trimmed.startsWith('```')) {
+      activeKind = null;
+      activeCloseDelim = null;
+      activeIndex = -1;
+    }
+  }
 
-  return { inside, blockIndex };
+  return { inside: activeKind !== null, blockIndex: activeKind !== null ? activeIndex : -1 };
 };
 
 // Inject CSS for cursor highlight animation
@@ -185,6 +221,7 @@ interface MarkdownBlock {
 // Parse markdown into blocks with exact source-line ranges.
 // Each block corresponds to one top-level ProseMirror child element.
 const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
+  const openIndex = buildOpenIndex(getCurrentMermaidReadFormats());
   const lines = markdown.split('\n');
   const blocks: MarkdownBlock[] = [];
   let i = 0;
@@ -195,14 +232,26 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
 
     if (!trimmed) { i++; continue; }
 
-    // Code/Mermaid blocks: ``` ... ```
+    // Mermaid blocks: any enabled format's open delimiter. The matching close
+    // is taken from the format that opened the block so a `:::mermaid` block
+    // doesn't accidentally close on a `\`\`\`` two lines down.
+    const fmt = openIndex.get(trimmed);
+    if (fmt) {
+      const startLine = i;
+      i++;
+      while (i < lines.length && lines[i].trim() !== fmt.close) i++;
+      if (i < lines.length) i++;
+      blocks.push({ startLine, endLine: i, type: 'mermaid' });
+      continue;
+    }
+
+    // Code blocks: ``` ... ```
     if (trimmed.startsWith('```')) {
       const startLine = i;
-      const isMermaid = /^```mermaid$/i.test(trimmed);
       i++;
       while (i < lines.length && !lines[i].trim().startsWith('```')) i++;
       if (i < lines.length) i++;
-      blocks.push({ startLine, endLine: i, type: isMermaid ? 'mermaid' : 'code' });
+      blocks.push({ startLine, endLine: i, type: 'code' });
       continue;
     }
 
