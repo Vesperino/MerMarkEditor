@@ -16,6 +16,13 @@ pub struct CodexParserState {
 #[derive(Debug, Default)]
 pub struct ClaudeParserState {
     pub tools: HashMap<i64, ToolBuf>,
+    /// Usage snapshot of the LAST `assistant` message seen this turn. Each
+    /// tool-use round-trip is a separate API call with its own snapshot; the
+    /// final one reflects actual context-window occupancy. The `result`
+    /// event's top-level usage is the cumulative billing total summed across
+    /// every sub-call, which over-reports occupancy (cache_read is re-counted
+    /// per call), so we prefer this snapshot for the input-side fields.
+    pub last_assistant_usage: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Default)]
@@ -71,14 +78,29 @@ fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -
         "system" => None,
         // Rate limit events — drop.
         "rate_limit_event" => None,
-        // Cumulative assistant snapshot — already streamed via deltas, drop.
-        "assistant" => None,
+        // The assistant message's content was already streamed via deltas, so
+        // we emit no chunk — but its `message.usage` is the per-API-call
+        // snapshot we need for the Done chunk, so remember the last one seen.
+        "assistant" => {
+            if let Some(u) = v.get("message").and_then(|m| m.get("usage")) {
+                state.last_assistant_usage = Some(u.clone());
+            }
+            None
+        }
         "stream_event" => parse_stream_event(state, v.get("event")?),
         "result" => {
             let session_id = v.get("session_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
-            // Combine `usage` and `modelUsage` (which carries `contextWindow`)
-            // into a single payload so the frontend parser can read both.
-            let mut usage = v.get("usage").cloned().unwrap_or_else(|| serde_json::json!({}));
+            // Prefer the last assistant snapshot (per-call occupancy) over the
+            // result event's top-level usage (cumulative billing total). Fall
+            // back to the result usage for degenerate streams with no assistant
+            // event. Either way, merge `modelUsage` (which carries
+            // `contextWindow`, a sibling on the result event) so the frontend
+            // can lift the window.
+            let mut usage = state
+                .last_assistant_usage
+                .clone()
+                .or_else(|| v.get("usage").cloned())
+                .unwrap_or_else(|| serde_json::json!({}));
             if let Some(mu) = v.get("modelUsage").or_else(|| v.get("model_usage")) {
                 if let Some(obj) = usage.as_object_mut() {
                     obj.insert("modelUsage".to_string(), mu.clone());
@@ -320,10 +342,16 @@ mod tests {
     }
 
     #[test]
-    fn claude_assistant_event_is_dropped_with_partial_messages() {
-        // The cumulative assistant event would duplicate what we already streamed via deltas.
-        let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]},"session_id":"s1"}"#;
-        assert!(parse_line_claude(&mut fresh_claude(), line).is_none());
+    fn claude_assistant_event_is_dropped_but_captures_usage() {
+        // Content was already streamed via deltas, so no chunk is emitted, but
+        // the per-call usage snapshot is captured for the Done chunk.
+        let mut state = fresh_claude();
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}],"usage":{"input_tokens":3,"cache_read_input_tokens":100}},"session_id":"s1"}"#;
+        assert!(parse_line_claude(&mut state, line).is_none());
+        assert_eq!(
+            state.last_assistant_usage.as_ref().and_then(|u| u.get("cache_read_input_tokens")).and_then(|n| n.as_i64()),
+            Some(100)
+        );
     }
 
     #[test]
@@ -331,6 +359,64 @@ mod tests {
         let line = r#"{"type":"result","subtype":"success","result":"ok","session_id":"s2","duration_ms":2594}"#;
         match parse_line_claude(&mut fresh_claude(), line).unwrap() {
             AiResponseChunk::Done { session_id, .. } => assert_eq!(session_id, "s2"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn claude_result_uses_last_assistant_usage_not_cumulative() {
+        let mut state = fresh_claude();
+        // Two sub-calls (tool-use round-trip). Each `assistant` event carries a
+        // per-call usage snapshot.
+        let call1 = r#"{"type":"assistant","message":{"usage":{"input_tokens":4,"cache_creation_input_tokens":0,"cache_read_input_tokens":5000,"output_tokens":12}}}"#;
+        let call2 = r#"{"type":"assistant","message":{"usage":{"input_tokens":6,"cache_creation_input_tokens":1000,"cache_read_input_tokens":30000,"output_tokens":40}}}"#;
+        assert!(parse_line_claude(&mut state, call1).is_none());
+        assert!(parse_line_claude(&mut state, call2).is_none());
+        // The result event carries the CUMULATIVE billing total (cache_read
+        // re-counted per sub-call → ~3x inflation).
+        let result = r#"{"type":"result","subtype":"success","session_id":"s3","usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":65000,"output_tokens":52}}"#;
+        match parse_line_claude(&mut state, result).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u.get("input_tokens").and_then(|n| n.as_i64()), Some(6));
+                assert_eq!(u.get("cache_creation_input_tokens").and_then(|n| n.as_i64()), Some(1000));
+                assert_eq!(u.get("cache_read_input_tokens").and_then(|n| n.as_i64()), Some(30000));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn claude_result_falls_back_to_result_usage_when_no_assistant_seen() {
+        let line = r#"{"type":"result","subtype":"success","session_id":"s4","usage":{"input_tokens":7,"cache_read_input_tokens":2000}}"#;
+        match parse_line_claude(&mut fresh_claude(), line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u.get("input_tokens").and_then(|n| n.as_i64()), Some(7));
+                assert_eq!(u.get("cache_read_input_tokens").and_then(|n| n.as_i64()), Some(2000));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn claude_result_still_merges_model_usage_context_window() {
+        let mut state = fresh_claude();
+        let assistant = r#"{"type":"assistant","message":{"usage":{"input_tokens":6,"cache_read_input_tokens":30000}}}"#;
+        assert!(parse_line_claude(&mut state, assistant).is_none());
+        let result = r#"{"type":"result","subtype":"success","session_id":"s5","usage":{"input_tokens":10,"cache_read_input_tokens":90000},"modelUsage":{"claude-opus-4-8":{"contextWindow":200000}}}"#;
+        match parse_line_claude(&mut state, result).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                // input-side from the snapshot, contextWindow from result modelUsage.
+                assert_eq!(u.get("cache_read_input_tokens").and_then(|n| n.as_i64()), Some(30000));
+                let cw = u
+                    .get("modelUsage")
+                    .and_then(|m| m.get("claude-opus-4-8"))
+                    .and_then(|m| m.get("contextWindow"))
+                    .and_then(|n| n.as_i64());
+                assert_eq!(cw, Some(200000));
+            }
             _ => panic!("wrong variant"),
         }
     }
