@@ -15,6 +15,7 @@ const props = defineProps<{
   expanded?: boolean;
   codeView?: boolean;
   isSplitActive?: boolean;
+  splitEditorActive?: boolean;
   diffActive?: boolean;
   canShowDiff?: boolean;
   canCompareTabs?: boolean;
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   exportDocx: [];
   toggleCodeView: [];
   toggleSplit: [];
+  toggleSplitEditor: [];
   toggleDiffPreview: [];
   compareTabs: [];
   showShortcuts: [];
@@ -91,13 +93,15 @@ const needsEditor = (id: string) => {
 };
 
 const isDisabled = (id: string) => {
-  if (needsEditor(id) && props.codeView) return true;
+  if (needsEditor(id) && (props.codeView || props.splitEditorActive)) return true;
   if (id === 'undo') return !editor?.value?.can().undo();
   if (id === 'redo') return !editor?.value?.can().redo();
-  if (id === 'toggle-toc') return !!props.codeView;
-  if (id === 'toggle-split-view') return !!props.codeView;
-  if (id === 'toggle-diff') return !props.canShowDiff || !!props.codeView;
-  if (id === 'compare-tabs') return !props.canCompareTabs || !!props.codeView;
+  if (id === 'toggle-toc') return !!props.codeView || !!props.splitEditorActive;
+  if (id === 'toggle-code-view') return !!props.splitEditorActive;
+  if (id === 'toggle-split-view') return !!props.codeView || !!props.splitEditorActive;
+  if (id === 'toggle-split-editor') return !!props.isSplitActive;
+  if (id === 'toggle-diff') return !props.canShowDiff || !!props.codeView || !!props.splitEditorActive;
+  if (id === 'compare-tabs') return !props.canCompareTabs || !!props.codeView || !!props.splitEditorActive;
   return false;
 };
 
@@ -109,7 +113,7 @@ const showLabel = (id: string) => {
   const labelItems = [
     'new-file', 'open-file', 'save-file', 'save-file-as', 'export-pdf',
     'mermaid', 'footnote', 'toggle-toc', 'toggle-code-view', 'toggle-split-view',
-    'toggle-diff', 'compare-tabs',
+    'toggle-split-editor', 'toggle-diff', 'compare-tabs',
   ];
   return labelItems.includes(id);
 };
@@ -523,6 +527,17 @@ const showLabel = (id: string) => {
     <span v-if="showLabel(itemId)">{{ isSplitActive ? t.singleView : t.splitView }}</span>
   </button>
 
+  <button v-else-if="itemId === 'toggle-split-editor'" @click="emit('toggleSplitEditor')" :class="['toolbar-btn', 'split-editor-toggle-btn', { active: splitEditorActive, 'icon-only': !showLabel(itemId) }]" v-tooltip="splitEditorActive ? t.splitEditorExit : t.splitEditorTooltip" :disabled="isDisabled(itemId)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/>
+      <line x1="12" y1="4" x2="12" y2="20"/>
+      <polyline points="6 9 8 12 6 15"/>
+      <line x1="15" y1="9" x2="19" y2="9"/>
+      <line x1="15" y1="13" x2="18" y2="13"/>
+    </svg>
+    <span v-if="showLabel(itemId)">{{ t.splitEditor }}</span>
+  </button>
+
   <button v-else-if="itemId === 'toggle-diff'" @click="emit('toggleDiffPreview')" :class="['toolbar-btn', 'changes-toggle-btn', { active: diffActive, 'icon-only': !showLabel(itemId) }]" v-tooltip="t.changes" :disabled="isDisabled(itemId)">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -661,6 +676,11 @@ const showLabel = (id: string) => {
 .split-toggle-btn:hover:not(:disabled) { background: var(--split-toggle-hover-bg); border-color: var(--split-toggle-hover-border); }
 .split-toggle-btn.active { background: var(--split-toggle-active-bg); border-color: var(--split-toggle-active-border); color: white; }
 .split-toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.split-editor-toggle-btn { background: var(--split-toggle-bg); border-color: var(--split-toggle-border); color: var(--split-toggle-color); }
+.split-editor-toggle-btn:hover:not(:disabled) { background: var(--split-toggle-hover-bg); border-color: var(--split-toggle-hover-border); }
+.split-editor-toggle-btn.active { background: var(--split-toggle-active-bg); border-color: var(--split-toggle-active-border); color: white; }
+.split-editor-toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .changes-toggle-btn { background: var(--changes-toggle-bg); border-color: var(--changes-toggle-border); color: var(--changes-toggle-color); }
 .changes-toggle-btn:hover:not(:disabled) { background: var(--changes-toggle-hover-bg); border-color: var(--changes-toggle-hover-border); }
