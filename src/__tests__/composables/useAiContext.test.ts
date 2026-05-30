@@ -42,4 +42,23 @@ describe('parseUsage', () => {
     });
     expect(u.fraction).toBe(1);
   });
+
+  it('reflects a single final-call snapshot as real occupancy (~30K, not cumulative)', () => {
+    // The normalizer hands parseUsage the LAST assistant message's per-call
+    // snapshot, not the cumulative result total. A ~30K turn must read ~30K.
+    const snapshot = parseUsage('claude', {
+      input_tokens: 6,
+      cache_creation_input_tokens: 1000,
+      cache_read_input_tokens: 30000,
+      output_tokens: 40,
+    });
+    expect(snapshot.totalInputTokens).toBe(6 + 1000 + 30000);
+    expect(snapshot.fraction).toBeLessThan(0.2);
+  });
+
+  it('keeps codex single-usage parsing unchanged', () => {
+    const u = parseUsage('codex', { input_tokens: 1 });
+    expect(u.totalInputTokens).toBe(1);
+    expect(u.contextWindow).toBe(256_000);
+  });
 });

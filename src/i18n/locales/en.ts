@@ -84,6 +84,11 @@ const en: Translations = {
   splitView: 'Split',
   singleView: 'Single',
 
+  // Toolbar - Split Editor (code + live preview)
+  splitEditor: 'Code + Preview',
+  splitEditorTooltip: 'Code + Preview split: edit markdown on the left, see the rendered result on the right',
+  splitEditorExit: 'Exit Code + Preview',
+
   // Toolbar - Diff Preview
   changes: 'Changes',
   noChanges: 'No changes',

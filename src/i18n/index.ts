@@ -90,6 +90,11 @@ export interface Translations {
   splitView: string;
   singleView: string;
 
+  // Toolbar - Split Editor (code + live preview)
+  splitEditor: string;
+  splitEditorTooltip: string;
+  splitEditorExit: string;
+
   // Toolbar - Diff Preview
   changes: string;
   noChanges: string;

@@ -17,6 +17,7 @@ import LoadingOverlay from './components/LoadingOverlay.vue';
 import ExternalLinkDialog from './components/ExternalLinkDialog.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
+import Editor from './components/Editor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
 import TabBar from './components/TabBar.vue';
@@ -38,6 +39,7 @@ import FileConflictModal from './components/FileConflictModal.vue';
 // Composables
 import { useAutoUpdate } from './composables/useAutoUpdate';
 import { useCodeView } from './composables/useCodeView';
+import { useSplitEditor } from './composables/useSplitEditor';
 import { useSettings } from './composables/useSettings';
 import { useSplitView } from './composables/useSplitView';
 import { useFileOperations } from './composables/useFileOperations';
@@ -193,7 +195,18 @@ const newFile = async () => {
   if (codeView.value) {
     await toggleCodeView();
   }
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  if (splitEditorActive.value && activeTab.value) {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    activeTab.value.content = exitSplitEditor();
+    activeTab.value.hasChanges = true;
+  }
   createNewTab();
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  if (splitEditorActive.value) {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    enterSplitEditor(activeTab.value?.content || '<p></p>');
+  }
 };
 
 // Find tab by file path across all panes
@@ -430,7 +443,15 @@ const {
   switchToTab,
   getEditorHtml: getEditorContent,
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
-  getMarkdownOverride: () => codeView.value ? codeContent.value : null,
+  getMarkdownOverride: () => {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    if (splitEditorActive.value) {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      return splitSourceTabId.value === activeTabId.value ? splitMarkdownSource.value : null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    return codeView.value ? codeContent.value : null;
+  },
   setEditorContent,
   markSaveStart: (filePath: string) => markSaveStart(filePath),
   markSaveEnd: (filePath: string, content: string) => markSaveEnd(filePath, content),
@@ -438,6 +459,13 @@ const {
     watchFile(filePath, content);
     const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
     addRecentFile(filePath, fileName);
+    // Only the same-tab content-replacement case; tab-id changes are seeded by
+    // the activeTabId watch, and this tag guard avoids a double-seed race.
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    if (splitEditorActive.value && splitSourceTabId.value === activeTabId.value) {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      enterSplitEditor(activeTab.value?.content || '<p></p>');
+    }
   },
   onAfterSave: (filePath: string, content: string) => {
     // New file just got a path (Save / Save As on a fresh tab) — ensure
@@ -535,6 +563,98 @@ const toggleCodeView = async () => {
 
   await nextTick();
   isLoadingContent.value = false;
+};
+
+// ============ Split Editor (code + live preview of the same document) ============
+const {
+  splitEditorActive,
+  markdownSource: splitMarkdownSource,
+  previewHtml: splitPreviewHtml,
+  onMarkdownInput: onSplitMarkdownInput,
+  syncFromVisual: syncSplitFromVisual,
+  enter: enterSplitEditorRaw,
+  exit: exitSplitEditor,
+} = useSplitEditor();
+
+// Latest HTML emitted by the read-only preview editor. Committed back to the
+// code source only on a real in-preview edit (see onSplitPreviewChanged).
+const splitPreviewLatestHtml = ref('');
+
+// Tags splitMarkdownSource with the tab it was seeded from so the WRITE paths
+// can refuse to persist a source belonging to a different tab.
+const splitSourceTabId = ref<string | null>(null);
+
+const enterSplitEditor = (html: string): void => {
+  enterSplitEditorRaw(html);
+  splitSourceTabId.value = activeTabId.value;
+};
+
+// Single authoritative commit + re-seed for every active-tab change, covering
+// every open/switch path (cross-window already-open, focus listener, dropped
+// files, normal TabBar) uniformly.
+//
+// TIMING: nothing may overwrite splitMarkdownSource synchronously between the
+// activeTabId change and this flush, or the commit-old step would persist the
+// new edit into the old tab. This is why manual enter/exit seeding was removed
+// from switchToTabFromSplitEditor and onFileOpened.
+watch(activeTabId, (_newId, oldId) => {
+  if (!splitEditorActive.value) return;
+  if (splitSourceTabId.value === oldId) {
+    const oldIndex = tabs.value.findIndex(t => t.id === oldId);
+    if (oldIndex !== -1) {
+      tabs.value[oldIndex].content = markdownToHtml(splitMarkdownSource.value);
+      tabs.value[oldIndex].hasChanges = true;
+    }
+  }
+  enterSplitEditor(activeTab.value?.content || '<p></p>');
+});
+
+const toggleSplitEditor = async () => {
+  if (!splitEditorActive.value) {
+    if (codeView.value) {
+      await toggleCodeView();
+    }
+    // Read the live editor HTML so the latest (still-debounced) edit isn't lost
+    // when seeding the markdown source.
+    const html = editorInstance.value?.getHTML() ?? activeTab.value?.content ?? '<p></p>';
+    if (activeTab.value) {
+      activeTab.value.content = html;
+    }
+    isLoadingContent.value = true;
+    enterSplitEditor(html);
+    splitEditorActive.value = true;
+    await nextTick();
+    isLoadingContent.value = false;
+    return;
+  }
+
+  const html = exitSplitEditor();
+  if (activeTab.value) {
+    activeTab.value.content = html;
+    activeTab.value.hasChanges = true;
+  }
+  isLoadingContent.value = true;
+  splitEditorActive.value = false;
+  await nextTick();
+  isLoadingContent.value = false;
+};
+
+const handleSplitMarkdownInput = (value: string) => {
+  onSplitMarkdownInput(value);
+  if (activeTab.value) {
+    activeTab.value.hasChanges = true;
+  }
+};
+
+// Fires only for genuine in-preview edits (Mermaid diagram apply, manual node
+// edit) — the preview's setContent push suppresses hasChanges, so this never
+// echoes a code edit. Propagates the diagram change back into the code source.
+const onSplitPreviewChanged = (changed: boolean) => {
+  if (!changed || !splitEditorActive.value) return;
+  syncSplitFromVisual(splitPreviewLatestHtml.value);
+  if (activeTab.value) {
+    activeTab.value.hasChanges = true;
+  }
 };
 
 // ============ Current Document Search ============
@@ -659,6 +779,24 @@ const closeTabFromCodeView = async (tabId: string) => {
     await toggleCodeView();
   }
   handleCloseTabRequest(activePaneId.value, tabId);
+};
+
+const switchToTabFromSplitEditor = async (tabId: string) => {
+  if (tabId === activeTabId.value) return;
+  await switchToTab(tabId);
+};
+
+const closeTabFromSplitEditor = async (tabId: string) => {
+  if (tabId === activeTabId.value && activeTab.value && splitSourceTabId.value === tabId) {
+    activeTab.value.content = exitSplitEditor();
+    activeTab.value.hasChanges = true;
+  }
+  handleCloseTabRequest(activePaneId.value, tabId);
+  await nextTick();
+  if (splitEditorActive.value) {
+    enterSplitEditor(activeTab.value?.content || '<p></p>');
+    splitSourceTabId.value = activeTabId.value;
+  }
 };
 
 // ============ Diff Preview ============
@@ -1048,6 +1186,17 @@ const syncActiveTabContent = () => {
   // overwrite the real tab content.  Skip syncing in that case.
   if (codeView.value) return;
 
+  // Split-editor mode also unmounts SplitContainer; the editable markdown is
+  // the source of truth, so write it back as the tab's HTML content here.
+  if (splitEditorActive.value) {
+    if (splitSourceTabId.value !== activeTabId.value) return;
+    const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
+    if (tabIndex !== -1) {
+      tabs.value[tabIndex].content = markdownToHtml(splitMarkdownSource.value);
+    }
+    return;
+  }
+
   const currentContent = getEditorContent();
   const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
   if (tabIndex !== -1) {
@@ -1270,7 +1419,7 @@ const handleKeyboard = (event: KeyboardEvent) => {
         showSettingsModal.value = true;
         break;
       case 'v':
-        if (event.shiftKey) {
+        if (event.shiftKey && !splitEditorActive.value) {
           event.preventDefault();
           toggleCodeView();
         }
@@ -1554,6 +1703,7 @@ onUnmounted(async () => {
     <Toolbar
       :code-view="codeView"
       :is-split-active="isSplitActive"
+      :split-editor-active="splitEditorActive"
       :diff-active="showDiffPreview"
       :can-show-diff="canShowDiff"
       :can-compare-tabs="canCompareTabs"
@@ -1570,6 +1720,7 @@ onUnmounted(async () => {
       @export-docx="exportDocx"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
+      @toggle-split-editor="toggleSplitEditor"
       @toggle-diff-preview="toggleDiffPreview"
       @compare-tabs="compareTabs"
       @show-shortcuts="showShortcutsModal = true"
@@ -1619,8 +1770,36 @@ onUnmounted(async () => {
         @toggle-ai="toggleAiPanel"
       />
 
+      <!-- Code + Preview split: raw markdown (left) -> live WYSIWYG render (right) -->
+      <div v-if="splitEditorActive && !codeView" class="split-editor-area">
+        <TabBar
+          :tabs="tabs"
+          :active-tab-id="activeTabId"
+          :pane-id="activePaneId"
+          @switch-tab="switchToTabFromSplitEditor"
+          @close-tab="closeTabFromSplitEditor"
+        />
+        <div class="split-editor-panes">
+          <div class="split-editor-code">
+            <CodeEditor
+              :model-value="splitMarkdownSource"
+              @update:model-value="handleSplitMarkdownInput"
+            />
+          </div>
+          <div class="split-editor-preview">
+            <Editor
+              :model-value="splitPreviewHtml"
+              :file-path="activeTab?.filePath || null"
+              :editable="false"
+              @update:model-value="(h: string) => (splitPreviewLatestHtml = h)"
+              @update:has-changes="onSplitPreviewChanged"
+            />
+          </div>
+        </div>
+      </div>
+
       <!-- Editor area with optional TOC sidebar -->
-      <div v-if="!codeView" class="editor-area">
+      <div v-else-if="!codeView" class="editor-area">
         <!-- Table of Contents Panel -->
         <TableOfContents
           v-if="showTocPanel"
@@ -1667,6 +1846,7 @@ onUnmounted(async () => {
       v-if="hasStatusBarItems"
       :code-view="codeView"
       :is-split-active="isSplitActive"
+      :split-editor-active="splitEditorActive"
       :diff-active="showDiffPreview"
       :can-show-diff="canShowDiff"
       :can-compare-tabs="canCompareTabs"
@@ -1683,6 +1863,7 @@ onUnmounted(async () => {
       @export-docx="exportDocx"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
+      @toggle-split-editor="toggleSplitEditor"
       @toggle-diff-preview="toggleDiffPreview"
       @compare-tabs="compareTabs"
       @show-shortcuts="showShortcutsModal = true"
@@ -1908,6 +2089,40 @@ onUnmounted(async () => {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+}
+
+.split-editor-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.split-editor-panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split-editor-code,
+.split-editor-preview {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.split-editor-code {
+  border-right: 1px solid var(--border-primary);
+}
+
+.split-editor-preview {
+  overflow-y: auto;
+  background: var(--editor-container-bg);
 }
 
 .drag-drop-overlay {
