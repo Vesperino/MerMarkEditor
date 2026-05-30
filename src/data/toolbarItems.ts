@@ -92,6 +92,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'toggle-toc', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1100, needsEditor: false, labelKey: 'tableOfContents' },
   { id: 'toggle-code-view', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1110, needsEditor: false, labelKey: 'codeView' },
   { id: 'toggle-split-view', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1120, needsEditor: false, labelKey: 'splitView' },
+  { id: 'toggle-split-editor', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1125, needsEditor: false, labelKey: 'splitEditor' },
   { id: 'toggle-diff', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1130, needsEditor: false, labelKey: 'changes' },
   { id: 'compare-tabs', category: 'view-toggles', defaultZone: 'toolbar', defaultOrder: 1140, needsEditor: false, labelKey: 'compareTabs' },
 

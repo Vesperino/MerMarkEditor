@@ -84,6 +84,11 @@ const zhCN: Translations = {
   splitView: '分屏',
   singleView: '单屏',
 
+  // Toolbar - Split Editor (code + live preview)
+  splitEditor: '代码 + 预览',
+  splitEditorTooltip: '代码 + 预览分屏：左侧编辑 markdown，右侧实时查看渲染结果',
+  splitEditorExit: '退出代码 + 预览',
+
   // Toolbar - Diff Preview
   changes: '更改',
   noChanges: '无更改',

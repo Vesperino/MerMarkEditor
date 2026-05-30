@@ -370,10 +370,13 @@ const parseTextTable = (text: string): string | null => {
   return result;
 };
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue?: string;
   filePath?: string | null;
-}>();
+  editable?: boolean;
+}>(), {
+  editable: true,
+});
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
@@ -416,6 +419,7 @@ async function handlePastedImage(file: File): Promise<void> {
 
 const editor = useEditor({
   content: props.modelValue || `<p>${t.value.placeholder}</p>`,
+  editable: props.editable,
   // Resolve local image paths to blob URLs when the editor is first created.
   // This is essential because: (1) the watch on modelValue doesn't fire for the
   // initial value, and (2) onUpdate doesn't fire during initial content creation.
@@ -619,6 +623,13 @@ watch(
         emit("update:hasChanges", false);
       }, 200);
     }
+  }
+);
+
+watch(
+  () => props.editable,
+  (editable) => {
+    editor.value?.setEditable(editable);
   }
 );
 

@@ -12,6 +12,7 @@ const toolbarItems = itemsForZone('toolbar');
 const props = defineProps<{
   codeView?: boolean;
   isSplitActive?: boolean;
+  splitEditorActive?: boolean;
   diffActive?: boolean;
   canShowDiff?: boolean;
   canCompareTabs?: boolean;
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   exportDocx: [];
   toggleCodeView: [];
   toggleSplit: [];
+  toggleSplitEditor: [];
   toggleDiffPreview: [];
   compareTabs: [];
   showShortcuts: [];
@@ -77,6 +79,7 @@ const needsSpacerBefore = (index: number) => {
           :item-id="item.id"
           :code-view="props.codeView"
           :is-split-active="props.isSplitActive"
+          :split-editor-active="props.splitEditorActive"
           :diff-active="props.diffActive"
           :can-show-diff="props.canShowDiff"
           :can-compare-tabs="props.canCompareTabs"
@@ -94,6 +97,7 @@ const needsSpacerBefore = (index: number) => {
           @export-docx="emit('exportDocx')"
           @toggle-code-view="emit('toggleCodeView')"
           @toggle-split="emit('toggleSplit')"
+          @toggle-split-editor="emit('toggleSplitEditor')"
           @toggle-diff-preview="emit('toggleDiffPreview')"
           @compare-tabs="emit('compareTabs')"
           @show-shortcuts="emit('showShortcuts')"
