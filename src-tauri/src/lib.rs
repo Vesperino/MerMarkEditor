@@ -156,21 +156,16 @@ async fn print_document(app: tauri::AppHandle, html: String) -> Result<(), Strin
         .title("MerMark — Print / PDF")
         .inner_size(900.0, 1100.0)
         .center()
+        .initialization_script("window.addEventListener('afterprint',function(){window.close();});")
+        // on_page_load runs on the UI thread — which WKWebView's print() requires —
+        // and firing on Finished prints exactly when the document is ready.
+        .on_page_load(|window, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                let _ = window.print();
+            }
+        })
         .build()
         .map_err(|e| e.to_string())?;
-
-    // Let the page finish loading, then print on the UI thread (required on
-    // macOS, harmless on Windows).
-    let app = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(700));
-        let app_inner = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            if let Some(win) = app_inner.get_webview_window(PRINT_WINDOW_LABEL) {
-                let _ = win.print();
-            }
-        });
-    });
 
     Ok(())
 }
@@ -936,21 +931,21 @@ pub fn run() {
                     }
                 }
                 RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { api, .. }, .. } => {
-                    // Get count of remaining windows
-                    let windows = app.webview_windows();
-                    let window_count = windows.len();
-
-                    // If this is the last window, let it close and exit app
-                    if window_count <= 1 {
-                        // Allow default close behavior (app will exit)
+                    // The print helper window is auxiliary — never let it gate app lifecycle.
+                    if label == PRINT_WINDOW_LABEL {
                         return;
                     }
-
-                    // Otherwise, just close this window (don't exit app)
+                    let editor_windows = app
+                        .webview_windows()
+                        .keys()
+                        .filter(|l| *l != PRINT_WINDOW_LABEL)
+                        .count();
+                    if editor_windows <= 1 {
+                        return;
+                    }
                     if let Some(window) = app.get_webview_window(&label) {
                         let _ = window.destroy();
                     }
-                    // Prevent default close which might exit the app
                     api.prevent_close();
                 }
                 _ => {}

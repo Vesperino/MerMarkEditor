@@ -327,6 +327,7 @@ import {
   loadPdfSettings,
   savePdfSettings,
   buildPrintDocument,
+  isChromiumWebview,
   SYSTEM_FONTS,
   getFontStack,
   type PdfSettings,
@@ -466,15 +467,9 @@ onBeforeUnmount(() => {
   if (writeTimer) clearTimeout(writeTimer);
 });
 
-// WebView2 (Windows, Chromium) prints the preview iframe in place. WebKit —
-// macOS WKWebView and Linux WebKitGTK — ignores print() on an iframe (#103), so
-// there we render + print a dedicated top-level webview instead. Chromium user
-// agents carry a "Chrome/" token; WKWebView/WebKitGTK ones do not.
-const canPrintIframe = /Chrome\//.test(navigator.userAgent);
-
 async function handlePrint() {
   savePdfSettings({ ...settings });
-  if (canPrintIframe) {
+  if (isChromiumWebview) {
     previewFrame.value?.contentWindow?.print();
     return;
   }
