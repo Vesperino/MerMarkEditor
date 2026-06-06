@@ -466,21 +466,22 @@ onBeforeUnmount(() => {
   if (writeTimer) clearTimeout(writeTimer);
 });
 
-const isMacOS = /Macintosh|Mac OS X/i.test(navigator.userAgent);
+// WebView2 (Windows, Chromium) prints the preview iframe in place. WebKit —
+// macOS WKWebView and Linux WebKitGTK — ignores print() on an iframe (#103), so
+// there we render + print a dedicated top-level webview instead. Chromium user
+// agents carry a "Chrome/" token; WKWebView/WebKitGTK ones do not.
+const canPrintIframe = /Chrome\//.test(navigator.userAgent);
 
 async function handlePrint() {
   savePdfSettings({ ...settings });
-  // WKWebView (macOS) silently ignores print() on an iframe (#103), so there we
-  // render + print a dedicated top-level webview. WebView2/WebKitGTK print the
-  // preview iframe fine in-place — no extra window.
-  if (isMacOS) {
-    try {
-      await invoke('print_document', { html: srcdoc.value });
-    } catch (e) {
-      console.error('print_document failed', e);
-    }
-  } else {
+  if (canPrintIframe) {
     previewFrame.value?.contentWindow?.print();
+    return;
+  }
+  try {
+    await invoke('print_document', { html: srcdoc.value });
+  } catch (e) {
+    console.error('print_document failed', e);
   }
 }
 </script>

@@ -426,16 +426,18 @@ export function savePdfSettings(settings: PdfSettings): void {
   localStorage.setItem(PDF_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }
 
-const isMacOS = /Macintosh|Mac OS X/i.test(navigator.userAgent);
+// Chromium (WebView2) prints an iframe in place; WebKit (macOS WKWebView, Linux
+// WebKitGTK) ignores print() on an iframe (#103). Chromium UAs carry "Chrome/".
+const canPrintIframe = /Chrome\//.test(navigator.userAgent);
 
 async function _doPrint(editorEl: HTMLElement, settings: PdfSettings, meta: DocumentMeta): Promise<void> {
   savePdfSettings(settings);
   const contentHtml = serializeEditorContent(editorEl);
   const doc = buildPrintDocument(contentHtml, settings, printCssRaw, meta);
 
-  // WKWebView (macOS) ignores print() on an iframe (#103) — render + print a
-  // dedicated top-level webview there. Elsewhere a hidden iframe prints in place.
-  if (isMacOS) {
+  // On WebKit, render + print a dedicated top-level webview; on Chromium a
+  // hidden iframe prints in place.
+  if (!canPrintIframe) {
     await invoke('print_document', { html: doc });
     return;
   }
