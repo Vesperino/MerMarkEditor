@@ -321,6 +321,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import printCssRaw from '../styles/print.css?raw';
 import {
   loadPdfSettings,
@@ -465,9 +466,22 @@ onBeforeUnmount(() => {
   if (writeTimer) clearTimeout(writeTimer);
 });
 
-function handlePrint() {
+const isMacOS = /Macintosh|Mac OS X/i.test(navigator.userAgent);
+
+async function handlePrint() {
   savePdfSettings({ ...settings });
-  previewFrame.value?.contentWindow?.print();
+  // WKWebView (macOS) silently ignores print() on an iframe (#103), so there we
+  // render + print a dedicated top-level webview. WebView2/WebKitGTK print the
+  // preview iframe fine in-place — no extra window.
+  if (isMacOS) {
+    try {
+      await invoke('print_document', { html: srcdoc.value });
+    } catch (e) {
+      console.error('print_document failed', e);
+    }
+  } else {
+    previewFrame.value?.contentWindow?.print();
+  }
 }
 </script>
 

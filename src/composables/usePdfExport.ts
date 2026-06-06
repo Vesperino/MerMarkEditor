@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { serializeEditorContent } from '../utils/documentSerializer';
 import printCssRaw from '../styles/print.css?raw';
 import { DOM_SELECTORS } from '../constants';
@@ -425,10 +426,19 @@ export function savePdfSettings(settings: PdfSettings): void {
   localStorage.setItem(PDF_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }
 
+const isMacOS = /Macintosh|Mac OS X/i.test(navigator.userAgent);
+
 async function _doPrint(editorEl: HTMLElement, settings: PdfSettings, meta: DocumentMeta): Promise<void> {
   savePdfSettings(settings);
   const contentHtml = serializeEditorContent(editorEl);
   const doc = buildPrintDocument(contentHtml, settings, printCssRaw, meta);
+
+  // WKWebView (macOS) ignores print() on an iframe (#103) — render + print a
+  // dedicated top-level webview there. Elsewhere a hidden iframe prints in place.
+  if (isMacOS) {
+    await invoke('print_document', { html: doc });
+    return;
+  }
 
   const iframe = document.createElement('iframe');
   iframe.style.cssText =

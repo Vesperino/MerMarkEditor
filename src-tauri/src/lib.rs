@@ -110,12 +110,69 @@ async fn focus_window_with_file(
     Ok(false)
 }
 
+// Dedicated window that renders the print-ready document for native printing.
+const PRINT_WINDOW_LABEL: &str = "window-print";
+// Custom URI scheme that serves the print-ready HTML from memory.
+const PRINT_SCHEME: &str = "mermarkprint";
+
+// Holds the print-ready HTML served to the print window by the custom protocol.
+pub struct PrintHtmlState(pub Mutex<Option<String>>);
+
 #[tauri::command]
 fn get_all_windows(app: tauri::AppHandle) -> Vec<String> {
     app.webview_windows()
         .keys()
+        .filter(|label| *label != PRINT_WINDOW_LABEL)
         .cloned()
         .collect()
+}
+
+/// Render the print-ready HTML in a dedicated webview window and fire the native
+/// print dialog on it. WKWebView (macOS) ignores `print()` on iframes, so the
+/// in-app preview iframe could never print there (#103).
+///
+/// The window loads its content from the in-memory `mermarkprint://` protocol
+/// rather than `file://` (which WKWebView refuses via `loadRequest:`) or post-
+/// load JS injection (which rendered blank). `async` keeps window creation off
+/// the main thread, since creating a webview from a sync command can deadlock.
+#[tauri::command]
+async fn print_document(app: tauri::AppHandle, html: String) -> Result<(), String> {
+    *app.state::<PrintHtmlState>().0.lock().unwrap() = Some(html);
+
+    if let Some(existing) = app.get_webview_window(PRINT_WINDOW_LABEL) {
+        let _ = existing.close();
+    }
+
+    // Custom schemes resolve to `scheme://localhost` on macOS/Linux but
+    // `http://scheme.localhost` on Windows/Android.
+    let url = if cfg!(any(windows, target_os = "android")) {
+        format!("http://{PRINT_SCHEME}.localhost/")
+    } else {
+        format!("{PRINT_SCHEME}://localhost/")
+    };
+    let url = tauri::Url::parse(&url).map_err(|e| e.to_string())?;
+
+    WebviewWindowBuilder::new(&app, PRINT_WINDOW_LABEL, WebviewUrl::CustomProtocol(url))
+        .title("MerMark — Print / PDF")
+        .inner_size(900.0, 1100.0)
+        .center()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // Let the page finish loading, then print on the UI thread (required on
+    // macOS, harmless on Windows).
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        let app_inner = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(win) = app_inner.get_webview_window(PRINT_WINDOW_LABEL) {
+                let _ = win.print();
+            }
+        });
+    });
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -726,6 +783,20 @@ async fn create_new_window(app: tauri::AppHandle, file_path: Option<String>) -> 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol(PRINT_SCHEME, |ctx, _request| {
+            let html = ctx
+                .app_handle()
+                .state::<PrintHtmlState>()
+                .0
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_default();
+            tauri::http::Response::builder()
+                .header("Content-Type", "text/html; charset=utf-8")
+                .body(html.into_bytes())
+                .unwrap()
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
@@ -755,12 +826,14 @@ pub fn run() {
         }))
         .manage(OpenFileState(Mutex::new(None)))
         .manage(OpenFilesRegistry(Mutex::new(HashMap::new())))
+        .manage(PrintHtmlState(Mutex::new(None)))
         .manage(ai::process::ChildRegistry::new())
         .invoke_handler(tauri::generate_handler![
             get_open_file_path,
             create_new_window,
             get_all_windows,
             get_current_window_label,
+            print_document,
             transfer_tab_to_window,
             register_open_file,
             unregister_open_file,
