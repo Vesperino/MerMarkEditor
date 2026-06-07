@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { proportionalTarget } from '../../composables/useScrollSync';
+import { describe, it, expect, vi } from 'vitest';
+import { proportionalTarget, useScrollSync } from '../../composables/useScrollSync';
 
 describe('proportionalTarget', () => {
   it('maps the top of the source to the top of the destination', () => {
@@ -27,5 +27,25 @@ describe('proportionalTarget', () => {
 
   it('clamps a source position beyond its range', () => {
     expect(proportionalTarget(99999, 1000, 200, 2000, 200)).toBe(1800);
+  });
+});
+
+describe('useScrollSync attach/detach', () => {
+  it('adds scroll listeners on attach and removes them on detach', () => {
+    const code = document.createElement('div');
+    const preview = document.createElement('div');
+    const codeAdd = vi.spyOn(code, 'addEventListener');
+    const codeRemove = vi.spyOn(code, 'removeEventListener');
+    const previewAdd = vi.spyOn(preview, 'addEventListener');
+    const previewRemove = vi.spyOn(preview, 'removeEventListener');
+
+    const sync = useScrollSync();
+    sync.attach(code, preview);
+    expect(codeAdd).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true });
+    expect(previewAdd).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true });
+
+    sync.detach();
+    expect(codeRemove).toHaveBeenCalledWith('scroll', expect.any(Function));
+    expect(previewRemove).toHaveBeenCalledWith('scroll', expect.any(Function));
   });
 });
