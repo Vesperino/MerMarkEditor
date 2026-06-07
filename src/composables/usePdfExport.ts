@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { serializeEditorContent } from '../utils/documentSerializer';
 import printCssRaw from '../styles/print.css?raw';
 import { DOM_SELECTORS } from '../constants';
@@ -425,10 +426,20 @@ export function savePdfSettings(settings: PdfSettings): void {
   localStorage.setItem(PDF_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }
 
+// WebView2 (Windows) prints an iframe in place; WebKit — macOS WKWebView and
+// Linux WebKitGTK — ignores print() on an iframe (#103). Chromium user agents
+// carry a "Chrome/" token; WebKit ones do not.
+export const isChromiumWebview = /Chrome\//.test(navigator.userAgent);
+
 async function _doPrint(editorEl: HTMLElement, settings: PdfSettings, meta: DocumentMeta): Promise<void> {
   savePdfSettings(settings);
   const contentHtml = serializeEditorContent(editorEl);
   const doc = buildPrintDocument(contentHtml, settings, printCssRaw, meta);
+
+  if (!isChromiumWebview) {
+    await invoke('print_document', { html: doc });
+    return;
+  }
 
   const iframe = document.createElement('iframe');
   iframe.style.cssText =

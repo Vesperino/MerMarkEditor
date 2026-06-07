@@ -110,12 +110,64 @@ async fn focus_window_with_file(
     Ok(false)
 }
 
+// Dedicated window that renders the print-ready document for native printing.
+const PRINT_WINDOW_LABEL: &str = "window-print";
+// Custom URI scheme that serves the print-ready HTML from memory.
+const PRINT_SCHEME: &str = "mermarkprint";
+
+// Holds the print-ready HTML served to the print window by the custom protocol.
+pub struct PrintHtmlState(pub Mutex<Option<String>>);
+
 #[tauri::command]
 fn get_all_windows(app: tauri::AppHandle) -> Vec<String> {
     app.webview_windows()
         .keys()
+        .filter(|label| *label != PRINT_WINDOW_LABEL)
         .cloned()
         .collect()
+}
+
+/// Render the print-ready HTML in a dedicated webview window and fire the native
+/// print dialog on it. WKWebView (macOS) ignores `print()` on iframes, so the
+/// in-app preview iframe could never print there (#103).
+///
+/// The window loads its content from the in-memory `mermarkprint://` protocol
+/// rather than `file://` (which WKWebView refuses via `loadRequest:`) or post-
+/// load JS injection (which rendered blank). `async` keeps window creation off
+/// the main thread, since creating a webview from a sync command can deadlock.
+#[tauri::command]
+async fn print_document(app: tauri::AppHandle, html: String) -> Result<(), String> {
+    *app.state::<PrintHtmlState>().0.lock().unwrap() = Some(html);
+
+    if let Some(existing) = app.get_webview_window(PRINT_WINDOW_LABEL) {
+        let _ = existing.close();
+    }
+
+    // Custom schemes resolve to `scheme://localhost` on macOS/Linux but
+    // `http://scheme.localhost` on Windows/Android.
+    let url = if cfg!(any(windows, target_os = "android")) {
+        format!("http://{PRINT_SCHEME}.localhost/")
+    } else {
+        format!("{PRINT_SCHEME}://localhost/")
+    };
+    let url = tauri::Url::parse(&url).map_err(|e| e.to_string())?;
+
+    WebviewWindowBuilder::new(&app, PRINT_WINDOW_LABEL, WebviewUrl::CustomProtocol(url))
+        .title("MerMark — Print / PDF")
+        .inner_size(900.0, 1100.0)
+        .center()
+        .initialization_script("window.addEventListener('afterprint',function(){window.close();});")
+        // on_page_load runs on the UI thread — which WKWebView's print() requires —
+        // and firing on Finished prints exactly when the document is ready.
+        .on_page_load(|window, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                let _ = window.print();
+            }
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -723,9 +775,66 @@ async fn create_new_window(app: tauri::AppHandle, file_path: Option<String>) -> 
     Ok(window_label)
 }
 
+#[cfg(any(test, target_os = "linux"))]
+#[derive(Clone, Copy)]
+struct StartupEnvOverride {
+    key: &'static str,
+    value: &'static str,
+}
+
+// WebKitGTK 2.42+ defaults to a DMA-BUF renderer that fails to create an EGL
+// display on several Linux GPU/driver stacks (NVIDIA, VMs, recent Mesa shipped
+// by Fedora and openSUSE Tumbleweed), leaving an empty window and aborting with
+// `Could not create default EGL display: EGL_BAD_PARAMETER` (#106). Forcing the
+// legacy, non-accelerated path restores rendering on those machines.
+#[cfg(any(test, target_os = "linux"))]
+const LINUX_WEBKIT_RENDER_OVERRIDES: [StartupEnvOverride; 2] = [
+    StartupEnvOverride { key: "WEBKIT_DISABLE_DMABUF_RENDERER", value: "1" },
+    StartupEnvOverride { key: "WEBKIT_DISABLE_COMPOSITING_MODE", value: "1" },
+];
+
+// Inject an override only when the user has not already set a meaningful value,
+// so an explicit `WEBKIT_DISABLE_*` from the environment stays authoritative.
+#[cfg(any(test, target_os = "linux"))]
+fn should_apply_webkit_override(current: Option<&std::ffi::OsStr>) -> bool {
+    match current {
+        Some(value) => value.to_string_lossy().trim().is_empty(),
+        None => true,
+    }
+}
+
+// Must run before the first webview spawns and while still single-threaded
+// (top of `run`), since `set_var` is only sound before other threads read env.
+#[cfg(any(test, target_os = "linux"))]
+fn apply_linux_webkit_overrides() {
+    for ov in LINUX_WEBKIT_RENDER_OVERRIDES {
+        if should_apply_webkit_override(std::env::var_os(ov.key).as_deref()) {
+            std::env::set_var(ov.key, ov.value);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Work around WebKitGTK's EGL/DMA-BUF abort before anything spawns (#106).
+    #[cfg(target_os = "linux")]
+    apply_linux_webkit_overrides();
+
     tauri::Builder::default()
+        .register_uri_scheme_protocol(PRINT_SCHEME, |ctx, _request| {
+            let html = ctx
+                .app_handle()
+                .state::<PrintHtmlState>()
+                .0
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_default();
+            tauri::http::Response::builder()
+                .header("Content-Type", "text/html; charset=utf-8")
+                .body(html.into_bytes())
+                .unwrap()
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
@@ -755,12 +864,14 @@ pub fn run() {
         }))
         .manage(OpenFileState(Mutex::new(None)))
         .manage(OpenFilesRegistry(Mutex::new(HashMap::new())))
+        .manage(PrintHtmlState(Mutex::new(None)))
         .manage(ai::process::ChildRegistry::new())
         .invoke_handler(tauri::generate_handler![
             get_open_file_path,
             create_new_window,
             get_all_windows,
             get_current_window_label,
+            print_document,
             transfer_tab_to_window,
             register_open_file,
             unregister_open_file,
@@ -863,24 +974,55 @@ pub fn run() {
                     }
                 }
                 RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { api, .. }, .. } => {
-                    // Get count of remaining windows
-                    let windows = app.webview_windows();
-                    let window_count = windows.len();
-
-                    // If this is the last window, let it close and exit app
-                    if window_count <= 1 {
-                        // Allow default close behavior (app will exit)
+                    // The print helper window is auxiliary — never let it gate app lifecycle.
+                    if label == PRINT_WINDOW_LABEL {
                         return;
                     }
-
-                    // Otherwise, just close this window (don't exit app)
+                    let editor_windows = app
+                        .webview_windows()
+                        .keys()
+                        .filter(|l| *l != PRINT_WINDOW_LABEL)
+                        .count();
+                    if editor_windows <= 1 {
+                        return;
+                    }
                     if let Some(window) = app.get_webview_window(&label) {
                         let _ = window.destroy();
                     }
-                    // Prevent default close which might exit the app
                     api.prevent_close();
                 }
                 _ => {}
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn webkit_override_applies_when_unset_or_blank() {
+        assert!(should_apply_webkit_override(None));
+        assert!(should_apply_webkit_override(Some(OsStr::new(""))));
+        assert!(should_apply_webkit_override(Some(OsStr::new("   "))));
+    }
+
+    #[test]
+    fn webkit_override_respects_explicit_user_value() {
+        assert!(!should_apply_webkit_override(Some(OsStr::new("1"))));
+        assert!(!should_apply_webkit_override(Some(OsStr::new("0"))));
+    }
+
+    #[test]
+    fn linux_webkit_overrides_target_known_egl_workaround_vars() {
+        let keys: Vec<&str> = LINUX_WEBKIT_RENDER_OVERRIDES.iter().map(|o| o.key).collect();
+        assert_eq!(
+            keys,
+            ["WEBKIT_DISABLE_DMABUF_RENDERER", "WEBKIT_DISABLE_COMPOSITING_MODE"]
+        );
+        assert!(LINUX_WEBKIT_RENDER_OVERRIDES.iter().all(|o| o.value == "1"));
+        // Symbol must build on every platform so the Linux applier is type-checked in CI.
+        let _f: fn() = apply_linux_webkit_overrides;
+    }
 }
