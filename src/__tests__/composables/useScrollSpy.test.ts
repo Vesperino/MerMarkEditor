@@ -32,4 +32,19 @@ describe('pickActiveHeading', () => {
     ];
     expect(pickActiveHeading(tops, THRESHOLD)).toBe('a');
   });
+
+  it('returns the last heading when scrolled to the bottom, ignoring the threshold', () => {
+    // At the bottom the trailing headings can never reach the top threshold,
+    // so they would otherwise stay un-highlighted (#scrollspy bottom edge).
+    const tops = [
+      { id: 'a', top: -200 },
+      { id: 'b', top: 100 },
+      { id: 'c', top: 300 },
+    ];
+    expect(pickActiveHeading(tops, THRESHOLD, true)).toBe('c');
+  });
+
+  it('returns null at the bottom when there are no headings', () => {
+    expect(pickActiveHeading([], THRESHOLD, true)).toBeNull();
+  });
 });

@@ -123,7 +123,9 @@ const updateActiveHeading = () => {
       return el ? { id: h.id, top: el.getBoundingClientRect().top - containerTop } : null;
     })
     .filter((t): t is { id: string; top: number } => t !== null);
-  activeHeadingId.value = pickActiveHeading(tops, SCROLL_OFFSET);
+  const atBottom =
+    scrollContainer.scrollTop + scrollContainer.clientHeight >= scrollContainer.scrollHeight - 2;
+  activeHeadingId.value = pickActiveHeading(tops, SCROLL_OFFSET, atBottom);
 };
 
 const onContainerScroll = () => {
