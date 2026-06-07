@@ -775,8 +775,51 @@ async fn create_new_window(app: tauri::AppHandle, file_path: Option<String>) -> 
     Ok(window_label)
 }
 
+#[cfg(any(test, target_os = "linux"))]
+#[derive(Clone, Copy)]
+struct StartupEnvOverride {
+    key: &'static str,
+    value: &'static str,
+}
+
+// WebKitGTK 2.42+ defaults to a DMA-BUF renderer that fails to create an EGL
+// display on several Linux GPU/driver stacks (NVIDIA, VMs, recent Mesa shipped
+// by Fedora and openSUSE Tumbleweed), leaving an empty window and aborting with
+// `Could not create default EGL display: EGL_BAD_PARAMETER` (#106). Forcing the
+// legacy, non-accelerated path restores rendering on those machines.
+#[cfg(any(test, target_os = "linux"))]
+const LINUX_WEBKIT_RENDER_OVERRIDES: [StartupEnvOverride; 2] = [
+    StartupEnvOverride { key: "WEBKIT_DISABLE_DMABUF_RENDERER", value: "1" },
+    StartupEnvOverride { key: "WEBKIT_DISABLE_COMPOSITING_MODE", value: "1" },
+];
+
+// Inject an override only when the user has not already set a meaningful value,
+// so an explicit `WEBKIT_DISABLE_*` from the environment stays authoritative.
+#[cfg(any(test, target_os = "linux"))]
+fn should_apply_webkit_override(current: Option<&std::ffi::OsStr>) -> bool {
+    match current {
+        Some(value) => value.to_string_lossy().trim().is_empty(),
+        None => true,
+    }
+}
+
+// Must run before the first webview spawns and while still single-threaded
+// (top of `run`), since `set_var` is only sound before other threads read env.
+#[cfg(any(test, target_os = "linux"))]
+fn apply_linux_webkit_overrides() {
+    for ov in LINUX_WEBKIT_RENDER_OVERRIDES {
+        if should_apply_webkit_override(std::env::var_os(ov.key).as_deref()) {
+            std::env::set_var(ov.key, ov.value);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Work around WebKitGTK's EGL/DMA-BUF abort before anything spawns (#106).
+    #[cfg(target_os = "linux")]
+    apply_linux_webkit_overrides();
+
     tauri::Builder::default()
         .register_uri_scheme_protocol(PRINT_SCHEME, |ctx, _request| {
             let html = ctx
@@ -951,4 +994,35 @@ pub fn run() {
                 _ => {}
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn webkit_override_applies_when_unset_or_blank() {
+        assert!(should_apply_webkit_override(None));
+        assert!(should_apply_webkit_override(Some(OsStr::new(""))));
+        assert!(should_apply_webkit_override(Some(OsStr::new("   "))));
+    }
+
+    #[test]
+    fn webkit_override_respects_explicit_user_value() {
+        assert!(!should_apply_webkit_override(Some(OsStr::new("1"))));
+        assert!(!should_apply_webkit_override(Some(OsStr::new("0"))));
+    }
+
+    #[test]
+    fn linux_webkit_overrides_target_known_egl_workaround_vars() {
+        let keys: Vec<&str> = LINUX_WEBKIT_RENDER_OVERRIDES.iter().map(|o| o.key).collect();
+        assert_eq!(
+            keys,
+            ["WEBKIT_DISABLE_DMABUF_RENDERER", "WEBKIT_DISABLE_COMPOSITING_MODE"]
+        );
+        assert!(LINUX_WEBKIT_RENDER_OVERRIDES.iter().all(|o| o.value == "1"));
+        // Symbol must build on every platform so the Linux applier is type-checked in CI.
+        let _f: fn() = apply_linux_webkit_overrides;
+    }
 }
