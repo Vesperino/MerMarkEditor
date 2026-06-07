@@ -40,6 +40,7 @@ import FileConflictModal from './components/FileConflictModal.vue';
 import { useAutoUpdate } from './composables/useAutoUpdate';
 import { useCodeView } from './composables/useCodeView';
 import { useSplitEditor } from './composables/useSplitEditor';
+import { useScrollSync } from './composables/useScrollSync';
 import { useSettings } from './composables/useSettings';
 import { useSplitView } from './composables/useSplitView';
 import { useFileOperations } from './composables/useFileOperations';
@@ -576,6 +577,9 @@ const {
   exit: exitSplitEditor,
 } = useSplitEditor();
 
+// Proportional scroll-sync between the split code pane and the live preview.
+const scrollSync = useScrollSync();
+
 // Latest HTML emitted by the read-only preview editor. Committed back to the
 // code source only on a real in-preview edit (see onSplitPreviewChanged).
 const splitPreviewLatestHtml = ref('');
@@ -624,10 +628,14 @@ const toggleSplitEditor = async () => {
     enterSplitEditor(html);
     splitEditorActive.value = true;
     await nextTick();
+    const codeEl = document.querySelector<HTMLElement>('#code-editor-textarea');
+    const previewEl = document.querySelector<HTMLElement>('.split-editor-preview .editor-container');
+    if (codeEl && previewEl) scrollSync.attach(codeEl, previewEl);
     isLoadingContent.value = false;
     return;
   }
 
+  scrollSync.detach();
   const html = exitSplitEditor();
   if (activeTab.value) {
     activeTab.value.content = html;
@@ -1664,6 +1672,7 @@ onMounted(async () => {
 onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeyboard);
   window.removeEventListener('wheel', handleWheel);
+  scrollSync.detach();
   unwatchAll();
   if (unlistenOpenFile) {
     unlistenOpenFile();
