@@ -629,7 +629,7 @@ const toggleSplitEditor = async () => {
     splitEditorActive.value = true;
     await nextTick();
     const codeEl = document.querySelector<HTMLElement>('#code-editor-textarea');
-    const previewEl = document.querySelector<HTMLElement>('.split-editor-preview');
+    const previewEl = document.querySelector<HTMLElement>('.split-editor-preview .editor-container');
     if (codeEl && previewEl) scrollSync.attach(codeEl, previewEl);
     isLoadingContent.value = false;
     return;
