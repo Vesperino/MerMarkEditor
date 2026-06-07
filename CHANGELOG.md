@@ -4,6 +4,14 @@
 
 ---
 
+# Release v0.5.1 — macOS printing fix
+
+## Bug fixes
+
+- Fix the **Print / PDF** button doing nothing on macOS — the export dialog now opens the native print dialog, where you can print or save the formatted document as a PDF (#103).
+
+---
+
 # Release v0.5.0 — Code + Preview split editor, accurate Claude context meter
 
 Write Markdown and watch it render at the same time, and trust the AI context meter again. This release adds a side-by-side Code + Preview editor for the document you're working on, and fixes the Claude context-usage meter so it reflects what's actually in the window.
