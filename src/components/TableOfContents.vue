@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted, inject, type Ref } from 'vue';
+import { ref, computed, watch, onUnmounted, inject, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from '../i18n';
+import { SCROLL_OFFSET } from '../constants';
+import { pickActiveHeading } from '../composables/useScrollSpy';
 
 const { t } = useI18n();
 const editor = inject<Ref<Editor | null>>('editor');
@@ -99,6 +101,55 @@ const scrollToHeading = (item: TocItem) => {
   activeHeadingId.value = item.id;
 };
 
+// ── Scrollspy: highlight the heading of the current section while scrolling ──
+let scrollContainer: HTMLElement | null = null;
+let rafId = 0;
+
+const resolveHeadingEl = (item: TocItem): HTMLElement | null => {
+  if (!editor?.value || !scrollContainer) return null;
+  if (item.kind === 'footnotes') {
+    return scrollContainer.querySelector<HTMLElement>('.footnote-section-wrapper');
+  }
+  const { node } = editor.value.view.domAtPos(item.pos + 1);
+  return node instanceof HTMLElement ? node : node.parentElement;
+};
+
+const updateActiveHeading = () => {
+  if (!scrollContainer || headings.value.length === 0) return;
+  const containerTop = scrollContainer.getBoundingClientRect().top;
+  const tops = headings.value
+    .map((h) => {
+      const el = resolveHeadingEl(h);
+      return el ? { id: h.id, top: el.getBoundingClientRect().top - containerTop } : null;
+    })
+    .filter((t): t is { id: string; top: number } => t !== null);
+  activeHeadingId.value = pickActiveHeading(tops, SCROLL_OFFSET);
+};
+
+const onContainerScroll = () => {
+  if (rafId) return;
+  rafId = requestAnimationFrame(() => {
+    rafId = 0;
+    updateActiveHeading();
+  });
+};
+
+const detachScrollSpy = () => {
+  scrollContainer?.removeEventListener('scroll', onContainerScroll);
+  scrollContainer = null;
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+};
+
+const attachScrollSpy = () => {
+  detachScrollSpy();
+  const dom = editor?.value?.view.dom as HTMLElement | undefined;
+  scrollContainer = (dom?.closest('.editor-container') as HTMLElement | null) ?? null;
+  scrollContainer?.addEventListener('scroll', onContainerScroll, { passive: true });
+};
+
 // Update headings on editor changes
 const onEditorUpdate = () => {
   extractHeadings();
@@ -110,10 +161,12 @@ watch(
   (newEditor, oldEditor) => {
     if (oldEditor) {
       oldEditor.off('update', onEditorUpdate);
+      detachScrollSpy();
     }
     if (newEditor) {
       newEditor.on('update', onEditorUpdate);
       extractHeadings();
+      nextTick(() => attachScrollSpy());
     }
   },
   { immediate: true }
@@ -123,6 +176,7 @@ onUnmounted(() => {
   if (editor?.value) {
     editor.value.off('update', onEditorUpdate);
   }
+  detachScrollSpy();
 });
 </script>
 
