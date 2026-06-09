@@ -782,11 +782,13 @@ struct StartupEnvOverride {
     value: &'static str,
 }
 
-// WebKitGTK 2.42+ defaults to a DMA-BUF renderer that fails to create an EGL
-// display on several Linux GPU/driver stacks (NVIDIA, VMs, recent Mesa shipped
-// by Fedora and openSUSE Tumbleweed), leaving an empty window and aborting with
-// `Could not create default EGL display: EGL_BAD_PARAMETER` (#106). Forcing the
-// legacy, non-accelerated path restores rendering on those machines.
+// Helps with rendering glitches on fragile GPU stacks (NVIDIA, VMs) where EGL
+// itself works. NOTE: these vars cannot prevent the `Could not create default
+// EGL display: EGL_BAD_PARAMETER` abort from #106 — since WebKitGTK 2.46 the
+// WebProcess initializes its EGL display before the preference store is applied
+// (WebPage.cpp: drawingArea->updatePreferences runs ahead of updatePreferences),
+// so the abort is reachable regardless. The actual #106 fix is in release.yml:
+// the AppImage must not bundle libwayland-client.so.0.
 #[cfg(any(test, target_os = "linux"))]
 const LINUX_WEBKIT_RENDER_OVERRIDES: [StartupEnvOverride; 2] = [
     StartupEnvOverride { key: "WEBKIT_DISABLE_DMABUF_RENDERER", value: "1" },
@@ -816,7 +818,6 @@ fn apply_linux_webkit_overrides() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Work around WebKitGTK's EGL/DMA-BUF abort before anything spawns (#106).
     #[cfg(target_os = "linux")]
     apply_linux_webkit_overrides();
 

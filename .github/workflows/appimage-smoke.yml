@@ -1,0 +1,65 @@
+# Builds the Linux AppImage on PRs that touch packaging and asserts it does not
+# bundle libwayland-client.so.0 (stale copies break EGL on Mesa >= 24.2 hosts, #106).
+name: AppImage smoke
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/workflows/appimage-smoke.yml'
+      - 'src-tauri/**'
+
+jobs:
+  appimage-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      # Same pre-seed as release.yml — see the comment there (#106).
+      - name: Pre-seed linuxdeploy with fixed excludelist (#106)
+        run: |
+          mkdir -p ~/.cache/tauri
+          curl -fsSL --retry 3 -o ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage
+          chmod +x ~/.cache/tauri/linuxdeploy-x86_64.AppImage
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build AppImage
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build --bundles appimage
+
+      - name: Assert AppImage bundles no libwayland-client (#106)
+        run: |
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
+          test -n "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract > /dev/null
+          echo "=== bundled usr/lib ==="
+          find squashfs-root/usr/lib -maxdepth 1 -name '*.so*' -printf '%f\n' | sort
+          find squashfs-root/usr/lib -name 'libwebkit2gtk-4.1.so*' | grep -q . # sanity: extraction worked
+          if find squashfs-root/usr/lib -name 'libwayland-client.so*' | grep -q .; then
+            echo "::error::AppImage bundles libwayland-client.so.0 — breaks EGL on Mesa >= 24.2 hosts (#106)"
+            exit 1
+          fi
