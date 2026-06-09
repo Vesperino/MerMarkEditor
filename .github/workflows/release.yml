@@ -138,6 +138,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
+      # tauri-bundler downloads linuxdeploy from tauri-apps/binary-releases (built 2024-07-29,
+      # excludelist predates the libwayland-client.so.0 entry added 2024-11-03). That stale
+      # excludelist bundles noble's libwayland-client 1.22 into the AppImage; host Mesa >= 24.2
+      # needs wl_display_create_queue_with_name (wayland 1.23) -> EGL vendor load fails ->
+      # "Could not create default EGL display: EGL_BAD_PARAMETER" blank window (#106).
+      # The bundler skips the download when the file already sits in its tools cache, so we
+      # pre-seed a pinned upstream build whose compiled-in excludelist has the fix.
+      - name: Pre-seed linuxdeploy with fixed excludelist (#106)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          mkdir -p ~/.cache/tauri
+          curl -fsSL --retry 3 -o ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage
+          chmod +x ~/.cache/tauri/linuxdeploy-x86_64.AppImage
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -166,3 +181,15 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+      - name: Assert AppImage bundles no libwayland-client (#106)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
+          test -n "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract > /dev/null
+          find squashfs-root/usr/lib -name 'libwebkit2gtk-4.1.so*' | grep -q . # sanity: extraction worked
+          if find squashfs-root/usr/lib -name 'libwayland-client.so*' | grep -q .; then
+            echo "::error::AppImage bundles libwayland-client.so.0 — breaks EGL on Mesa >= 24.2 hosts (#106)"
+            exit 1
+          fi
