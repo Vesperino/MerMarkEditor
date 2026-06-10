@@ -94,4 +94,47 @@ describe('useAi', () => {
 
     expect(activeThread.value?.lastSentStaticHash).toBeNull();
   });
+
+  async function runTurn(
+    cli: 'claude' | 'ollama' | 'openai',
+    prompt: string,
+    reply: string,
+  ) {
+    const { send } = useAi();
+    const promise = send({
+      cli, sessionId: null, model: null, effort: null, prompt, preamble: 'p', turnContext: '',
+      accessMap: { readPaths: [], writePaths: [], tools: { bash: false, network: false, fileRead: false, fileWrite: false } },
+      workDir: '/x',
+    });
+    await new Promise(r => setTimeout(r, 30));
+    if (!lastHandler) throw new Error('onStream handler not registered');
+    lastHandler({ kind: 'text', content: reply });
+    lastHandler({ kind: 'done', sessionId: 's1', usage: null });
+    await promise;
+  }
+
+  it('sends prior user+assistant turns as history for a local provider', async () => {
+    (aiCommands.send as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue('req');
+
+    await runTurn('ollama', 'first question', 'first answer');
+    await runTurn('ollama', 'second question', 'second answer');
+
+    const secondCall = (aiCommands.send as unknown as { mock: { calls: unknown[][] } }).mock.calls[1];
+    const req = secondCall[0] as { history?: { role: string; content: string }[] };
+    expect(req.history).toEqual([
+      { role: 'user', content: 'first question' },
+      { role: 'assistant', content: 'first answer' },
+    ]);
+  });
+
+  it('sends an empty history for claude (resumes via session id)', async () => {
+    (aiCommands.send as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue('req');
+
+    await runTurn('claude', 'first question', 'first answer');
+    await runTurn('claude', 'second question', 'second answer');
+
+    const secondCall = (aiCommands.send as unknown as { mock: { calls: unknown[][] } }).mock.calls[1];
+    const req = secondCall[0] as { history?: { role: string; content: string }[] };
+    expect(req.history).toEqual([]);
+  });
 });

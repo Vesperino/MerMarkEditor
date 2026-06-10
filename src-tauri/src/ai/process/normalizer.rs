@@ -350,6 +350,138 @@ fn parse_codex_stateful(
     }
 }
 
+/// Ollama `/api/chat` streams newline-delimited JSON. Non-final lines carry
+/// `{"message":{"role":"assistant","content":"<delta>"}, "done":false}`; the
+/// final line carries `{"done":true, "prompt_eval_count":N, "eval_count":M}`.
+/// We rename `prompt_eval_count` → `input_tokens` and `eval_count` →
+/// `output_tokens` so the usage payload matches what `parseUsage` expects.
+pub fn parse_line_ollama(line: &str) -> Option<AiResponseChunk> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    parse_ollama(&v)
+}
+
+fn parse_ollama(v: &serde_json::Value) -> Option<AiResponseChunk> {
+    if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+        return Some(AiResponseChunk::Error { message: err.to_string(), exit_code: None });
+    }
+    let done = v.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
+    if done {
+        let input = v.get("prompt_eval_count").and_then(|n| n.as_u64()).unwrap_or(0);
+        let output = v.get("eval_count").and_then(|n| n.as_u64()).unwrap_or(0);
+        let usage = serde_json::json!({ "input_tokens": input, "output_tokens": output });
+        return Some(AiResponseChunk::Done { session_id: String::new(), usage: Some(usage) });
+    }
+    let content = v
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .unwrap_or("");
+    if content.is_empty() {
+        None
+    } else {
+        Some(AiResponseChunk::Text { content: content.to_string() })
+    }
+}
+
+/// Parse the `/api/tags` response (`{"models":[{"name":"llama3:8b"},…]}`) into
+/// the list of installed model names. Missing/empty `models` yields an empty
+/// vec. Kept as a free function so it is testable without HTTP.
+pub fn parse_ollama_tags(v: &serde_json::Value) -> Vec<String> {
+    v.get("models")
+        .and_then(|m| m.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.get("name").and_then(|n| n.as_str()))
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parse one OpenAI-compatible SSE line from `/v1/chat/completions`. Each frame
+/// is `data: {json}` (blank inter-frame lines trim to empty → dropped); the
+/// stream terminates with a literal `data: [DONE]`.
+///   - `[DONE]`            → Done (empty session/usage; the usage-bearing Done
+///                           normally arrives in the preceding chunk).
+///   - top-level `error`   → Error.
+///   - top-level `usage`   → Done with `prompt_tokens` renamed `input_tokens`
+///                           and `completion_tokens` renamed `output_tokens`
+///                           (matches what `parseUsage` expects, mirroring the
+///                           ollama prompt_eval_count/eval_count rename).
+///   - `choices[0].delta.content` → Text. A role-only or `reasoning_content`-
+///                           only delta (no `content`) is dropped (MVP ignores
+///                           reasoning content rather than rendering it).
+pub fn parse_line_openai(line: &str) -> Option<AiResponseChunk> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let payload = line.strip_prefix("data:").map(str::trim).unwrap_or(line);
+    if payload == "[DONE]" {
+        return Some(AiResponseChunk::Done { session_id: String::new(), usage: None });
+    }
+    let v: serde_json::Value = serde_json::from_str(payload).ok()?;
+    parse_openai(&v)
+}
+
+fn parse_openai(v: &serde_json::Value) -> Option<AiResponseChunk> {
+    if let Some(err) = v.get("error") {
+        let message = err
+            .get("message")
+            .and_then(|m| m.as_str())
+            .or_else(|| err.as_str())
+            .unwrap_or("OpenAI-compatible request failed.")
+            .to_string();
+        return Some(AiResponseChunk::Error { message, exit_code: None });
+    }
+    if let Some(usage) = v.get("usage").filter(|u| u.is_object()) {
+        let input = usage.get("prompt_tokens").and_then(|n| n.as_u64()).unwrap_or(0);
+        let output = usage.get("completion_tokens").and_then(|n| n.as_u64()).unwrap_or(0);
+        let renamed = serde_json::json!({ "input_tokens": input, "output_tokens": output });
+        return Some(AiResponseChunk::Done { session_id: String::new(), usage: Some(renamed) });
+    }
+    let content = v
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|c| c.get("delta"))
+        .and_then(|d| d.get("content"))
+        .and_then(|c| c.as_str())
+        .unwrap_or("");
+    if content.is_empty() {
+        None
+    } else {
+        Some(AiResponseChunk::Text { content: content.to_string() })
+    }
+}
+
+/// Parse the `/v1/models` response into a list of model ids. Prefers the
+/// OpenAI shape (`{"data":[{"id":"…"}]}` → every `data[].id`); when `data` is
+/// absent some servers expose a top-level `models` array instead, where each
+/// entry's `name` is preferred and `id` is the per-entry fallback.
+pub fn parse_openai_models(v: &serde_json::Value) -> Vec<String> {
+    if let Some(arr) = v.get("data").and_then(|d| d.as_array()) {
+        return arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|i| i.as_str()))
+            .map(|s| s.to_string())
+            .collect();
+    }
+    v.get("models")
+        .and_then(|m| m.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| {
+                    m.get("name")
+                        .and_then(|n| n.as_str())
+                        .or_else(|| m.get("id").and_then(|i| i.as_str()))
+                })
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,5 +792,140 @@ mod tests {
         let mut state = CodexParserState::default();
         assert!(parse_line_codex(&mut state, r#"{"type":"turn.started"}"#).is_none());
         assert!(parse_line_codex(&mut state, r#"{"type":"item.started","item":{"type":"agent_message"}}"#).is_none());
+    }
+
+    #[test]
+    fn ollama_content_delta_emits_text() {
+        let line = r#"{"model":"llama3","message":{"role":"assistant","content":"hi"},"done":false}"#;
+        match parse_line_ollama(line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "hi"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn ollama_empty_content_delta_is_dropped() {
+        let line = r#"{"message":{"role":"assistant","content":""},"done":false}"#;
+        assert!(parse_line_ollama(line).is_none());
+    }
+
+    #[test]
+    fn ollama_done_renames_token_counts_to_input_output() {
+        let line = r#"{"done":true,"prompt_eval_count":10,"eval_count":5}"#;
+        match parse_line_ollama(line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u["input_tokens"], 10);
+                assert_eq!(u["output_tokens"], 5);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn ollama_error_line_emits_error() {
+        let line = r#"{"error":"model 'foo' not found"}"#;
+        match parse_line_ollama(line).unwrap() {
+            AiResponseChunk::Error { message, .. } => assert!(message.contains("not found")),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn ollama_tags_extracts_model_names() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"models":[{"name":"llama3:8b"},{"name":"qwen2"}]}"#).unwrap();
+        assert_eq!(parse_ollama_tags(&v), vec!["llama3:8b", "qwen2"]);
+    }
+
+    #[test]
+    fn ollama_tags_missing_models_is_empty() {
+        let v: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(parse_ollama_tags(&v).is_empty());
+    }
+
+    #[test]
+    fn openai_data_frame_emits_text() {
+        let line = r#"data: {"choices":[{"delta":{"content":"hi"}}]}"#;
+        match parse_line_openai(line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "hi"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_done_sentinel_emits_done() {
+        match parse_line_openai("data: [DONE]").unwrap() {
+            AiResponseChunk::Done { session_id, usage } => {
+                assert_eq!(session_id, "");
+                assert!(usage.is_none());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_role_only_delta_is_dropped() {
+        let line = r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#;
+        assert!(parse_line_openai(line).is_none());
+    }
+
+    #[test]
+    fn openai_reasoning_content_only_delta_is_dropped() {
+        let line = r#"data: {"choices":[{"delta":{"reasoning_content":"thinking..."}}]}"#;
+        assert!(parse_line_openai(line).is_none());
+    }
+
+    #[test]
+    fn openai_usage_chunk_renames_tokens() {
+        let line = r#"data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":7,"total_tokens":19}}"#;
+        match parse_line_openai(line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u["input_tokens"], 12);
+                assert_eq!(u["output_tokens"], 7);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_error_line_emits_error() {
+        let obj = r#"data: {"error":{"message":"model 'foo' not found"}}"#;
+        match parse_line_openai(obj).unwrap() {
+            AiResponseChunk::Error { message, .. } => assert!(message.contains("not found")),
+            _ => panic!("wrong variant"),
+        }
+        let str_err = r#"data: {"error":"boom"}"#;
+        match parse_line_openai(str_err).unwrap() {
+            AiResponseChunk::Error { message, .. } => assert_eq!(message, "boom"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_blank_line_is_dropped() {
+        assert!(parse_line_openai("").is_none());
+        assert!(parse_line_openai("   ").is_none());
+    }
+
+    #[test]
+    fn openai_models_extracts_data_ids() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"data":[{"id":"qwen3.5"},{"id":"phi"}],"object":"list"}"#).unwrap();
+        assert_eq!(parse_openai_models(&v), vec!["qwen3.5", "phi"]);
+    }
+
+    #[test]
+    fn openai_models_fallback_to_models_array() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"models":[{"name":"m1"},{"id":"m2"}]}"#).unwrap();
+        assert_eq!(parse_openai_models(&v), vec!["m1", "m2"]);
+    }
+
+    #[test]
+    fn openai_models_missing_is_empty() {
+        let v: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(parse_openai_models(&v).is_empty());
     }
 }

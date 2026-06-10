@@ -2,9 +2,9 @@ import { ref } from 'vue';
 import { aiCommands, type CliKind, type HealthStatus } from '../services/aiCommands';
 import { useSettings } from './useSettings';
 
-const cache = ref<Record<CliKind, HealthStatus | null>>({ claude: null, codex: null });
-const lastCheckedAt = ref<Record<CliKind, number | null>>({ claude: null, codex: null });
-const loading = ref<Record<CliKind, boolean>>({ claude: false, codex: false });
+const cache = ref<Record<CliKind, HealthStatus | null>>({ claude: null, codex: null, ollama: null, openai: null });
+const lastCheckedAt = ref<Record<CliKind, number | null>>({ claude: null, codex: null, ollama: null, openai: null });
+const loading = ref<Record<CliKind, boolean>>({ claude: false, codex: false, ollama: false, openai: false });
 
 export function useAiHealth() {
   const {
@@ -26,6 +26,10 @@ export function useAiHealth() {
    * silently fails the file-exists check and we drop back to a full scan.
    */
   function overrideFor(cli: CliKind): string | null {
+    // Ollama / OpenAI-compatible have no binary path — the "override" channel
+    // carries their base URL instead.
+    if (cli === 'ollama') return (settings.value.ai.ollamaBaseUrl ?? '').trim() || null;
+    if (cli === 'openai') return (settings.value.ai.openaiBaseUrl ?? '').trim() || null;
     const manualRaw = cli === 'claude' ? settings.value.ai.cliPathClaude : settings.value.ai.cliPathCodex;
     const manual = (manualRaw ?? '').trim();
     if (manual) return manual;
@@ -38,6 +42,9 @@ export function useAiHealth() {
 
   function persistResolved(cli: CliKind, status: HealthStatus) {
     if (!status.ok) return;
+    // Ollama / OpenAI-compatible resolved path is just the echoed base URL —
+    // nothing to cache.
+    if (cli === 'ollama' || cli === 'openai') return;
     // Only update the cache when the user has NOT pinned a manual override —
     // otherwise we'd second-guess their choice on every probe.
     const manualRaw = cli === 'claude' ? settings.value.ai.cliPathClaude : settings.value.ai.cliPathCodex;
@@ -77,13 +84,18 @@ export function useAiHealth() {
   }
 
   async function checkAll(force = false) {
-    await Promise.all([check('claude', force), check('codex', force)]);
+    await Promise.all([
+      check('claude', force),
+      check('codex', force),
+      check('ollama', force),
+      check('openai', force),
+    ]);
   }
 
   function getCached(cli: CliKind) { return cache.value[cli]; }
   function reset() {
-    cache.value = { claude: null, codex: null };
-    lastCheckedAt.value = { claude: null, codex: null };
+    cache.value = { claude: null, codex: null, ollama: null, openai: null };
+    lastCheckedAt.value = { claude: null, codex: null, ollama: null, openai: null };
   }
 
   /**

@@ -78,6 +78,40 @@ describe('useAiPreamble.buildStaticPreamble', () => {
     expect(out).not.toContain('MERMAID EDIT MODE');
   });
 
+  describe('local tool providers', () => {
+    it('names read_file/write_file/edit_file and the must-call instruction when localTools is set', () => {
+      const out = buildStaticPreamble({ ...base(), localTools: true });
+      expect(out).toContain('read_file(path)');
+      expect(out).toContain('write_file(path, content)');
+      expect(out).toContain('edit_file(path, old_string, new_string)');
+      expect(out).toMatch(/MUST call edit_file/);
+      expect(out).toMatch(/Never claim in prose that you edited/);
+    });
+
+    it('mentions list_dir for enumerating granted folders when localTools is set', () => {
+      const out = buildStaticPreamble({ ...base(), localTools: true });
+      expect(out).toContain('list_dir(path)');
+      expect(out).toMatch(/enumerate/i);
+    });
+
+    it('does not mention list_dir for the claude/codex branch', () => {
+      const out = buildStaticPreamble(base());
+      expect(out).not.toContain('list_dir');
+    });
+
+    it('does not emit the CLI Edit / Write fence instruction for local providers', () => {
+      const out = buildStaticPreamble({ ...base(), localTools: true });
+      expect(out).not.toMatch(/USE YOUR Edit \/ Write TOOLS/);
+      expect(out).not.toMatch(/Do NOT return code fences/);
+    });
+
+    it('keeps the claude/codex Edit / Write wording when localTools is unset', () => {
+      const out = buildStaticPreamble(base());
+      expect(out).toMatch(/USE YOUR Edit \/ Write TOOLS/);
+      expect(out).not.toContain('read_file(path)');
+    });
+  });
+
   describe('workspace context', () => {
     it('emits no workspace lines when workspaceRoot is empty', () => {
       const out = buildStaticPreamble(base());

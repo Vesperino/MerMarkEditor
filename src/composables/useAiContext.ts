@@ -27,6 +27,12 @@ export interface ContextUsage {
 const DEFAULT_CONTEXT_WINDOW: Record<CliKind, number> = {
   claude: 200_000,
   codex: 272_000,
+  ollama: 8_192,
+  // Local OpenAI-compatible servers don't advertise the window in the streamed
+  // usage payload, so 128k is a conservative fallback for typical local models.
+  // Lifting the real n_ctx (llama.cpp /v1/models data[].meta.n_ctx_train or
+  // GET {base}/props) is a follow-up.
+  openai: 128_000,
 };
 
 const usage = ref<ContextUsage>(emptyUsage('claude'));

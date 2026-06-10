@@ -28,6 +28,11 @@ export interface PreambleOptions {
    *  parses any enabled read format, but pinning the write format means the
    *  AI reply round-trips through save without delimiter swaps. */
   mermaidWriteFormat?: MermaidFormat;
+  /** True for the local HTTP providers (ollama, openai), which drive an
+   *  app-side tool-calling loop with read_file/write_file/edit_file rather
+   *  than the claude/codex CLI Edit/Write tools. Switches the edit
+   *  instruction wording accordingly. */
+  localTools?: boolean;
 }
 
 interface PinScopeStrings {
@@ -74,7 +79,7 @@ export function buildStaticPreamble(opts: PreambleOptions): string {
         `The main file lives inside this workspace. You may READ other files in the workspace for context (notes, references, related documents) but you must only WRITE to the main file. When the user says "the project" / "this notebook" / "these notes", they mean the workspace above.`,
       ]
     : [];
-  return [
+  const lines = [
     `You are an AI assistant integrated into the MerMark editor.`,
     ...workspaceLines,
     mainFileLine,
@@ -82,10 +87,24 @@ export function buildStaticPreamble(opts: PreambleOptions): string {
     `Write paths: ${am?.writePaths.join(', ') ?? opts.docPath}`,
     `Allowed tools: ${tools}`,
     ``,
-    `When the user asks for edits to the active file, USE YOUR Edit / Write TOOLS to modify the file on disk directly. Do NOT return code fences with the proposed change — the host will reload the editor from disk after you finish.`,
+  ];
+  if (opts.localTools) {
+    lines.push(
+      `You have these tools available: read_file(path), list_dir(path), write_file(path, content), edit_file(path, old_string, new_string). The only writable target is the active document above; reads are limited to its folder plus any granted read paths.`,
+      `To explore a granted folder, call list_dir(path) to enumerate its files and subfolders before reading individual files with read_file — read_file works on files only, not directories.`,
+      `When the user asks for edits to the active file, you MUST call edit_file (for a small change) or write_file (to replace the whole file) to apply it on disk. Read the file first with read_file if you need its current content. The host reloads the editor from disk after the tools run.`,
+      `Never claim in prose that you edited or updated the file — an edit only counts if you actually call edit_file / write_file. To edit, call the tools; do not paste the whole file back into chat.`,
+    );
+  } else {
+    lines.push(
+      `When the user asks for edits to the active file, USE YOUR Edit / Write TOOLS to modify the file on disk directly. Do NOT return code fences with the proposed change — the host will reload the editor from disk after you finish.`,
+    );
+  }
+  lines.push(
     ``,
     `For chat-only answers (questions about the file, summaries, suggestions), respond as plain text without editing the file.`,
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 /**

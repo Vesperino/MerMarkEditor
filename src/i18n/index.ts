@@ -322,6 +322,18 @@ export interface Translations {
   aiBypassHelper: string;
   aiCliStatusClaude: string;
   aiCliStatusCodex: string;
+  aiCliStatusOllama: string;
+  aiOllamaConnected: (info: string) => string;
+  aiOllamaNotRunning: string;
+  aiOllamaLocalHint: string;
+  aiOllamaBaseUrlPlaceholder: string;
+  aiOllamaBaseUrlHelper: string;
+  aiCliStatusOpenai: string;
+  aiOpenaiConnected: (info: string) => string;
+  aiOpenaiNotRunning: string;
+  aiOpenaiLocalHint: string;
+  aiOpenaiBaseUrlPlaceholder: string;
+  aiOpenaiBaseUrlHelper: string;
   aiStatusOk: (account: string) => string;
   aiStatusBinaryMissing: string;
   aiStatusAuthRequired: string;

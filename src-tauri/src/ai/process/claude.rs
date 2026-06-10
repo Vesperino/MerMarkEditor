@@ -202,6 +202,7 @@ mod tests {
             work_dir: String::new(),
             images: vec![],
             cli_path: None,
+            history: vec![],
         }
     }
 

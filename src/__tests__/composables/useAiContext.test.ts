@@ -33,6 +33,15 @@ describe('parseUsage', () => {
     expect(claudeU.contextWindow).toBe(200_000);
     const codexU = parseUsage('codex', { input_tokens: 1 });
     expect(codexU.contextWindow).toBe(272_000);
+    const ollamaU = parseUsage('ollama', { input_tokens: 1 });
+    expect(ollamaU.contextWindow).toBe(8_192);
+  });
+
+  it('parses ollama input/output token counts', () => {
+    const u = parseUsage('ollama', { input_tokens: 12, output_tokens: 7 });
+    expect(u.totalInputTokens).toBe(12);
+    expect(u.outputTokens).toBe(7);
+    expect(u.empty).toBe(false);
   });
 
   it('picks the main model contextWindow by key when modelUsage has side models first', () => {

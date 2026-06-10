@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event';
 
-export type CliKind = 'claude' | 'codex';
+export type CliKind = 'claude' | 'codex' | 'ollama' | 'openai';
 
 export interface HealthStatus {
   ok: boolean;
@@ -51,6 +51,13 @@ export interface AuditEntry {
   exitCode: number | null;
 }
 
+/** A prior conversation turn carried into a LOCAL-provider request (ollama /
+ *  openai). claude/codex resume via sessionId and ignore this. */
+export interface AiHistoryTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface AiSendRequest {
   cli: CliKind;
   sessionId: string | null;
@@ -67,6 +74,8 @@ export interface AiSendRequest {
   images?: string[];
   /** Optional explicit path to the CLI binary (overrides PATH-based detection). */
   cliPath?: string | null;
+  /** Prior turns for local providers only; empty/omitted for claude/codex. */
+  history?: AiHistoryTurn[];
 }
 
 export type AiResponseChunk =
@@ -79,6 +88,14 @@ export type AiResponseChunk =
 export const aiCommands = {
   healthCheck: (cli: CliKind, overridePath: string | null = null) =>
     invoke<HealthStatus>('ai_health_check', { cli, overridePath }),
+
+  /** List models installed in a local Ollama via GET /api/tags. */
+  ollamaModels: (baseUrl: string | null = null) =>
+    invoke<string[]>('ai_ollama_models', { baseUrl }),
+
+  /** List models a local OpenAI-compatible server exposes via GET /v1/models. */
+  openaiModels: (baseUrl: string | null = null) =>
+    invoke<string[]>('ai_openai_models', { baseUrl }),
 
   send: (req: AiSendRequest, requestId: string) => invoke<string>('ai_send', { req, requestId }),
   cancel: (requestId: string) => invoke<void>('ai_cancel', { requestId }),

@@ -1,4 +1,5 @@
-import type { CliKind } from '../services/aiCommands';
+import { ref } from 'vue';
+import { aiCommands, type CliKind } from '../services/aiCommands';
 
 export interface AiModelOption {
   id: string;
@@ -62,10 +63,67 @@ export const CODEX_EFFORTS: AiEffortOption[] = [
   { id: 'high', label: 'High' },
 ];
 
+/** Convert installed Ollama model names (from /api/tags) into picker options. */
+export function ollamaModelsToOptions(names: string[]): AiModelOption[] {
+  const opts: AiModelOption[] = names.map((name) => ({ id: name, label: name }));
+  opts.push({ id: CUSTOM_MODEL_SENTINEL, label: 'Custom…', custom: true });
+  return opts;
+}
+
+/** Convert model ids a local OpenAI-compatible server exposes (data[].id) into picker options. */
+export function openaiModelsToOptions(ids: string[]): AiModelOption[] {
+  const opts: AiModelOption[] = ids.map((id) => ({ id, label: id }));
+  opts.push({ id: CUSTOM_MODEL_SENTINEL, label: 'Custom…', custom: true });
+  return opts;
+}
+
+const ollamaModels = ref<AiModelOption[]>([{ id: CUSTOM_MODEL_SENTINEL, label: 'Custom…', custom: true }]);
+const ollamaModelsLoading = ref(false);
+const openaiModels = ref<AiModelOption[]>([{ id: CUSTOM_MODEL_SENTINEL, label: 'Custom…', custom: true }]);
+const openaiModelsLoading = ref(false);
+
+export function useAiModels() {
+  async function refreshOllamaModels(baseUrl: string | null = null): Promise<AiModelOption[]> {
+    ollamaModelsLoading.value = true;
+    try {
+      const names = await aiCommands.ollamaModels(baseUrl);
+      ollamaModels.value = ollamaModelsToOptions(names);
+    } catch {
+      ollamaModels.value = ollamaModelsToOptions([]);
+    } finally {
+      ollamaModelsLoading.value = false;
+    }
+    return ollamaModels.value;
+  }
+
+  async function refreshOpenaiModels(baseUrl: string | null = null): Promise<AiModelOption[]> {
+    openaiModelsLoading.value = true;
+    try {
+      const ids = await aiCommands.openaiModels(baseUrl);
+      openaiModels.value = openaiModelsToOptions(ids);
+    } catch {
+      openaiModels.value = openaiModelsToOptions([]);
+    } finally {
+      openaiModelsLoading.value = false;
+    }
+    return openaiModels.value;
+  }
+
+  return {
+    ollamaModels, ollamaModelsLoading, refreshOllamaModels,
+    openaiModels, openaiModelsLoading, refreshOpenaiModels,
+  };
+}
+
 export function modelsFor(cli: CliKind): AiModelOption[] {
-  return cli === 'claude' ? CLAUDE_MODELS : CODEX_MODELS;
+  if (cli === 'claude') return CLAUDE_MODELS;
+  if (cli === 'codex') return CODEX_MODELS;
+  if (cli === 'openai') return openaiModels.value;
+  return ollamaModels.value;
 }
 
 export function effortsFor(cli: CliKind): AiEffortOption[] {
-  return cli === 'claude' ? CLAUDE_EFFORTS : CODEX_EFFORTS;
+  if (cli === 'claude') return CLAUDE_EFFORTS;
+  if (cli === 'codex') return CODEX_EFFORTS;
+  return [];
 }

@@ -2,6 +2,9 @@ pub mod registry;
 pub mod normalizer;
 pub mod claude;
 pub mod codex;
+pub mod file_tools;
+pub mod ollama;
+pub mod openai;
 
 pub use registry::ChildRegistry;
 
@@ -41,6 +44,11 @@ pub struct AiSendRequest {
     /// Empty / None falls back to `cli::resolve_with_override`. See issue #70.
     #[serde(default)]
     pub cli_path: Option<String>,
+    /// Prior conversation turns for the LOCAL providers (ollama/openai), which
+    /// have no resume. claude/codex ignore this and resume via `session_id`.
+    /// Default empty so existing callers are unaffected.
+    #[serde(default)]
+    pub history: Vec<file_tools::HistoryTurn>,
 }
 
 pub async fn spawn(
@@ -52,12 +60,28 @@ pub async fn spawn(
 ) -> Result<String, String> {
     eprintln!("[ai] spawn cli={:?} req_id={} session={:?} model={:?} effort={:?} bypass={} window={}",
         req.cli, request_id, req.session_id, req.model, req.effort, req.bypass, window_label);
+    if matches!(req.cli, CliKind::Ollama | CliKind::Openai) {
+        audit::append(&app, AuditEntry {
+            ts: audit::now_iso(),
+            session_id: req.session_id.clone(),
+            cli: req.cli,
+            action: "send".into(),
+            args: serde_json::json!({ "request_id": request_id, "bypass": req.bypass, "cli_name": req.cli.as_str() }),
+            result: serde_json::json!({}),
+            exit_code: None,
+        })?;
+        return match req.cli {
+            CliKind::Openai => openai::stream(app, window_label, registry.inner(), req, request_id).await,
+            _ => ollama::stream(app, window_label, registry.inner(), req, request_id).await,
+        };
+    }
     let (child, codex_window) = match req.cli {
         CliKind::Claude => (claude::spawn(&req).await?, None),
         CliKind::Codex => {
             let window = codex::resolve_context_window(req.model.as_deref()).await;
             (codex::spawn(&req).await?, req.model.clone().zip(window))
         }
+        CliKind::Ollama | CliKind::Openai => unreachable!("ollama/openai handled above"),
     };
     eprintln!("[ai] child spawned for req_id={}", request_id);
     audit::append(&app, AuditEntry {
@@ -129,6 +153,8 @@ fn spawn_pump(
                 let parsed = match cli {
                     CliKind::Codex => normalizer::parse_line_codex(&mut codex_state, &line),
                     CliKind::Claude => normalizer::parse_line_claude(&mut claude_state, &line),
+                    CliKind::Ollama => normalizer::parse_line_ollama(&line),
+                    CliKind::Openai => normalizer::parse_line_openai(&line),
                 };
                 match parsed {
                     Some(chunk) => {
@@ -209,6 +235,9 @@ fn spawn_pump(
 pub fn cancel(registry: &ChildRegistry, request_id: &str) {
     if let Some(mut child) = registry.take(request_id) {
         kill_tree(&mut child);
+    }
+    if let Some(handle) = registry.take_abort(request_id) {
+        handle.abort();
     }
 }
 

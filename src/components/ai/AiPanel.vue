@@ -8,7 +8,7 @@ import { useAiSession } from '../../composables/useAiSession';
 import { useAiAccessMap } from '../../composables/useAiAccessMap';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiContext } from '../../composables/useAiContext';
-import { modelsFor, effortsFor } from '../../composables/useAiModels';
+import { modelsFor, effortsFor, useAiModels } from '../../composables/useAiModels';
 import { aiCommands } from '../../services/aiCommands';
 import { useAiPanelLayout } from '../../composables/useAiPanelLayout';
 import { useAiToolToast } from '../../composables/useAiToolToast';
@@ -50,26 +50,33 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { settings, setAiDefaultCli, setAiDefaultModelClaude, setAiDefaultModelCodex, setAiEffortClaude, setAiEffortCodex } = useSettings();
+const { settings, setAiDefaultCli, setAiDefaultModelClaude, setAiDefaultModelCodex, setAiDefaultModelOllama, setAiDefaultModelOpenai, setAiEffortClaude, setAiEffortCodex } = useSettings();
 const ai = useAi();
 const session = useAiSession();
 const access = useAiAccessMap();
 const health = useAiHealth();
 const aiContext = useAiContext();
 
+const aiModels = useAiModels();
+
 const docNeedsSave = computed<boolean>(() => !props.docPath || props.docPath.trim() === '');
 
+function defaultModelFor(cli: CliKind): string {
+  if (cli === 'claude') return settings.value.ai.defaultModelClaude;
+  if (cli === 'codex') return settings.value.ai.defaultModelCodex;
+  if (cli === 'openai') return settings.value.ai.defaultModelOpenai;
+  return settings.value.ai.defaultModelOllama;
+}
+
+function defaultEffortFor(cli: CliKind): string {
+  if (cli === 'claude') return settings.value.ai.effortClaude;
+  if (cli === 'codex') return settings.value.ai.effortCodex;
+  return '';
+}
+
 const selectedCli = ref<CliKind>(settings.value.ai.defaultCli);
-const selectedModel = ref<string>(
-  selectedCli.value === 'claude'
-    ? settings.value.ai.defaultModelClaude
-    : settings.value.ai.defaultModelCodex,
-);
-const selectedEffort = ref<string>(
-  selectedCli.value === 'claude'
-    ? settings.value.ai.effortClaude
-    : settings.value.ai.effortCodex,
-);
+const selectedModel = ref<string>(defaultModelFor(selectedCli.value));
+const selectedEffort = ref<string>(defaultEffortFor(selectedCli.value));
 const customModelInput = ref<string>('');
 const inputValue = ref('');
 
@@ -159,13 +166,15 @@ const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
   if (health.cache.value.claude?.ok) out.push('claude');
   if (health.cache.value.codex?.ok) out.push('codex');
-  return out.length > 0 ? out : (['claude', 'codex'] as CliKind[]);
+  if (health.cache.value.ollama?.ok) out.push('ollama');
+  if (health.cache.value.openai?.ok) out.push('openai');
+  return out.length > 0 ? out : (['claude', 'codex', 'ollama', 'openai'] as CliKind[]);
 });
 
 const modelOptions = computed(() => modelsFor(selectedCli.value));
 const effortOptions = computed(() => effortsFor(selectedCli.value));
 const cliConnected = computed(() => health.cache.value[selectedCli.value]?.ok ?? false);
-const anyHealthLoading = computed(() => health.loading.value.claude || health.loading.value.codex);
+const anyHealthLoading = computed(() => health.loading.value.claude || health.loading.value.codex || health.loading.value.ollama || health.loading.value.openai);
 
 const isCustomModel = computed(() => {
   const opts = modelOptions.value;
@@ -186,12 +195,13 @@ const restoringThread = ref(false);
 watch(selectedCli, (cli, oldCli) => {
   setAiDefaultCli(cli);
   if (!restoringThread.value) {
-    selectedModel.value = cli === 'claude'
-      ? settings.value.ai.defaultModelClaude
-      : settings.value.ai.defaultModelCodex;
-    selectedEffort.value = cli === 'claude'
-      ? settings.value.ai.effortClaude
-      : settings.value.ai.effortCodex;
+    selectedModel.value = defaultModelFor(cli);
+    selectedEffort.value = defaultEffortFor(cli);
+  }
+  if (cli === 'ollama') {
+    void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
+  } else if (cli === 'openai') {
+    void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
   }
   aiContext.reset(cli);
   if (oldCli && oldCli !== cli && !restoringThread.value) {
@@ -202,17 +212,24 @@ watch(selectedCli, (cli, oldCli) => {
 
 watch(selectedModel, (m) => {
   if (selectedCli.value === 'claude') setAiDefaultModelClaude(m);
-  else setAiDefaultModelCodex(m);
+  else if (selectedCli.value === 'codex') setAiDefaultModelCodex(m);
+  else if (selectedCli.value === 'openai') setAiDefaultModelOpenai(m);
+  else setAiDefaultModelOllama(m);
 });
 
 watch(selectedEffort, (e) => {
   if (selectedCli.value === 'claude') setAiEffortClaude(e);
-  else setAiEffortCodex(e);
+  else if (selectedCli.value === 'codex') setAiEffortCodex(e);
 });
 
 onMounted(async () => {
   layout.mount();
   ai.bindDoc(props.docPath || '');
+  if (selectedCli.value === 'ollama') {
+    void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
+  } else if (selectedCli.value === 'openai') {
+    void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
+  }
   if (props.docPath) {
     await Promise.all([
       session.loadFor(props.docPath),
@@ -270,6 +287,7 @@ function preambleOptions(): PreambleOptions {
     workspaceRoot: props.workspaceRoot ?? '',
     mermaidEditMode: mermaidEditMode.value,
     mermaidWriteFormat: resolveMermaidWriteFormat(settings.value),
+    localTools: selectedCli.value === 'ollama' || selectedCli.value === 'openai',
   };
 }
 

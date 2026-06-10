@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue';
-import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap } from '../services/aiCommands';
+import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap, type AiHistoryTurn } from '../services/aiCommands';
 import { useAiContext } from './useAiContext';
 import { useSettings } from './useSettings';
 
@@ -117,6 +117,20 @@ function deriveTitle(msgs: AiMessage[]): string {
   if (!first) return 'New chat';
   const t = first.text.trim().replace(/\s+/g, ' ');
   return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX - 1) + '…' : t || 'New chat';
+}
+
+/** Project prior thread turns into the wire history for local providers: only
+ *  user/assistant text turns, skipping tool and attachment rows and empty or
+ *  errored assistant turns (no tool_call_id references that strict servers
+ *  reject). Chronological order preserved; the Rust side trims to budget. */
+function buildHistory(msgs: AiMessage[]): AiHistoryTurn[] {
+  const out: AiHistoryTurn[] = [];
+  for (const m of msgs) {
+    if (m.role !== 'user' && m.role !== 'assistant') continue;
+    if (m.role === 'assistant' && (m.error || !m.text)) continue;
+    out.push({ role: m.role, content: m.text });
+  }
+  return out;
 }
 
 function newThread(): AiThread {
@@ -265,6 +279,13 @@ export function useAi() {
     if (isSending.value) throw new Error('A send is already in flight');
     isSending.value = true;
 
+    // Capture history BEFORE pushing the current user prompt + assistant
+    // placeholder, else the live turn would leak into its own history. Local
+    // providers (ollama/openai) have no resume, so we replay prior turns;
+    // claude/codex resume via session_id and get an empty history.
+    const isLocal = opts.cli === 'ollama' || opts.cli === 'openai';
+    const history = isLocal ? buildHistory(activeThread.value?.messages ?? []) : [];
+
     pushMessage({ role: 'user', text: opts.prompt, done: true });
     pushMessage({ role: 'assistant', text: '', done: false });
     const t = ensureActiveThread();
@@ -317,7 +338,10 @@ export function useAi() {
             // Only on success — a failed turn means the model never saw it.
             if (opts.staticPreambleHash) tt.lastSentStaticHash = opts.staticPreambleHash;
           }
-          opts.onSessionId?.(chunk.sessionId);
+          // Local providers (ollama/openai) finish with an empty sessionId —
+          // never persist it, so their sends keep resolving to a null session
+          // (history replay) and the static preamble is always included.
+          if (chunk.sessionId) opts.onSessionId?.(chunk.sessionId);
           resolveCompletion();
           break;
         }
@@ -330,9 +354,14 @@ export function useAi() {
     });
 
     const { settings } = useSettings();
-    const overridePath = (opts.cli === 'claude'
-      ? settings.value.ai.cliPathClaude
-      : settings.value.ai.cliPathCodex
+    // For ollama / openai the cliPath channel carries the base URL, not a binary path.
+    const overridePath = (opts.cli === 'ollama'
+      ? (settings.value.ai.ollamaBaseUrl ?? '')
+      : opts.cli === 'openai'
+        ? (settings.value.ai.openaiBaseUrl ?? '')
+        : opts.cli === 'claude'
+          ? settings.value.ai.cliPathClaude
+          : settings.value.ai.cliPathCodex
     ).trim();
     const req: AiSendRequest = {
       cli: opts.cli,
@@ -347,6 +376,7 @@ export function useAi() {
       workDir: opts.workDir,
       images: opts.images ?? [],
       cliPath: overridePath || null,
+      history,
     };
 
     try {
