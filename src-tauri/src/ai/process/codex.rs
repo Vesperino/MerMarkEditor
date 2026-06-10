@@ -139,7 +139,11 @@ pub async fn resolve_context_window(model: Option<&str>) -> Option<u64> {
     let slug = model.map(str::trim).filter(|s| !s.is_empty())?;
     let path = models_cache_path()?;
     let raw = tokio::fs::read_to_string(path).await.ok()?;
-    context_window_from_cache(&raw, slug)
+    let window = context_window_from_cache(&raw, slug);
+    if window.is_none() {
+        eprintln!("[ai codex] no context_window for slug {:?} in models_cache.json — falling back to default", slug);
+    }
+    window
 }
 
 fn models_cache_path() -> Option<std::path::PathBuf> {
@@ -148,12 +152,21 @@ fn models_cache_path() -> Option<std::path::PathBuf> {
         .filter(|s| !s.is_empty())
         .map(std::path::PathBuf::from)
         .or_else(|| {
-            std::env::var("HOME")
-                .or_else(|_| std::env::var("USERPROFILE"))
-                .ok()
-                .map(|h| std::path::PathBuf::from(h).join(".codex"))
+            pick_home_dir(
+                cfg!(windows),
+                std::env::var("USERPROFILE").ok(),
+                std::env::var("HOME").ok(),
+            )
+            .map(|h| std::path::PathBuf::from(h).join(".codex"))
         })?;
     Some(home.join("models_cache.json"))
+}
+
+/// On Windows HOME may be set by git-bash/msys to a different dir than codex
+/// (which follows USERPROFILE semantics) actually uses — so USERPROFILE wins
+/// there, HOME wins on Unix.
+fn pick_home_dir(is_windows: bool, userprofile: Option<String>, home: Option<String>) -> Option<String> {
+    if is_windows { userprofile.or(home) } else { home.or(userprofile) }
 }
 
 fn context_window_from_cache(raw: &str, slug: &str) -> Option<u64> {
@@ -220,5 +233,22 @@ mod tests {
         assert_eq!(context_window_from_cache("not json", "gpt-5.4"), None);
         assert_eq!(context_window_from_cache(r#"{"models":{}}"#, "gpt-5.4"), None);
         assert_eq!(context_window_from_cache(r#"{"models":[{"slug":"gpt-5.4"}]}"#, "gpt-5.4"), None);
+    }
+
+    #[test]
+    fn pick_home_dir_prefers_userprofile_on_windows() {
+        let up = Some(r"C:\Users\real".to_string());
+        let home = Some("/c/Users/msys".to_string());
+        assert_eq!(pick_home_dir(true, up.clone(), home.clone()), up);
+        assert_eq!(pick_home_dir(true, None, home.clone()), home);
+    }
+
+    #[test]
+    fn pick_home_dir_prefers_home_on_unix() {
+        let up = Some(r"C:\Users\real".to_string());
+        let home = Some("/home/user".to_string());
+        assert_eq!(pick_home_dir(false, up.clone(), home.clone()), home);
+        assert_eq!(pick_home_dir(false, up.clone(), None), up);
+        assert_eq!(pick_home_dir(false, None, None), None);
     }
 }

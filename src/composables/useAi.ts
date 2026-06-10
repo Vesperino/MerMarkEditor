@@ -271,6 +271,7 @@ export function useAi() {
     t.cli = opts.cli;
     t.model = opts.model;
     t.effort = opts.effort;
+    const targetThreadId = t.id;
     const assistantIdx = t.messages.length - 1;
     const getAssistant = () => getAssistantInActive(assistantIdx)!;
 
@@ -308,7 +309,9 @@ export function useAi() {
         case 'done': {
           a.done = true;
           aiContext.record(opts.cli, chunk.usage);
-          const tt = activeThread.value;
+          // Resolve by id — the user may have switched threads mid-stream, so
+          // the active thread is not necessarily the one this send targeted.
+          const tt = store.value.threads.find(th => th.id === targetThreadId);
           if (tt) {
             if (chunk.sessionId) tt.sessionId = chunk.sessionId;
             // Only on success — a failed turn means the model never saw it.

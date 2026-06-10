@@ -88,7 +88,7 @@ export function parseUsage(cli: CliKind, raw: unknown): ContextUsage {
       return null;
     };
     const mainWindow = typeof r.model === 'string' ? windowOf(entries[r.model]) : null;
-    if (mainWindow !== null) {
+    if (mainWindow !== null && mainWindow > 0) {
       contextWindow = mainWindow;
     } else {
       // No usable model key (older payloads): pick the MAX window. Side

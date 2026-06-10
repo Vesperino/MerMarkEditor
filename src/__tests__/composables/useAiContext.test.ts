@@ -60,6 +60,27 @@ describe('parseUsage', () => {
     expect(u.contextWindow).toBe(1_000_000);
   });
 
+  it('ignores a non-positive keyed contextWindow and falls back to MAX', () => {
+    const u = parseUsage('claude', {
+      input_tokens: 100,
+      model: 'claude-opus-4-7',
+      modelUsage: {
+        'claude-haiku-4-5': { contextWindow: 200_000 },
+        'claude-opus-4-7': { contextWindow: 0 },
+      },
+    });
+    expect(u.contextWindow).toBe(200_000);
+  });
+
+  it('falls back to per-cli default when all modelUsage windows are non-positive', () => {
+    const u = parseUsage('claude', {
+      input_tokens: 100,
+      model: 'claude-opus-4-7',
+      modelUsage: { 'claude-opus-4-7': { contextWindow: -1 } },
+    });
+    expect(u.contextWindow).toBe(200_000);
+  });
+
   it('falls back to MAX when model key does not match any modelUsage entry', () => {
     const u = parseUsage('claude', {
       input_tokens: 100,
