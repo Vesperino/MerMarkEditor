@@ -14,7 +14,7 @@
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 
-use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry};
+use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry, LineBuffer};
 use crate::ai::types::AiResponseChunk;
 
 pub const DEFAULT_BASE_URL: &str = "http://localhost:11434";
@@ -129,15 +129,13 @@ async fn run_plain(
         return;
     }
 
-    let mut buf = String::new();
+    let mut buf = LineBuffer::default();
     let mut done_emitted = false;
     let mut bytes = resp.bytes_stream();
     while let Some(chunk) = bytes.next().await {
         match chunk {
             Ok(bytes) => {
-                buf.push_str(&String::from_utf8_lossy(&bytes));
-                while let Some(nl) = buf.find('\n') {
-                    let line: String = buf.drain(..=nl).collect();
+                for line in buf.feed(&bytes) {
                     if let Some(parsed) = normalizer::parse_line_ollama(line.trim()) {
                         if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
                             done_emitted = true;
@@ -155,7 +153,7 @@ async fn run_plain(
         }
     }
     if !done_emitted {
-        if let Some(parsed) = normalizer::parse_line_ollama(buf.trim()) {
+        if let Some(parsed) = normalizer::parse_line_ollama(buf.remainder().trim()) {
             let parsed = local_ctx::inject_into_done(parsed, &model, window);
             let _ = app.emit_to(window_label.as_str(), &event, parsed);
             done_emitted = true;
@@ -171,12 +169,18 @@ async fn run_plain(
     }
 }
 
-/// App-driven tool-calling loop for `/api/chat`. Intermediate rounds are
-/// non-streaming POSTs (stream:false) so we can read whole assistant messages
-/// and act on `tool_calls` (Ollama: `arguments` is already an object). Tool
-/// results are appended as `{role:"tool",content}` messages (no id). Emits
-/// ToolRequest / ToolDenied so the UI shows tool chips; caps at
-/// MAX_TOOL_ROUNDS.
+/// App-driven tool-calling loop for `/api/chat`. Every round STREAMS
+/// (stream:true) like `run_plain`: text deltas reach the UI live and the
+/// connection is untimed — a fixed total timeout killed slow CPU-bound turns
+/// with zero partial output. Tool calls are collected from `message.tool_calls`
+/// until the `done:true` line ends the round; a round that ends with tool
+/// calls executes them via `file_tools::run_tool` (emitting ToolRequest /
+/// ToolDenied chips), appends the results as `{role:"tool",content}` messages
+/// (no id), and loops — capped at MAX_TOOL_ROUNDS. A round without tool calls
+/// was the final answer. A first-round rejection falls back to plain chat:
+/// gating stays permissive when the `/api/show` probe fails, so a non-tools
+/// model (or a server too old to stream tool calls) must degrade rather than
+/// error every send.
 async fn run_tool_loop(
     app: AppHandle,
     window_label: String,
@@ -187,14 +191,14 @@ async fn run_tool_loop(
     window: Option<u64>,
 ) {
     let url = format!("{}/api/chat", base_url(&req));
-    let client = crate::ai::process::http_client(Some(std::time::Duration::from_secs(180)));
+    let client = crate::ai::process::http_client(None);
     let mut messages = initial_messages(&req);
 
-    for _round in 0..file_tools::MAX_TOOL_ROUNDS {
+    for round in 0..file_tools::MAX_TOOL_ROUNDS {
         let body = serde_json::json!({
             "model": req.model.clone().unwrap_or_default(),
             "messages": messages,
-            "stream": false,
+            "stream": true,
             "tools": specs,
             "options": { "num_ctx": num_ctx },
         });
@@ -208,6 +212,15 @@ async fn run_tool_loop(
         if !resp.status().is_success() {
             let status = resp.status();
             let detail = resp.text().await.unwrap_or_default();
+            if round == 0 {
+                eprintln!(
+                    "[ai ollama] tools request rejected (HTTP {}): {} — falling back to plain chat",
+                    status.as_u16(),
+                    detail.trim()
+                );
+                run_plain(app, window_label, event, req, num_ctx, window).await;
+                return;
+            }
             let message = if detail.trim().is_empty() {
                 format!("Ollama request failed with HTTP {}.", status.as_u16())
             } else {
@@ -216,36 +229,20 @@ async fn run_tool_loop(
             emit_error(&app, &window_label, &event, message);
             return;
         }
-        let v: serde_json::Value = match resp.json().await {
-            Ok(v) => v,
-            Err(e) => {
-                emit_error(&app, &window_label, &event, format!("Ollama response was not JSON: {}", e));
-                return;
-            }
+        let out = match stream_round(&app, &window_label, &event, resp).await {
+            Ok(out) => out,
+            Err(()) => return,
         };
-        if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
-            emit_error(&app, &window_label, &event, err.to_string());
-            return;
-        }
-        let message = v.get("message").cloned().unwrap_or_else(|| serde_json::json!({}));
 
+        let message = serde_json::json!({
+            "role": "assistant",
+            "content": out.content,
+            "tool_calls": out.tool_calls,
+        });
         let calls = file_tools::parse_tool_calls(crate::ai::types::CliKind::Ollama, &message);
         if calls.is_empty() {
-            let content = message
-                .get("content")
-                .and_then(|c| c.as_str())
-                .unwrap_or("")
-                .to_string();
-            if !content.is_empty() {
-                let _ = app.emit_to(
-                    window_label.as_str(),
-                    &event,
-                    AiResponseChunk::Text { content },
-                );
-            }
-            let usage = renamed_usage(&v);
             let done = local_ctx::inject_into_done(
-                AiResponseChunk::Done { session_id: String::new(), usage },
+                AiResponseChunk::Done { session_id: String::new(), usage: out.usage },
                 req.model.as_deref().unwrap_or_default(),
                 window,
             );
@@ -296,9 +293,95 @@ async fn run_tool_loop(
     );
 }
 
-/// Rename a non-streaming `/api/chat` response's token counts into the
-/// input/output shape the frontend parser expects (mirrors
-/// `normalizer::parse_ollama`).
+/// Accumulated state of one streamed tool-loop round: the full assistant text
+/// (deltas are emitted live as they arrive), the raw `message.tool_calls`
+/// entries, the done-line usage, and a server-reported error. The error is
+/// folded rather than emitted so the line parser stays pure and testable.
+#[derive(Default)]
+struct RoundOutcome {
+    content: String,
+    tool_calls: Vec<serde_json::Value>,
+    usage: Option<serde_json::Value>,
+    error: Option<String>,
+}
+
+/// Fold one NDJSON line into the round state. Returns the text delta to emit
+/// live, when the line carried one.
+fn apply_round_line(out: &mut RoundOutcome, line: &str) -> Option<String> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+        return None;
+    };
+    if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+        out.error = Some(err.to_string());
+        return None;
+    }
+    let mut delta = None;
+    if let Some(message) = v.get("message") {
+        if let Some(content) = message
+            .get("content")
+            .and_then(|c| c.as_str())
+            .filter(|c| !c.is_empty())
+        {
+            out.content.push_str(content);
+            delta = Some(content.to_string());
+        }
+        if let Some(calls) = message.get("tool_calls").and_then(|c| c.as_array()) {
+            out.tool_calls.extend(calls.iter().cloned());
+        }
+    }
+    if v.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
+        out.usage = renamed_usage(&v);
+    }
+    delta
+}
+
+/// Pump one round's NDJSON stream: emit Text deltas live, collect tool calls
+/// and usage. Emits the terminal Error chunk itself and returns Err(()) when
+/// the transport breaks or the server reports an error mid-stream.
+async fn stream_round(
+    app: &AppHandle,
+    window_label: &str,
+    event: &str,
+    resp: reqwest::Response,
+) -> Result<RoundOutcome, ()> {
+    let mut out = RoundOutcome::default();
+    let mut buf = LineBuffer::default();
+    let mut bytes = resp.bytes_stream();
+    while let Some(chunk) = bytes.next().await {
+        match chunk {
+            Ok(bytes) => {
+                for line in buf.feed(&bytes) {
+                    if let Some(text) = apply_round_line(&mut out, &line) {
+                        let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
+                    }
+                    if let Some(message) = out.error.take() {
+                        emit_error(app, window_label, event, message);
+                        return Err(());
+                    }
+                }
+            }
+            Err(e) => {
+                emit_error(app, window_label, event, ollama_error(&e));
+                return Err(());
+            }
+        }
+    }
+    if let Some(text) = apply_round_line(&mut out, &buf.remainder()) {
+        let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
+    }
+    if let Some(message) = out.error.take() {
+        emit_error(app, window_label, event, message);
+        return Err(());
+    }
+    Ok(out)
+}
+
+/// Rename a `/api/chat` done-line's token counts into the input/output shape
+/// the frontend parser expects (mirrors `normalizer::parse_ollama`).
 fn renamed_usage(v: &serde_json::Value) -> Option<serde_json::Value> {
     let input = v.get("prompt_eval_count").and_then(|n| n.as_u64());
     let output = v.get("eval_count").and_then(|n| n.as_u64());
@@ -467,5 +550,44 @@ mod tests {
         assert_eq!(u["input_tokens"], 9);
         assert_eq!(u["output_tokens"], 3);
         assert!(renamed_usage(&serde_json::json!({ "done": true })).is_none());
+    }
+
+    #[test]
+    fn apply_round_line_accumulates_text_tool_calls_and_usage() {
+        let mut out = RoundOutcome::default();
+        let delta = apply_round_line(
+            &mut out,
+            r#"{"message":{"role":"assistant","content":"Hi "},"done":false}"#,
+        );
+        assert_eq!(delta.as_deref(), Some("Hi "));
+        let delta = apply_round_line(
+            &mut out,
+            r#"{"message":{"content":"","tool_calls":[{"function":{"name":"read_file","arguments":{"path":"/a"}}}]},"done":false}"#,
+        );
+        assert!(delta.is_none());
+        let delta = apply_round_line(&mut out, r#"{"done":true,"prompt_eval_count":7,"eval_count":2}"#);
+        assert!(delta.is_none());
+
+        assert_eq!(out.content, "Hi ");
+        assert_eq!(out.tool_calls.len(), 1);
+        let message = serde_json::json!({ "role": "assistant", "content": out.content, "tool_calls": out.tool_calls });
+        let calls = file_tools::parse_tool_calls(crate::ai::types::CliKind::Ollama, &message);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "read_file");
+        assert_eq!(calls[0].args["path"], "/a");
+        let u = out.usage.unwrap();
+        assert_eq!(u["input_tokens"], 7);
+        assert_eq!(u["output_tokens"], 2);
+        assert!(out.error.is_none());
+    }
+
+    #[test]
+    fn apply_round_line_captures_error_and_skips_garbage() {
+        let mut out = RoundOutcome::default();
+        assert!(apply_round_line(&mut out, "not json").is_none());
+        assert!(apply_round_line(&mut out, "  ").is_none());
+        assert!(out.error.is_none());
+        assert!(apply_round_line(&mut out, r#"{"error":"model does not support tools"}"#).is_none());
+        assert_eq!(out.error.as_deref(), Some("model does not support tools"));
     }
 }

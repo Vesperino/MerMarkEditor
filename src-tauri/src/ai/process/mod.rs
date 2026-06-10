@@ -260,6 +260,42 @@ fn cancel_inner(registry: &ChildRegistry, request_id: &str) -> Option<AiResponse
     })
 }
 
+/// Accumulates raw network bytes and yields complete '\n'-terminated lines.
+///
+/// reqwest's `bytes_stream` cuts at arbitrary byte boundaries, so a multi-byte
+/// UTF-8 character can land split across two chunks; decoding each chunk
+/// separately (`from_utf8_lossy` per chunk) turns the split codepoint into
+/// U+FFFD on both sides of the boundary. NDJSON/SSE frames are '\n'-delimited
+/// and a complete line always ends on a codepoint boundary, so buffering bytes
+/// and decoding whole lines is lossless.
+#[derive(Default)]
+pub(crate) struct LineBuffer {
+    buf: Vec<u8>,
+}
+
+impl LineBuffer {
+    /// Append a network chunk and drain every complete line it unlocked
+    /// (trailing '\n' / "\r\n" stripped).
+    pub fn feed(&mut self, bytes: &[u8]) -> Vec<String> {
+        self.buf.extend_from_slice(bytes);
+        let mut lines = Vec::new();
+        while let Some(nl) = self.buf.iter().position(|b| *b == b'\n') {
+            let mut line: Vec<u8> = self.buf.drain(..=nl).collect();
+            line.pop();
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+            lines.push(String::from_utf8_lossy(&line).into_owned());
+        }
+        lines
+    }
+
+    /// Decode whatever trails the final newline once the stream has ended.
+    pub fn remainder(&self) -> String {
+        String::from_utf8_lossy(&self.buf).into_owned()
+    }
+}
+
 /// Local-provider HTTP client: 5 s to establish the connection; `total` caps
 /// the whole request when given. Streaming responses pass `None` — they run
 /// for as long as the model generates.
@@ -332,5 +368,29 @@ mod tests {
     fn cancel_without_registered_work_yields_no_chunk() {
         let registry = ChildRegistry::new();
         assert!(cancel_inner(&registry, "missing").is_none());
+    }
+
+    #[test]
+    fn line_buffer_keeps_multibyte_chars_split_across_chunks() {
+        let line = "{\"content\":\"zażółć 中文 łóżko\"}\n";
+        let mut buf = LineBuffer::default();
+        let mut lines = Vec::new();
+        for b in line.as_bytes() {
+            lines.extend(buf.feed(std::slice::from_ref(b)));
+        }
+        assert_eq!(lines, vec![line.trim_end().to_string()]);
+        assert!(!lines[0].contains('\u{FFFD}'));
+        assert_eq!(buf.remainder(), "");
+    }
+
+    #[test]
+    fn line_buffer_splits_coalesced_lines_and_strips_crlf() {
+        let mut buf = LineBuffer::default();
+        let lines = buf.feed(b"a\r\nb\nc");
+        assert_eq!(lines, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(buf.remainder(), "c");
+        let lines = buf.feed(b"d\n");
+        assert_eq!(lines, vec!["cd".to_string()]);
+        assert_eq!(buf.remainder(), "");
     }
 }

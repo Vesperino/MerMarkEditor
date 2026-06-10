@@ -16,7 +16,7 @@
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 
-use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry};
+use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry, LineBuffer};
 use crate::ai::types::AiResponseChunk;
 
 pub const DEFAULT_BASE_URL: &str = "http://localhost:8080";
@@ -123,15 +123,13 @@ async fn run_plain(
         return;
     }
 
-    let mut buf = String::new();
+    let mut buf = LineBuffer::default();
     let mut done_emitted = false;
     let mut bytes = resp.bytes_stream();
     while let Some(chunk) = bytes.next().await {
         match chunk {
             Ok(bytes) => {
-                buf.push_str(&String::from_utf8_lossy(&bytes));
-                while let Some(nl) = buf.find('\n') {
-                    let line: String = buf.drain(..=nl).collect();
+                for line in buf.feed(&bytes) {
                     // The usage-bearing Done arrives just before `[DONE]`;
                     // once we've finalised, ignore the trailing terminator
                     // so the turn isn't finalised twice.
@@ -155,7 +153,7 @@ async fn run_plain(
         }
     }
     if !done_emitted {
-        if let Some(parsed) = normalizer::parse_line_openai(buf.trim()) {
+        if let Some(parsed) = normalizer::parse_line_openai(buf.remainder().trim()) {
             let parsed = local_ctx::inject_into_done(parsed, &model, window);
             let _ = app.emit_to(window_label.as_str(), &event, parsed);
             done_emitted = true;
@@ -171,11 +169,17 @@ async fn run_plain(
     }
 }
 
-/// App-driven tool-calling loop. Intermediate rounds are non-streaming POSTs
-/// (stream:false) so we can read whole assistant messages and act on
-/// `tool_calls`; the final assistant text is emitted as one Text chunk. The
-/// loop executes file tools via `file_tools::run_tool`, emits ToolRequest /
-/// ToolDenied so the UI shows tool chips, and caps rounds at MAX_TOOL_ROUNDS.
+/// App-driven tool-calling loop. Every round STREAMS (SSE, like `run_plain`):
+/// text deltas reach the UI live and the connection is untimed — a fixed total
+/// timeout killed slow CPU-bound turns with zero partial output. Fragmented
+/// `delta.tool_calls` are assembled by index until `[DONE]`; a round that ends
+/// with tool calls executes them via `file_tools::run_tool` (emitting
+/// ToolRequest / ToolDenied chips), appends the results, and loops — capped at
+/// MAX_TOOL_ROUNDS. A round without tool calls was the final answer. A
+/// first-round rejection falls back to plain chat: the OpenAI API has no
+/// capability probe, and the advertised targets reject the tools param
+/// outright when launched without tool support (vLLM without
+/// --enable-auto-tool-choice, llama-server without --jinja).
 async fn run_tool_loop(
     app: AppHandle,
     window_label: String,
@@ -185,14 +189,15 @@ async fn run_tool_loop(
     window: Option<u64>,
 ) {
     let url = format!("{}/v1/chat/completions", base_url(&req));
-    let client = crate::ai::process::http_client(Some(std::time::Duration::from_secs(180)));
+    let client = crate::ai::process::http_client(None);
     let mut messages = initial_messages(&req);
 
-    for _round in 0..file_tools::MAX_TOOL_ROUNDS {
+    for round in 0..file_tools::MAX_TOOL_ROUNDS {
         let body = serde_json::json!({
             "model": req.model.clone().unwrap_or_default(),
             "messages": messages,
-            "stream": false,
+            "stream": true,
+            "stream_options": { "include_usage": true },
             "tools": specs,
             "tool_choice": "auto",
         });
@@ -206,6 +211,15 @@ async fn run_tool_loop(
         if !resp.status().is_success() {
             let status = resp.status();
             let detail = resp.text().await.unwrap_or_default();
+            if round == 0 {
+                eprintln!(
+                    "[ai openai] tools request rejected (HTTP {}): {} — falling back to plain chat",
+                    status.as_u16(),
+                    detail.trim()
+                );
+                run_plain(app, window_label, event, req, window).await;
+                return;
+            }
             let message = if detail.trim().is_empty() {
                 format!("OpenAI-compatible request failed with HTTP {}.", status.as_u16())
             } else {
@@ -214,48 +228,16 @@ async fn run_tool_loop(
             emit_error(&app, &window_label, &event, message);
             return;
         }
-        let v: serde_json::Value = match resp.json().await {
-            Ok(v) => v,
-            Err(e) => {
-                emit_error(&app, &window_label, &event, format!("OpenAI-compatible response was not JSON: {}", e));
-                return;
-            }
+        let out = match stream_round(&app, &window_label, &event, resp).await {
+            Ok(out) => out,
+            Err(()) => return,
         };
-        if let Some(err) = v.get("error") {
-            let message = err
-                .get("message")
-                .and_then(|m| m.as_str())
-                .or_else(|| err.as_str())
-                .unwrap_or("OpenAI-compatible request failed.")
-                .to_string();
-            emit_error(&app, &window_label, &event, message);
-            return;
-        }
-        let message = v
-            .get("choices")
-            .and_then(|c| c.as_array())
-            .and_then(|a| a.first())
-            .and_then(|c| c.get("message"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::json!({}));
 
+        let message = assistant_message(&out);
         let calls = file_tools::parse_tool_calls(crate::ai::types::CliKind::Openai, &message);
         if calls.is_empty() {
-            let content = message
-                .get("content")
-                .and_then(|c| c.as_str())
-                .unwrap_or("")
-                .to_string();
-            if !content.is_empty() {
-                let _ = app.emit_to(
-                    window_label.as_str(),
-                    &event,
-                    AiResponseChunk::Text { content },
-                );
-            }
-            let usage = renamed_usage(&v);
             let done = local_ctx::inject_into_done(
-                AiResponseChunk::Done { session_id: String::new(), usage },
+                AiResponseChunk::Done { session_id: String::new(), usage: out.usage },
                 req.model.as_deref().unwrap_or_default(),
                 window,
             );
@@ -307,8 +289,166 @@ async fn run_tool_loop(
     );
 }
 
-/// Rename a non-streaming response's `usage` into the input/output token shape
-/// the frontend parser expects (mirrors `normalizer::parse_openai`).
+/// One tool call assembled from streamed `delta.tool_calls` fragments: `id`
+/// and `name` arrive once, `arguments` arrives as string fragments to
+/// concatenate.
+#[derive(Default)]
+struct AssembledCall {
+    id: String,
+    name: String,
+    arguments: String,
+}
+
+/// Accumulated state of one streamed tool-loop round: the full assistant text
+/// (deltas are emitted live as they arrive), the assembled tool calls, the
+/// usage chunk, and a server-reported error. The error is folded rather than
+/// emitted so the line parser stays pure and testable.
+#[derive(Default)]
+struct RoundOutcome {
+    content: String,
+    calls: Vec<AssembledCall>,
+    usage: Option<serde_json::Value>,
+    error: Option<String>,
+}
+
+/// Fold one streamed tool-call delta into the assembly. Fragments are keyed by
+/// `index`; servers that send a whole call per delta may omit it, which we
+/// treat as "append a new call".
+fn apply_tool_call_delta(calls: &mut Vec<AssembledCall>, entry: &serde_json::Value) {
+    let idx = entry
+        .get("index")
+        .and_then(|i| i.as_u64())
+        .map(|i| i as usize)
+        .unwrap_or(calls.len());
+    if idx >= calls.len() {
+        calls.resize_with(idx + 1, Default::default);
+    }
+    let call = &mut calls[idx];
+    if let Some(id) = entry.get("id").and_then(|i| i.as_str()).filter(|s| !s.is_empty()) {
+        call.id = id.to_string();
+    }
+    if let Some(func) = entry.get("function") {
+        if let Some(name) = func.get("name").and_then(|n| n.as_str()) {
+            call.name.push_str(name);
+        }
+        if let Some(args) = func.get("arguments").and_then(|a| a.as_str()) {
+            call.arguments.push_str(args);
+        }
+    }
+}
+
+/// Fold one SSE line into the round state. Returns the text delta to emit
+/// live, when the line carried one.
+fn apply_round_line(out: &mut RoundOutcome, line: &str) -> Option<String> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let payload = line.strip_prefix("data:").map(str::trim).unwrap_or(line);
+    if payload == "[DONE]" {
+        return None;
+    }
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return None;
+    };
+    if let Some(err) = v.get("error") {
+        let message = err
+            .get("message")
+            .and_then(|m| m.as_str())
+            .or_else(|| err.as_str())
+            .unwrap_or("OpenAI-compatible request failed.")
+            .to_string();
+        out.error = Some(message);
+        return None;
+    }
+    if v.get("usage").filter(|u| u.is_object()).is_some() {
+        out.usage = renamed_usage(&v);
+    }
+    let mut delta_text = None;
+    if let Some(delta) = v.pointer("/choices/0/delta") {
+        if let Some(content) = delta
+            .get("content")
+            .and_then(|c| c.as_str())
+            .filter(|c| !c.is_empty())
+        {
+            out.content.push_str(content);
+            delta_text = Some(content.to_string());
+        }
+        if let Some(calls) = delta.get("tool_calls").and_then(|c| c.as_array()) {
+            for entry in calls {
+                apply_tool_call_delta(&mut out.calls, entry);
+            }
+        }
+    }
+    delta_text
+}
+
+/// Echo the round's assembled calls back as the assistant message for the next
+/// round. Empty ids get a synthesized one so the `tool_call_id` on the tool
+/// results always matches an id in this message (strict servers require it);
+/// nameless assemblies (garbage fragments) are dropped, matching what
+/// `parse_tool_calls` would skip anyway.
+fn assistant_message(out: &RoundOutcome) -> serde_json::Value {
+    let tool_calls: Vec<serde_json::Value> = out
+        .calls
+        .iter()
+        .filter(|c| !c.name.is_empty())
+        .enumerate()
+        .map(|(i, c)| {
+            let id = if c.id.is_empty() { format!("openai-call-{}", i) } else { c.id.clone() };
+            serde_json::json!({
+                "id": id,
+                "type": "function",
+                "function": { "name": c.name, "arguments": c.arguments }
+            })
+        })
+        .collect();
+    serde_json::json!({ "role": "assistant", "content": out.content, "tool_calls": tool_calls })
+}
+
+/// Pump one round's SSE stream: emit Text deltas live, assemble tool calls and
+/// usage. Emits the terminal Error chunk itself and returns Err(()) when the
+/// transport breaks or the server reports an error mid-stream.
+async fn stream_round(
+    app: &AppHandle,
+    window_label: &str,
+    event: &str,
+    resp: reqwest::Response,
+) -> Result<RoundOutcome, ()> {
+    let mut out = RoundOutcome::default();
+    let mut buf = LineBuffer::default();
+    let mut bytes = resp.bytes_stream();
+    while let Some(chunk) = bytes.next().await {
+        match chunk {
+            Ok(bytes) => {
+                for line in buf.feed(&bytes) {
+                    if let Some(text) = apply_round_line(&mut out, &line) {
+                        let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
+                    }
+                    if let Some(message) = out.error.take() {
+                        emit_error(app, window_label, event, message);
+                        return Err(());
+                    }
+                }
+            }
+            Err(e) => {
+                emit_error(app, window_label, event, openai_error(&e));
+                return Err(());
+            }
+        }
+    }
+    if let Some(text) = apply_round_line(&mut out, &buf.remainder()) {
+        let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
+    }
+    if let Some(message) = out.error.take() {
+        emit_error(app, window_label, event, message);
+        return Err(());
+    }
+    Ok(out)
+}
+
+/// Rename a response's `usage` into the input/output token shape the frontend
+/// parser expects (mirrors `normalizer::parse_openai`).
 fn renamed_usage(v: &serde_json::Value) -> Option<serde_json::Value> {
     let usage = v.get("usage").filter(|u| u.is_object())?;
     let input = usage.get("prompt_tokens").and_then(|n| n.as_u64()).unwrap_or(0);
@@ -480,5 +620,93 @@ mod tests {
         assert_eq!(u["input_tokens"], 11);
         assert_eq!(u["output_tokens"], 4);
         assert!(renamed_usage(&serde_json::json!({})).is_none());
+    }
+
+    #[test]
+    fn apply_round_line_emits_deltas_and_collects_usage() {
+        let mut out = RoundOutcome::default();
+        let d = apply_round_line(&mut out, r#"data: {"choices":[{"delta":{"content":"Hel"}}]}"#);
+        assert_eq!(d.as_deref(), Some("Hel"));
+        let d = apply_round_line(&mut out, r#"data: {"choices":[{"delta":{"content":"lo"}}]}"#);
+        assert_eq!(d.as_deref(), Some("lo"));
+        assert!(apply_round_line(
+            &mut out,
+            r#"data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":3}}"#
+        )
+        .is_none());
+        assert!(apply_round_line(&mut out, "data: [DONE]").is_none());
+
+        assert_eq!(out.content, "Hello");
+        let u = out.usage.unwrap();
+        assert_eq!(u["input_tokens"], 5);
+        assert_eq!(u["output_tokens"], 3);
+        assert!(out.error.is_none());
+    }
+
+    #[test]
+    fn apply_round_line_assembles_fragmented_tool_calls_by_index() {
+        let mut out = RoundOutcome::default();
+        apply_round_line(
+            &mut out,
+            r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read_file","arguments":""}}]}}]}"#,
+        );
+        apply_round_line(
+            &mut out,
+            r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":"}}]}}]}"#,
+        );
+        apply_round_line(
+            &mut out,
+            r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"/a.md\"}"}}]}}]}"#,
+        );
+        let msg = assistant_message(&out);
+        let calls = file_tools::parse_tool_calls(crate::ai::types::CliKind::Openai, &msg);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].id, "call_1");
+        assert_eq!(calls[0].name, "read_file");
+        assert_eq!(calls[0].args["path"], "/a.md");
+    }
+
+    #[test]
+    fn apply_tool_call_delta_without_index_appends_new_call() {
+        let mut calls = Vec::new();
+        apply_tool_call_delta(
+            &mut calls,
+            &serde_json::json!({ "id": "a", "function": { "name": "read_file", "arguments": "{}" } }),
+        );
+        apply_tool_call_delta(
+            &mut calls,
+            &serde_json::json!({ "id": "b", "function": { "name": "list_dir", "arguments": "{}" } }),
+        );
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, "read_file");
+        assert_eq!(calls[1].name, "list_dir");
+    }
+
+    #[test]
+    fn assistant_message_synthesizes_missing_ids_and_drops_nameless() {
+        let out = RoundOutcome {
+            content: "thinking".into(),
+            calls: vec![
+                AssembledCall { id: String::new(), name: "read_file".into(), arguments: "{}".into() },
+                AssembledCall::default(),
+            ],
+            ..Default::default()
+        };
+        let msg = assistant_message(&out);
+        let calls = msg["tool_calls"].as_array().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0]["id"], "openai-call-0");
+        assert_eq!(msg["content"], "thinking");
+    }
+
+    #[test]
+    fn apply_round_line_captures_error() {
+        let mut out = RoundOutcome::default();
+        assert!(apply_round_line(
+            &mut out,
+            r#"data: {"error":{"message":"tool_choice requires --enable-auto-tool-choice"}}"#
+        )
+        .is_none());
+        assert!(out.error.as_deref().unwrap().contains("tool_choice"));
     }
 }
