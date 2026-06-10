@@ -55,6 +55,12 @@ pub struct AiSendRequest {
     /// back to `local_ctx::DEFAULT_NUM_CTX`. Other providers ignore it.
     #[serde(default)]
     pub num_ctx: Option<u64>,
+    /// Current content of the main document, attached fresh on every send for
+    /// the LOCAL providers (ollama/openai) so weak models skip the read_file
+    /// round-trip. Never enters `history` (the frontend builds history from
+    /// prompts only). claude/codex ignore it — their CLIs read the file.
+    #[serde(default)]
+    pub doc_content: Option<String>,
 }
 
 pub async fn spawn(
@@ -101,6 +107,20 @@ pub async fn spawn(
     })?;
     spawn_pump(app, window_label, registry.inner(), request_id.clone(), req.cli, child, codex_window);
     Ok(request_id)
+}
+
+/// The per-send document attachment as a system message, when the request
+/// carries one. Inserted immediately before the live user message so the
+/// freshest content sits closest to the prompt.
+pub(crate) fn doc_attachment_message(req: &AiSendRequest) -> Option<serde_json::Value> {
+    let doc = req.doc_content.as_deref().filter(|d| !d.is_empty())?;
+    Some(serde_json::json!({
+        "role": "system",
+        "content": format!(
+            "Current content of the main file (between <<< and >>> markers; the markers are not part of the file):\n<<<\n{}\n>>>",
+            doc
+        ),
+    }))
 }
 
 /// Join the non-empty of [preamble, turn_context, prompt] with blank lines.

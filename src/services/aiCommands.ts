@@ -84,6 +84,9 @@ export interface AiSendRequest {
   history?: AiHistoryTurn[];
   /** Ollama runtime window (options.num_ctx); null/omitted for other providers. */
   numCtx?: number | null;
+  /** Current main-document content, attached fresh per send for local providers
+   *  (size-gated in AiPanel); null/omitted for claude/codex or oversized docs. */
+  docContent?: string | null;
 }
 
 export type AiResponseChunk =

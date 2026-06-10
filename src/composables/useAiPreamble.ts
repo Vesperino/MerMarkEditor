@@ -1,5 +1,6 @@
 import type { AccessMap, CliKind } from '../services/aiCommands';
 import type { MermaidFormat } from '../utils/mermaid-formats';
+import { OLLAMA_DEFAULT_NUM_CTX, OLLAMA_MIN_NUM_CTX } from './useSettings';
 
 export interface PinnedRef {
   id: string;
@@ -100,6 +101,7 @@ export function buildStaticPreamble(opts: PreambleOptions): string {
         `To explore a granted folder, call list_dir(path) to enumerate its files and subfolders before reading individual files with read_file — read_file works on files only, not directories.`,
         `When the user asks for edits to the active file, you MUST call edit_file (for a small change) or write_file (to replace the whole file) to apply it on disk. The host reloads the editor from disk after the tools run.`,
         `read_file and list_dir are always allowed — when you need the document's current content, call read_file on the main file yourself; never ask the user to open or paste it.`,
+        `The current content of the main file is attached to each message; use read_file only for OTHER files or when told the attachment was omitted.`,
         `Call edit_file / write_file ONLY when the user explicitly asks for a change. For questions, summaries, feedback or discussion, answer in chat without editing.`,
         `Before edit_file, call read_file and copy old_string EXACTLY from its output, including whitespace and line breaks — a reconstructed-from-memory old_string will not match and the edit is rejected.`,
         `Never claim in prose that you edited or updated the file — an edit only counts if you actually call edit_file / write_file. To edit, call the tools; do not paste the whole file back into chat.`,
@@ -163,6 +165,34 @@ export function buildTurnContext(opts: PreambleOptions): string {
     ].join('\n'));
   }
   return sections.join('\n\n');
+}
+
+/** Hard cap on the per-send document attachment for local providers. */
+export const DOC_ATTACH_MAX_CHARS = 24000;
+
+export interface DocAttachment {
+  /** Document content to send as `docContent`; absent when not attached. */
+  content?: string;
+  /** Turn-context note when the doc was too large to attach. */
+  omittedNote?: string;
+}
+
+/**
+ * Per-send document attachment for the LOCAL providers (ollama/openai): weak
+ * models skip the read_file round-trip when the doc rides along. Size-gated —
+ * openai gets the flat cap, ollama scales with the user's num_ctx (~2 chars
+ * per token of headroom). Oversized docs yield a note steering the model back
+ * to read_file. claude/codex never attach (their CLIs read the file).
+ */
+export function buildDocAttachment(cli: CliKind, docMarkdown: string, ollamaNumCtx: number): DocAttachment {
+  if (cli !== 'ollama' && cli !== 'openai') return {};
+  if (!docMarkdown) return {};
+  const numCtx = Number.isFinite(ollamaNumCtx)
+    ? Math.max(OLLAMA_MIN_NUM_CTX, Math.floor(ollamaNumCtx))
+    : OLLAMA_DEFAULT_NUM_CTX;
+  const maxChars = cli === 'openai' ? DOC_ATTACH_MAX_CHARS : Math.min(DOC_ATTACH_MAX_CHARS, numCtx * 2);
+  if (docMarkdown.length <= maxChars) return { content: docMarkdown };
+  return { omittedNote: 'Note: the main file is too large to attach; use read_file to inspect it.' };
 }
 
 /** djb2 over the string — cheap synchronous change detection, not crypto. */

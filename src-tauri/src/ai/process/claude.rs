@@ -204,6 +204,7 @@ mod tests {
             cli_path: None,
             history: vec![],
             num_ctx: None,
+            doc_content: None,
         }
     }
 

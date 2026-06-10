@@ -14,7 +14,7 @@ import { useAiPanelLayout } from '../../composables/useAiPanelLayout';
 import { useAiToolToast } from '../../composables/useAiToolToast';
 import { useAiPinnedSelections } from '../../composables/useAiPinnedSelections';
 import { useAiPendingImages, type PendingImage } from '../../composables/useAiPendingImages';
-import { buildStaticPreamble, buildTurnContext, hashPreamble, shouldSendStaticPreamble, type PreambleOptions } from '../../composables/useAiPreamble';
+import { buildDocAttachment, buildStaticPreamble, buildTurnContext, hashPreamble, shouldSendStaticPreamble, type PreambleOptions } from '../../composables/useAiPreamble';
 import { useAiMermaidTarget, extractMermaidCodeFromResponse } from '../../composables/useAiMermaidTarget';
 import { withWorkspaceReadAccess } from '../../composables/useAiWorkspaceContext';
 import { buildMermaidBlockFor } from '../../utils/mermaid-formats';
@@ -352,6 +352,10 @@ async function onSend() {
   }
 
   const opts = preambleOptions();
+  const docAttachment = buildDocAttachment(selectedCli.value, docMarkdown.value, settings.value.ai.ollamaNumCtx);
+  const turnContext = [buildTurnContext(opts), docAttachment.omittedNote ?? '']
+    .filter(Boolean)
+    .join('\n\n');
   const staticPreamble = buildStaticPreamble(opts);
   const staticHash = hashPreamble(staticPreamble);
   const sendStatic = shouldSendStaticPreamble({
@@ -369,11 +373,12 @@ async function onSend() {
     effort: selectedEffort.value,
     prompt,
     preamble: sendStatic ? staticPreamble : '',
-    turnContext: buildTurnContext(opts),
+    turnContext,
     staticPreambleHash: staticHash,
     accessMap: effectiveAccessMap()!,
     workDir: props.workDir,
     images: imagePaths,
+    docContent: docAttachment.content,
     onSessionId: async (sid) => {
       await session.persistFromResponse({
         docPath: props.docPath,

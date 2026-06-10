@@ -185,6 +185,8 @@ export interface SendOpts {
   workDir: string;
   /** Absolute paths to attached image files (clipboard paste / file picker). */
   images?: string[];
+  /** Current main-document content for local providers (size-gated in AiPanel). */
+  docContent?: string;
   onSessionId?: (id: string) => void;
   onToolRequest?: (tool: string, args: unknown, requestId: string) => void;
   onToolDenied?: (tool: string, reason: string) => void;
@@ -377,6 +379,7 @@ export function useAi() {
       images: opts.images ?? [],
       cliPath: overridePath || null,
       history,
+      docContent: opts.docContent ?? null,
       // Clamped here too (not only in the settings setter): a hand-edited
       // negative value in the settings JSON would fail Rust's Option<u64>
       // deserialization and break every ollama send.

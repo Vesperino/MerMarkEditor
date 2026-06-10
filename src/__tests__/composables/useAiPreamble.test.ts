@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildDocAttachment,
   buildStaticPreamble,
   buildTurnContext,
   hashPreamble,
   shouldSendStaticPreamble,
+  DOC_ATTACH_MAX_CHARS,
   PIN_SCOPE_INSTRUCTIONS,
   type PreambleOptions,
 } from '../../composables/useAiPreamble';
@@ -131,6 +133,19 @@ describe('useAiPreamble.buildStaticPreamble', () => {
       });
       expect(out).toContain('read_file(path)');
       expect(out).not.toContain('no file tools');
+    });
+
+    it('mentions the per-message doc attachment only in the file-tools branch', () => {
+      const withTools = buildStaticPreamble({ ...base(), localTools: true });
+      expect(withTools).toContain('The current content of the main file is attached to each message');
+
+      const noTools = buildStaticPreamble({
+        ...base(),
+        localTools: true,
+        accessMap: { ...accessMap, tools: { fileRead: false, fileWrite: false, bash: false, network: false } },
+      });
+      expect(noTools).not.toContain('attached to each message');
+      expect(buildStaticPreamble(base())).not.toContain('attached to each message');
     });
   });
 
@@ -261,6 +276,43 @@ describe('useAiPreamble.buildTurnContext', () => {
     ];
     expect(order.every(i => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+});
+
+describe('useAiPreamble.buildDocAttachment', () => {
+  it('attaches for ollama when the doc fits min(24000, numCtx * 2)', () => {
+    const doc = 'x'.repeat(16384);
+    expect(buildDocAttachment('ollama', doc, 8192)).toEqual({ content: doc });
+  });
+
+  it('omits with a read_file note for ollama when the doc exceeds the scaled limit', () => {
+    const doc = 'x'.repeat(16385);
+    const out = buildDocAttachment('ollama', doc, 8192);
+    expect(out.content).toBeUndefined();
+    expect(out.omittedNote).toContain('too large to attach');
+    expect(out.omittedNote).toContain('read_file');
+  });
+
+  it('never exceeds the flat cap for ollama even with a huge num_ctx', () => {
+    const doc = 'x'.repeat(DOC_ATTACH_MAX_CHARS + 1);
+    expect(buildDocAttachment('ollama', doc, 131072).content).toBeUndefined();
+  });
+
+  it('uses the flat 24000-char cap for openai', () => {
+    const fits = 'x'.repeat(DOC_ATTACH_MAX_CHARS);
+    expect(buildDocAttachment('openai', fits, 8192)).toEqual({ content: fits });
+    expect(buildDocAttachment('openai', fits + 'x', 8192).omittedNote).toBeDefined();
+  });
+
+  it('returns nothing for claude/codex and for an empty doc', () => {
+    expect(buildDocAttachment('claude', 'doc', 8192)).toEqual({});
+    expect(buildDocAttachment('codex', 'doc', 8192)).toEqual({});
+    expect(buildDocAttachment('ollama', '', 8192)).toEqual({});
+  });
+
+  it('falls back to the default num_ctx when the setting is not finite', () => {
+    const doc = 'x'.repeat(16384);
+    expect(buildDocAttachment('ollama', doc, Number.NaN)).toEqual({ content: doc });
   });
 });
 

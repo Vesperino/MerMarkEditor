@@ -143,6 +143,30 @@ describe('useAi', () => {
     settings.value.ai.ollamaNumCtx = OLLAMA_DEFAULT_NUM_CTX;
   });
 
+  it('passes docContent through to the request and nulls it when absent', async () => {
+    (aiCommands.send as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue('req');
+
+    const { send } = useAi();
+    const opts = {
+      cli: 'ollama' as const, sessionId: null, model: null, effort: null, prompt: 'q', preamble: 'p', turnContext: '',
+      accessMap: { readPaths: [], writePaths: [], tools: { bash: false, network: false, fileRead: false, fileWrite: false } },
+      workDir: '/x',
+    };
+    const first = send({ ...opts, docContent: '# Doc' });
+    await new Promise(r => setTimeout(r, 30));
+    lastHandler!({ kind: 'done', sessionId: '', usage: null });
+    await first;
+
+    const second = send(opts);
+    await new Promise(r => setTimeout(r, 30));
+    lastHandler!({ kind: 'done', sessionId: '', usage: null });
+    await second;
+
+    const calls = (aiCommands.send as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect((calls[0][0] as { docContent?: string | null }).docContent).toBe('# Doc');
+    expect((calls[1][0] as { docContent?: string | null }).docContent).toBeNull();
+  });
+
   it('sends an empty history for claude (resumes via session id)', async () => {
     (aiCommands.send as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue('req');
 

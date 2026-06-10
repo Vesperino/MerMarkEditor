@@ -333,22 +333,43 @@ pub async fn run_tool(
 /// Exact-substring single replace mirroring a safe Edit tool: `old_string` must
 /// be present AND unique. Errors otherwise so the model is forced to supply
 /// disambiguating context rather than silently editing the wrong occurrence.
+///
+/// CRLF tolerance: models emit LF line endings while Windows files carry CRLF,
+/// so an exact match fails on every multi-line `old_string`. When the exact
+/// attempt finds nothing in a CRLF file, both strings are retried as CRLF
+/// (new_string too, keeping the file's line endings uniform).
 pub fn apply_edit(content: &str, old_string: &str, new_string: &str) -> Result<String, String> {
     if old_string.is_empty() {
         return Err("edit_file: old_string must not be empty.".to_string());
     }
-    let count = content.matches(old_string).count();
+    let mut old = std::borrow::Cow::Borrowed(old_string);
+    let mut new = std::borrow::Cow::Borrowed(new_string);
+    let mut count = content.matches(old.as_ref()).count();
+    if count == 0 && content.contains("\r\n") {
+        let old_crlf = to_crlf(old_string);
+        if old_crlf != old_string {
+            count = content.matches(old_crlf.as_str()).count();
+            if count > 0 {
+                old = std::borrow::Cow::Owned(old_crlf);
+                new = std::borrow::Cow::Owned(to_crlf(new_string));
+            }
+        }
+    }
     match count {
         0 => Err(
             "edit_file: old_string not found in the file. Call read_file and copy the exact text from its output, including markdown syntax such as '## ' heading markers; never include <<< or >>> pin markers."
                 .to_string(),
         ),
-        1 => Ok(content.replacen(old_string, new_string, 1)),
+        1 => Ok(content.replacen(old.as_ref(), new.as_ref(), 1)),
         n => Err(format!(
             "edit_file: old_string is not unique ({} matches). Include more surrounding context so it matches exactly once.",
             n
         )),
     }
+}
+
+fn to_crlf(s: &str) -> String {
+    s.replace("\r\n", "\n").replace('\n', "\r\n")
 }
 
 /// Format a directory listing as a compact, deterministic text block: entries
@@ -512,6 +533,7 @@ mod tests {
             cli_path: None,
             history: vec![],
             num_ctx: None,
+            doc_content: None,
         }
     }
 
@@ -623,6 +645,33 @@ mod tests {
         let err = apply_edit("x x x", "x", "y").unwrap_err();
         assert!(err.contains("not unique"), "got: {}", err);
         assert!(err.contains("3 matches"), "got: {}", err);
+    }
+
+    #[test]
+    fn apply_edit_lf_old_string_matches_crlf_file_and_keeps_crlf() {
+        let out = apply_edit("# Title\r\n\r\nalpha\r\nbeta\r\n", "alpha\nbeta", "alpha\nGAMMA\nbeta").unwrap();
+        assert_eq!(out, "# Title\r\n\r\nalpha\r\nGAMMA\r\nbeta\r\n");
+    }
+
+    #[test]
+    fn apply_edit_lf_file_gets_no_crlf_retry() {
+        let err = apply_edit("alpha\nbeta\n", "alpha\r\nbeta", "x").unwrap_err();
+        assert!(err.contains("not found"), "got: {}", err);
+        let out = apply_edit("alpha\nbeta\n", "alpha\nbeta", "A\nB").unwrap();
+        assert_eq!(out, "A\nB\n");
+    }
+
+    #[test]
+    fn apply_edit_crlf_retry_still_errors_on_ambiguity() {
+        let err = apply_edit("a\r\nb\r\na\r\nb\r\n", "a\nb", "x").unwrap_err();
+        assert!(err.contains("not unique"), "got: {}", err);
+        assert!(err.contains("2 matches"), "got: {}", err);
+    }
+
+    #[test]
+    fn apply_edit_crlf_retry_miss_keeps_not_found_error() {
+        let err = apply_edit("alpha\r\nbeta\r\n", "alpha\ngamma", "x").unwrap_err();
+        assert!(err.contains("not found"), "got: {}", err);
     }
 
     #[tokio::test]

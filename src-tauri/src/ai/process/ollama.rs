@@ -45,9 +45,9 @@ fn build_chat_body(req: &AiSendRequest, num_ctx: u64) -> serde_json::Value {
 }
 
 /// Seed the message history for a turn: system preamble, then the trimmed prior
-/// turns (user/assistant alternating), then the live user message (per-turn
-/// context joined with the prompt). The tool loop accumulates intra-turn
-/// messages on top of this seed.
+/// turns (user/assistant alternating), then the fresh document attachment (when
+/// sent), then the live user message (per-turn context joined with the prompt).
+/// The tool loop accumulates intra-turn messages on top of this seed.
 fn initial_messages(req: &AiSendRequest) -> Vec<serde_json::Value> {
     let mut messages = Vec::new();
     if !req.preamble.is_empty() {
@@ -55,6 +55,9 @@ fn initial_messages(req: &AiSendRequest) -> Vec<serde_json::Value> {
     }
     for turn in file_tools::trim_history(&req.history) {
         messages.push(serde_json::json!({ "role": turn.role, "content": turn.content }));
+    }
+    if let Some(doc) = crate::ai::process::doc_attachment_message(req) {
+        messages.push(doc);
     }
     let user = crate::ai::process::join_message_parts(&[req.turn_context.as_str(), req.prompt.as_str()]);
     messages.push(serde_json::json!({ "role": "user", "content": user }));
@@ -472,6 +475,7 @@ mod tests {
             cli_path: cli_path.map(|s| s.to_string()),
             history,
             num_ctx: None,
+            doc_content: None,
         }
     }
 
@@ -559,6 +563,33 @@ mod tests {
         assert_eq!(msgs.len(), 2);
         assert_eq!(msgs[1]["role"], "user");
         assert_eq!(msgs[1]["content"], "Pinned #1: ctx\n\nhello");
+    }
+
+    #[test]
+    fn initial_messages_puts_doc_attachment_right_before_live_user_message() {
+        let history = vec![turn("user", "h0"), turn("assistant", "h1")];
+        let mut req = req_with_history(None, Some("llama3"), "sys", history);
+        req.doc_content = Some("# Doc\nbody".into());
+        let msgs = initial_messages(&req);
+        assert_eq!(msgs.len(), 5);
+        assert_eq!(msgs[3]["role"], "system");
+        let content = msgs[3]["content"].as_str().unwrap();
+        assert!(content.starts_with("Current content of the main file"));
+        assert!(content.contains("<<<\n# Doc\nbody\n>>>"));
+        assert_eq!(msgs[4]["role"], "user");
+        assert_eq!(msgs[4]["content"], "hello");
+    }
+
+    #[test]
+    fn initial_messages_skips_doc_attachment_when_none_or_empty() {
+        let msgs = initial_messages(&req_with(None, Some("llama3"), "sys"));
+        assert_eq!(msgs.len(), 2);
+
+        let mut req = req_with(None, Some("llama3"), "sys");
+        req.doc_content = Some(String::new());
+        let msgs = initial_messages(&req);
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[1]["role"], "user");
     }
 
     #[test]
