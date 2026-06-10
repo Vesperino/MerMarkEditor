@@ -7,7 +7,7 @@ import { useSettings, OLLAMA_MIN_NUM_CTX, type CliKind, type PanelSide } from '.
 import { useAi } from '../../composables/useAi';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
-import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS, CUSTOM_MODEL_SENTINEL, useAiModels } from '../../composables/useAiModels';
+import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS, CUSTOM_MODEL_SENTINEL, modelsFor, useAiModels } from '../../composables/useAiModels';
 
 const { t } = useI18n();
 const {
@@ -30,7 +30,7 @@ const {
   setAiCliPathCodex,
 } = useSettings();
 const { check, cache, loading } = useAiHealth();
-const { ollamaModels, refreshOllamaModels, openaiModels, refreshOpenaiModels } = useAiModels();
+const { ollamaModels, refreshOllamaModels, openaiModels, refreshOpenaiModels, refreshCodexModels } = useAiModels();
 const { bypassEnabled } = useAi();
 const { entries: auditEntries, load: loadAudit, clear: clearAudit } = useAiAudit();
 
@@ -40,6 +40,8 @@ const BINARY_CLIS: CliKind[] = ['claude', 'codex'];
 const customClaude = ref<string>('');
 const customCodex = ref<string>('');
 
+const codexModelOptions = computed(() => modelsFor('codex'));
+
 onMounted(async () => {
   await Promise.allSettled([
     check('claude'),
@@ -48,6 +50,7 @@ onMounted(async () => {
     check('openai'),
     refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null),
     refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null),
+    refreshCodexModels(),
     loadAudit(),
   ]);
   if (isCustom('claude')) customClaude.value = settings.value.ai.defaultModelClaude;
@@ -108,6 +111,7 @@ async function applyOpenaiBaseUrl(value: string) {
 
 async function recheck(cli: CliKind) {
   await check(cli, true);
+  if (cli === 'codex') await refreshCodexModels();
 }
 
 function dotClass(cli: CliKind): string {
@@ -230,7 +234,7 @@ function searchedPaths(): string[] {
 
 function isCustom(cli: 'claude' | 'codex'): boolean {
   const cur = cli === 'claude' ? settings.value.ai.defaultModelClaude : settings.value.ai.defaultModelCodex;
-  const list = cli === 'claude' ? CLAUDE_MODELS : CODEX_MODELS;
+  const list = cli === 'claude' ? CLAUDE_MODELS : codexModelOptions.value;
   return !list.some(o => o.id === cur && !o.custom);
 }
 
@@ -448,7 +452,7 @@ async function copyAudit() {
             :value="isCustom('codex') ? CUSTOM_MODEL_SENTINEL : settings.ai.defaultModelCodex"
             @change="pickModel('codex', ($event.target as HTMLSelectElement).value)"
           >
-            <option v-for="m in CODEX_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+            <option v-for="m in codexModelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
           <input
             v-if="isCustom('codex')"

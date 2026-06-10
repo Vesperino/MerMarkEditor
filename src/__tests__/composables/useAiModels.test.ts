@@ -4,6 +4,7 @@ vi.mock('../../services/aiCommands', () => ({
   aiCommands: {
     ollamaModels: vi.fn(),
     openaiModels: vi.fn(),
+    codexModels: vi.fn(),
   },
 }));
 
@@ -13,7 +14,9 @@ import {
   effortsFor,
   ollamaModelsToOptions,
   openaiModelsToOptions,
+  codexModelsToOptions,
   useAiModels,
+  CODEX_MODELS,
   CUSTOM_MODEL_SENTINEL,
 } from '../../composables/useAiModels';
 
@@ -24,7 +27,9 @@ describe('useAiModels', () => {
 
   it('claude and codex return their static lists', () => {
     expect(modelsFor('claude').some((m) => m.id === 'opus')).toBe(true);
-    expect(modelsFor('codex').some((m) => m.id === 'gpt-5-codex')).toBe(true);
+    expect(modelsFor('claude').some((m) => m.id === 'claude-fable-5')).toBe(true);
+    expect(modelsFor('claude').some((m) => m.id === 'claude-opus-4-8')).toBe(true);
+    expect(modelsFor('codex').some((m) => m.id === 'gpt-5.5')).toBe(true);
   });
 
   it('effortsFor returns [] for ollama, populated for claude/codex', () => {
@@ -89,5 +94,49 @@ describe('useAiModels', () => {
     const list = modelsFor('openai');
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(CUSTOM_MODEL_SENTINEL);
+  });
+
+  it('codexModelsToOptions maps entries and appends a custom option', () => {
+    const opts = codexModelsToOptions([
+      { id: 'gpt-5.5', label: 'GPT-5.5' },
+      { id: 'gpt-5.3-codex', label: '' },
+    ]);
+    expect(opts[0]).toEqual({ id: 'gpt-5.5', label: 'GPT-5.5' });
+    expect(opts[1]).toEqual({ id: 'gpt-5.3-codex', label: 'gpt-5.3-codex' });
+    const custom = opts[opts.length - 1];
+    expect(custom.id).toBe(CUSTOM_MODEL_SENTINEL);
+    expect(custom.custom).toBe(true);
+  });
+
+  it('refreshCodexModels populates modelsFor("codex") from the models_cache', async () => {
+    (aiCommands.codexModels as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue([
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
+        { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+      ]);
+    const { refreshCodexModels } = useAiModels();
+    await refreshCodexModels();
+    const list = modelsFor('codex');
+    expect(list.some((m) => m.id === 'gpt-5.5')).toBe(true);
+    expect(list.some((m) => m.id === 'gpt-5.4-mini')).toBe(true);
+    expect(list[list.length - 1].id).toBe(CUSTOM_MODEL_SENTINEL);
+  });
+
+  it('refreshCodexModels falls back to the curated list when the cache is empty', async () => {
+    (aiCommands.codexModels as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue([]);
+    const { refreshCodexModels } = useAiModels();
+    await refreshCodexModels();
+    expect(modelsFor('codex')).toEqual(CODEX_MODELS);
+  });
+
+  it('refreshCodexModels falls back to the curated list when invoke fails', async () => {
+    (aiCommands.codexModels as unknown as { mockRejectedValue: (v: unknown) => void })
+      .mockRejectedValue(new Error('command not found'));
+    const { refreshCodexModels } = useAiModels();
+    await refreshCodexModels();
+    const list = modelsFor('codex');
+    expect(list).toEqual(CODEX_MODELS);
+    expect(list[list.length - 1].id).toBe(CUSTOM_MODEL_SENTINEL);
   });
 });

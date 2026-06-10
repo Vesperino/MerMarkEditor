@@ -146,6 +146,38 @@ pub async fn resolve_context_window(model: Option<&str>) -> Option<u64> {
     window
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct CodexModelOption {
+    pub id: String,
+    pub label: String,
+}
+
+/// List models from codex's own `models_cache.json` (same file used for
+/// context-window resolution). Missing/malformed cache yields an empty list;
+/// the frontend falls back to its curated list.
+pub async fn list_models() -> Vec<CodexModelOption> {
+    let Some(path) = models_cache_path() else { return Vec::new() };
+    let Ok(raw) = tokio::fs::read_to_string(path).await else { return Vec::new() };
+    models_from_cache(&raw)
+}
+
+fn models_from_cache(raw: &str) -> Vec<CodexModelOption> {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else { return Vec::new() };
+    let Some(models) = v.get("models").and_then(|m| m.as_array()) else { return Vec::new() };
+    models
+        .iter()
+        .filter_map(|m| {
+            let slug = m.get("slug").and_then(|s| s.as_str())?;
+            // codex-auto-review is codex's internal review model, not user-pickable.
+            if slug == "codex-auto-review" {
+                return None;
+            }
+            let label = m.get("display_name").and_then(|d| d.as_str()).unwrap_or(slug);
+            Some(CodexModelOption { id: slug.to_string(), label: label.to_string() })
+        })
+        .collect()
+}
+
 fn models_cache_path() -> Option<std::path::PathBuf> {
     let home = std::env::var("CODEX_HOME")
         .ok()
@@ -233,6 +265,29 @@ mod tests {
         assert_eq!(context_window_from_cache("not json", "gpt-5.4"), None);
         assert_eq!(context_window_from_cache(r#"{"models":{}}"#, "gpt-5.4"), None);
         assert_eq!(context_window_from_cache(r#"{"models":[{"slug":"gpt-5.4"}]}"#, "gpt-5.4"), None);
+    }
+
+    const MODELS_FIXTURE: &str = r#"{"models":[
+        {"slug":"gpt-5.5","display_name":"GPT-5.5","context_window":272000},
+        {"slug":"codex-auto-review","display_name":"Codex Auto Review"},
+        {"slug":"gpt-5.3-codex","context_window":272000}
+    ]}"#;
+
+    #[test]
+    fn models_from_cache_maps_display_name_and_filters_auto_review() {
+        let models = models_from_cache(MODELS_FIXTURE);
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0].id, "gpt-5.5");
+        assert_eq!(models[0].label, "GPT-5.5");
+        assert_eq!(models[1].id, "gpt-5.3-codex");
+        assert_eq!(models[1].label, "gpt-5.3-codex");
+    }
+
+    #[test]
+    fn models_from_cache_tolerates_bad_json() {
+        assert!(models_from_cache("not json").is_empty());
+        assert!(models_from_cache(r#"{"models":{}}"#).is_empty());
+        assert!(models_from_cache(r#"{"models":[{"display_name":"no slug"}]}"#).is_empty());
     }
 
     #[test]

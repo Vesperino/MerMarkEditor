@@ -51,6 +51,12 @@ export interface AuditEntry {
   exitCode: number | null;
 }
 
+/** A model entry from the codex CLI's models_cache.json (slug + display name). */
+export interface CodexModelInfo {
+  id: string;
+  label: string;
+}
+
 /** A prior conversation turn carried into a LOCAL-provider request (ollama /
  *  openai). claude/codex resume via sessionId and ignore this. */
 export interface AiHistoryTurn {
@@ -98,6 +104,9 @@ export const aiCommands = {
   /** List models a local OpenAI-compatible server exposes via GET /v1/models. */
   openaiModels: (baseUrl: string | null = null) =>
     invoke<string[]>('ai_openai_models', { baseUrl }),
+
+  /** List models from the codex CLI's models_cache.json (empty when missing). */
+  codexModels: () => invoke<CodexModelInfo[]>('ai_codex_models'),
 
   send: (req: AiSendRequest, requestId: string) => invoke<string>('ai_send', { req, requestId }),
   cancel: (requestId: string) => invoke<void>('ai_cancel', { requestId }),

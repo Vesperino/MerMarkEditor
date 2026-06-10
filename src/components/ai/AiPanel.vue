@@ -208,6 +208,8 @@ watch(selectedCli, (cli, oldCli) => {
     void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
   } else if (cli === 'openai') {
     void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
+  } else if (cli === 'codex') {
+    void aiModels.refreshCodexModels();
   }
   aiContext.reset(cli);
   if (oldCli && oldCli !== cli && !restoringThread.value) {
@@ -235,6 +237,8 @@ onMounted(async () => {
     void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
   } else if (selectedCli.value === 'openai') {
     void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
+  } else if (selectedCli.value === 'codex') {
+    void aiModels.refreshCodexModels();
   }
   if (props.docPath) {
     await Promise.all([

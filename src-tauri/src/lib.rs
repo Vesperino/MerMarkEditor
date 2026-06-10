@@ -218,6 +218,11 @@ async fn ai_openai_models(base_url: Option<String>) -> Result<Vec<String>, Strin
 }
 
 #[tauri::command]
+async fn ai_codex_models() -> Vec<ai::process::codex::CodexModelOption> {
+    ai::process::codex::list_models().await
+}
+
+#[tauri::command]
 fn ai_access_load(app: tauri::AppHandle, doc_path: String) -> Result<AccessMap, String> {
     ai::access_map::load(&app, &doc_path)
 }
@@ -905,6 +910,7 @@ pub fn run() {
             ai_health_check,
             ai_ollama_models,
             ai_openai_models,
+            ai_codex_models,
             ai_access_load,
             ai_access_save,
             ai_access_migrate,
