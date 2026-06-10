@@ -380,6 +380,8 @@ const zhCN: Translations = {
   aiModel: '模型',
   aiEmptyHint: '随时向我提问关于此文档的问题。',
   aiEmptyKeyHint: 'Ctrl+Enter 发送。',
+  aiContextNearlyFull: '上下文即将用满——请开始新对话或减少固定片段。',
+  aiModelMissing: '请先选择模型（上方模型选择器或设置 → AI）。',
   aiEffort: '推理强度',
   aiRevertSnapshot: '还原到 AI 编辑前的最近一次快照',
   aiMinimizeToTab: '最小化为标签',

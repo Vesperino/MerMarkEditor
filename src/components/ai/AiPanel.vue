@@ -181,6 +181,12 @@ const isCustomModel = computed(() => {
   return !opts.some(o => o.id === selectedModel.value && !o.custom);
 });
 
+// Local providers have no server-side default model — an empty id would just
+// 400. Disable send and surface a hint instead.
+const modelMissing = computed(() =>
+  (selectedCli.value === 'ollama' || selectedCli.value === 'openai') && !selectedModel.value.trim(),
+);
+
 watch(isCustomModel, (custom) => {
   if (custom && !customModelInput.value) {
     customModelInput.value = selectedModel.value;
@@ -292,7 +298,7 @@ function preambleOptions(): PreambleOptions {
 }
 
 async function onSend() {
-  if (!inputValue.value.trim() || !access.current.value) return;
+  if (!inputValue.value.trim() || !access.current.value || modelMissing.value) return;
 
   if (pins.pinnedSelections.value.length === 0 && liveSelectionText.value) {
     pins.pinCurrentSelection();
@@ -576,6 +582,7 @@ function onPreviewImage(img: PendingImage) {
     <AiPanelComposer
       :input-value="inputValue"
       :cli-connected="cliConnected"
+      :model-missing="modelMissing"
       :is-sending="ai.isSending.value"
       :auth-required-hint="t.aiStatusAuthRequired"
       :empty-key-hint="t.aiEmptyKeyHint"

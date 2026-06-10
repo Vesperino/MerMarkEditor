@@ -13,6 +13,8 @@ const { t } = useI18n();
 defineProps<{
   inputValue: string;
   cliConnected: boolean;
+  /** Local provider selected without a model id — sending would just 400. */
+  modelMissing?: boolean;
   isSending: boolean;
   authRequiredHint: string;
   emptyKeyHint: string;
@@ -115,9 +117,10 @@ function onOverrideToggle(e: Event) {
       <button class="ai-panel__btn ai-panel__btn--icon" @click="emit('pickImage')" :disabled="!cliConnected" :title="t.aiAttachImage">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       </button>
-      <span class="ai-panel__hint">{{ emptyKeyHint }}</span>
+      <span v-if="modelMissing" class="ai-panel__hint ai-panel__hint--warn">{{ t.aiModelMissing }}</span>
+      <span v-else class="ai-panel__hint">{{ emptyKeyHint }}</span>
       <button v-if="isSending" class="ai-panel__btn ai-panel__btn--secondary" @click="emit('cancel')">{{ cancelButtonText }}</button>
-      <button v-else class="ai-panel__btn ai-panel__btn--primary" @click="emit('send')" :disabled="!inputValue.trim() || !cliConnected">{{ sendButtonText }}</button>
+      <button v-else class="ai-panel__btn ai-panel__btn--primary" @click="emit('send')" :disabled="!inputValue.trim() || !cliConnected || modelMissing">{{ sendButtonText }}</button>
     </div>
 
     <details class="ai-panel__details">
@@ -185,6 +188,10 @@ function onOverrideToggle(e: Event) {
   color: var(--text-muted);
   margin-right: auto;
   font-family: var(--code-font-family, monospace);
+}
+.ai-panel__hint--warn {
+  color: #b45309;
+  font-family: inherit;
 }
 .ai-panel__btn {
   padding: 6px 14px;

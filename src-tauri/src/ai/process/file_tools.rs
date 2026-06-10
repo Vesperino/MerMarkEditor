@@ -381,26 +381,58 @@ pub fn format_dir_listing(path: &str, mut entries: Vec<(String, bool)>) -> Strin
     out.trim_end().to_string()
 }
 
-/// Select the most recent prior turns that fit the history budget, returning
-/// references in chronological order. Walks from the newest backward, dropping
-/// the OLDEST first once either `HISTORY_MAX_TURNS` or `HISTORY_MAX_CHARS` would
-/// be exceeded, then restores chronological order.
-pub fn trim_history(history: &[HistoryTurn]) -> Vec<&HistoryTurn> {
-    let mut kept: Vec<&HistoryTurn> = Vec::new();
-    let mut chars = 0usize;
-    for turn in history.iter().rev() {
-        if kept.len() >= HISTORY_MAX_TURNS {
-            break;
-        }
-        let next = chars + turn.content.chars().count();
-        if !kept.is_empty() && next > HISTORY_MAX_CHARS {
-            break;
-        }
-        chars = next;
-        kept.push(turn);
+/// Synthetic system turn inserted where trimmed turns were dropped, so the
+/// model knows the gap exists instead of perceiving a seamless conversation.
+pub const HISTORY_OMITTED_MARKER: &str = "[Earlier conversation turns omitted]";
+
+/// Select prior turns fitting the history budget, FIRST + RECENT: when nothing
+/// exceeds `HISTORY_MAX_TURNS` / `HISTORY_MAX_CHARS` the history passes through
+/// unchanged. When trimming kicks in, the FIRST user turn is always kept (it
+/// carries the task intent small models otherwise lose), one
+/// `HISTORY_OMITTED_MARKER` system turn marks the gap, and the most recent
+/// turns fill the remaining budget (first turn's chars and the two extra slots
+/// count against it). The newest turn is kept even if it alone busts the char
+/// budget — sending an empty history would be worse.
+pub fn trim_history(history: &[HistoryTurn]) -> Vec<HistoryTurn> {
+    let total_chars: usize = history.iter().map(|t| t.content.chars().count()).sum();
+    if history.len() <= HISTORY_MAX_TURNS && total_chars <= HISTORY_MAX_CHARS {
+        return history.to_vec();
     }
-    kept.reverse();
-    kept
+
+    let first_idx = history.iter().position(|t| t.role == "user");
+    let reserve = first_idx.map(|i| history[i].content.chars().count()).unwrap_or(0);
+    let turn_budget = HISTORY_MAX_TURNS.saturating_sub(if first_idx.is_some() { 2 } else { 0 });
+    let char_budget = HISTORY_MAX_CHARS.saturating_sub(reserve);
+
+    let mut start = history.len();
+    let mut count = 0usize;
+    let mut chars = 0usize;
+    while start > 0 {
+        let cand = start - 1;
+        if first_idx == Some(cand) || count >= turn_budget {
+            break;
+        }
+        let c = history[cand].content.chars().count();
+        if count > 0 && chars + c > char_budget {
+            break;
+        }
+        chars += c;
+        count += 1;
+        start = cand;
+    }
+
+    let mut out = Vec::with_capacity(history.len() - start + 2);
+    if let Some(fi) = first_idx.filter(|fi| *fi < start) {
+        out.push(history[fi].clone());
+        if start > fi + 1 {
+            out.push(HistoryTurn {
+                role: "system".to_string(),
+                content: HISTORY_OMITTED_MARKER.to_string(),
+            });
+        }
+    }
+    out.extend(history[start..].iter().cloned());
+    out
 }
 
 /// Parse tool calls out of a provider's assistant message, normalising the two
@@ -814,35 +846,80 @@ mod tests {
     #[test]
     fn trim_history_keeps_all_when_under_caps() {
         let h = hist(&[("user", "a"), ("assistant", "b"), ("user", "c")]);
-        let kept: Vec<&str> = trim_history(&h).iter().map(|t| t.content.as_str()).collect();
-        assert_eq!(kept, vec!["a", "b", "c"]);
+        let kept = trim_history(&h);
+        let contents: Vec<&str> = kept.iter().map(|t| t.content.as_str()).collect();
+        assert_eq!(contents, vec!["a", "b", "c"]);
     }
 
     #[test]
-    fn trim_history_drops_oldest_past_turn_cap() {
-        let mut raw: Vec<(&str, &str)> = Vec::new();
-        for _ in 0..(HISTORY_MAX_TURNS + 5) {
-            raw.push(("user", "x"));
-        }
-        let h = hist(&raw);
+    fn trim_history_past_turn_cap_keeps_first_marker_and_recent() {
+        let raw: Vec<(String, String)> = (0..HISTORY_MAX_TURNS + 5)
+            .map(|i| ("user".to_string(), format!("t{}", i)))
+            .collect();
+        let h: Vec<HistoryTurn> = raw
+            .iter()
+            .map(|(r, c)| HistoryTurn { role: r.clone(), content: c.clone() })
+            .collect();
         let kept = trim_history(&h);
         assert_eq!(kept.len(), HISTORY_MAX_TURNS);
+        assert_eq!(kept[0].content, "t0", "first user turn must be kept");
+        assert_eq!(kept[1].role, "system");
+        assert_eq!(kept[1].content, HISTORY_OMITTED_MARKER);
+        assert_eq!(kept.last().unwrap().content, format!("t{}", HISTORY_MAX_TURNS + 4));
+        // Recent block is contiguous and chronological.
+        let recent: Vec<&str> = kept[2..].iter().map(|t| t.content.as_str()).collect();
+        let expected: Vec<String> =
+            (7..HISTORY_MAX_TURNS + 5).map(|i| format!("t{}", i)).collect();
+        assert_eq!(recent, expected.iter().map(|s| s.as_str()).collect::<Vec<_>>());
     }
 
     #[test]
-    fn trim_history_drops_oldest_past_char_cap_and_preserves_order() {
+    fn trim_history_past_char_cap_keeps_first_and_newest_with_marker() {
         let big = "y".repeat(HISTORY_MAX_CHARS);
         let h = vec![
-            HistoryTurn { role: "user".into(), content: "oldest".into() },
-            HistoryTurn { role: "assistant".into(), content: big.clone() },
+            HistoryTurn { role: "user".into(), content: "intent".into() },
+            HistoryTurn { role: "assistant".into(), content: big },
             HistoryTurn { role: "user".into(), content: "newest".into() },
         ];
         let kept = trim_history(&h);
         let contents: Vec<&str> = kept.iter().map(|t| t.content.as_str()).collect();
-        assert!(!contents.contains(&"oldest"), "oldest not dropped: {:?}", contents.len());
-        assert_eq!(*contents.last().unwrap(), "newest");
-        let big_idx = contents.iter().position(|c| *c == big.as_str());
-        let newest_idx = contents.iter().position(|c| *c == "newest");
-        assert!(big_idx < newest_idx, "order not preserved");
+        assert_eq!(contents, vec!["intent", HISTORY_OMITTED_MARKER, "newest"]);
+        assert_eq!(kept[1].role, "system");
+    }
+
+    #[test]
+    fn trim_history_respects_budgets_when_trimming() {
+        let raw: Vec<(String, String)> = (0..40)
+            .map(|i| {
+                let role = if i % 2 == 0 { "user" } else { "assistant" };
+                (role.to_string(), format!("{}-{}", role, "z".repeat(900)))
+            })
+            .collect();
+        let h: Vec<HistoryTurn> = raw
+            .iter()
+            .map(|(r, c)| HistoryTurn { role: r.clone(), content: c.clone() })
+            .collect();
+        let kept = trim_history(&h);
+        assert!(kept.len() <= HISTORY_MAX_TURNS, "turn budget busted: {}", kept.len());
+        let chars: usize = kept.iter().map(|t| t.content.chars().count()).sum();
+        assert!(chars <= HISTORY_MAX_CHARS, "char budget busted: {}", chars);
+        assert_eq!(kept[0].content, h[0].content);
+        assert_eq!(kept[1].content, HISTORY_OMITTED_MARKER);
+        assert_eq!(kept.last().unwrap().content, h.last().unwrap().content);
+    }
+
+    #[test]
+    fn trim_history_without_user_turn_keeps_recent_only() {
+        let raw: Vec<(String, String)> = (0..HISTORY_MAX_TURNS + 3)
+            .map(|i| ("assistant".to_string(), format!("a{}", i)))
+            .collect();
+        let h: Vec<HistoryTurn> = raw
+            .iter()
+            .map(|(r, c)| HistoryTurn { role: r.clone(), content: c.clone() })
+            .collect();
+        let kept = trim_history(&h);
+        assert_eq!(kept.len(), HISTORY_MAX_TURNS);
+        assert!(kept.iter().all(|t| t.role == "assistant"));
+        assert_eq!(kept.last().unwrap().content, format!("a{}", HISTORY_MAX_TURNS + 2));
     }
 }

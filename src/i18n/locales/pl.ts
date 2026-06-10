@@ -380,6 +380,8 @@ const pl: Translations = {
   aiModel: 'Model',
   aiEmptyHint: 'Zapytaj o cokolwiek dotyczącego tego dokumentu.',
   aiEmptyKeyHint: 'Ctrl+Enter aby wysłać.',
+  aiContextNearlyFull: 'Kontekst prawie pełny — rozpocznij nowy czat lub ogranicz przypięte fragmenty.',
+  aiModelMissing: 'Najpierw wybierz model (selektor powyżej lub Ustawienia → AI).',
   aiEffort: 'Tryb pracy',
   aiRevertSnapshot: 'Cofnij do ostatniego snapshotu sprzed edycji AI',
   aiMinimizeToTab: 'Zminimalizuj do zakładki',

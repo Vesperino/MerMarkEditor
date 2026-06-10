@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseUsage } from '../../composables/useAiContext';
+import {
+  parseUsage,
+  contextWarnLevel,
+  CONTEXT_WARN_THRESHOLD,
+  CONTEXT_DANGER_THRESHOLD,
+} from '../../composables/useAiContext';
 
 describe('parseUsage', () => {
   it('returns empty when raw is null', () => {
@@ -166,5 +171,33 @@ describe('parseUsage', () => {
     expect(u.inputTokens).toBe(6);
     expect(u.cacheReadTokens).toBe(30_000);
     expect(u.totalInputTokens).toBe(6 + 1000 + 30_000);
+  });
+
+  it('lifts the injected ollama window from model + modelUsage', () => {
+    const u = parseUsage('ollama', {
+      input_tokens: 3000,
+      output_tokens: 50,
+      model: 'llama3:8b',
+      modelUsage: { 'llama3:8b': { contextWindow: 16_384 } },
+    });
+    expect(u.contextWindow).toBe(16_384);
+  });
+});
+
+describe('contextWarnLevel', () => {
+  it('is none below the warn threshold', () => {
+    expect(contextWarnLevel(0)).toBe('none');
+    expect(contextWarnLevel(0.79)).toBe('none');
+  });
+
+  it('turns warn at 80% and stays warn below 95%', () => {
+    expect(contextWarnLevel(CONTEXT_WARN_THRESHOLD)).toBe('warn');
+    expect(contextWarnLevel(0.9)).toBe('warn');
+    expect(contextWarnLevel(0.949)).toBe('warn');
+  });
+
+  it('turns danger at 95% and above', () => {
+    expect(contextWarnLevel(CONTEXT_DANGER_THRESHOLD)).toBe('danger');
+    expect(contextWarnLevel(1)).toBe('danger');
   });
 });

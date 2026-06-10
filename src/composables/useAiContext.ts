@@ -35,6 +35,18 @@ const DEFAULT_CONTEXT_WINDOW: Record<CliKind, number> = {
   openai: 128_000,
 };
 
+export type ContextWarnLevel = 'none' | 'warn' | 'danger';
+
+export const CONTEXT_WARN_THRESHOLD = 0.8;
+export const CONTEXT_DANGER_THRESHOLD = 0.95;
+
+/** Pressure tier for the context bar: amber at 80%, red at 95%. */
+export function contextWarnLevel(fraction: number): ContextWarnLevel {
+  if (fraction >= CONTEXT_DANGER_THRESHOLD) return 'danger';
+  if (fraction >= CONTEXT_WARN_THRESHOLD) return 'warn';
+  return 'none';
+}
+
 const usage = ref<ContextUsage>(emptyUsage('claude'));
 
 function emptyUsage(cli: CliKind): ContextUsage {

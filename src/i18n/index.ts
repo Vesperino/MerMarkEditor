@@ -386,6 +386,8 @@ export interface Translations {
   aiModel: string;
   aiEmptyHint: string;
   aiEmptyKeyHint: string;
+  aiContextNearlyFull: string;
+  aiModelMissing: string;
   aiEffort: string;
   aiRevertSnapshot: string;
   aiMinimizeToTab: string;

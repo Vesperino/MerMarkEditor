@@ -110,6 +110,28 @@ describe('useAiPreamble.buildStaticPreamble', () => {
       expect(out).toMatch(/USE YOUR Edit \/ Write TOOLS/);
       expect(out).not.toContain('read_file(path)');
     });
+
+    it('instructs markdown + mermaid fences when localTools has no file tools', () => {
+      const out = buildStaticPreamble({
+        ...base(),
+        localTools: true,
+        accessMap: { ...accessMap, tools: { fileRead: false, fileWrite: false, bash: false, network: false } },
+      });
+      expect(out).toContain('no file tools');
+      expect(out).toContain('```mermaid');
+      expect(out).not.toContain('read_file(path)');
+      expect(out).not.toMatch(/MUST call edit_file/);
+    });
+
+    it('treats a read-only access map as having file tools (read_file still offered)', () => {
+      const out = buildStaticPreamble({
+        ...base(),
+        localTools: true,
+        accessMap: { ...accessMap, tools: { fileRead: true, fileWrite: false, bash: false, network: false } },
+      });
+      expect(out).toContain('read_file(path)');
+      expect(out).not.toContain('no file tools');
+    });
   });
 
   describe('workspace context', () => {

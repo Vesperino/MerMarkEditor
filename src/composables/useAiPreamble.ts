@@ -89,12 +89,19 @@ export function buildStaticPreamble(opts: PreambleOptions): string {
     ``,
   ];
   if (opts.localTools) {
-    lines.push(
-      `You have these tools available: read_file(path), list_dir(path), write_file(path, content), edit_file(path, old_string, new_string). The only writable target is the active document above; reads are limited to its folder plus any granted read paths.`,
-      `To explore a granted folder, call list_dir(path) to enumerate its files and subfolders before reading individual files with read_file — read_file works on files only, not directories.`,
-      `When the user asks for edits to the active file, you MUST call edit_file (for a small change) or write_file (to replace the whole file) to apply it on disk. Read the file first with read_file if you need its current content. The host reloads the editor from disk after the tools run.`,
-      `Never claim in prose that you edited or updated the file — an edit only counts if you actually call edit_file / write_file. To edit, call the tools; do not paste the whole file back into chat.`,
-    );
+    const hasFileTools = !!(am && (am.tools.fileRead || am.tools.fileWrite));
+    if (hasFileTools) {
+      lines.push(
+        `You have these tools available: read_file(path), list_dir(path), write_file(path, content), edit_file(path, old_string, new_string). The only writable target is the active document above; reads are limited to its folder plus any granted read paths.`,
+        `To explore a granted folder, call list_dir(path) to enumerate its files and subfolders before reading individual files with read_file — read_file works on files only, not directories.`,
+        `When the user asks for edits to the active file, you MUST call edit_file (for a small change) or write_file (to replace the whole file) to apply it on disk. Read the file first with read_file if you need its current content. The host reloads the editor from disk after the tools run.`,
+        `Never claim in prose that you edited or updated the file — an edit only counts if you actually call edit_file / write_file. To edit, call the tools; do not paste the whole file back into chat.`,
+      );
+    } else {
+      lines.push(
+        `You have no file tools in this chat. Answer in Markdown; for diagrams reply with a \`\`\`mermaid fenced code block — the editor renders it.`,
+      );
+    }
   } else {
     lines.push(
       `When the user asks for edits to the active file, USE YOUR Edit / Write TOOLS to modify the file on disk directly. Do NOT return code fences with the proposed change — the host will reload the editor from disk after you finish.`,
