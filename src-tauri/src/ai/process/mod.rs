@@ -154,13 +154,14 @@ fn spawn_pump(
                 ..Default::default()
             };
             let mut claude_state = normalizer::ClaudeParserState::default();
+            let mut openai_state = normalizer::OpenaiParserState::default();
             let mut done_emitted = false;
             while let Ok(Some(line)) = lines.next_line().await {
                 let parsed = match cli {
                     CliKind::Codex => normalizer::parse_line_codex(&mut codex_state, &line),
                     CliKind::Claude => normalizer::parse_line_claude(&mut claude_state, &line),
                     CliKind::Ollama => normalizer::parse_line_ollama(&line),
-                    CliKind::Openai => normalizer::parse_line_openai(&line),
+                    CliKind::Openai => normalizer::parse_line_openai(&mut openai_state, &line),
                 };
                 match parsed {
                     Some(chunk) => {
@@ -250,14 +251,38 @@ pub fn cancel(app: &AppHandle, window_label: &str, registry: &ChildRegistry, req
 /// HTTP task kills the emitter outright — so return the terminal chunk for the
 /// caller to emit, otherwise the frontend's completion promise never resolves
 /// and every subsequent send fails with "A send is already in flight".
+///
+/// The terminal flag closes a race with natural completion: the task may have
+/// already emitted its Done but not yet removed its registry entry, in which
+/// case emitting Error("Cancelled") here would land AFTER the Done. Whoever
+/// flips the flag first owns the terminal emission.
 fn cancel_inner(registry: &ChildRegistry, request_id: &str) -> Option<AiResponseChunk> {
     if let Some(mut child) = registry.take(request_id) {
         kill_tree(&mut child);
     }
-    registry.take_abort(request_id).map(|handle| {
-        handle.abort();
-        AiResponseChunk::Error { message: "Cancelled".to_string(), exit_code: None }
-    })
+    let (handle, terminal) = registry.take_abort(request_id)?;
+    handle.abort();
+    if terminal.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return None;
+    }
+    Some(AiResponseChunk::Error { message: "Cancelled".to_string(), exit_code: None })
+}
+
+/// Emit a terminal chunk (Done/Error) for an HTTP-provider turn exactly once:
+/// the first caller to flip `terminal` wins, the rest are dropped. Providers
+/// route every terminal emission through here so a concurrent cancel (which
+/// also flips the flag) can never append a second terminal chunk. No await
+/// between the swap and the emit, so an abort cannot land in between.
+pub(crate) fn emit_terminal(
+    app: &AppHandle,
+    window_label: &str,
+    event: &str,
+    terminal: &std::sync::atomic::AtomicBool,
+    chunk: AiResponseChunk,
+) {
+    if !terminal.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        let _ = app.emit_to(window_label, event, chunk);
+    }
 }
 
 /// Accumulates raw network bytes and yields complete '\n'-terminated lines.
@@ -351,7 +376,8 @@ mod tests {
     async fn cancel_aborts_http_task_and_yields_terminal_chunk() {
         let registry = ChildRegistry::new();
         let task = tokio::spawn(std::future::pending::<()>());
-        registry.insert_abort("r1".into(), task.abort_handle());
+        let terminal = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        registry.insert_abort("r1".into(), task.abort_handle(), terminal.clone());
 
         match cancel_inner(&registry, "r1") {
             Some(AiResponseChunk::Error { message, exit_code }) => {
@@ -360,8 +386,23 @@ mod tests {
             }
             other => panic!("expected terminal Error chunk, got {:?}", other),
         }
+        assert!(terminal.load(std::sync::atomic::Ordering::SeqCst));
         assert!(task.await.unwrap_err().is_cancelled());
         assert!(registry.take_abort("r1").is_none());
+    }
+
+    #[tokio::test]
+    async fn cancel_yields_no_chunk_when_task_already_emitted_terminal() {
+        // Race seam: the task emitted Done (flag flipped) but its registry
+        // entry is not yet removed — cancel must not add a second terminal.
+        let registry = ChildRegistry::new();
+        let task = tokio::spawn(std::future::pending::<()>());
+        let terminal = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        registry.insert_abort("r2".into(), task.abort_handle(), terminal);
+
+        assert!(cancel_inner(&registry, "r2").is_none());
+        assert!(task.await.unwrap_err().is_cancelled());
+        assert!(registry.take_abort("r2").is_none());
     }
 
     #[test]

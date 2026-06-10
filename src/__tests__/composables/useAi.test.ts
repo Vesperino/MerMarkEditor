@@ -15,6 +15,7 @@ vi.mock('../../services/aiCommands', () => ({
 
 import { aiCommands } from '../../services/aiCommands';
 import { useAi } from '../../composables/useAi';
+import { useSettings, OLLAMA_DEFAULT_NUM_CTX, OLLAMA_MIN_NUM_CTX } from '../../composables/useSettings';
 
 describe('useAi', () => {
   beforeEach(() => {
@@ -125,6 +126,21 @@ describe('useAi', () => {
       { role: 'user', content: 'first question' },
       { role: 'assistant', content: 'first answer' },
     ]);
+  });
+
+  it('clamps a hand-edited negative ollamaNumCtx before sending', async () => {
+    (aiCommands.send as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue('req');
+    const { settings } = useSettings();
+    // Simulate a hand-edited settings JSON that bypassed the setter clamp — a
+    // negative value fails Rust's Option<u64> deserialization on every send.
+    settings.value.ai.ollamaNumCtx = -2048;
+
+    await runTurn('ollama', 'question', 'answer');
+
+    const call = (aiCommands.send as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    const req = call[0] as { numCtx?: number | null };
+    expect(req.numCtx).toBe(OLLAMA_MIN_NUM_CTX);
+    settings.value.ai.ollamaNumCtx = OLLAMA_DEFAULT_NUM_CTX;
   });
 
   it('sends an empty history for claude (resumes via session id)', async () => {

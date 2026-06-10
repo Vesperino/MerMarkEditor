@@ -398,33 +398,45 @@ pub fn parse_ollama_tags(v: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Per-stream parser state for the OpenAI-compatible provider. Usage is
+/// captured from whichever frame carries it and attached to the Done emitted
+/// on the `[DONE]` sentinel: vLLM sends a separate empty-choices usage chunk,
+/// but llama.cpp attaches usage to the finish_reason chunk that may STILL
+/// carry a content delta — treating usage presence as terminal would drop
+/// that text.
+#[derive(Debug, Default)]
+pub struct OpenaiParserState {
+    pub usage: Option<serde_json::Value>,
+}
+
 /// Parse one OpenAI-compatible SSE line from `/v1/chat/completions`. Each frame
 /// is `data: {json}` (blank inter-frame lines trim to empty → dropped); the
 /// stream terminates with a literal `data: [DONE]`.
-///   - `[DONE]`            → Done (empty session/usage; the usage-bearing Done
-///                           normally arrives in the preceding chunk).
+///   - `[DONE]`            → Done, carrying the usage captured earlier.
 ///   - top-level `error`   → Error.
-///   - top-level `usage`   → Done with `prompt_tokens` renamed `input_tokens`
-///                           and `completion_tokens` renamed `output_tokens`
-///                           (matches what `parseUsage` expects, mirroring the
-///                           ollama prompt_eval_count/eval_count rename).
+///   - top-level `usage`   → captured into state with `prompt_tokens` renamed
+///                           `input_tokens` and `completion_tokens` renamed
+///                           `output_tokens` (matches what `parseUsage`
+///                           expects, mirroring the ollama
+///                           prompt_eval_count/eval_count rename); the frame's
+///                           delta is still processed.
 ///   - `choices[0].delta.content` → Text. A role-only or `reasoning_content`-
 ///                           only delta (no `content`) is dropped (MVP ignores
 ///                           reasoning content rather than rendering it).
-pub fn parse_line_openai(line: &str) -> Option<AiResponseChunk> {
+pub fn parse_line_openai(state: &mut OpenaiParserState, line: &str) -> Option<AiResponseChunk> {
     let line = line.trim();
     if line.is_empty() {
         return None;
     }
     let payload = line.strip_prefix("data:").map(str::trim).unwrap_or(line);
     if payload == "[DONE]" {
-        return Some(AiResponseChunk::Done { session_id: String::new(), usage: None });
+        return Some(AiResponseChunk::Done { session_id: String::new(), usage: state.usage.take() });
     }
     let v: serde_json::Value = serde_json::from_str(payload).ok()?;
-    parse_openai(&v)
+    parse_openai(state, &v)
 }
 
-fn parse_openai(v: &serde_json::Value) -> Option<AiResponseChunk> {
+fn parse_openai(state: &mut OpenaiParserState, v: &serde_json::Value) -> Option<AiResponseChunk> {
     if let Some(err) = v.get("error") {
         let message = err
             .get("message")
@@ -437,8 +449,7 @@ fn parse_openai(v: &serde_json::Value) -> Option<AiResponseChunk> {
     if let Some(usage) = v.get("usage").filter(|u| u.is_object()) {
         let input = usage.get("prompt_tokens").and_then(|n| n.as_u64()).unwrap_or(0);
         let output = usage.get("completion_tokens").and_then(|n| n.as_u64()).unwrap_or(0);
-        let renamed = serde_json::json!({ "input_tokens": input, "output_tokens": output });
-        return Some(AiResponseChunk::Done { session_id: String::new(), usage: Some(renamed) });
+        state.usage = Some(serde_json::json!({ "input_tokens": input, "output_tokens": output }));
     }
     let content = v
         .get("choices")
@@ -844,10 +855,12 @@ mod tests {
         assert!(parse_ollama_tags(&v).is_empty());
     }
 
+    fn fresh_openai() -> OpenaiParserState { OpenaiParserState::default() }
+
     #[test]
     fn openai_data_frame_emits_text() {
         let line = r#"data: {"choices":[{"delta":{"content":"hi"}}]}"#;
-        match parse_line_openai(line).unwrap() {
+        match parse_line_openai(&mut fresh_openai(), line).unwrap() {
             AiResponseChunk::Text { content } => assert_eq!(content, "hi"),
             _ => panic!("wrong variant"),
         }
@@ -855,7 +868,7 @@ mod tests {
 
     #[test]
     fn openai_done_sentinel_emits_done() {
-        match parse_line_openai("data: [DONE]").unwrap() {
+        match parse_line_openai(&mut fresh_openai(), "data: [DONE]").unwrap() {
             AiResponseChunk::Done { session_id, usage } => {
                 assert_eq!(session_id, "");
                 assert!(usage.is_none());
@@ -867,19 +880,21 @@ mod tests {
     #[test]
     fn openai_role_only_delta_is_dropped() {
         let line = r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#;
-        assert!(parse_line_openai(line).is_none());
+        assert!(parse_line_openai(&mut fresh_openai(), line).is_none());
     }
 
     #[test]
     fn openai_reasoning_content_only_delta_is_dropped() {
         let line = r#"data: {"choices":[{"delta":{"reasoning_content":"thinking..."}}]}"#;
-        assert!(parse_line_openai(line).is_none());
+        assert!(parse_line_openai(&mut fresh_openai(), line).is_none());
     }
 
     #[test]
-    fn openai_usage_chunk_renames_tokens() {
+    fn openai_usage_chunk_is_captured_and_attached_to_done_sentinel() {
+        let mut state = fresh_openai();
         let line = r#"data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":7,"total_tokens":19}}"#;
-        match parse_line_openai(line).unwrap() {
+        assert!(parse_line_openai(&mut state, line).is_none());
+        match parse_line_openai(&mut state, "data: [DONE]").unwrap() {
             AiResponseChunk::Done { usage, .. } => {
                 let u = usage.unwrap();
                 assert_eq!(u["input_tokens"], 12);
@@ -890,14 +905,34 @@ mod tests {
     }
 
     #[test]
+    fn openai_frame_with_content_and_usage_emits_text_and_captures_usage() {
+        // llama.cpp attaches usage to the finish_reason chunk, which can also
+        // carry the final content delta — the text must not be lost.
+        let mut state = fresh_openai();
+        let line = r#"data: {"choices":[{"delta":{"content":"bye"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4}}"#;
+        match parse_line_openai(&mut state, line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "bye"),
+            other => panic!("expected Text, got {:?}", other),
+        }
+        match parse_line_openai(&mut state, "data: [DONE]").unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u["input_tokens"], 9);
+                assert_eq!(u["output_tokens"], 4);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
     fn openai_error_line_emits_error() {
         let obj = r#"data: {"error":{"message":"model 'foo' not found"}}"#;
-        match parse_line_openai(obj).unwrap() {
+        match parse_line_openai(&mut fresh_openai(), obj).unwrap() {
             AiResponseChunk::Error { message, .. } => assert!(message.contains("not found")),
             _ => panic!("wrong variant"),
         }
         let str_err = r#"data: {"error":"boom"}"#;
-        match parse_line_openai(str_err).unwrap() {
+        match parse_line_openai(&mut fresh_openai(), str_err).unwrap() {
             AiResponseChunk::Error { message, .. } => assert_eq!(message, "boom"),
             _ => panic!("wrong variant"),
         }
@@ -905,8 +940,8 @@ mod tests {
 
     #[test]
     fn openai_blank_line_is_dropped() {
-        assert!(parse_line_openai("").is_none());
-        assert!(parse_line_openai("   ").is_none());
+        assert!(parse_line_openai(&mut fresh_openai(), "").is_none());
+        assert!(parse_line_openai(&mut fresh_openai(), "   ").is_none());
     }
 
     #[test]

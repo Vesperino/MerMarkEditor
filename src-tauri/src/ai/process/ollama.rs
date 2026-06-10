@@ -11,10 +11,13 @@
 //! `ai:stream:{request_id}` event the child-process pump uses, so the frontend
 //! is provider-agnostic.
 
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 
-use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry, LineBuffer};
+use crate::ai::process::{emit_terminal, file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry, LineBuffer};
 use crate::ai::types::AiResponseChunk;
 
 pub const DEFAULT_BASE_URL: &str = "http://localhost:11434";
@@ -68,7 +71,9 @@ pub async fn stream(
     let event = format!("ai:stream:{}", request_id);
     let specs = file_tools::tool_specs(&req.access_map.tools);
 
-    registry.spawn_abortable(request_id.clone(), async move {
+    let terminal = Arc::new(AtomicBool::new(false));
+    let flag = terminal.clone();
+    registry.spawn_abortable(request_id.clone(), terminal, async move {
         // Once per send (process-lifetime cache behind it): learn the model's
         // trained context + capabilities so we can cap num_ctx, report the
         // real window, and gate tool calling.
@@ -83,7 +88,7 @@ pub async fn stream(
 
         if !specs.is_empty() {
             if local_ctx::tools_capable(show.as_ref()) {
-                run_tool_loop(app, window_label, event, req, specs, num_ctx, window).await;
+                run_tool_loop(app, window_label, event, req, specs, num_ctx, window, flag).await;
                 return;
             }
             eprintln!(
@@ -91,7 +96,7 @@ pub async fn stream(
                 model
             );
         }
-        run_plain(app, window_label, event, req, num_ctx, window).await;
+        run_plain(app, window_label, event, req, num_ctx, window, flag).await;
     });
     Ok(request_id)
 }
@@ -104,6 +109,7 @@ async fn run_plain(
     req: AiSendRequest,
     num_ctx: u64,
     window: Option<u64>,
+    terminal: Arc<AtomicBool>,
 ) {
     let url = format!("{}/api/chat", base_url(&req));
     let body = build_chat_body(&req, num_ctx);
@@ -113,7 +119,7 @@ async fn run_plain(
     let resp = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            emit_error(&app, &window_label, &event, ollama_error(&e));
+            emit_error(&app, &window_label, &event, &terminal, ollama_error(&e));
             return;
         }
     };
@@ -125,7 +131,7 @@ async fn run_plain(
         } else {
             format!("Ollama request failed (HTTP {}): {}", status.as_u16(), detail.trim())
         };
-        emit_error(&app, &window_label, &event, message);
+        emit_error(&app, &window_label, &event, &terminal, message);
         return;
     }
 
@@ -137,16 +143,18 @@ async fn run_plain(
             Ok(bytes) => {
                 for line in buf.feed(&bytes) {
                     if let Some(parsed) = normalizer::parse_line_ollama(line.trim()) {
+                        let parsed = local_ctx::inject_into_done(parsed, &model, window);
                         if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
                             done_emitted = true;
+                            emit_terminal(&app, &window_label, &event, &terminal, parsed);
+                        } else {
+                            let _ = app.emit_to(window_label.as_str(), &event, parsed);
                         }
-                        let parsed = local_ctx::inject_into_done(parsed, &model, window);
-                        let _ = app.emit_to(window_label.as_str(), &event, parsed);
                     }
                 }
             }
             Err(e) => {
-                emit_error(&app, &window_label, &event, ollama_error(&e));
+                emit_error(&app, &window_label, &event, &terminal, ollama_error(&e));
                 done_emitted = true;
                 break;
             }
@@ -155,8 +163,12 @@ async fn run_plain(
     if !done_emitted {
         if let Some(parsed) = normalizer::parse_line_ollama(buf.remainder().trim()) {
             let parsed = local_ctx::inject_into_done(parsed, &model, window);
-            let _ = app.emit_to(window_label.as_str(), &event, parsed);
-            done_emitted = true;
+            if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
+                done_emitted = true;
+                emit_terminal(&app, &window_label, &event, &terminal, parsed);
+            } else {
+                let _ = app.emit_to(window_label.as_str(), &event, parsed);
+            }
         }
     }
     if !done_emitted {
@@ -164,6 +176,7 @@ async fn run_plain(
             &app,
             &window_label,
             &event,
+            &terminal,
             "Ollama stream ended without finalising the turn.".to_string(),
         );
     }
@@ -189,6 +202,7 @@ async fn run_tool_loop(
     specs: Vec<serde_json::Value>,
     num_ctx: u64,
     window: Option<u64>,
+    terminal: Arc<AtomicBool>,
 ) {
     let url = format!("{}/api/chat", base_url(&req));
     let client = crate::ai::process::http_client(None);
@@ -205,7 +219,7 @@ async fn run_tool_loop(
         let resp = match client.post(&url).json(&body).send().await {
             Ok(r) => r,
             Err(e) => {
-                emit_error(&app, &window_label, &event, ollama_error(&e));
+                emit_error(&app, &window_label, &event, &terminal, ollama_error(&e));
                 return;
             }
         };
@@ -218,7 +232,7 @@ async fn run_tool_loop(
                     status.as_u16(),
                     detail.trim()
                 );
-                run_plain(app, window_label, event, req, num_ctx, window).await;
+                run_plain(app, window_label, event, req, num_ctx, window, terminal).await;
                 return;
             }
             let message = if detail.trim().is_empty() {
@@ -226,10 +240,10 @@ async fn run_tool_loop(
             } else {
                 format!("Ollama request failed (HTTP {}): {}", status.as_u16(), detail.trim())
             };
-            emit_error(&app, &window_label, &event, message);
+            emit_error(&app, &window_label, &event, &terminal, message);
             return;
         }
-        let out = match stream_round(&app, &window_label, &event, resp).await {
+        let out = match stream_round(&app, &window_label, &event, &terminal, resp).await {
             Ok(out) => out,
             Err(()) => return,
         };
@@ -246,7 +260,7 @@ async fn run_tool_loop(
                 req.model.as_deref().unwrap_or_default(),
                 window,
             );
-            let _ = app.emit_to(window_label.as_str(), &event, done);
+            emit_terminal(&app, &window_label, &event, &terminal, done);
             return;
         }
 
@@ -286,6 +300,7 @@ async fn run_tool_loop(
         &app,
         &window_label,
         &event,
+        &terminal,
         format!(
             "Tool loop exceeded {} rounds without a final answer. Stopping.",
             file_tools::MAX_TOOL_ROUNDS
@@ -346,6 +361,7 @@ async fn stream_round(
     app: &AppHandle,
     window_label: &str,
     event: &str,
+    terminal: &AtomicBool,
     resp: reqwest::Response,
 ) -> Result<RoundOutcome, ()> {
     let mut out = RoundOutcome::default();
@@ -359,13 +375,13 @@ async fn stream_round(
                         let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
                     }
                     if let Some(message) = out.error.take() {
-                        emit_error(app, window_label, event, message);
+                        emit_error(app, window_label, event, terminal, message);
                         return Err(());
                     }
                 }
             }
             Err(e) => {
-                emit_error(app, window_label, event, ollama_error(&e));
+                emit_error(app, window_label, event, terminal, ollama_error(&e));
                 return Err(());
             }
         }
@@ -374,7 +390,7 @@ async fn stream_round(
         let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
     }
     if let Some(message) = out.error.take() {
-        emit_error(app, window_label, event, message);
+        emit_error(app, window_label, event, terminal, message);
         return Err(());
     }
     Ok(out)
@@ -416,10 +432,12 @@ fn ollama_error(e: &reqwest::Error) -> String {
     }
 }
 
-fn emit_error(app: &AppHandle, window_label: &str, event: &str, message: String) {
-    let _ = app.emit_to(
+fn emit_error(app: &AppHandle, window_label: &str, event: &str, terminal: &AtomicBool, message: String) {
+    emit_terminal(
+        app,
         window_label,
         event,
+        terminal,
         AiResponseChunk::Error { message, exit_code: None },
     );
 }

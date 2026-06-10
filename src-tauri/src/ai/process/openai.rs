@@ -13,10 +13,13 @@
 //! Chunks ride the same `ai:stream:{request_id}` event so the frontend stays
 //! provider-agnostic.
 
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 
-use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry, LineBuffer};
+use crate::ai::process::{emit_terminal, file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry, LineBuffer};
 use crate::ai::types::AiResponseChunk;
 
 pub const DEFAULT_BASE_URL: &str = "http://localhost:8080";
@@ -74,7 +77,9 @@ pub async fn stream(
     let event = format!("ai:stream:{}", request_id);
     let specs = file_tools::tool_specs(&req.access_map.tools);
 
-    registry.spawn_abortable(request_id.clone(), async move {
+    let terminal = Arc::new(AtomicBool::new(false));
+    let flag = terminal.clone();
+    registry.spawn_abortable(request_id.clone(), terminal, async move {
         // Once per send (cached per (base, model)): run the detection chain so
         // the Done usage can carry the real context window. A full miss keeps
         // the frontend default.
@@ -83,9 +88,9 @@ pub async fn stream(
         let window = local_ctx::openai_context_window(&base, &model).await;
 
         if specs.is_empty() {
-            run_plain(app, window_label, event, req, window).await;
+            run_plain(app, window_label, event, req, window, flag).await;
         } else {
-            run_tool_loop(app, window_label, event, req, specs, window).await;
+            run_tool_loop(app, window_label, event, req, specs, window, flag).await;
         }
     });
     Ok(request_id)
@@ -98,6 +103,7 @@ async fn run_plain(
     event: String,
     req: AiSendRequest,
     window: Option<u64>,
+    terminal: Arc<AtomicBool>,
 ) {
     let url = format!("{}/v1/chat/completions", base_url(&req));
     let body = build_chat_body(&req);
@@ -107,7 +113,7 @@ async fn run_plain(
     let resp = match client.post(&url).json(&body).send().await {
         Ok(r) => r,
         Err(e) => {
-            emit_error(&app, &window_label, &event, openai_error(&e));
+            emit_error(&app, &window_label, &event, &terminal, openai_error(&e));
             return;
         }
     };
@@ -119,10 +125,11 @@ async fn run_plain(
         } else {
             format!("OpenAI-compatible request failed (HTTP {}): {}", status.as_u16(), detail.trim())
         };
-        emit_error(&app, &window_label, &event, message);
+        emit_error(&app, &window_label, &event, &terminal, message);
         return;
     }
 
+    let mut parser = normalizer::OpenaiParserState::default();
     let mut buf = LineBuffer::default();
     let mut done_emitted = false;
     let mut bytes = resp.bytes_stream();
@@ -130,32 +137,50 @@ async fn run_plain(
         match chunk {
             Ok(bytes) => {
                 for line in buf.feed(&bytes) {
-                    // The usage-bearing Done arrives just before `[DONE]`;
-                    // once we've finalised, ignore the trailing terminator
-                    // so the turn isn't finalised twice.
+                    // Ignore anything after the turn finalised (e.g. a server
+                    // that repeats `[DONE]`) so it isn't finalised twice.
                     if done_emitted {
                         continue;
                     }
-                    if let Some(parsed) = normalizer::parse_line_openai(line.trim()) {
+                    if let Some(parsed) = normalizer::parse_line_openai(&mut parser, line.trim()) {
+                        let parsed = local_ctx::inject_into_done(parsed, &model, window);
                         if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
                             done_emitted = true;
+                            emit_terminal(&app, &window_label, &event, &terminal, parsed);
+                        } else {
+                            let _ = app.emit_to(window_label.as_str(), &event, parsed);
                         }
-                        let parsed = local_ctx::inject_into_done(parsed, &model, window);
-                        let _ = app.emit_to(window_label.as_str(), &event, parsed);
                     }
                 }
             }
             Err(e) => {
-                emit_error(&app, &window_label, &event, openai_error(&e));
+                emit_error(&app, &window_label, &event, &terminal, openai_error(&e));
                 done_emitted = true;
                 break;
             }
         }
     }
     if !done_emitted {
-        if let Some(parsed) = normalizer::parse_line_openai(buf.remainder().trim()) {
+        if let Some(parsed) = normalizer::parse_line_openai(&mut parser, buf.remainder().trim()) {
             let parsed = local_ctx::inject_into_done(parsed, &model, window);
-            let _ = app.emit_to(window_label.as_str(), &event, parsed);
+            if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
+                done_emitted = true;
+                emit_terminal(&app, &window_label, &event, &terminal, parsed);
+            } else {
+                let _ = app.emit_to(window_label.as_str(), &event, parsed);
+            }
+        }
+    }
+    if !done_emitted {
+        // Stream ended cleanly without the `[DONE]` sentinel; captured usage
+        // means the server did finish the turn, so finalise as Done.
+        if let Some(usage) = parser.usage.take() {
+            let done = local_ctx::inject_into_done(
+                AiResponseChunk::Done { session_id: String::new(), usage: Some(usage) },
+                &model,
+                window,
+            );
+            emit_terminal(&app, &window_label, &event, &terminal, done);
             done_emitted = true;
         }
     }
@@ -164,6 +189,7 @@ async fn run_plain(
             &app,
             &window_label,
             &event,
+            &terminal,
             "OpenAI-compatible stream ended without finalising the turn.".to_string(),
         );
     }
@@ -187,6 +213,7 @@ async fn run_tool_loop(
     req: AiSendRequest,
     specs: Vec<serde_json::Value>,
     window: Option<u64>,
+    terminal: Arc<AtomicBool>,
 ) {
     let url = format!("{}/v1/chat/completions", base_url(&req));
     let client = crate::ai::process::http_client(None);
@@ -204,7 +231,7 @@ async fn run_tool_loop(
         let resp = match client.post(&url).json(&body).send().await {
             Ok(r) => r,
             Err(e) => {
-                emit_error(&app, &window_label, &event, openai_error(&e));
+                emit_error(&app, &window_label, &event, &terminal, openai_error(&e));
                 return;
             }
         };
@@ -217,7 +244,7 @@ async fn run_tool_loop(
                     status.as_u16(),
                     detail.trim()
                 );
-                run_plain(app, window_label, event, req, window).await;
+                run_plain(app, window_label, event, req, window, terminal).await;
                 return;
             }
             let message = if detail.trim().is_empty() {
@@ -225,10 +252,10 @@ async fn run_tool_loop(
             } else {
                 format!("OpenAI-compatible request failed (HTTP {}): {}", status.as_u16(), detail.trim())
             };
-            emit_error(&app, &window_label, &event, message);
+            emit_error(&app, &window_label, &event, &terminal, message);
             return;
         }
-        let out = match stream_round(&app, &window_label, &event, resp).await {
+        let out = match stream_round(&app, &window_label, &event, &terminal, resp).await {
             Ok(out) => out,
             Err(()) => return,
         };
@@ -241,7 +268,7 @@ async fn run_tool_loop(
                 req.model.as_deref().unwrap_or_default(),
                 window,
             );
-            let _ = app.emit_to(window_label.as_str(), &event, done);
+            emit_terminal(&app, &window_label, &event, &terminal, done);
             return;
         }
 
@@ -282,6 +309,7 @@ async fn run_tool_loop(
         &app,
         &window_label,
         &event,
+        &terminal,
         format!(
             "Tool loop exceeded {} rounds without a final answer. Stopping.",
             file_tools::MAX_TOOL_ROUNDS
@@ -413,6 +441,7 @@ async fn stream_round(
     app: &AppHandle,
     window_label: &str,
     event: &str,
+    terminal: &AtomicBool,
     resp: reqwest::Response,
 ) -> Result<RoundOutcome, ()> {
     let mut out = RoundOutcome::default();
@@ -426,13 +455,13 @@ async fn stream_round(
                         let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
                     }
                     if let Some(message) = out.error.take() {
-                        emit_error(app, window_label, event, message);
+                        emit_error(app, window_label, event, terminal, message);
                         return Err(());
                     }
                 }
             }
             Err(e) => {
-                emit_error(app, window_label, event, openai_error(&e));
+                emit_error(app, window_label, event, terminal, openai_error(&e));
                 return Err(());
             }
         }
@@ -441,7 +470,7 @@ async fn stream_round(
         let _ = app.emit_to(window_label, event, AiResponseChunk::Text { content: text });
     }
     if let Some(message) = out.error.take() {
-        emit_error(app, window_label, event, message);
+        emit_error(app, window_label, event, terminal, message);
         return Err(());
     }
     Ok(out)
@@ -478,10 +507,12 @@ fn openai_error(e: &reqwest::Error) -> String {
     }
 }
 
-fn emit_error(app: &AppHandle, window_label: &str, event: &str, message: String) {
-    let _ = app.emit_to(
+fn emit_error(app: &AppHandle, window_label: &str, event: &str, terminal: &AtomicBool, message: String) {
+    emit_terminal(
+        app,
         window_label,
         event,
+        terminal,
         AiResponseChunk::Error { message, exit_code: None },
     );
 }

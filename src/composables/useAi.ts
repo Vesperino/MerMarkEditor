@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue';
 import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap, type AiHistoryTurn } from '../services/aiCommands';
 import { useAiContext } from './useAiContext';
-import { useSettings } from './useSettings';
+import { useSettings, OLLAMA_MIN_NUM_CTX } from './useSettings';
 
 export interface AttachedPin {
   id: string;
@@ -377,8 +377,11 @@ export function useAi() {
       images: opts.images ?? [],
       cliPath: overridePath || null,
       history,
+      // Clamped here too (not only in the settings setter): a hand-edited
+      // negative value in the settings JSON would fail Rust's Option<u64>
+      // deserialization and break every ollama send.
       numCtx: opts.cli === 'ollama' && Number.isFinite(settings.value.ai.ollamaNumCtx)
-        ? Math.floor(settings.value.ai.ollamaNumCtx)
+        ? Math.max(OLLAMA_MIN_NUM_CTX, Math.floor(settings.value.ai.ollamaNumCtx))
         : null,
     };
 

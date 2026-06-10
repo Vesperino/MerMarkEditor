@@ -156,17 +156,23 @@ pub fn window_from_lmstudio_models(v: &serde_json::Value, model: &str) -> Option
         .or_else(|| entry.get("max_context_length").and_then(|n| n.as_u64()))
 }
 
-async fn get_json(client: &reqwest::Client, url: &str) -> Option<serde_json::Value> {
-    let resp = client.get(url).send().await.ok()?;
+/// Ok(Some) — parsed body; Ok(None) — the server answered but the response was
+/// unusable (non-2xx or bad JSON); Err(()) — no HTTP response at all
+/// (connect/timeout). The distinction drives the cache policy below.
+async fn get_json(client: &reqwest::Client, url: &str) -> Result<Option<serde_json::Value>, ()> {
+    let resp = client.get(url).send().await.map_err(|_| ())?;
     if !resp.status().is_success() {
-        return None;
+        return Ok(None);
     }
-    resp.json().await.ok()
+    Ok(resp.json().await.ok())
 }
 
 /// Run the OpenAI-compatible detection chain for (base, model). The outcome —
 /// including a miss — is cached so a metadata-less server doesn't cost three
-/// probe requests on every send.
+/// probe requests on every send. A miss is only cached when at least one probe
+/// got an HTTP response: when the server was simply down, caching the miss
+/// would pin the frontend default for the process lifetime even after the
+/// server comes back up, so we retry on the next send instead.
 pub async fn openai_context_window(base: &str, model: &str) -> Option<u64> {
     if model.is_empty() {
         return None;
@@ -177,21 +183,30 @@ pub async fn openai_context_window(base: &str, model: &str) -> Option<u64> {
         return *hit;
     }
     let client = crate::ai::process::http_client(Some(std::time::Duration::from_secs(3)));
-    let mut found = get_json(&client, &format!("{}/v1/models", base))
-        .await
+    let mut responded = false;
+    let mut probe = |res: Result<Option<serde_json::Value>, ()>| {
+        match res {
+            Ok(v) => {
+                responded = true;
+                v
+            }
+            Err(()) => None,
+        }
+    };
+    let mut found = probe(get_json(&client, &format!("{}/v1/models", base)).await)
         .and_then(|v| window_from_v1_models(&v, model));
     if found.is_none() {
-        found = get_json(&client, &format!("{}/props", base))
-            .await
+        found = probe(get_json(&client, &format!("{}/props", base)).await)
             .and_then(|v| window_from_props(&v));
     }
     if found.is_none() {
-        found = get_json(&client, &format!("{}/api/v0/models", base))
-            .await
+        found = probe(get_json(&client, &format!("{}/api/v0/models", base)).await)
             .and_then(|v| window_from_lmstudio_models(&v, model));
     }
     let found = found.filter(|n| *n > 0);
-    cache.lock().unwrap().insert(key, found);
+    if responded {
+        cache.lock().unwrap().insert(key, found);
+    }
     found
 }
 
