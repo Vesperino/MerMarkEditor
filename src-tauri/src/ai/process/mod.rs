@@ -232,13 +232,37 @@ fn spawn_pump(
     }
 }
 
-pub fn cancel(registry: &ChildRegistry, request_id: &str) {
+pub fn cancel(app: &AppHandle, window_label: &str, registry: &ChildRegistry, request_id: &str) {
+    if let Some(chunk) = cancel_inner(registry, request_id) {
+        let event = format!("ai:stream:{}", request_id);
+        let _ = app.emit_to(window_label, &event, chunk);
+    }
+}
+
+/// Kill/abort whatever is registered under `request_id`. A killed CLI child
+/// makes its stdout pump synthesise the terminal Error itself, but aborting an
+/// HTTP task kills the emitter outright — so return the terminal chunk for the
+/// caller to emit, otherwise the frontend's completion promise never resolves
+/// and every subsequent send fails with "A send is already in flight".
+fn cancel_inner(registry: &ChildRegistry, request_id: &str) -> Option<AiResponseChunk> {
     if let Some(mut child) = registry.take(request_id) {
         kill_tree(&mut child);
     }
-    if let Some(handle) = registry.take_abort(request_id) {
+    registry.take_abort(request_id).map(|handle| {
         handle.abort();
+        AiResponseChunk::Error { message: "Cancelled".to_string(), exit_code: None }
+    })
+}
+
+/// Local-provider HTTP client: 5 s to establish the connection; `total` caps
+/// the whole request when given. Streaming responses pass `None` — they run
+/// for as long as the model generates.
+pub(crate) fn http_client(total: Option<std::time::Duration>) -> reqwest::Client {
+    let mut builder = reqwest::Client::builder().connect_timeout(std::time::Duration::from_secs(5));
+    if let Some(t) = total {
+        builder = builder.timeout(t);
     }
+    builder.build().expect("default reqwest client must build")
 }
 
 /// Cross-platform "kill the spawned process AND its descendants". On Windows
@@ -279,5 +303,28 @@ mod tests {
     #[test]
     fn join_message_parts_prompt_only() {
         assert_eq!(join_message_parts(&["", "", "prompt"]), "prompt");
+    }
+
+    #[tokio::test]
+    async fn cancel_aborts_http_task_and_yields_terminal_chunk() {
+        let registry = ChildRegistry::new();
+        let task = tokio::spawn(std::future::pending::<()>());
+        registry.insert_abort("r1".into(), task.abort_handle());
+
+        match cancel_inner(&registry, "r1") {
+            Some(AiResponseChunk::Error { message, exit_code }) => {
+                assert_eq!(message, "Cancelled");
+                assert_eq!(exit_code, None);
+            }
+            other => panic!("expected terminal Error chunk, got {:?}", other),
+        }
+        assert!(task.await.unwrap_err().is_cancelled());
+        assert!(registry.take_abort("r1").is_none());
+    }
+
+    #[test]
+    fn cancel_without_registered_work_yields_no_chunk() {
+        let registry = ChildRegistry::new();
+        assert!(cancel_inner(&registry, "missing").is_none());
     }
 }

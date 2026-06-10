@@ -319,8 +319,13 @@ async fn ai_send(
 }
 
 #[tauri::command]
-fn ai_cancel(registry: tauri::State<'_, ai::process::ChildRegistry>, request_id: String) {
-    ai::process::cancel(&registry, &request_id);
+fn ai_cancel(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    registry: tauri::State<'_, ai::process::ChildRegistry>,
+    request_id: String,
+) {
+    ai::process::cancel(&app, window.label(), &registry, &request_id);
 }
 
 /// Persist an image (clipboard paste, drag-drop, etc.) to a temporary file

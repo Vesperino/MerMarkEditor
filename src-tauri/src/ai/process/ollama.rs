@@ -65,17 +65,15 @@ pub async fn stream(
     request_id: String,
 ) -> Result<String, String> {
     let event = format!("ai:stream:{}", request_id);
-    let reg_request_id = request_id.clone();
 
     let specs = file_tools::tool_specs(&req.access_map.tools);
     if specs.is_empty() {
         return stream_plain(app, window_label, registry, req, request_id).await;
     }
 
-    let handle = tokio::spawn(async move {
+    registry.spawn_abortable(request_id.clone(), async move {
         run_tool_loop(app, window_label, event, req, specs).await;
     });
-    registry.insert_abort(reg_request_id, handle.abort_handle());
     Ok(request_id)
 }
 
@@ -90,10 +88,9 @@ async fn stream_plain(
     let url = format!("{}/api/chat", base_url(&req));
     let body = build_chat_body(&req);
     let event = format!("ai:stream:{}", request_id);
-    let reg_request_id = request_id.clone();
 
-    let handle = tokio::spawn(async move {
-        let client = reqwest::Client::new();
+    registry.spawn_abortable(request_id.clone(), async move {
+        let client = crate::ai::process::http_client(None);
         let resp = match client.post(&url).json(&body).send().await {
             Ok(r) => r,
             Err(e) => {
@@ -152,8 +149,6 @@ async fn stream_plain(
             );
         }
     });
-
-    registry.insert_abort(reg_request_id, handle.abort_handle());
     Ok(request_id)
 }
 
@@ -171,7 +166,7 @@ async fn run_tool_loop(
     specs: Vec<serde_json::Value>,
 ) {
     let url = format!("{}/api/chat", base_url(&req));
-    let client = reqwest::Client::new();
+    let client = crate::ai::process::http_client(Some(std::time::Duration::from_secs(180)));
     let mut messages = initial_messages(&req);
 
     for _round in 0..file_tools::MAX_TOOL_ROUNDS {
@@ -294,10 +289,11 @@ fn renamed_usage(v: &serde_json::Value) -> Option<serde_json::Value> {
 }
 
 /// List installed models via `GET {base}/api/tags`. A connection error yields
-/// an empty list so the UI degrades gracefully when Ollama is not running.
+/// an Err; the frontend catches it and degrades to the custom-only picker when
+/// Ollama is not running.
 pub async fn list_models(base: Option<&str>) -> Result<Vec<String>, String> {
     let url = format!("{}/api/tags", normalize_base(base));
-    let client = reqwest::Client::new();
+    let client = crate::ai::process::http_client(Some(std::time::Duration::from_secs(5)));
     let resp = client.get(&url).send().await.map_err(|e| ollama_error(&e))?;
     if !resp.status().is_success() {
         return Err(format!("Ollama /api/tags returned HTTP {}.", resp.status().as_u16()));
