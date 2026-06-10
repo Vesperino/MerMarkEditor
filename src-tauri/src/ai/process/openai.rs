@@ -16,7 +16,7 @@
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 
-use crate::ai::process::{file_tools, normalizer, AiSendRequest, ChildRegistry};
+use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry};
 use crate::ai::types::AiResponseChunk;
 
 pub const DEFAULT_BASE_URL: &str = "http://localhost:8080";
@@ -72,97 +72,103 @@ pub async fn stream(
     request_id: String,
 ) -> Result<String, String> {
     let event = format!("ai:stream:{}", request_id);
-
     let specs = file_tools::tool_specs(&req.access_map.tools);
-    if specs.is_empty() {
-        return stream_plain(app, window_label, registry, req, request_id).await;
-    }
 
     registry.spawn_abortable(request_id.clone(), async move {
-        run_tool_loop(app, window_label, event, req, specs).await;
+        // Once per send (cached per (base, model)): run the detection chain so
+        // the Done usage can carry the real context window. A full miss keeps
+        // the frontend default.
+        let base = base_url(&req);
+        let model = req.model.clone().unwrap_or_default();
+        let window = local_ctx::openai_context_window(&base, &model).await;
+
+        if specs.is_empty() {
+            run_plain(app, window_label, event, req, window).await;
+        } else {
+            run_tool_loop(app, window_label, event, req, specs, window).await;
+        }
     });
     Ok(request_id)
 }
 
-/// Existing streaming plain-chat path, preserved verbatim for the no-tools case.
-async fn stream_plain(
+/// Streaming plain-chat path (no tools offered).
+async fn run_plain(
     app: AppHandle,
     window_label: String,
-    registry: &ChildRegistry,
+    event: String,
     req: AiSendRequest,
-    request_id: String,
-) -> Result<String, String> {
+    window: Option<u64>,
+) {
     let url = format!("{}/v1/chat/completions", base_url(&req));
     let body = build_chat_body(&req);
-    let event = format!("ai:stream:{}", request_id);
+    let model = req.model.clone().unwrap_or_default();
 
-    registry.spawn_abortable(request_id.clone(), async move {
-        let client = crate::ai::process::http_client(None);
-        let resp = match client.post(&url).json(&body).send().await {
-            Ok(r) => r,
-            Err(e) => {
-                emit_error(&app, &window_label, &event, openai_error(&e));
-                return;
-            }
-        };
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let detail = resp.text().await.unwrap_or_default();
-            let message = if detail.trim().is_empty() {
-                format!("OpenAI-compatible request failed with HTTP {}.", status.as_u16())
-            } else {
-                format!("OpenAI-compatible request failed (HTTP {}): {}", status.as_u16(), detail.trim())
-            };
-            emit_error(&app, &window_label, &event, message);
+    let client = crate::ai::process::http_client(None);
+    let resp = match client.post(&url).json(&body).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            emit_error(&app, &window_label, &event, openai_error(&e));
             return;
         }
+    };
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let detail = resp.text().await.unwrap_or_default();
+        let message = if detail.trim().is_empty() {
+            format!("OpenAI-compatible request failed with HTTP {}.", status.as_u16())
+        } else {
+            format!("OpenAI-compatible request failed (HTTP {}): {}", status.as_u16(), detail.trim())
+        };
+        emit_error(&app, &window_label, &event, message);
+        return;
+    }
 
-        let mut buf = String::new();
-        let mut done_emitted = false;
-        let mut bytes = resp.bytes_stream();
-        while let Some(chunk) = bytes.next().await {
-            match chunk {
-                Ok(bytes) => {
-                    buf.push_str(&String::from_utf8_lossy(&bytes));
-                    while let Some(nl) = buf.find('\n') {
-                        let line: String = buf.drain(..=nl).collect();
-                        // The usage-bearing Done arrives just before `[DONE]`;
-                        // once we've finalised, ignore the trailing terminator
-                        // so the turn isn't finalised twice.
-                        if done_emitted {
-                            continue;
+    let mut buf = String::new();
+    let mut done_emitted = false;
+    let mut bytes = resp.bytes_stream();
+    while let Some(chunk) = bytes.next().await {
+        match chunk {
+            Ok(bytes) => {
+                buf.push_str(&String::from_utf8_lossy(&bytes));
+                while let Some(nl) = buf.find('\n') {
+                    let line: String = buf.drain(..=nl).collect();
+                    // The usage-bearing Done arrives just before `[DONE]`;
+                    // once we've finalised, ignore the trailing terminator
+                    // so the turn isn't finalised twice.
+                    if done_emitted {
+                        continue;
+                    }
+                    if let Some(parsed) = normalizer::parse_line_openai(line.trim()) {
+                        if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
+                            done_emitted = true;
                         }
-                        if let Some(parsed) = normalizer::parse_line_openai(line.trim()) {
-                            if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
-                                done_emitted = true;
-                            }
-                            let _ = app.emit_to(window_label.as_str(), &event, parsed);
-                        }
+                        let parsed = local_ctx::inject_into_done(parsed, &model, window);
+                        let _ = app.emit_to(window_label.as_str(), &event, parsed);
                     }
                 }
-                Err(e) => {
-                    emit_error(&app, &window_label, &event, openai_error(&e));
-                    done_emitted = true;
-                    break;
-                }
             }
-        }
-        if !done_emitted {
-            if let Some(parsed) = normalizer::parse_line_openai(buf.trim()) {
-                let _ = app.emit_to(window_label.as_str(), &event, parsed);
+            Err(e) => {
+                emit_error(&app, &window_label, &event, openai_error(&e));
                 done_emitted = true;
+                break;
             }
         }
-        if !done_emitted {
-            emit_error(
-                &app,
-                &window_label,
-                &event,
-                "OpenAI-compatible stream ended without finalising the turn.".to_string(),
-            );
+    }
+    if !done_emitted {
+        if let Some(parsed) = normalizer::parse_line_openai(buf.trim()) {
+            let parsed = local_ctx::inject_into_done(parsed, &model, window);
+            let _ = app.emit_to(window_label.as_str(), &event, parsed);
+            done_emitted = true;
         }
-    });
-    Ok(request_id)
+    }
+    if !done_emitted {
+        emit_error(
+            &app,
+            &window_label,
+            &event,
+            "OpenAI-compatible stream ended without finalising the turn.".to_string(),
+        );
+    }
 }
 
 /// App-driven tool-calling loop. Intermediate rounds are non-streaming POSTs
@@ -176,6 +182,7 @@ async fn run_tool_loop(
     event: String,
     req: AiSendRequest,
     specs: Vec<serde_json::Value>,
+    window: Option<u64>,
 ) {
     let url = format!("{}/v1/chat/completions", base_url(&req));
     let client = crate::ai::process::http_client(Some(std::time::Duration::from_secs(180)));
@@ -247,11 +254,12 @@ async fn run_tool_loop(
                 );
             }
             let usage = renamed_usage(&v);
-            let _ = app.emit_to(
-                window_label.as_str(),
-                &event,
+            let done = local_ctx::inject_into_done(
                 AiResponseChunk::Done { session_id: String::new(), usage },
+                req.model.as_deref().unwrap_or_default(),
+                window,
             );
+            let _ = app.emit_to(window_label.as_str(), &event, done);
             return;
         }
 
@@ -367,6 +375,7 @@ mod tests {
             images: vec![],
             cli_path: cli_path.map(|s| s.to_string()),
             history,
+            num_ctx: None,
         }
     }
 

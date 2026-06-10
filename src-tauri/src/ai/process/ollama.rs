@@ -14,7 +14,7 @@
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 
-use crate::ai::process::{file_tools, normalizer, AiSendRequest, ChildRegistry};
+use crate::ai::process::{file_tools, local_ctx, normalizer, AiSendRequest, ChildRegistry};
 use crate::ai::types::AiResponseChunk;
 
 pub const DEFAULT_BASE_URL: &str = "http://localhost:11434";
@@ -32,11 +32,12 @@ fn normalize_base(raw: Option<&str>) -> String {
     base.trim_end_matches('/').to_string()
 }
 
-fn build_chat_body(req: &AiSendRequest) -> serde_json::Value {
+fn build_chat_body(req: &AiSendRequest, num_ctx: u64) -> serde_json::Value {
     serde_json::json!({
         "model": req.model.clone().unwrap_or_default(),
         "messages": initial_messages(req),
         "stream": true,
+        "options": { "num_ctx": num_ctx },
     })
 }
 
@@ -65,91 +66,109 @@ pub async fn stream(
     request_id: String,
 ) -> Result<String, String> {
     let event = format!("ai:stream:{}", request_id);
-
     let specs = file_tools::tool_specs(&req.access_map.tools);
-    if specs.is_empty() {
-        return stream_plain(app, window_label, registry, req, request_id).await;
-    }
 
     registry.spawn_abortable(request_id.clone(), async move {
-        run_tool_loop(app, window_label, event, req, specs).await;
+        // Once per send (process-lifetime cache behind it): learn the model's
+        // trained context + capabilities so we can cap num_ctx, report the
+        // real window, and gate tool calling.
+        let base = base_url(&req);
+        let model = req.model.clone().unwrap_or_default();
+        let show = local_ctx::ollama_show(&base, &model).await;
+        let trained = show.as_ref().and_then(|s| s.trained_ctx);
+        let num_ctx = local_ctx::effective_num_ctx(req.num_ctx, trained);
+        // Window injection only when /api/show answered — otherwise the
+        // frontend keeps its default.
+        let window = show.as_ref().map(|_| num_ctx);
+
+        if !specs.is_empty() {
+            if local_ctx::tools_capable(show.as_ref()) {
+                run_tool_loop(app, window_label, event, req, specs, num_ctx, window).await;
+                return;
+            }
+            eprintln!(
+                "[ai ollama] model '{}' lacks the 'tools' capability — falling back to plain chat",
+                model
+            );
+        }
+        run_plain(app, window_label, event, req, num_ctx, window).await;
     });
     Ok(request_id)
 }
 
-/// Existing streaming plain-chat path, preserved verbatim for the no-tools case.
-async fn stream_plain(
+/// Streaming plain-chat path (no tools offered).
+async fn run_plain(
     app: AppHandle,
     window_label: String,
-    registry: &ChildRegistry,
+    event: String,
     req: AiSendRequest,
-    request_id: String,
-) -> Result<String, String> {
+    num_ctx: u64,
+    window: Option<u64>,
+) {
     let url = format!("{}/api/chat", base_url(&req));
-    let body = build_chat_body(&req);
-    let event = format!("ai:stream:{}", request_id);
+    let body = build_chat_body(&req, num_ctx);
+    let model = req.model.clone().unwrap_or_default();
 
-    registry.spawn_abortable(request_id.clone(), async move {
-        let client = crate::ai::process::http_client(None);
-        let resp = match client.post(&url).json(&body).send().await {
-            Ok(r) => r,
-            Err(e) => {
-                emit_error(&app, &window_label, &event, ollama_error(&e));
-                return;
-            }
-        };
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let detail = resp.text().await.unwrap_or_default();
-            let message = if detail.trim().is_empty() {
-                format!("Ollama request failed with HTTP {}.", status.as_u16())
-            } else {
-                format!("Ollama request failed (HTTP {}): {}", status.as_u16(), detail.trim())
-            };
-            emit_error(&app, &window_label, &event, message);
+    let client = crate::ai::process::http_client(None);
+    let resp = match client.post(&url).json(&body).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            emit_error(&app, &window_label, &event, ollama_error(&e));
             return;
         }
+    };
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let detail = resp.text().await.unwrap_or_default();
+        let message = if detail.trim().is_empty() {
+            format!("Ollama request failed with HTTP {}.", status.as_u16())
+        } else {
+            format!("Ollama request failed (HTTP {}): {}", status.as_u16(), detail.trim())
+        };
+        emit_error(&app, &window_label, &event, message);
+        return;
+    }
 
-        let mut buf = String::new();
-        let mut done_emitted = false;
-        let mut bytes = resp.bytes_stream();
-        while let Some(chunk) = bytes.next().await {
-            match chunk {
-                Ok(bytes) => {
-                    buf.push_str(&String::from_utf8_lossy(&bytes));
-                    while let Some(nl) = buf.find('\n') {
-                        let line: String = buf.drain(..=nl).collect();
-                        if let Some(parsed) = normalizer::parse_line_ollama(line.trim()) {
-                            if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
-                                done_emitted = true;
-                            }
-                            let _ = app.emit_to(window_label.as_str(), &event, parsed);
+    let mut buf = String::new();
+    let mut done_emitted = false;
+    let mut bytes = resp.bytes_stream();
+    while let Some(chunk) = bytes.next().await {
+        match chunk {
+            Ok(bytes) => {
+                buf.push_str(&String::from_utf8_lossy(&bytes));
+                while let Some(nl) = buf.find('\n') {
+                    let line: String = buf.drain(..=nl).collect();
+                    if let Some(parsed) = normalizer::parse_line_ollama(line.trim()) {
+                        if matches!(parsed, AiResponseChunk::Done { .. } | AiResponseChunk::Error { .. }) {
+                            done_emitted = true;
                         }
+                        let parsed = local_ctx::inject_into_done(parsed, &model, window);
+                        let _ = app.emit_to(window_label.as_str(), &event, parsed);
                     }
                 }
-                Err(e) => {
-                    emit_error(&app, &window_label, &event, ollama_error(&e));
-                    done_emitted = true;
-                    break;
-                }
             }
-        }
-        if !done_emitted {
-            if let Some(parsed) = normalizer::parse_line_ollama(buf.trim()) {
-                let _ = app.emit_to(window_label.as_str(), &event, parsed);
+            Err(e) => {
+                emit_error(&app, &window_label, &event, ollama_error(&e));
                 done_emitted = true;
+                break;
             }
         }
-        if !done_emitted {
-            emit_error(
-                &app,
-                &window_label,
-                &event,
-                "Ollama stream ended without finalising the turn.".to_string(),
-            );
+    }
+    if !done_emitted {
+        if let Some(parsed) = normalizer::parse_line_ollama(buf.trim()) {
+            let parsed = local_ctx::inject_into_done(parsed, &model, window);
+            let _ = app.emit_to(window_label.as_str(), &event, parsed);
+            done_emitted = true;
         }
-    });
-    Ok(request_id)
+    }
+    if !done_emitted {
+        emit_error(
+            &app,
+            &window_label,
+            &event,
+            "Ollama stream ended without finalising the turn.".to_string(),
+        );
+    }
 }
 
 /// App-driven tool-calling loop for `/api/chat`. Intermediate rounds are
@@ -164,6 +183,8 @@ async fn run_tool_loop(
     event: String,
     req: AiSendRequest,
     specs: Vec<serde_json::Value>,
+    num_ctx: u64,
+    window: Option<u64>,
 ) {
     let url = format!("{}/api/chat", base_url(&req));
     let client = crate::ai::process::http_client(Some(std::time::Duration::from_secs(180)));
@@ -175,6 +196,7 @@ async fn run_tool_loop(
             "messages": messages,
             "stream": false,
             "tools": specs,
+            "options": { "num_ctx": num_ctx },
         });
         let resp = match client.post(&url).json(&body).send().await {
             Ok(r) => r,
@@ -222,11 +244,12 @@ async fn run_tool_loop(
                 );
             }
             let usage = renamed_usage(&v);
-            let _ = app.emit_to(
-                window_label.as_str(),
-                &event,
+            let done = local_ctx::inject_into_done(
                 AiResponseChunk::Done { session_id: String::new(), usage },
+                req.model.as_deref().unwrap_or_default(),
+                window,
             );
+            let _ = app.emit_to(window_label.as_str(), &event, done);
             return;
         }
 
@@ -347,6 +370,7 @@ mod tests {
             images: vec![],
             cli_path: cli_path.map(|s| s.to_string()),
             history,
+            num_ctx: None,
         }
     }
 
@@ -370,7 +394,7 @@ mod tests {
 
     #[test]
     fn chat_body_includes_system_message_only_with_preamble() {
-        let with = build_chat_body(&req_with(None, Some("llama3"), "be terse"));
+        let with = build_chat_body(&req_with(None, Some("llama3"), "be terse"), 8192);
         let msgs = with["messages"].as_array().unwrap();
         assert_eq!(msgs.len(), 2);
         assert_eq!(msgs[0]["role"], "system");
@@ -378,8 +402,14 @@ mod tests {
         assert_eq!(with["model"], "llama3");
         assert_eq!(with["stream"], true);
 
-        let without = build_chat_body(&req_with(None, Some("llama3"), ""));
+        let without = build_chat_body(&req_with(None, Some("llama3"), ""), 8192);
         assert_eq!(without["messages"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn chat_body_carries_num_ctx_option() {
+        let body = build_chat_body(&req_with(None, Some("llama3"), ""), 16384);
+        assert_eq!(body["options"]["num_ctx"], 16384);
     }
 
     #[test]

@@ -3,6 +3,7 @@ pub mod normalizer;
 pub mod claude;
 pub mod codex;
 pub mod file_tools;
+pub mod local_ctx;
 pub mod ollama;
 pub mod openai;
 
@@ -49,6 +50,11 @@ pub struct AiSendRequest {
     /// Default empty so existing callers are unaffected.
     #[serde(default)]
     pub history: Vec<file_tools::HistoryTurn>,
+    /// Requested Ollama runtime window (settings.ai.ollamaNumCtx), sent as
+    /// `options.num_ctx` capped at the model's trained context. None falls
+    /// back to `local_ctx::DEFAULT_NUM_CTX`. Other providers ignore it.
+    #[serde(default)]
+    pub num_ctx: Option<u64>,
 }
 
 pub async fn spawn(

@@ -76,6 +76,8 @@ export interface AiSendRequest {
   cliPath?: string | null;
   /** Prior turns for local providers only; empty/omitted for claude/codex. */
   history?: AiHistoryTurn[];
+  /** Ollama runtime window (options.num_ctx); null/omitted for other providers. */
+  numCtx?: number | null;
 }
 
 export type AiResponseChunk =

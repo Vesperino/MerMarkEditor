@@ -328,6 +328,8 @@ export interface Translations {
   aiOllamaLocalHint: string;
   aiOllamaBaseUrlPlaceholder: string;
   aiOllamaBaseUrlHelper: string;
+  aiOllamaNumCtxLabel: string;
+  aiOllamaNumCtxHelper: string;
   aiCliStatusOpenai: string;
   aiOpenaiConnected: (info: string) => string;
   aiOpenaiNotRunning: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useSettings } from '../../composables/useSettings';
+import { useSettings, OLLAMA_DEFAULT_NUM_CTX, OLLAMA_MIN_NUM_CTX } from '../../composables/useSettings';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -230,6 +230,29 @@ describe('useSettings', () => {
       expect(settings.value.ai.defaultModelCodex).toBeDefined();
       expect(settings.value.ai.effortClaude).toBeDefined();
       expect(settings.value.ai.effortCodex).toBeDefined();
+      // ollamaNumCtx arrived after the local-provider release — the ai
+      // deep-merge must backfill it for existing installs.
+      expect(typeof settings.value.ai.ollamaNumCtx).toBe('number');
+    });
+
+    it('defaults ollamaNumCtx to 8192', () => {
+      const { settings, setAiOllamaNumCtx } = useSettings();
+      setAiOllamaNumCtx(OLLAMA_DEFAULT_NUM_CTX);
+      expect(settings.value.ai.ollamaNumCtx).toBe(8192);
+      expect(OLLAMA_DEFAULT_NUM_CTX).toBe(8192);
+    });
+
+    it('persists and clamps ollamaNumCtx', () => {
+      const { settings, setAiOllamaNumCtx } = useSettings();
+      setAiOllamaNumCtx(16384);
+      expect(settings.value.ai.ollamaNumCtx).toBe(16384);
+      setAiOllamaNumCtx(64);
+      expect(settings.value.ai.ollamaNumCtx).toBe(OLLAMA_MIN_NUM_CTX);
+      setAiOllamaNumCtx(Number.NaN);
+      expect(settings.value.ai.ollamaNumCtx).toBe(OLLAMA_DEFAULT_NUM_CTX);
+      setAiOllamaNumCtx(4096.9);
+      expect(settings.value.ai.ollamaNumCtx).toBe(4096);
+      setAiOllamaNumCtx(OLLAMA_DEFAULT_NUM_CTX);
     });
   });
 });

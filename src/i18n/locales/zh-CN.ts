@@ -322,6 +322,8 @@ const zhCN: Translations = {
   aiOllamaLocalHint: '在本机离线运行',
   aiOllamaBaseUrlPlaceholder: 'http://localhost:11434',
   aiOllamaBaseUrlHelper: '本地 Ollama 服务器的基础 URL。需要本地安装 Ollama（ollama serve）。',
+  aiOllamaNumCtxLabel: '上下文窗口（num_ctx）',
+  aiOllamaNumCtxHelper: 'num_ctx 限制模型单次请求可见的 token 数——窗口越大，占用的内存/显存越多。',
   aiCliStatusOpenai: '兼容 OpenAI（本地）',
   aiOpenaiConnected: (info: string) => `已连接 — ${info}`,
   aiOpenaiNotRunning: '未运行 — 请启动本地服务器或检查基础 URL',

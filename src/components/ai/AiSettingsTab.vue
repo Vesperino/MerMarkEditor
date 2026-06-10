@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from '../../i18n';
-import { useSettings, type CliKind, type PanelSide } from '../../composables/useSettings';
+import { useSettings, OLLAMA_MIN_NUM_CTX, type CliKind, type PanelSide } from '../../composables/useSettings';
 import { useAi } from '../../composables/useAi';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
@@ -19,6 +19,7 @@ const {
   setAiDefaultModelOllama,
   setAiDefaultModelOpenai,
   setAiOllamaBaseUrl,
+  setAiOllamaNumCtx,
   setAiOpenaiBaseUrl,
   setAiEffortClaude,
   setAiEffortCodex,
@@ -360,8 +361,17 @@ async function copyAudit() {
             :placeholder="t.aiOllamaBaseUrlPlaceholder"
             @change="applyOllamaBaseUrl(($event.target as HTMLInputElement).value)"
           />
+          <span class="ai-numctx-label">{{ t.aiOllamaNumCtxLabel }}</span>
+          <input
+            class="ai-numctx-input"
+            type="number"
+            :min="OLLAMA_MIN_NUM_CTX"
+            step="1024"
+            :value="settings.ai.ollamaNumCtx"
+            @change="setAiOllamaNumCtx(Number(($event.target as HTMLInputElement).value))"
+          />
         </label>
-        <small class="ai-helper ai-helper--inline">{{ t.aiOllamaBaseUrlHelper }}</small>
+        <small class="ai-helper ai-helper--inline">{{ t.aiOllamaBaseUrlHelper }} {{ t.aiOllamaNumCtxHelper }}</small>
       </div>
 
       <div class="ai-cli-block">
@@ -694,6 +704,12 @@ async function copyAudit() {
   margin-top: 6px;
 }
 .ai-cli-path-row input[type="text"] { flex: 1; min-width: 200px; }
+.ai-numctx-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ai-cli-path-row .ai-numctx-input { min-width: 110px; width: 110px; }
 .ai-helper--inline { padding-left: 0; margin-top: 4px; }
 .ai-cli-path-searched {
   margin: 6px 0 0;

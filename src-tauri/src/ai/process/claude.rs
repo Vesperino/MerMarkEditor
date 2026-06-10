@@ -203,6 +203,7 @@ mod tests {
             images: vec![],
             cli_path: None,
             history: vec![],
+            num_ctx: None,
         }
     }
 

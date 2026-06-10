@@ -377,6 +377,9 @@ export function useAi() {
       images: opts.images ?? [],
       cliPath: overridePath || null,
       history,
+      numCtx: opts.cli === 'ollama' && Number.isFinite(settings.value.ai.ollamaNumCtx)
+        ? Math.floor(settings.value.ai.ollamaNumCtx)
+        : null,
     };
 
     try {

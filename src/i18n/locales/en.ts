@@ -322,6 +322,8 @@ const en: Translations = {
   aiOllamaLocalHint: 'Runs offline on your machine',
   aiOllamaBaseUrlPlaceholder: 'http://localhost:11434',
   aiOllamaBaseUrlHelper: 'Base URL of your local Ollama server. Requires a local Ollama install (ollama serve).',
+  aiOllamaNumCtxLabel: 'Context window (num_ctx)',
+  aiOllamaNumCtxHelper: 'num_ctx caps the tokens the model sees per request — bigger windows use more RAM/VRAM.',
   aiCliStatusOpenai: 'OpenAI-compatible (local)',
   aiOpenaiConnected: (info: string) => `Connected — ${info}`,
   aiOpenaiNotRunning: 'Not running — start your local server or check the base URL',
