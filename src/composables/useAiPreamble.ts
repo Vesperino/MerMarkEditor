@@ -44,17 +44,17 @@ interface PinScopeStrings {
 export const PIN_SCOPE_INSTRUCTIONS: Record<string, PinScopeStrings> = {
   en: {
     header: (n) => `The user attached ${n} fragment(s) below.`,
-    rule: 'Unless the user explicitly says otherwise, treat the user\'s request as applying to THESE fragments specifically — not the whole document. Apply transformations / translations / edits to the attached fragments only.',
+    rule: 'Unless the user explicitly says otherwise, treat the user\'s request as applying to THESE fragments specifically — not the whole document. Only when the user explicitly asks for changes, apply them to the attached fragments only; for questions, opinions or discussion answer in chat and do not edit anything.',
     reply: 'Reply in the same language as the user\'s most recent message.',
   },
   pl: {
     header: (n) => `Użytkownik załączył poniżej ${n} fragment(ów).`,
-    rule: 'Jeśli użytkownik wyraźnie nie zaznaczy inaczej, traktuj jego polecenie jako odnoszące się DO TYCH fragmentów — nie do całego dokumentu. Wszelkie przekształcenia / tłumaczenia / edycje stosuj tylko do załączonych fragmentów.',
+    rule: 'Jeśli użytkownik wyraźnie nie zaznaczy inaczej, traktuj jego polecenie jako odnoszące się DO TYCH fragmentów — nie do całego dokumentu. Zmiany wprowadzaj wyłącznie wtedy, gdy użytkownik wprost o nie prosi — i tylko w załączonych fragmentach; na pytania i prośby o opinię odpowiadaj w czacie, niczego nie edytując.',
     reply: 'Odpowiadaj w tym samym języku co ostatnia wiadomość użytkownika.',
   },
   'zh-CN': {
     header: (n) => `用户在下方附加了 ${n} 个片段。`,
-    rule: '除非用户明确说明，否则将用户的请求视为仅针对这些片段，而不是整个文档。所有转换/翻译/编辑只应用于附加的片段。',
+    rule: '除非用户明确说明，否则将用户的请求视为仅针对这些片段，而不是整个文档。仅当用户明确要求修改时，才对附加片段进行更改；如果用户只是提问或讨论，请直接在对话中回答，不要编辑文件。',
     reply: '请使用与用户最近一条消息相同的语言回复。',
   },
 };
@@ -94,7 +94,9 @@ export function buildStaticPreamble(opts: PreambleOptions): string {
       lines.push(
         `You have these tools available: read_file(path), list_dir(path), write_file(path, content), edit_file(path, old_string, new_string). The only writable target is the active document above; reads are limited to its folder plus any granted read paths.`,
         `To explore a granted folder, call list_dir(path) to enumerate its files and subfolders before reading individual files with read_file — read_file works on files only, not directories.`,
-        `When the user asks for edits to the active file, you MUST call edit_file (for a small change) or write_file (to replace the whole file) to apply it on disk. Read the file first with read_file if you need its current content. The host reloads the editor from disk after the tools run.`,
+        `When the user asks for edits to the active file, you MUST call edit_file (for a small change) or write_file (to replace the whole file) to apply it on disk. The host reloads the editor from disk after the tools run.`,
+        `Call editing tools ONLY when the user explicitly asks for a change. For questions, summaries, feedback or discussion, reply in chat with NO tool calls.`,
+        `Before edit_file, call read_file and copy old_string EXACTLY from its output, including whitespace and line breaks — a reconstructed-from-memory old_string will not match and the edit is rejected.`,
         `Never claim in prose that you edited or updated the file — an edit only counts if you actually call edit_file / write_file. To edit, call the tools; do not paste the whole file back into chat.`,
       );
     } else {
