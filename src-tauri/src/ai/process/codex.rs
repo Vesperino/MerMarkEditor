@@ -116,7 +116,11 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         e.to_string()
     })?;
 
-    let payload = format!("{}\n\n{}", req.preamble, req.prompt);
+    let payload = crate::ai::process::join_message_parts(&[
+        req.preamble.as_str(),
+        req.turn_context.as_str(),
+        req.prompt.as_str(),
+    ]);
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(payload.as_bytes())
@@ -125,6 +129,41 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         let _ = stdin.shutdown().await;
     }
     Ok(child)
+}
+
+/// Resolve the context window for a model slug from codex's own
+/// `models_cache.json` (under $CODEX_HOME, falling back to ~/.codex).
+/// codex `exec --json` never reports a window, so this is the only source.
+/// Any failure (missing file, malformed JSON, unknown slug) yields None.
+pub async fn resolve_context_window(model: Option<&str>) -> Option<u64> {
+    let slug = model.map(str::trim).filter(|s| !s.is_empty())?;
+    let path = models_cache_path()?;
+    let raw = tokio::fs::read_to_string(path).await.ok()?;
+    context_window_from_cache(&raw, slug)
+}
+
+fn models_cache_path() -> Option<std::path::PathBuf> {
+    let home = std::env::var("CODEX_HOME")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var("HOME")
+                .or_else(|_| std::env::var("USERPROFILE"))
+                .ok()
+                .map(|h| std::path::PathBuf::from(h).join(".codex"))
+        })?;
+    Some(home.join("models_cache.json"))
+}
+
+fn context_window_from_cache(raw: &str, slug: &str) -> Option<u64> {
+    let v: serde_json::Value = serde_json::from_str(raw).ok()?;
+    v.get("models")?
+        .as_array()?
+        .iter()
+        .find(|m| m.get("slug").and_then(|s| s.as_str()) == Some(slug))?
+        .get("context_window")?
+        .as_u64()
 }
 
 fn sandbox_mode(tools: &AccessMapTools, bypass: bool) -> &'static str {
@@ -162,5 +201,24 @@ mod tests {
     fn sandbox_mode_bypass_with_bash_is_danger_full_access() {
         let t = AccessMapTools { bash: true, ..AccessMapTools::default() };
         assert_eq!(sandbox_mode(&t, true), "danger-full-access");
+    }
+
+    const CACHE_FIXTURE: &str = r#"{"models":[
+        {"slug":"gpt-5.4-mini","context_window":150000,"max_context_window":150000},
+        {"slug":"gpt-5.4","context_window":272000,"max_context_window":1000000}
+    ]}"#;
+
+    #[test]
+    fn context_window_from_cache_resolves_exact_slug() {
+        assert_eq!(context_window_from_cache(CACHE_FIXTURE, "gpt-5.4"), Some(272000));
+        assert_eq!(context_window_from_cache(CACHE_FIXTURE, "gpt-5.4-mini"), Some(150000));
+    }
+
+    #[test]
+    fn context_window_from_cache_tolerates_unknown_slug_and_bad_json() {
+        assert_eq!(context_window_from_cache(CACHE_FIXTURE, "gpt-9"), None);
+        assert_eq!(context_window_from_cache("not json", "gpt-5.4"), None);
+        assert_eq!(context_window_from_cache(r#"{"models":{}}"#, "gpt-5.4"), None);
+        assert_eq!(context_window_from_cache(r#"{"models":[{"slug":"gpt-5.4"}]}"#, "gpt-5.4"), None);
     }
 }

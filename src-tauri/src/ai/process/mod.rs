@@ -23,6 +23,10 @@ pub struct AiSendRequest {
     pub effort: Option<String>,
     pub prompt: String,
     pub preamble: String,
+    /// Per-turn context (pins, unsaved-doc warning, mermaid mode). Sent every
+    /// turn, unlike `preamble` which the frontend gates to once per session.
+    #[serde(default)]
+    pub turn_context: String,
     pub access_map: AccessMap,
     pub bypass: bool,
     pub work_dir: String,
@@ -48,9 +52,12 @@ pub async fn spawn(
 ) -> Result<String, String> {
     eprintln!("[ai] spawn cli={:?} req_id={} session={:?} model={:?} effort={:?} bypass={} window={}",
         req.cli, request_id, req.session_id, req.model, req.effort, req.bypass, window_label);
-    let child = match req.cli {
-        CliKind::Claude => claude::spawn(&req).await?,
-        CliKind::Codex => codex::spawn(&req).await?,
+    let (child, codex_window) = match req.cli {
+        CliKind::Claude => (claude::spawn(&req).await?, None),
+        CliKind::Codex => {
+            let window = codex::resolve_context_window(req.model.as_deref()).await;
+            (codex::spawn(&req).await?, req.model.clone().zip(window))
+        }
     };
     eprintln!("[ai] child spawned for req_id={}", request_id);
     audit::append(&app, AuditEntry {
@@ -62,8 +69,18 @@ pub async fn spawn(
         result: serde_json::json!({}),
         exit_code: None,
     })?;
-    spawn_pump(app, window_label, registry.inner(), request_id.clone(), req.cli, child);
+    spawn_pump(app, window_label, registry.inner(), request_id.clone(), req.cli, child, codex_window);
     Ok(request_id)
+}
+
+/// Join the non-empty of [preamble, turn_context, prompt] with blank lines.
+pub fn join_message_parts(parts: &[&str]) -> String {
+    parts
+        .iter()
+        .filter(|p| !p.is_empty())
+        .copied()
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 fn spawn_pump(
@@ -73,6 +90,7 @@ fn spawn_pump(
     request_id: String,
     cli: CliKind,
     mut child: Child,
+    codex_window: Option<(String, u64)>,
 ) {
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
@@ -100,7 +118,11 @@ fn spawn_pump(
             // Both CLIs need cross-line state. Codex caches `thread_id` for the
             // final Done chunk; claude buffers `input_json_delta` slices into
             // the final tool-call arguments emitted on `content_block_stop`.
-            let mut codex_state = normalizer::CodexParserState::default();
+            let mut codex_state = normalizer::CodexParserState {
+                model: codex_window.as_ref().map(|(m, _)| m.clone()),
+                context_window: codex_window.map(|(_, w)| w),
+                ..Default::default()
+            };
             let mut claude_state = normalizer::ClaudeParserState::default();
             let mut done_emitted = false;
             while let Ok(Some(line)) = lines.next_line().await {
@@ -209,4 +231,24 @@ pub fn kill_tree(child: &mut tokio::process::Child) {
         }
     }
     let _ = child.start_kill();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn join_message_parts_joins_all_non_empty() {
+        assert_eq!(join_message_parts(&["pre", "turn", "prompt"]), "pre\n\nturn\n\nprompt");
+    }
+
+    #[test]
+    fn join_message_parts_skips_empty_preamble() {
+        assert_eq!(join_message_parts(&["", "turn", "prompt"]), "turn\n\nprompt");
+    }
+
+    #[test]
+    fn join_message_parts_prompt_only() {
+        assert_eq!(join_message_parts(&["", "", "prompt"]), "prompt");
+    }
 }

@@ -6,6 +6,11 @@ use crate::ai::types::AiResponseChunk;
 #[derive(Debug, Default)]
 pub struct CodexParserState {
     pub thread_id: Option<String>,
+    /// Model slug requested for this spawn. codex `--json` never reports a
+    /// context window, so the spawner resolves it from `models_cache.json`
+    /// up front and we inject it into the Done usage here.
+    pub model: Option<String>,
+    pub context_window: Option<u64>,
 }
 
 /// Per-stream parser state for claude. Tool calls arrive as a
@@ -23,6 +28,11 @@ pub struct ClaudeParserState {
     /// every sub-call, which over-reports occupancy (cache_read is re-counted
     /// per call), so we prefer this snapshot for the input-side fields.
     pub last_assistant_usage: Option<serde_json::Value>,
+    /// Model id of the LAST `assistant` message seen this turn. The `result`
+    /// event's `modelUsage` map gets re-sorted alphabetically by serde_json,
+    /// so side models (haiku helpers, "<synthetic>") can land first; this id
+    /// lets the frontend pick the MAIN model's contextWindow by key.
+    pub last_assistant_model: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -85,6 +95,9 @@ fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -
             if let Some(u) = v.get("message").and_then(|m| m.get("usage")) {
                 state.last_assistant_usage = Some(u.clone());
             }
+            if let Some(m) = v.get("message").and_then(|m| m.get("model")).and_then(|m| m.as_str()) {
+                state.last_assistant_model = Some(m.to_string());
+            }
             None
         }
         "stream_event" => parse_stream_event(state, v.get("event")?),
@@ -104,6 +117,11 @@ fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -
             if let Some(mu) = v.get("modelUsage").or_else(|| v.get("model_usage")) {
                 if let Some(obj) = usage.as_object_mut() {
                     obj.insert("modelUsage".to_string(), mu.clone());
+                }
+            }
+            if let Some(model) = &state.last_assistant_model {
+                if let Some(obj) = usage.as_object_mut() {
+                    obj.insert("model".to_string(), serde_json::Value::String(model.clone()));
                 }
             }
             Some(AiResponseChunk::Done { session_id, usage: Some(usage) })
@@ -278,7 +296,18 @@ fn parse_codex_stateful(
         }
         "turn.completed" => {
             let session_id = state.thread_id.clone().unwrap_or_default();
-            let usage = v.get("usage").cloned();
+            let mut usage = v.get("usage").cloned();
+            // Mirror claude's Done shape so the frontend's model-keyed
+            // contextWindow lift works for codex without a special path.
+            if let (Some(model), Some(cw)) = (state.model.as_deref(), state.context_window) {
+                if let Some(obj) = usage.as_mut().and_then(|u| u.as_object_mut()) {
+                    obj.insert("model".to_string(), serde_json::Value::String(model.to_string()));
+                    obj.insert(
+                        "modelUsage".to_string(),
+                        serde_json::json!({ (model): { "contextWindow": cw } }),
+                    );
+                }
+            }
             Some(AiResponseChunk::Done { session_id, usage })
         }
         // Top-level codex error event. Shape:
@@ -422,6 +451,43 @@ mod tests {
     }
 
     #[test]
+    fn claude_done_usage_carries_model_from_last_assistant() {
+        let mut state = fresh_claude();
+        let assistant = r#"{"type":"assistant","message":{"model":"claude-opus-4-7","usage":{"input_tokens":6,"cache_read_input_tokens":30000}}}"#;
+        assert!(parse_line_claude(&mut state, assistant).is_none());
+        // modelUsage with the haiku side model first (alphabetical, as
+        // serde_json's BTreeMap re-sorts keys) — the model key must let the
+        // frontend pick the opus entry anyway.
+        let result = r#"{"type":"result","subtype":"success","session_id":"s7","usage":{"input_tokens":10},"modelUsage":{"claude-haiku-4-5":{"contextWindow":200000},"claude-opus-4-7":{"contextWindow":1000000}}}"#;
+        match parse_line_claude(&mut state, result).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u.get("model").and_then(|m| m.as_str()), Some("claude-opus-4-7"));
+                assert_eq!(
+                    u.pointer("/modelUsage/claude-opus-4-7/contextWindow").and_then(|n| n.as_i64()),
+                    Some(1000000)
+                );
+                assert_eq!(
+                    u.pointer("/modelUsage/claude-haiku-4-5/contextWindow").and_then(|n| n.as_i64()),
+                    Some(200000)
+                );
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn claude_done_usage_omits_model_when_no_assistant_seen() {
+        let line = r#"{"type":"result","subtype":"success","session_id":"s8","usage":{"input_tokens":7}}"#;
+        match parse_line_claude(&mut fresh_claude(), line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                assert!(usage.unwrap().get("model").is_none());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
     fn claude_system_init_is_dropped() {
         let line = r#"{"type":"system","subtype":"init","session_id":"s1","cwd":"/foo"}"#;
         assert!(parse_line_claude(&mut fresh_claude(), line).is_none());
@@ -473,6 +539,44 @@ mod tests {
             AiResponseChunk::Done { session_id, usage } => {
                 assert_eq!(session_id, "t-9");
                 assert!(usage.is_some());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_done_injects_model_usage_when_window_resolved() {
+        let mut state = CodexParserState {
+            model: Some("gpt-5.4".into()),
+            context_window: Some(272000),
+            ..Default::default()
+        };
+        parse_line_codex(&mut state, r#"{"type":"thread.started","thread_id":"t-cw"}"#);
+        let line = r#"{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":5}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u.get("model").and_then(|m| m.as_str()), Some("gpt-5.4"));
+                assert_eq!(
+                    u.pointer("/modelUsage/gpt-5.4/contextWindow").and_then(|n| n.as_u64()),
+                    Some(272000)
+                );
+                assert_eq!(u.get("input_tokens").and_then(|n| n.as_u64()), Some(100));
+                assert_eq!(u.get("cached_input_tokens").and_then(|n| n.as_u64()), Some(40));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_done_unchanged_when_window_unknown() {
+        let mut state = CodexParserState::default();
+        let line = r#"{"type":"turn.completed","usage":{"input_tokens":10}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert!(u.get("model").is_none());
+                assert!(u.get("modelUsage").is_none());
             }
             _ => panic!("wrong variant"),
         }

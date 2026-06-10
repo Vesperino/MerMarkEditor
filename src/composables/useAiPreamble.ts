@@ -1,4 +1,4 @@
-import type { AccessMap } from '../services/aiCommands';
+import type { AccessMap, CliKind } from '../services/aiCommands';
 import type { MermaidFormat } from '../utils/mermaid-formats';
 
 export interface PinnedRef {
@@ -54,25 +54,12 @@ export const PIN_SCOPE_INSTRUCTIONS: Record<string, PinScopeStrings> = {
   },
 };
 
-export function buildPreamble(opts: PreambleOptions): string {
-  let selSection = 'Selection: none';
-  if (opts.pins.length > 0 && opts.includePins) {
-    const blocks = opts.pins.map((p, i) => {
-      const truncated = p.text.length > 4000 ? p.text.slice(0, 4000) + '…' : p.text;
-      return `Pinned #${i + 1}:\n---\n${truncated}\n---`;
-    });
-    const ins = PIN_SCOPE_INSTRUCTIONS[opts.localeKey] ?? PIN_SCOPE_INSTRUCTIONS.en;
-    const n = opts.pins.length;
-    selSection = [
-      ins.header(n),
-      ins.rule,
-      ins.reply,
-      '',
-      blocks.join('\n\n'),
-    ].join('\n');
-  } else if (opts.selectionRange) {
-    selSection = `Selection: yes (${opts.selectionRange.start}-${opts.selectionRange.end})`;
-  }
+/**
+ * Static facts about the editing session: identity, workspace, main file,
+ * access paths/tools, edit-vs-chat directive. Sent once per provider session
+ * (re-sent only when its hash changes — see shouldSendStaticPreamble).
+ */
+export function buildStaticPreamble(opts: PreambleOptions): string {
   const am = opts.accessMap;
   const tools = am
     ? Object.entries(am.tools).filter(([, v]) => v).map(([k]) => k).join(',') || 'none'
@@ -87,11 +74,10 @@ export function buildPreamble(opts: PreambleOptions): string {
         `The main file lives inside this workspace. You may READ other files in the workspace for context (notes, references, related documents) but you must only WRITE to the main file. When the user says "the project" / "this notebook" / "these notes", they mean the workspace above.`,
       ]
     : [];
-  const lines = [
+  return [
     `You are an AI assistant integrated into the MerMark editor.`,
     ...workspaceLines,
     mainFileLine,
-    selSection,
     `Read paths: ${am?.readPaths.join(', ') ?? opts.docPath}`,
     `Write paths: ${am?.writePaths.join(', ') ?? opts.docPath}`,
     `Allowed tools: ${tools}`,
@@ -99,23 +85,74 @@ export function buildPreamble(opts: PreambleOptions): string {
     `When the user asks for edits to the active file, USE YOUR Edit / Write TOOLS to modify the file on disk directly. Do NOT return code fences with the proposed change — the host will reload the editor from disk after you finish.`,
     ``,
     `For chat-only answers (questions about the file, summaries, suggestions), respond as plain text without editing the file.`,
-  ];
+  ].join('\n');
+}
+
+/**
+ * Per-turn context: pinned fragments / selection, unsaved-doc and large-doc
+ * notes, mermaid edit mode. docNeedsSave and mermaid mode are safety/format
+ * gates and must accompany EVERY turn. Empty string when nothing applies.
+ */
+export function buildTurnContext(opts: PreambleOptions): string {
+  const sections: string[] = [];
+  if (opts.pins.length > 0 && opts.includePins) {
+    const blocks = opts.pins.map((p, i) => {
+      const truncated = p.text.length > 4000 ? p.text.slice(0, 4000) + '…' : p.text;
+      return `Pinned #${i + 1}:\n---\n${truncated}\n---`;
+    });
+    const ins = PIN_SCOPE_INSTRUCTIONS[opts.localeKey] ?? PIN_SCOPE_INSTRUCTIONS.en;
+    const n = opts.pins.length;
+    sections.push([
+      ins.header(n),
+      ins.rule,
+      ins.reply,
+      '',
+      blocks.join('\n\n'),
+    ].join('\n'));
+  } else if (opts.selectionRange) {
+    sections.push(`Selection: yes (${opts.selectionRange.start}-${opts.selectionRange.end})`);
+  }
   if (opts.docNeedsSave) {
-    lines.push('', 'IMPORTANT: The document is not saved yet — do NOT try to use file Edit / Write tools. Answer in chat only.');
+    sections.push('IMPORTANT: The document is not saved yet — do NOT try to use file Edit / Write tools. Answer in chat only.');
   }
   if (opts.docTooLarge && !opts.sendFullDocOverride) {
-    lines.push('', `Note: the active document is large (${opts.docMarkdownLength} bytes). Focus on the first 200KB unless instructed otherwise.`);
+    sections.push(`Note: the active document is large (${opts.docMarkdownLength} bytes). Focus on the first 200KB unless instructed otherwise.`);
   }
   if (opts.mermaidEditMode) {
     const open = opts.mermaidWriteFormat?.open ?? '```mermaid';
     const close = opts.mermaidWriteFormat?.close ?? '```';
-    lines.push(
-      '',
+    sections.push([
       'MERMAID EDIT MODE — the user is editing a mermaid diagram and the pinned fragment above is its current source.',
       `Reply with ONLY one Mermaid block using exactly these delimiters: "${open}" to open and "${close}" to close. Include the full updated diagram. Preserve unrelated parts. No prose, no commentary, no other code blocks.`,
       'Do NOT call file Edit / Write tools — the host applies your reply to the diagram node directly.',
       'Stay terse — diagrams should not be cluttered with unnecessary nodes.',
-    );
+    ].join('\n'));
   }
-  return lines.join('\n');
+  return sections.join('\n\n');
+}
+
+/** djb2 over the string — cheap synchronous change detection, not crypto. */
+export function hashPreamble(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(36);
+}
+
+export interface StaticPreambleGate {
+  sessionId: string | null;
+  cli: CliKind;
+  hasImages: boolean;
+  staticHash: string;
+  lastSentStaticHash: string | null;
+}
+
+export function shouldSendStaticPreamble(gate: StaticPreambleGate): boolean {
+  if (!gate.sessionId) return true;
+  // codex `exec resume` cannot attach images, so the backend silently forces
+  // a NEW session when images are present — that fresh session never saw the
+  // static preamble.
+  if (gate.cli === 'codex' && gate.hasImages) return true;
+  return gate.staticHash !== gate.lastSentStaticHash;
 }

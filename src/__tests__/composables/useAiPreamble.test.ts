@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { buildPreamble, PIN_SCOPE_INSTRUCTIONS, type PreambleOptions } from '../../composables/useAiPreamble';
+import {
+  buildStaticPreamble,
+  buildTurnContext,
+  hashPreamble,
+  shouldSendStaticPreamble,
+  PIN_SCOPE_INSTRUCTIONS,
+  type PreambleOptions,
+} from '../../composables/useAiPreamble';
 import type { AccessMap } from '../../services/aiCommands';
 
 const accessMap: AccessMap = {
@@ -23,19 +30,95 @@ function base(): PreambleOptions {
   };
 }
 
-describe('useAiPreamble.buildPreamble', () => {
-  it('renders "Selection: none" when no pins and no range', () => {
-    const out = buildPreamble(base());
-    expect(out).toMatch(/Selection: none/);
+describe('useAiPreamble.buildStaticPreamble', () => {
+  it('contains identity, main file, paths, tools and edit directive', () => {
+    const out = buildStaticPreamble(base());
+    expect(out).toContain('You are an AI assistant integrated into the MerMark editor.');
+    expect(out).toMatch(/Main file.*only writable target.*\/r\/a.md/);
+    expect(out).toMatch(/Read paths: \/r\/a.md/);
+    expect(out).toMatch(/Write paths: \/w\/a.md/);
+    expect(out).toContain('USE YOUR Edit / Write TOOLS');
+    expect(out).toContain('For chat-only answers');
   });
 
-  it('renders "Selection: yes (a-b)" when range provided and no pins', () => {
-    const out = buildPreamble({ ...base(), selectionRange: { start: 10, end: 42 } });
+  it('serialises allowed tools from access map', () => {
+    const out = buildStaticPreamble(base());
+    expect(out).toMatch(/Allowed tools: fileRead,fileWrite/);
+  });
+
+  it('reports "none" when no tools enabled', () => {
+    const out = buildStaticPreamble({
+      ...base(),
+      accessMap: { ...accessMap, tools: { fileRead: false, fileWrite: false, bash: false, network: false } },
+    });
+    expect(out).toMatch(/Allowed tools: none/);
+  });
+
+  it('reports "unknown" when access map is null', () => {
+    const out = buildStaticPreamble({ ...base(), accessMap: null });
+    expect(out).toMatch(/Allowed tools: unknown/);
+  });
+
+  it('emits unsaved main-file line when docPath is empty', () => {
+    const out = buildStaticPreamble({ ...base(), docPath: '' });
+    expect(out).toContain('Main file: (unsaved');
+  });
+
+  it('excludes per-turn content (pins, unsaved warning, large-doc note, mermaid)', () => {
+    const out = buildStaticPreamble({
+      ...base(),
+      pins: [{ id: '1', text: 'hello' }],
+      docNeedsSave: true,
+      docTooLarge: true,
+      mermaidEditMode: true,
+    });
+    expect(out).not.toContain('Pinned #1');
+    expect(out).not.toContain('IMPORTANT: The document is not saved yet');
+    expect(out).not.toMatch(/Note: the active document is large/);
+    expect(out).not.toContain('MERMAID EDIT MODE');
+  });
+
+  describe('workspace context', () => {
+    it('emits no workspace lines when workspaceRoot is empty', () => {
+      const out = buildStaticPreamble(base());
+      expect(out).not.toMatch(/Workspace:/);
+      expect(out).not.toMatch(/Workspace root/);
+    });
+
+    it('emits workspace name + root + read-only guidance', () => {
+      const out = buildStaticPreamble({
+        ...base(),
+        workspaceName: 'notes',
+        workspaceRoot: '/Users/me/notes',
+      });
+      expect(out).toContain('Workspace: notes');
+      expect(out).toContain('Workspace root (read-only context): /Users/me/notes');
+      expect(out).toMatch(/only WRITE to the main file/);
+    });
+
+    it('falls back to root path when workspaceName is empty', () => {
+      const out = buildStaticPreamble({
+        ...base(),
+        workspaceName: '',
+        workspaceRoot: '/x/y',
+      });
+      expect(out).toContain('Workspace: /x/y');
+    });
+  });
+});
+
+describe('useAiPreamble.buildTurnContext', () => {
+  it('returns empty string when nothing applies', () => {
+    expect(buildTurnContext(base())).toBe('');
+  });
+
+  it('renders selection range when provided and no pins', () => {
+    const out = buildTurnContext({ ...base(), selectionRange: { start: 10, end: 42 } });
     expect(out).toMatch(/Selection: yes \(10-42\)/);
   });
 
   it('renders pin block when pins included', () => {
-    const out = buildPreamble({
+    const out = buildTurnContext({
       ...base(),
       pins: [{ id: '1', text: 'hello' }, { id: '2', text: 'world' }],
     });
@@ -48,23 +131,22 @@ describe('useAiPreamble.buildPreamble', () => {
 
   it('truncates long pin text at 4000 chars', () => {
     const long = 'x'.repeat(5000);
-    const out = buildPreamble({ ...base(), pins: [{ id: '1', text: long }] });
+    const out = buildTurnContext({ ...base(), pins: [{ id: '1', text: long }] });
     expect(out).toContain('x'.repeat(4000) + '…');
     expect(out).not.toContain('x'.repeat(4001));
   });
 
   it('skips pin block when includePins=false', () => {
-    const out = buildPreamble({
+    const out = buildTurnContext({
       ...base(),
       pins: [{ id: '1', text: 'hello' }],
       includePins: false,
     });
     expect(out).not.toContain('Pinned #1');
-    expect(out).toMatch(/Selection: none/);
   });
 
   it('uses Polish locale strings for pl', () => {
-    const out = buildPreamble({
+    const out = buildTurnContext({
       ...base(),
       pins: [{ id: '1', text: 'foo' }],
       localeKey: 'pl',
@@ -73,7 +155,7 @@ describe('useAiPreamble.buildPreamble', () => {
   });
 
   it('falls back to English for unknown locale', () => {
-    const out = buildPreamble({
+    const out = buildTurnContext({
       ...base(),
       pins: [{ id: '1', text: 'foo' }],
       localeKey: 'de',
@@ -81,88 +163,88 @@ describe('useAiPreamble.buildPreamble', () => {
     expect(out).toContain('The user attached');
   });
 
-  it('serialises allowed tools from access map', () => {
-    const out = buildPreamble(base());
-    expect(out).toMatch(/Allowed tools: fileRead,fileWrite/);
-  });
-
-  it('reports "none" when no tools enabled', () => {
-    const out = buildPreamble({
-      ...base(),
-      accessMap: { ...accessMap, tools: { fileRead: false, fileWrite: false, bash: false, network: false } },
-    });
-    expect(out).toMatch(/Allowed tools: none/);
-  });
-
-  it('reports "unknown" when access map is null', () => {
-    const out = buildPreamble({ ...base(), accessMap: null });
-    expect(out).toMatch(/Allowed tools: unknown/);
-  });
-
-  it('appends unsaved doc warning when docNeedsSave', () => {
-    const out = buildPreamble({ ...base(), docNeedsSave: true });
+  it('includes unsaved doc warning when docNeedsSave', () => {
+    const out = buildTurnContext({ ...base(), docNeedsSave: true });
     expect(out).toContain('IMPORTANT: The document is not saved yet');
   });
 
-  it('emits unsaved main-file line when docPath is empty', () => {
-    const out = buildPreamble({ ...base(), docPath: '', docNeedsSave: true });
-    expect(out).toContain('Main file: (unsaved');
-  });
-
-  it('appends large-doc note when oversized and override off', () => {
-    const out = buildPreamble({ ...base(), docTooLarge: true, sendFullDocOverride: false });
+  it('includes large-doc note when oversized and override off', () => {
+    const out = buildTurnContext({ ...base(), docTooLarge: true, sendFullDocOverride: false });
     expect(out).toMatch(/Note: the active document is large/);
   });
 
   it('skips large-doc note when override on', () => {
-    const out = buildPreamble({ ...base(), docTooLarge: true, sendFullDocOverride: true });
+    const out = buildTurnContext({ ...base(), docTooLarge: true, sendFullDocOverride: true });
     expect(out).not.toMatch(/Note: the active document is large/);
   });
 
   it('mentions configured Mermaid delimiters in Mermaid edit mode', () => {
-    const out = buildPreamble({
+    const out = buildTurnContext({
       ...base(),
       mermaidEditMode: true,
       mermaidWriteFormat: { id: 'admonition', open: ':::mermaid', close: ':::', label: 'Admonition', builtin: true },
     });
+    expect(out).toContain('MERMAID EDIT MODE');
     expect(out).toContain(':::mermaid');
     expect(out).toContain('":::"');
   });
 
-  describe('workspace context', () => {
-    it('emits no workspace lines when workspaceRoot is empty', () => {
-      const out = buildPreamble(base());
-      expect(out).not.toMatch(/Workspace:/);
-      expect(out).not.toMatch(/Workspace root/);
+  it('keeps section order: pins, unsaved, large-doc, mermaid', () => {
+    const out = buildTurnContext({
+      ...base(),
+      pins: [{ id: '1', text: 'pinned-text' }],
+      docNeedsSave: true,
+      docTooLarge: true,
+      mermaidEditMode: true,
     });
+    const order = [
+      out.indexOf('Pinned #1'),
+      out.indexOf('IMPORTANT: The document is not saved yet'),
+      out.indexOf('Note: the active document is large'),
+      out.indexOf('MERMAID EDIT MODE'),
+    ];
+    expect(order.every(i => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+});
 
-    it('emits workspace name + root + read-only guidance', () => {
-      const out = buildPreamble({
-        ...base(),
-        workspaceName: 'notes',
-        workspaceRoot: '/Users/me/notes',
-      });
-      expect(out).toContain('Workspace: notes');
-      expect(out).toContain('Workspace root (read-only context): /Users/me/notes');
-      expect(out).toMatch(/only WRITE to the main file/);
-    });
+describe('useAiPreamble.hashPreamble', () => {
+  it('is stable for the same input and differs for different input', () => {
+    expect(hashPreamble('abc')).toBe(hashPreamble('abc'));
+    expect(hashPreamble('abc')).not.toBe(hashPreamble('abd'));
+  });
+});
 
-    it('falls back to root path when workspaceName is empty', () => {
-      const out = buildPreamble({
-        ...base(),
-        workspaceName: '',
-        workspaceRoot: '/x/y',
-      });
-      expect(out).toContain('Workspace: /x/y');
-    });
+describe('useAiPreamble.shouldSendStaticPreamble', () => {
+  const baseGate = {
+    sessionId: 's1',
+    cli: 'claude' as const,
+    hasImages: false,
+    staticHash: 'h1',
+    lastSentStaticHash: 'h1',
+  };
 
-    it('main file line clarifies it is the only writable target', () => {
-      const out = buildPreamble({
-        ...base(),
-        workspaceRoot: '/x',
-        docPath: '/x/file.md',
-      });
-      expect(out).toMatch(/Main file.*only writable target.*\/x\/file.md/);
-    });
+  it('sends on fresh provider session (no sessionId)', () => {
+    expect(shouldSendStaticPreamble({ ...baseGate, sessionId: null })).toBe(true);
+  });
+
+  it('skips on resumed session with unchanged hash', () => {
+    expect(shouldSendStaticPreamble(baseGate)).toBe(false);
+  });
+
+  it('re-sends when the static hash changed', () => {
+    expect(shouldSendStaticPreamble({ ...baseGate, staticHash: 'h2' })).toBe(true);
+  });
+
+  it('sends when no hash was ever recorded on the thread', () => {
+    expect(shouldSendStaticPreamble({ ...baseGate, lastSentStaticHash: null })).toBe(true);
+  });
+
+  it('always sends for codex with images (backend forces a new session)', () => {
+    expect(shouldSendStaticPreamble({ ...baseGate, cli: 'codex', hasImages: true })).toBe(true);
+  });
+
+  it('does not force-send for claude with images', () => {
+    expect(shouldSendStaticPreamble({ ...baseGate, hasImages: true })).toBe(false);
   });
 });

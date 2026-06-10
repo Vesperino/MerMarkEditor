@@ -58,6 +58,8 @@ export interface AiSendRequest {
   effort: string | null;
   prompt: string;
   preamble: string;
+  /** Per-turn context (pins, unsaved/large-doc notes, mermaid mode) — sent every turn. */
+  turnContext: string;
   accessMap: AccessMap;
   bypass: boolean;
   workDir: string;

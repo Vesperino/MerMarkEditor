@@ -38,6 +38,8 @@ export interface AiThread {
   /** Last model + effort used in this thread — restored on thread select. */
   model: string | null;
   effort: string | null;
+  /** Hash of the static preamble last delivered in this thread (gates re-sends). */
+  lastSentStaticHash: string | null;
   createdAt: string;
   updatedAt: string;
   messages: AiMessage[];
@@ -74,6 +76,7 @@ function loadStore(docPath: string): ThreadStore {
       for (const t of parsed.threads) {
         if (t.model === undefined) t.model = null;
         if (t.effort === undefined) t.effort = null;
+        if (t.lastSentStaticHash === undefined) t.lastSentStaticHash = null;
       }
       return parsed;
     }
@@ -125,6 +128,7 @@ function newThread(): AiThread {
     cli: null,
     model: null,
     effort: null,
+    lastSentStaticHash: null,
     createdAt: now,
     updatedAt: now,
     messages: [],
@@ -159,6 +163,10 @@ export interface SendOpts {
   effort: string | null;
   prompt: string;
   preamble: string;
+  turnContext: string;
+  /** Hash of the current static preamble — recorded on the thread after a
+   *  successful Done so the next turn can skip re-sending it. */
+  staticPreambleHash?: string;
   accessMap: AccessMap;
   workDir: string;
   /** Absolute paths to attached image files (clipboard paste / file picker). */
@@ -297,16 +305,19 @@ export function useAi() {
         case 'tool_denied':
           opts.onToolDenied?.(chunk.tool, chunk.reason);
           break;
-        case 'done':
+        case 'done': {
           a.done = true;
           aiContext.record(opts.cli, chunk.usage);
-          if (chunk.sessionId) {
-            const tt = activeThread.value;
-            if (tt) tt.sessionId = chunk.sessionId;
+          const tt = activeThread.value;
+          if (tt) {
+            if (chunk.sessionId) tt.sessionId = chunk.sessionId;
+            // Only on success — a failed turn means the model never saw it.
+            if (opts.staticPreambleHash) tt.lastSentStaticHash = opts.staticPreambleHash;
           }
           opts.onSessionId?.(chunk.sessionId);
           resolveCompletion();
           break;
+        }
         case 'error':
           a.error = chunk.message;
           a.done = true;
@@ -327,6 +338,7 @@ export function useAi() {
       effort: opts.effort,
       prompt: opts.prompt,
       preamble: opts.preamble,
+      turnContext: opts.turnContext,
       accessMap: opts.accessMap,
       bypass: bypassEnabled.value,
       workDir: opts.workDir,

@@ -14,7 +14,7 @@ import { useAiPanelLayout } from '../../composables/useAiPanelLayout';
 import { useAiToolToast } from '../../composables/useAiToolToast';
 import { useAiPinnedSelections } from '../../composables/useAiPinnedSelections';
 import { useAiPendingImages, type PendingImage } from '../../composables/useAiPendingImages';
-import { buildPreamble } from '../../composables/useAiPreamble';
+import { buildStaticPreamble, buildTurnContext, hashPreamble, shouldSendStaticPreamble, type PreambleOptions } from '../../composables/useAiPreamble';
 import { useAiMermaidTarget, extractMermaidCodeFromResponse } from '../../composables/useAiMermaidTarget';
 import { withWorkspaceReadAccess } from '../../composables/useAiWorkspaceContext';
 import { buildMermaidBlockFor } from '../../utils/mermaid-formats';
@@ -251,9 +251,9 @@ function effectiveAccessMap() {
   return withWorkspaceReadAccess(access.current.value, props.workspaceRoot ?? '');
 }
 
-function buildPreambleForSend(): string {
+function preambleOptions(): PreambleOptions {
   const localeKey = (typeof navigator !== 'undefined' && (localStorage.getItem('mermark-locale') ?? 'en')) || 'en';
-  return buildPreamble({
+  return {
     pins: pins.includePinned.value
       ? pins.pinnedSelections.value.map(p => ({ id: p.id, text: p.text }))
       : [],
@@ -270,7 +270,7 @@ function buildPreambleForSend(): string {
     workspaceRoot: props.workspaceRoot ?? '',
     mermaidEditMode: mermaidEditMode.value,
     mermaidWriteFormat: resolveMermaidWriteFormat(settings.value),
-  });
+  };
 }
 
 async function onSend() {
@@ -304,6 +304,10 @@ async function onSend() {
     ai.pushAttachment({ pins: sentPins, images: sentImages });
   }
 
+  const sessionIdToSend = (session.current.value && session.current.value.cli === selectedCli.value)
+    ? session.current.value.sessionId
+    : null;
+
   if (!docNeedsSave.value) {
     try {
       const { readTextFile } = await import('@tauri-apps/plugin-fs');
@@ -311,7 +315,7 @@ async function onSend() {
       await aiCommands.snapshotCreate(
         props.docPath,
         onDiskBefore,
-        (session.current.value && session.current.value.cli === selectedCli.value ? session.current.value.sessionId : null),
+        sessionIdToSend,
         settings.value.ai.snapshotsKeep,
       );
     } catch (e) {
@@ -319,13 +323,26 @@ async function onSend() {
     }
   }
 
+  const opts = preambleOptions();
+  const staticPreamble = buildStaticPreamble(opts);
+  const staticHash = hashPreamble(staticPreamble);
+  const sendStatic = shouldSendStaticPreamble({
+    sessionId: sessionIdToSend,
+    cli: selectedCli.value,
+    hasImages: imagePaths.length > 0,
+    staticHash,
+    lastSentStaticHash: ai.activeThread.value?.lastSentStaticHash ?? null,
+  });
+
   await ai.send({
     cli: selectedCli.value,
-    sessionId: (session.current.value && session.current.value.cli === selectedCli.value ? session.current.value.sessionId : null),
+    sessionId: sessionIdToSend,
     model: selectedModel.value,
     effort: selectedEffort.value,
     prompt,
-    preamble: buildPreambleForSend(),
+    preamble: sendStatic ? staticPreamble : '',
+    turnContext: buildTurnContext(opts),
+    staticPreambleHash: staticHash,
     accessMap: effectiveAccessMap()!,
     workDir: props.workDir,
     images: imagePaths,
