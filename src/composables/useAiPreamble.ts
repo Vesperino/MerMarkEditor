@@ -100,10 +100,10 @@ export function buildStaticPreamble(opts: PreambleOptions): string {
         `You have these tools available: read_file(path), list_dir(path), write_file(path, content), edit_file(path, old_string, new_string). The only writable target is the active document above; reads are limited to its folder plus any granted read paths.`,
         `To explore a granted folder, call list_dir(path) to enumerate its files and subfolders before reading individual files with read_file — read_file works on files only, not directories.`,
         `When the user asks for edits to the active file, you MUST call edit_file (for a small change) or write_file (to replace the whole file) to apply it on disk. The host reloads the editor from disk after the tools run.`,
-        `read_file and list_dir are always allowed — when you need the document's current content, call read_file on the main file yourself; never ask the user to open or paste it.`,
-        `The current content of the main file is attached to each message; use read_file only for OTHER files or when told the attachment was omitted.`,
+        `read_file and list_dir are always allowed; never ask the user to open or paste files.`,
+        `The current content of the main file is attached to each message; use read_file for OTHER files or when told the attachment was omitted.`,
         `Call edit_file / write_file ONLY when the user explicitly asks for a change. For questions, summaries, feedback or discussion, answer in chat without editing.`,
-        `Before edit_file, call read_file and copy old_string EXACTLY from its output, including whitespace and line breaks — a reconstructed-from-memory old_string will not match and the edit is rejected.`,
+        `For edit_file, copy old_string EXACTLY from the attached file content (or read_file output), including whitespace and line breaks — a reconstructed-from-memory old_string will not match and the edit is rejected.`,
         `Never claim in prose that you edited or updated the file — an edit only counts if you actually call edit_file / write_file. To edit, call the tools; do not paste the whole file back into chat.`,
       );
     } else {
