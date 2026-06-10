@@ -339,7 +339,10 @@ pub fn apply_edit(content: &str, old_string: &str, new_string: &str) -> Result<S
     }
     let count = content.matches(old_string).count();
     match count {
-        0 => Err("edit_file: old_string not found in the file.".to_string()),
+        0 => Err(
+            "edit_file: old_string not found in the file. Call read_file and copy the exact text from its output, including markdown syntax such as '## ' heading markers; never include <<< or >>> pin markers."
+                .to_string(),
+        ),
         1 => Ok(content.replacen(old_string, new_string, 1)),
         n => Err(format!(
             "edit_file: old_string is not unique ({} matches). Include more surrounding context so it matches exactly once.",
