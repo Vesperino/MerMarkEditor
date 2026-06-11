@@ -1,39 +1,61 @@
 <script setup lang="ts">
-import type { ContextUsage } from '../../composables/useAiContext';
+import { computed } from 'vue';
+import { useI18n } from '../../i18n';
+import { contextWarnLevel, type ContextUsage } from '../../composables/useAiContext';
 
-defineProps<{
+const props = defineProps<{
   usage: ContextUsage;
   usageLabel: string;
 }>();
+
+const { t } = useI18n();
+
+const warnLevel = computed(() => contextWarnLevel(props.usage.fraction));
+// Under pressure the per-category palette collapses into a single amber/red
+// fill so the bar itself reads as the warning.
+const fillOverride = computed<string | null>(() => {
+  if (warnLevel.value === 'danger') return 'var(--danger, #dc2626)';
+  if (warnLevel.value === 'warn') return '#f59e0b';
+  return null;
+});
 </script>
 
 <template>
-  <details v-if="!usage.empty" class="ai-panel__context">
-    <summary class="ai-panel__context-summary">
-      <div class="ai-panel__context-bar">
-        <div
-          v-for="seg in usage.breakdown.filter(b => b.key !== 'free')"
-          :key="seg.key"
-          class="ai-panel__context-seg"
-          :style="{ width: seg.pct + '%', background: seg.color }"
-          :title="`${seg.label}: ${seg.tokens.toLocaleString()} (${seg.pct.toFixed(1)}%)`"
-        />
-      </div>
-      <span class="ai-panel__context-label">{{ usageLabel }}</span>
-    </summary>
-    <ul class="ai-panel__context-breakdown">
-      <li v-for="seg in usage.breakdown" :key="seg.key">
-        <span class="ai-panel__context-dot" :style="{ background: seg.color }" />
-        <span class="ai-panel__context-name">{{ seg.label }}</span>
-        <span class="ai-panel__context-num">{{ seg.tokens.toLocaleString() }}</span>
-        <span class="ai-panel__context-pct">{{ seg.pct.toFixed(1) }}%</span>
-      </li>
-      <li v-if="usage.outputTokens > 0" class="ai-panel__context-extra">
-        <span class="ai-panel__context-name">Output (this turn)</span>
-        <span class="ai-panel__context-num">{{ usage.outputTokens.toLocaleString() }}</span>
-      </li>
-    </ul>
-  </details>
+  <div v-if="!usage.empty" class="ai-panel__context">
+    <details class="ai-panel__context-details">
+      <summary class="ai-panel__context-summary">
+        <div class="ai-panel__context-bar">
+          <div
+            v-for="seg in usage.breakdown.filter(b => b.key !== 'free')"
+            :key="seg.key"
+            class="ai-panel__context-seg"
+            :style="{ width: seg.pct + '%', background: fillOverride ?? seg.color }"
+            :title="`${seg.label}: ${seg.tokens.toLocaleString()} (${seg.pct.toFixed(1)}%)`"
+          />
+        </div>
+        <span class="ai-panel__context-label">{{ usageLabel }}</span>
+      </summary>
+      <ul class="ai-panel__context-breakdown">
+        <li v-for="seg in usage.breakdown" :key="seg.key">
+          <span class="ai-panel__context-dot" :style="{ background: seg.color }" />
+          <span class="ai-panel__context-name">{{ seg.label }}</span>
+          <span class="ai-panel__context-num">{{ seg.tokens.toLocaleString() }}</span>
+          <span class="ai-panel__context-pct">{{ seg.pct.toFixed(1) }}%</span>
+        </li>
+        <li v-if="usage.outputTokens > 0" class="ai-panel__context-extra">
+          <span class="ai-panel__context-name">Output (this turn)</span>
+          <span class="ai-panel__context-num">{{ usage.outputTokens.toLocaleString() }}</span>
+        </li>
+      </ul>
+    </details>
+    <div
+      v-if="warnLevel !== 'none'"
+      class="ai-panel__context-warning"
+      :class="{ 'ai-panel__context-warning--danger': warnLevel === 'danger' }"
+    >
+      {{ t.aiContextNearlyFull }}
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -110,5 +132,13 @@ defineProps<{
   font-family: var(--code-font-family, monospace);
   white-space: nowrap;
   cursor: help;
+}
+.ai-panel__context-warning {
+  padding: 4px 12px 6px;
+  font-size: 11px;
+  color: #b45309;
+}
+.ai-panel__context-warning--danger {
+  color: var(--danger, #dc2626);
 }
 </style>

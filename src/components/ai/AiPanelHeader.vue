@@ -53,6 +53,9 @@ const emit = defineEmits<{
 
 const modelSelectValue = computed(() => props.isCustomModel ? CUSTOM_MODEL_SENTINEL : props.model);
 
+const CLI_LABELS: Record<CliKind, string> = { claude: 'Claude', codex: 'Codex', ollama: 'Ollama', openai: 'OpenAI-compatible' };
+function cliLabel(c: CliKind): string { return CLI_LABELS[c] ?? c; }
+
 function onModelChange(e: Event) {
   const id = (e.target as HTMLSelectElement).value;
   if (id === CUSTOM_MODEL_SENTINEL) {
@@ -115,7 +118,7 @@ function onCustomModelInput(e: Event) {
         class="ai-panel__select"
         :title="defaultCliTitle"
       >
-        <option v-for="c in availableClis" :key="c" :value="c">{{ c === 'claude' ? 'Claude' : 'Codex' }}</option>
+        <option v-for="c in availableClis" :key="c" :value="c">{{ cliLabel(c) }}</option>
       </select>
       <select
         class="ai-panel__select ai-panel__select--model"
@@ -135,6 +138,7 @@ function onCustomModelInput(e: Event) {
         :title="modelTitle"
       />
       <select
+        v-if="effortOptions.length > 0"
         :value="effort"
         @change="emit('update:effort', ($event.target as HTMLSelectElement).value)"
         class="ai-panel__select"

@@ -6,6 +6,11 @@ use crate::ai::types::AiResponseChunk;
 #[derive(Debug, Default)]
 pub struct CodexParserState {
     pub thread_id: Option<String>,
+    /// Model slug requested for this spawn. codex `--json` never reports a
+    /// context window, so the spawner resolves it from `models_cache.json`
+    /// up front and we inject it into the Done usage here.
+    pub model: Option<String>,
+    pub context_window: Option<u64>,
 }
 
 /// Per-stream parser state for claude. Tool calls arrive as a
@@ -23,6 +28,11 @@ pub struct ClaudeParserState {
     /// every sub-call, which over-reports occupancy (cache_read is re-counted
     /// per call), so we prefer this snapshot for the input-side fields.
     pub last_assistant_usage: Option<serde_json::Value>,
+    /// Model id of the LAST `assistant` message seen this turn. The `result`
+    /// event's `modelUsage` map gets re-sorted alphabetically by serde_json,
+    /// so side models (haiku helpers, "<synthetic>") can land first; this id
+    /// lets the frontend pick the MAIN model's contextWindow by key.
+    pub last_assistant_model: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -85,6 +95,9 @@ fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -
             if let Some(u) = v.get("message").and_then(|m| m.get("usage")) {
                 state.last_assistant_usage = Some(u.clone());
             }
+            if let Some(m) = v.get("message").and_then(|m| m.get("model")).and_then(|m| m.as_str()) {
+                state.last_assistant_model = Some(m.to_string());
+            }
             None
         }
         "stream_event" => parse_stream_event(state, v.get("event")?),
@@ -104,6 +117,11 @@ fn parse_claude_stateful(state: &mut ClaudeParserState, v: &serde_json::Value) -
             if let Some(mu) = v.get("modelUsage").or_else(|| v.get("model_usage")) {
                 if let Some(obj) = usage.as_object_mut() {
                     obj.insert("modelUsage".to_string(), mu.clone());
+                }
+            }
+            if let Some(model) = &state.last_assistant_model {
+                if let Some(obj) = usage.as_object_mut() {
+                    obj.insert("model".to_string(), serde_json::Value::String(model.clone()));
                 }
             }
             Some(AiResponseChunk::Done { session_id, usage: Some(usage) })
@@ -278,7 +296,18 @@ fn parse_codex_stateful(
         }
         "turn.completed" => {
             let session_id = state.thread_id.clone().unwrap_or_default();
-            let usage = v.get("usage").cloned();
+            let mut usage = v.get("usage").cloned();
+            // Mirror claude's Done shape so the frontend's model-keyed
+            // contextWindow lift works for codex without a special path.
+            if let (Some(model), Some(cw)) = (state.model.as_deref(), state.context_window) {
+                if let Some(obj) = usage.as_mut().and_then(|u| u.as_object_mut()) {
+                    obj.insert("model".to_string(), serde_json::Value::String(model.to_string()));
+                    obj.insert(
+                        "modelUsage".to_string(),
+                        serde_json::json!({ (model): { "contextWindow": cw } }),
+                    );
+                }
+            }
             Some(AiResponseChunk::Done { session_id, usage })
         }
         // Top-level codex error event. Shape:
@@ -319,6 +348,149 @@ fn parse_codex_stateful(
         }
         _ => None,
     }
+}
+
+/// Ollama `/api/chat` streams newline-delimited JSON. Non-final lines carry
+/// `{"message":{"role":"assistant","content":"<delta>"}, "done":false}`; the
+/// final line carries `{"done":true, "prompt_eval_count":N, "eval_count":M}`.
+/// We rename `prompt_eval_count` → `input_tokens` and `eval_count` →
+/// `output_tokens` so the usage payload matches what `parseUsage` expects.
+pub fn parse_line_ollama(line: &str) -> Option<AiResponseChunk> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    parse_ollama(&v)
+}
+
+fn parse_ollama(v: &serde_json::Value) -> Option<AiResponseChunk> {
+    if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+        return Some(AiResponseChunk::Error { message: err.to_string(), exit_code: None });
+    }
+    let done = v.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
+    if done {
+        let input = v.get("prompt_eval_count").and_then(|n| n.as_u64()).unwrap_or(0);
+        let output = v.get("eval_count").and_then(|n| n.as_u64()).unwrap_or(0);
+        let usage = serde_json::json!({ "input_tokens": input, "output_tokens": output });
+        return Some(AiResponseChunk::Done { session_id: String::new(), usage: Some(usage) });
+    }
+    let content = v
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .unwrap_or("");
+    if content.is_empty() {
+        None
+    } else {
+        Some(AiResponseChunk::Text { content: content.to_string() })
+    }
+}
+
+/// Parse the `/api/tags` response (`{"models":[{"name":"llama3:8b"},…]}`) into
+/// the list of installed model names. Missing/empty `models` yields an empty
+/// vec. Kept as a free function so it is testable without HTTP.
+pub fn parse_ollama_tags(v: &serde_json::Value) -> Vec<String> {
+    v.get("models")
+        .and_then(|m| m.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.get("name").and_then(|n| n.as_str()))
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Per-stream parser state for the OpenAI-compatible provider. Usage is
+/// captured from whichever frame carries it and attached to the Done emitted
+/// on the `[DONE]` sentinel: vLLM sends a separate empty-choices usage chunk,
+/// but llama.cpp attaches usage to the finish_reason chunk that may STILL
+/// carry a content delta — treating usage presence as terminal would drop
+/// that text.
+#[derive(Debug, Default)]
+pub struct OpenaiParserState {
+    pub usage: Option<serde_json::Value>,
+}
+
+/// Parse one OpenAI-compatible SSE line from `/v1/chat/completions`. Each frame
+/// is `data: {json}` (blank inter-frame lines trim to empty → dropped); the
+/// stream terminates with a literal `data: [DONE]`.
+///   - `[DONE]`            → Done, carrying the usage captured earlier.
+///   - top-level `error`   → Error.
+///   - top-level `usage`   → captured into state with `prompt_tokens` renamed
+///                           `input_tokens` and `completion_tokens` renamed
+///                           `output_tokens` (matches what `parseUsage`
+///                           expects, mirroring the ollama
+///                           prompt_eval_count/eval_count rename); the frame's
+///                           delta is still processed.
+///   - `choices[0].delta.content` → Text. A role-only or `reasoning_content`-
+///                           only delta (no `content`) is dropped (MVP ignores
+///                           reasoning content rather than rendering it).
+pub fn parse_line_openai(state: &mut OpenaiParserState, line: &str) -> Option<AiResponseChunk> {
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let payload = line.strip_prefix("data:").map(str::trim).unwrap_or(line);
+    if payload == "[DONE]" {
+        return Some(AiResponseChunk::Done { session_id: String::new(), usage: state.usage.take() });
+    }
+    let v: serde_json::Value = serde_json::from_str(payload).ok()?;
+    parse_openai(state, &v)
+}
+
+fn parse_openai(state: &mut OpenaiParserState, v: &serde_json::Value) -> Option<AiResponseChunk> {
+    if let Some(err) = v.get("error") {
+        let message = err
+            .get("message")
+            .and_then(|m| m.as_str())
+            .or_else(|| err.as_str())
+            .unwrap_or("OpenAI-compatible request failed.")
+            .to_string();
+        return Some(AiResponseChunk::Error { message, exit_code: None });
+    }
+    if let Some(usage) = v.get("usage").filter(|u| u.is_object()) {
+        let input = usage.get("prompt_tokens").and_then(|n| n.as_u64()).unwrap_or(0);
+        let output = usage.get("completion_tokens").and_then(|n| n.as_u64()).unwrap_or(0);
+        state.usage = Some(serde_json::json!({ "input_tokens": input, "output_tokens": output }));
+    }
+    let content = v
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|c| c.get("delta"))
+        .and_then(|d| d.get("content"))
+        .and_then(|c| c.as_str())
+        .unwrap_or("");
+    if content.is_empty() {
+        None
+    } else {
+        Some(AiResponseChunk::Text { content: content.to_string() })
+    }
+}
+
+/// Parse the `/v1/models` response into a list of model ids. Prefers the
+/// OpenAI shape (`{"data":[{"id":"…"}]}` → every `data[].id`); when `data` is
+/// absent some servers expose a top-level `models` array instead, where each
+/// entry's `name` is preferred and `id` is the per-entry fallback.
+pub fn parse_openai_models(v: &serde_json::Value) -> Vec<String> {
+    if let Some(arr) = v.get("data").and_then(|d| d.as_array()) {
+        return arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|i| i.as_str()))
+            .map(|s| s.to_string())
+            .collect();
+    }
+    v.get("models")
+        .and_then(|m| m.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| {
+                    m.get("name")
+                        .and_then(|n| n.as_str())
+                        .or_else(|| m.get("id").and_then(|i| i.as_str()))
+                })
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -422,6 +594,43 @@ mod tests {
     }
 
     #[test]
+    fn claude_done_usage_carries_model_from_last_assistant() {
+        let mut state = fresh_claude();
+        let assistant = r#"{"type":"assistant","message":{"model":"claude-opus-4-7","usage":{"input_tokens":6,"cache_read_input_tokens":30000}}}"#;
+        assert!(parse_line_claude(&mut state, assistant).is_none());
+        // modelUsage with the haiku side model first (alphabetical, as
+        // serde_json's BTreeMap re-sorts keys) — the model key must let the
+        // frontend pick the opus entry anyway.
+        let result = r#"{"type":"result","subtype":"success","session_id":"s7","usage":{"input_tokens":10},"modelUsage":{"claude-haiku-4-5":{"contextWindow":200000},"claude-opus-4-7":{"contextWindow":1000000}}}"#;
+        match parse_line_claude(&mut state, result).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u.get("model").and_then(|m| m.as_str()), Some("claude-opus-4-7"));
+                assert_eq!(
+                    u.pointer("/modelUsage/claude-opus-4-7/contextWindow").and_then(|n| n.as_i64()),
+                    Some(1000000)
+                );
+                assert_eq!(
+                    u.pointer("/modelUsage/claude-haiku-4-5/contextWindow").and_then(|n| n.as_i64()),
+                    Some(200000)
+                );
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn claude_done_usage_omits_model_when_no_assistant_seen() {
+        let line = r#"{"type":"result","subtype":"success","session_id":"s8","usage":{"input_tokens":7}}"#;
+        match parse_line_claude(&mut fresh_claude(), line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                assert!(usage.unwrap().get("model").is_none());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
     fn claude_system_init_is_dropped() {
         let line = r#"{"type":"system","subtype":"init","session_id":"s1","cwd":"/foo"}"#;
         assert!(parse_line_claude(&mut fresh_claude(), line).is_none());
@@ -473,6 +682,44 @@ mod tests {
             AiResponseChunk::Done { session_id, usage } => {
                 assert_eq!(session_id, "t-9");
                 assert!(usage.is_some());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_done_injects_model_usage_when_window_resolved() {
+        let mut state = CodexParserState {
+            model: Some("gpt-5.4".into()),
+            context_window: Some(272000),
+            ..Default::default()
+        };
+        parse_line_codex(&mut state, r#"{"type":"thread.started","thread_id":"t-cw"}"#);
+        let line = r#"{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":5}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u.get("model").and_then(|m| m.as_str()), Some("gpt-5.4"));
+                assert_eq!(
+                    u.pointer("/modelUsage/gpt-5.4/contextWindow").and_then(|n| n.as_u64()),
+                    Some(272000)
+                );
+                assert_eq!(u.get("input_tokens").and_then(|n| n.as_u64()), Some(100));
+                assert_eq!(u.get("cached_input_tokens").and_then(|n| n.as_u64()), Some(40));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn codex_done_unchanged_when_window_unknown() {
+        let mut state = CodexParserState::default();
+        let line = r#"{"type":"turn.completed","usage":{"input_tokens":10}}"#;
+        match parse_line_codex(&mut state, line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert!(u.get("model").is_none());
+                assert!(u.get("modelUsage").is_none());
             }
             _ => panic!("wrong variant"),
         }
@@ -556,5 +803,164 @@ mod tests {
         let mut state = CodexParserState::default();
         assert!(parse_line_codex(&mut state, r#"{"type":"turn.started"}"#).is_none());
         assert!(parse_line_codex(&mut state, r#"{"type":"item.started","item":{"type":"agent_message"}}"#).is_none());
+    }
+
+    #[test]
+    fn ollama_content_delta_emits_text() {
+        let line = r#"{"model":"llama3","message":{"role":"assistant","content":"hi"},"done":false}"#;
+        match parse_line_ollama(line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "hi"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn ollama_empty_content_delta_is_dropped() {
+        let line = r#"{"message":{"role":"assistant","content":""},"done":false}"#;
+        assert!(parse_line_ollama(line).is_none());
+    }
+
+    #[test]
+    fn ollama_done_renames_token_counts_to_input_output() {
+        let line = r#"{"done":true,"prompt_eval_count":10,"eval_count":5}"#;
+        match parse_line_ollama(line).unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u["input_tokens"], 10);
+                assert_eq!(u["output_tokens"], 5);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn ollama_error_line_emits_error() {
+        let line = r#"{"error":"model 'foo' not found"}"#;
+        match parse_line_ollama(line).unwrap() {
+            AiResponseChunk::Error { message, .. } => assert!(message.contains("not found")),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn ollama_tags_extracts_model_names() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"models":[{"name":"llama3:8b"},{"name":"qwen2"}]}"#).unwrap();
+        assert_eq!(parse_ollama_tags(&v), vec!["llama3:8b", "qwen2"]);
+    }
+
+    #[test]
+    fn ollama_tags_missing_models_is_empty() {
+        let v: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(parse_ollama_tags(&v).is_empty());
+    }
+
+    fn fresh_openai() -> OpenaiParserState { OpenaiParserState::default() }
+
+    #[test]
+    fn openai_data_frame_emits_text() {
+        let line = r#"data: {"choices":[{"delta":{"content":"hi"}}]}"#;
+        match parse_line_openai(&mut fresh_openai(), line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "hi"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_done_sentinel_emits_done() {
+        match parse_line_openai(&mut fresh_openai(), "data: [DONE]").unwrap() {
+            AiResponseChunk::Done { session_id, usage } => {
+                assert_eq!(session_id, "");
+                assert!(usage.is_none());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_role_only_delta_is_dropped() {
+        let line = r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#;
+        assert!(parse_line_openai(&mut fresh_openai(), line).is_none());
+    }
+
+    #[test]
+    fn openai_reasoning_content_only_delta_is_dropped() {
+        let line = r#"data: {"choices":[{"delta":{"reasoning_content":"thinking..."}}]}"#;
+        assert!(parse_line_openai(&mut fresh_openai(), line).is_none());
+    }
+
+    #[test]
+    fn openai_usage_chunk_is_captured_and_attached_to_done_sentinel() {
+        let mut state = fresh_openai();
+        let line = r#"data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":7,"total_tokens":19}}"#;
+        assert!(parse_line_openai(&mut state, line).is_none());
+        match parse_line_openai(&mut state, "data: [DONE]").unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u["input_tokens"], 12);
+                assert_eq!(u["output_tokens"], 7);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_frame_with_content_and_usage_emits_text_and_captures_usage() {
+        // llama.cpp attaches usage to the finish_reason chunk, which can also
+        // carry the final content delta — the text must not be lost.
+        let mut state = fresh_openai();
+        let line = r#"data: {"choices":[{"delta":{"content":"bye"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4}}"#;
+        match parse_line_openai(&mut state, line).unwrap() {
+            AiResponseChunk::Text { content } => assert_eq!(content, "bye"),
+            other => panic!("expected Text, got {:?}", other),
+        }
+        match parse_line_openai(&mut state, "data: [DONE]").unwrap() {
+            AiResponseChunk::Done { usage, .. } => {
+                let u = usage.unwrap();
+                assert_eq!(u["input_tokens"], 9);
+                assert_eq!(u["output_tokens"], 4);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_error_line_emits_error() {
+        let obj = r#"data: {"error":{"message":"model 'foo' not found"}}"#;
+        match parse_line_openai(&mut fresh_openai(), obj).unwrap() {
+            AiResponseChunk::Error { message, .. } => assert!(message.contains("not found")),
+            _ => panic!("wrong variant"),
+        }
+        let str_err = r#"data: {"error":"boom"}"#;
+        match parse_line_openai(&mut fresh_openai(), str_err).unwrap() {
+            AiResponseChunk::Error { message, .. } => assert_eq!(message, "boom"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn openai_blank_line_is_dropped() {
+        assert!(parse_line_openai(&mut fresh_openai(), "").is_none());
+        assert!(parse_line_openai(&mut fresh_openai(), "   ").is_none());
+    }
+
+    #[test]
+    fn openai_models_extracts_data_ids() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"data":[{"id":"qwen3.5"},{"id":"phi"}],"object":"list"}"#).unwrap();
+        assert_eq!(parse_openai_models(&v), vec!["qwen3.5", "phi"]);
+    }
+
+    #[test]
+    fn openai_models_fallback_to_models_array() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"models":[{"name":"m1"},{"id":"m2"}]}"#).unwrap();
+        assert_eq!(parse_openai_models(&v), vec!["m1", "m2"]);
+    }
+
+    #[test]
+    fn openai_models_missing_is_empty() {
+        let v: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(parse_openai_models(&v).is_empty());
     }
 }

@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue';
-import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap } from '../services/aiCommands';
+import { aiCommands, type AiSendRequest, type AiResponseChunk, type CliKind, type AccessMap, type AiHistoryTurn } from '../services/aiCommands';
 import { useAiContext } from './useAiContext';
-import { useSettings } from './useSettings';
+import { useSettings, OLLAMA_MIN_NUM_CTX } from './useSettings';
 
 export interface AttachedPin {
   id: string;
@@ -38,6 +38,8 @@ export interface AiThread {
   /** Last model + effort used in this thread — restored on thread select. */
   model: string | null;
   effort: string | null;
+  /** Hash of the static preamble last delivered in this thread (gates re-sends). */
+  lastSentStaticHash: string | null;
   createdAt: string;
   updatedAt: string;
   messages: AiMessage[];
@@ -74,6 +76,7 @@ function loadStore(docPath: string): ThreadStore {
       for (const t of parsed.threads) {
         if (t.model === undefined) t.model = null;
         if (t.effort === undefined) t.effort = null;
+        if (t.lastSentStaticHash === undefined) t.lastSentStaticHash = null;
       }
       return parsed;
     }
@@ -116,6 +119,20 @@ function deriveTitle(msgs: AiMessage[]): string {
   return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX - 1) + '…' : t || 'New chat';
 }
 
+/** Project prior thread turns into the wire history for local providers: only
+ *  user/assistant text turns, skipping tool and attachment rows and empty or
+ *  errored assistant turns (no tool_call_id references that strict servers
+ *  reject). Chronological order preserved; the Rust side trims to budget. */
+function buildHistory(msgs: AiMessage[]): AiHistoryTurn[] {
+  const out: AiHistoryTurn[] = [];
+  for (const m of msgs) {
+    if (m.role !== 'user' && m.role !== 'assistant') continue;
+    if (m.role === 'assistant' && (m.error || !m.text)) continue;
+    out.push({ role: m.role, content: m.text });
+  }
+  return out;
+}
+
 function newThread(): AiThread {
   const now = new Date().toISOString();
   return {
@@ -125,6 +142,7 @@ function newThread(): AiThread {
     cli: null,
     model: null,
     effort: null,
+    lastSentStaticHash: null,
     createdAt: now,
     updatedAt: now,
     messages: [],
@@ -159,10 +177,16 @@ export interface SendOpts {
   effort: string | null;
   prompt: string;
   preamble: string;
+  turnContext: string;
+  /** Hash of the current static preamble — recorded on the thread after a
+   *  successful Done so the next turn can skip re-sending it. */
+  staticPreambleHash?: string;
   accessMap: AccessMap;
   workDir: string;
   /** Absolute paths to attached image files (clipboard paste / file picker). */
   images?: string[];
+  /** Current main-document content for local providers (size-gated in AiPanel). */
+  docContent?: string;
   onSessionId?: (id: string) => void;
   onToolRequest?: (tool: string, args: unknown, requestId: string) => void;
   onToolDenied?: (tool: string, reason: string) => void;
@@ -257,12 +281,20 @@ export function useAi() {
     if (isSending.value) throw new Error('A send is already in flight');
     isSending.value = true;
 
+    // Capture history BEFORE pushing the current user prompt + assistant
+    // placeholder, else the live turn would leak into its own history. Local
+    // providers (ollama/openai) have no resume, so we replay prior turns;
+    // claude/codex resume via session_id and get an empty history.
+    const isLocal = opts.cli === 'ollama' || opts.cli === 'openai';
+    const history = isLocal ? buildHistory(activeThread.value?.messages ?? []) : [];
+
     pushMessage({ role: 'user', text: opts.prompt, done: true });
     pushMessage({ role: 'assistant', text: '', done: false });
     const t = ensureActiveThread();
     t.cli = opts.cli;
     t.model = opts.model;
     t.effort = opts.effort;
+    const targetThreadId = t.id;
     const assistantIdx = t.messages.length - 1;
     const getAssistant = () => getAssistantInActive(assistantIdx)!;
 
@@ -297,16 +329,24 @@ export function useAi() {
         case 'tool_denied':
           opts.onToolDenied?.(chunk.tool, chunk.reason);
           break;
-        case 'done':
+        case 'done': {
           a.done = true;
           aiContext.record(opts.cli, chunk.usage);
-          if (chunk.sessionId) {
-            const tt = activeThread.value;
-            if (tt) tt.sessionId = chunk.sessionId;
+          // Resolve by id — the user may have switched threads mid-stream, so
+          // the active thread is not necessarily the one this send targeted.
+          const tt = store.value.threads.find(th => th.id === targetThreadId);
+          if (tt) {
+            if (chunk.sessionId) tt.sessionId = chunk.sessionId;
+            // Only on success — a failed turn means the model never saw it.
+            if (opts.staticPreambleHash) tt.lastSentStaticHash = opts.staticPreambleHash;
           }
-          opts.onSessionId?.(chunk.sessionId);
+          // Local providers (ollama/openai) finish with an empty sessionId —
+          // never persist it, so their sends keep resolving to a null session
+          // (history replay) and the static preamble is always included.
+          if (chunk.sessionId) opts.onSessionId?.(chunk.sessionId);
           resolveCompletion();
           break;
+        }
         case 'error':
           a.error = chunk.message;
           a.done = true;
@@ -316,9 +356,14 @@ export function useAi() {
     });
 
     const { settings } = useSettings();
-    const overridePath = (opts.cli === 'claude'
-      ? settings.value.ai.cliPathClaude
-      : settings.value.ai.cliPathCodex
+    // For ollama / openai the cliPath channel carries the base URL, not a binary path.
+    const overridePath = (opts.cli === 'ollama'
+      ? (settings.value.ai.ollamaBaseUrl ?? '')
+      : opts.cli === 'openai'
+        ? (settings.value.ai.openaiBaseUrl ?? '')
+        : opts.cli === 'claude'
+          ? settings.value.ai.cliPathClaude
+          : settings.value.ai.cliPathCodex
     ).trim();
     const req: AiSendRequest = {
       cli: opts.cli,
@@ -327,11 +372,20 @@ export function useAi() {
       effort: opts.effort,
       prompt: opts.prompt,
       preamble: opts.preamble,
+      turnContext: opts.turnContext,
       accessMap: opts.accessMap,
       bypass: bypassEnabled.value,
       workDir: opts.workDir,
       images: opts.images ?? [],
       cliPath: overridePath || null,
+      history,
+      docContent: opts.docContent ?? null,
+      // Clamped here too (not only in the settings setter): a hand-edited
+      // negative value in the settings JSON would fail Rust's Option<u64>
+      // deserialization and break every ollama send.
+      numCtx: opts.cli === 'ollama' && Number.isFinite(settings.value.ai.ollamaNumCtx)
+        ? Math.max(OLLAMA_MIN_NUM_CTX, Math.floor(settings.value.ai.ollamaNumCtx))
+        : null,
     };
 
     try {

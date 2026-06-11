@@ -208,6 +208,21 @@ async fn ai_health_check(cli: CliKind, override_path: Option<String>) -> HealthS
 }
 
 #[tauri::command]
+async fn ai_ollama_models(base_url: Option<String>) -> Result<Vec<String>, String> {
+    ai::process::ollama::list_models(base_url.as_deref()).await
+}
+
+#[tauri::command]
+async fn ai_openai_models(base_url: Option<String>) -> Result<Vec<String>, String> {
+    ai::process::openai::list_models(base_url.as_deref()).await
+}
+
+#[tauri::command]
+async fn ai_codex_models() -> Vec<ai::process::codex::CodexModelOption> {
+    ai::process::codex::list_models().await
+}
+
+#[tauri::command]
 fn ai_access_load(app: tauri::AppHandle, doc_path: String) -> Result<AccessMap, String> {
     ai::access_map::load(&app, &doc_path)
 }
@@ -309,8 +324,13 @@ async fn ai_send(
 }
 
 #[tauri::command]
-fn ai_cancel(registry: tauri::State<'_, ai::process::ChildRegistry>, request_id: String) {
-    ai::process::cancel(&registry, &request_id);
+fn ai_cancel(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    registry: tauri::State<'_, ai::process::ChildRegistry>,
+    request_id: String,
+) {
+    ai::process::cancel(&app, window.label(), &registry, &request_id);
 }
 
 /// Persist an image (clipboard paste, drag-drop, etc.) to a temporary file
@@ -888,6 +908,9 @@ pub fn run() {
             reveal_in_os,
             search_workspace_content,
             ai_health_check,
+            ai_ollama_models,
+            ai_openai_models,
+            ai_codex_models,
             ai_access_load,
             ai_access_save,
             ai_access_migrate,

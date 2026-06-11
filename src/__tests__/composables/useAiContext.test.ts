@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseUsage } from '../../composables/useAiContext';
+import {
+  parseUsage,
+  contextWarnLevel,
+  CONTEXT_WARN_THRESHOLD,
+  CONTEXT_DANGER_THRESHOLD,
+} from '../../composables/useAiContext';
 
 describe('parseUsage', () => {
   it('returns empty when raw is null', () => {
@@ -32,7 +37,74 @@ describe('parseUsage', () => {
     const claudeU = parseUsage('claude', { input_tokens: 1 });
     expect(claudeU.contextWindow).toBe(200_000);
     const codexU = parseUsage('codex', { input_tokens: 1 });
-    expect(codexU.contextWindow).toBe(256_000);
+    expect(codexU.contextWindow).toBe(272_000);
+    const ollamaU = parseUsage('ollama', { input_tokens: 1 });
+    expect(ollamaU.contextWindow).toBe(8_192);
+  });
+
+  it('parses ollama input/output token counts', () => {
+    const u = parseUsage('ollama', { input_tokens: 12, output_tokens: 7 });
+    expect(u.totalInputTokens).toBe(12);
+    expect(u.outputTokens).toBe(7);
+    expect(u.empty).toBe(false);
+  });
+
+  it('picks the main model contextWindow by key when modelUsage has side models first', () => {
+    // serde_json re-sorts modelUsage alphabetically, so the haiku side model
+    // lands before the opus main model — the model key must win.
+    const u = parseUsage('claude', {
+      input_tokens: 100,
+      model: 'claude-opus-4-7',
+      modelUsage: {
+        'claude-haiku-4-5': { contextWindow: 200_000 },
+        'claude-opus-4-7': { contextWindow: 1_000_000 },
+      },
+    });
+    expect(u.contextWindow).toBe(1_000_000);
+  });
+
+  it('falls back to MAX contextWindow across modelUsage when model key is absent', () => {
+    const u = parseUsage('claude', {
+      input_tokens: 100,
+      modelUsage: {
+        'claude-haiku-4-5': { contextWindow: 200_000 },
+        'claude-opus-4-7': { contextWindow: 1_000_000 },
+      },
+    });
+    expect(u.contextWindow).toBe(1_000_000);
+  });
+
+  it('ignores a non-positive keyed contextWindow and falls back to MAX', () => {
+    const u = parseUsage('claude', {
+      input_tokens: 100,
+      model: 'claude-opus-4-7',
+      modelUsage: {
+        'claude-haiku-4-5': { contextWindow: 200_000 },
+        'claude-opus-4-7': { contextWindow: 0 },
+      },
+    });
+    expect(u.contextWindow).toBe(200_000);
+  });
+
+  it('falls back to per-cli default when all modelUsage windows are non-positive', () => {
+    const u = parseUsage('claude', {
+      input_tokens: 100,
+      model: 'claude-opus-4-7',
+      modelUsage: { 'claude-opus-4-7': { contextWindow: -1 } },
+    });
+    expect(u.contextWindow).toBe(200_000);
+  });
+
+  it('falls back to MAX when model key does not match any modelUsage entry', () => {
+    const u = parseUsage('claude', {
+      input_tokens: 100,
+      model: 'claude-something-else',
+      modelUsage: {
+        'claude-haiku-4-5': { contextWindow: 200_000 },
+        'claude-opus-4-7': { contextWindow: 1_000_000 },
+      },
+    });
+    expect(u.contextWindow).toBe(1_000_000);
   });
 
   it('clamps fraction to 1.0 when usage exceeds window', () => {
@@ -59,6 +131,73 @@ describe('parseUsage', () => {
   it('keeps codex single-usage parsing unchanged', () => {
     const u = parseUsage('codex', { input_tokens: 1 });
     expect(u.totalInputTokens).toBe(1);
-    expect(u.contextWindow).toBe(256_000);
+    expect(u.contextWindow).toBe(272_000);
+  });
+
+  it('splits codex cached_input_tokens out of input_tokens', () => {
+    // codex input_tokens INCLUDES cached; total must equal original input.
+    const u = parseUsage('codex', {
+      input_tokens: 10_000,
+      cached_input_tokens: 8_000,
+      output_tokens: 50,
+    });
+    expect(u.cacheReadTokens).toBe(8_000);
+    expect(u.inputTokens).toBe(2_000);
+    expect(u.totalInputTokens).toBe(10_000);
+  });
+
+  it('clamps codex fresh input at 0 when cached exceeds input', () => {
+    const u = parseUsage('codex', { input_tokens: 100, cached_input_tokens: 150 });
+    expect(u.inputTokens).toBe(0);
+    expect(u.cacheReadTokens).toBe(150);
+  });
+
+  it('lifts codex contextWindow from injected model + modelUsage', () => {
+    const u = parseUsage('codex', {
+      input_tokens: 10,
+      model: 'gpt-5.4',
+      modelUsage: { 'gpt-5.4': { contextWindow: 272_000 } },
+    });
+    expect(u.contextWindow).toBe(272_000);
+  });
+
+  it('leaves claude usage without cached_input_tokens untouched (regression)', () => {
+    const u = parseUsage('claude', {
+      input_tokens: 6,
+      cache_creation_input_tokens: 1000,
+      cache_read_input_tokens: 30_000,
+      output_tokens: 40,
+    });
+    expect(u.inputTokens).toBe(6);
+    expect(u.cacheReadTokens).toBe(30_000);
+    expect(u.totalInputTokens).toBe(6 + 1000 + 30_000);
+  });
+
+  it('lifts the injected ollama window from model + modelUsage', () => {
+    const u = parseUsage('ollama', {
+      input_tokens: 3000,
+      output_tokens: 50,
+      model: 'llama3:8b',
+      modelUsage: { 'llama3:8b': { contextWindow: 16_384 } },
+    });
+    expect(u.contextWindow).toBe(16_384);
+  });
+});
+
+describe('contextWarnLevel', () => {
+  it('is none below the warn threshold', () => {
+    expect(contextWarnLevel(0)).toBe('none');
+    expect(contextWarnLevel(0.79)).toBe('none');
+  });
+
+  it('turns warn at 80% and stays warn below 95%', () => {
+    expect(contextWarnLevel(CONTEXT_WARN_THRESHOLD)).toBe('warn');
+    expect(contextWarnLevel(0.9)).toBe('warn');
+    expect(contextWarnLevel(0.949)).toBe('warn');
+  });
+
+  it('turns danger at 95% and above', () => {
+    expect(contextWarnLevel(CONTEXT_DANGER_THRESHOLD)).toBe('danger');
+    expect(contextWarnLevel(1)).toBe('danger');
   });
 });
