@@ -34,6 +34,7 @@
     "bump:version": "node scripts/bump-version.mjs"
   },
   "dependencies": {
+    "@marp-team/marp-core": "^4.3.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-process": "^2.3.1",

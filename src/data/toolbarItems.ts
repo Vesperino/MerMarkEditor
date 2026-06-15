@@ -37,6 +37,7 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'save-file-as', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 40, needsEditor: false, labelKey: 'saveAs' },
   { id: 'export-pdf', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 50, needsEditor: false, labelKey: 'exportPdf' },
   { id: 'export-docx', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 51, needsEditor: false, labelKey: 'exportDocx' },
+  { id: 'present-marp', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 52, needsEditor: false, labelKey: 'presentMarp' },
   { id: 'show-shortcuts', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 60, needsEditor: false, labelKey: 'keyboardShortcuts' },
   { id: 'show-settings', category: 'file-ops', defaultZone: 'toolbar', defaultOrder: 70, needsEditor: false, labelKey: 'settings' },
 

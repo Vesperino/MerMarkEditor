@@ -10,6 +10,7 @@ const zhCN: Translations = {
   saveAs: '另存为',
   exportPdf: 'PDF',
   exportDocx: 'DOCX',
+  presentMarp: '导出为 Marp 幻灯片',
 
   // Toolbar - Edit operations
   undo: '撤销',
@@ -587,6 +588,13 @@ const zhCN: Translations = {
   pdfTocTitle: '目录',
   pdfTocDepth: '深度（标题级别）',
   pdfTocPageBreak: '目录单独一页',
+
+  // Marp presentation
+  marpPreviewTitle: 'Marp 幻灯片预览',
+  marpExportHtml: '导出 .html',
+  marpPrevSlide: '上一张幻灯片',
+  marpNextSlide: '下一张幻灯片',
+  marpSlideCounter: (current: number, total: number) => `第 ${current} / ${total} 张`,
 };
 
 export default zhCN;

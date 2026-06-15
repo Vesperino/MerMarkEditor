@@ -16,6 +16,7 @@ export interface Translations {
   saveAs: string;
   exportPdf: string;
   exportDocx: string;
+  presentMarp: string;
 
   // Toolbar - Edit operations
   undo: string;
@@ -597,6 +598,13 @@ export interface Translations {
   pdfTocTitle: string;
   pdfTocDepth: string;
   pdfTocPageBreak: string;
+
+  // Marp presentation
+  marpPreviewTitle: string;
+  marpExportHtml: string;
+  marpPrevSlide: string;
+  marpNextSlide: string;
+  marpSlideCounter: (current: number, total: number) => string;
 }
 
 const translations: Record<Locale, Translations> = {

@@ -56,6 +56,7 @@ import { useImageDrop } from './composables/useImageDrop';
 import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
 import PdfExportDialog from './components/PdfExportDialog.vue';
+import MarpPreviewDialog from './components/MarpPreviewDialog.vue';
 import { usePdfExport } from './composables/usePdfExport';
 import { useDocxExport } from './composables/useDocxExport';
 import { serializeEditorContent } from './utils/documentSerializer';
@@ -486,6 +487,19 @@ function openPdfDialog() {
     date: new Date().toLocaleDateString(),
   };
   showPdfDialog.value = true;
+}
+
+// ============ Marp Presentation ============
+const showMarpDialog = ref(false);
+const marpMarkdown = ref('');
+const marpTitle = ref('deck');
+
+function openMarpDialog() {
+  marpMarkdown.value = htmlToMarkdown(getEditorContent() ?? '');
+  const tab = activeTab.value;
+  const fileName = tab?.fileName ?? '';
+  marpTitle.value = fileName.replace(/\.(md|markdown)$/i, '') || 'deck';
+  showMarpDialog.value = true;
 }
 
 // ============ Code View ============
@@ -1568,6 +1582,7 @@ onUnmounted(async () => {
       @save-file-as="saveFileAs"
       @export-pdf="openPdfDialog"
       @export-docx="exportDocx"
+      @present-marp="openMarpDialog"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
@@ -1609,6 +1624,7 @@ onUnmounted(async () => {
         @save-file-as="saveFileAs"
         @export-pdf="openPdfDialog"
         @export-docx="exportDocx"
+        @present-marp="openMarpDialog"
         @toggle-code-view="toggleCodeView"
         @toggle-split="toggleSplit"
         @toggle-diff-preview="toggleDiffPreview"
@@ -1681,6 +1697,7 @@ onUnmounted(async () => {
       @save-file-as="saveFileAs"
       @export-pdf="openPdfDialog"
       @export-docx="exportDocx"
+      @present-marp="openMarpDialog"
       @toggle-code-view="toggleCodeView"
       @toggle-split="toggleSplit"
       @toggle-diff-preview="toggleDiffPreview"
@@ -1697,6 +1714,14 @@ onUnmounted(async () => {
       :content-html="pdfContentHtml"
       :meta="pdfMeta"
       @close="showPdfDialog = false"
+    />
+
+    <!-- Marp Presentation Dialog -->
+    <MarpPreviewDialog
+      v-if="showMarpDialog"
+      :markdown="marpMarkdown"
+      :title="marpTitle"
+      @close="showMarpDialog = false"
     />
 
     <!-- Loading Overlay -->

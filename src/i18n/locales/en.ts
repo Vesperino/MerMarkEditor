@@ -10,6 +10,7 @@ const en: Translations = {
   saveAs: 'Save As',
   exportPdf: 'PDF',
   exportDocx: 'DOCX',
+  presentMarp: 'Present as Marp',
 
   // Toolbar - Edit operations
   undo: 'Undo',
@@ -587,6 +588,13 @@ const en: Translations = {
   pdfTocTitle: 'Table of Contents',
   pdfTocDepth: 'Depth (heading levels)',
   pdfTocPageBreak: 'TOC on its own page',
+
+  // Marp presentation
+  marpPreviewTitle: 'Marp Presentation Preview',
+  marpExportHtml: 'Export .html',
+  marpPrevSlide: 'Previous slide',
+  marpNextSlide: 'Next slide',
+  marpSlideCounter: (current: number, total: number) => `Slide ${current} / ${total}`,
 };
 
 export default en;
