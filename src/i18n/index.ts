@@ -91,6 +91,11 @@ export interface Translations {
   splitView: string;
   singleView: string;
 
+  // Toolbar - Split Editor (code + live preview)
+  splitEditor: string;
+  splitEditorTooltip: string;
+  splitEditorExit: string;
+
   // Toolbar - Diff Preview
   changes: string;
   noChanges: string;
@@ -318,6 +323,20 @@ export interface Translations {
   aiBypassHelper: string;
   aiCliStatusClaude: string;
   aiCliStatusCodex: string;
+  aiCliStatusOllama: string;
+  aiOllamaConnected: (info: string) => string;
+  aiOllamaNotRunning: string;
+  aiOllamaLocalHint: string;
+  aiOllamaBaseUrlPlaceholder: string;
+  aiOllamaBaseUrlHelper: string;
+  aiOllamaNumCtxLabel: string;
+  aiOllamaNumCtxHelper: string;
+  aiCliStatusOpenai: string;
+  aiOpenaiConnected: (info: string) => string;
+  aiOpenaiNotRunning: string;
+  aiOpenaiLocalHint: string;
+  aiOpenaiBaseUrlPlaceholder: string;
+  aiOpenaiBaseUrlHelper: string;
   aiStatusOk: (account: string) => string;
   aiStatusBinaryMissing: string;
   aiStatusAuthRequired: string;
@@ -368,6 +387,8 @@ export interface Translations {
   aiModel: string;
   aiEmptyHint: string;
   aiEmptyKeyHint: string;
+  aiContextNearlyFull: string;
+  aiModelMissing: string;
   aiEffort: string;
   aiRevertSnapshot: string;
   aiMinimizeToTab: string;

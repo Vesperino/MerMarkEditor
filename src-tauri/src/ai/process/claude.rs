@@ -117,11 +117,11 @@ async fn build_user_message_envelope(req: &AiSendRequest) -> Result<String, Stri
             }
         }));
     }
-    let text = if req.preamble.is_empty() {
-        req.prompt.clone()
-    } else {
-        format!("{}\n\n{}", req.preamble, req.prompt)
-    };
+    let text = crate::ai::process::join_message_parts(&[
+        req.preamble.as_str(),
+        req.turn_context.as_str(),
+        req.prompt.as_str(),
+    ]);
     content.push(serde_json::json!({ "type": "text", "text": text }));
     let envelope = serde_json::json!({
         "type": "user",
@@ -186,6 +186,49 @@ mod tests {
         // Explicitly disable file_read + file_write to test bash-only case.
         let t = AccessMapTools { bash: true, network: false, file_read: false, file_write: false };
         assert_eq!(allowed_tools(&t), "Bash");
+    }
+
+    fn req_with(preamble: &str, turn_context: &str, prompt: &str) -> AiSendRequest {
+        AiSendRequest {
+            cli: crate::ai::types::CliKind::Claude,
+            session_id: None,
+            model: None,
+            effort: None,
+            prompt: prompt.into(),
+            preamble: preamble.into(),
+            turn_context: turn_context.into(),
+            access_map: crate::ai::types::AccessMap::default_for_doc("/x.md"),
+            bypass: false,
+            work_dir: String::new(),
+            images: vec![],
+            cli_path: None,
+            history: vec![],
+            num_ctx: None,
+            doc_content: None,
+        }
+    }
+
+    fn envelope_text(envelope: &str) -> String {
+        let v: serde_json::Value = serde_json::from_str(envelope).unwrap();
+        v.pointer("/message/content/0/text").and_then(|t| t.as_str()).unwrap().to_string()
+    }
+
+    #[tokio::test]
+    async fn envelope_joins_preamble_turn_context_prompt() {
+        let payload = build_user_message_envelope(&req_with("PRE", "TURN", "PROMPT")).await.unwrap();
+        assert_eq!(envelope_text(&payload), "PRE\n\nTURN\n\nPROMPT");
+    }
+
+    #[tokio::test]
+    async fn envelope_skips_empty_preamble_keeps_turn_context() {
+        let payload = build_user_message_envelope(&req_with("", "TURN", "PROMPT")).await.unwrap();
+        assert_eq!(envelope_text(&payload), "TURN\n\nPROMPT");
+    }
+
+    #[tokio::test]
+    async fn envelope_prompt_only_when_preamble_and_turn_context_empty() {
+        let payload = build_user_message_envelope(&req_with("", "", "PROMPT")).await.unwrap();
+        assert_eq!(envelope_text(&payload), "PROMPT");
     }
 
     #[test]

@@ -1,10 +1,11 @@
 {
   "name": "mermark-editor",
   "private": false,
-  "version": "0.4.1",
+  "version": "0.5.6",
   "description": "Modern Markdown editor with Mermaid diagram support",
   "author": "Vesperino",
   "license": "MIT",
+  "packageManager": "pnpm@11.3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Vesperino/MerMarkEditor.git"
@@ -67,15 +68,8 @@
     "diff": "^8.0.3",
     "docx": "^9.6.1",
     "lowlight": "^3.3.0",
-    "mermaid": "^11.12.3",
+    "mermaid": "^11.15.0",
     "vue": "^3.5.13"
-  },
-  "pnpm": {
-    "overrides": {
-      "markdown-it": ">=14.1.1",
-      "rollup": ">=4.59.0",
-      "minimatch": ">=9.0.7"
-    }
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
@@ -89,8 +83,8 @@
     "png-to-ico": "^3.0.1",
     "sharp": "^0.34.5",
     "typescript": "~5.7.3",
-    "vite": "^6.3.5",
-    "vitest": "^4.0.17",
+    "vite": "^6.4.2",
+    "vitest": "^4.1.0",
     "vue-tsc": "^2.2.10"
   }
 }

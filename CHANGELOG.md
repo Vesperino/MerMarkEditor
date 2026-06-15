@@ -4,6 +4,84 @@
 
 ---
 
+# Release v0.5.6 — Local AI models & accurate token counting
+
+## Features
+
+- Chat with local AI models: connect Ollama or any OpenAI-compatible server (LM Studio, llama.cpp, vLLM) from the new sections in AI settings — no cloud account needed (#92)
+- Local models can read and edit your document directly, just like the cloud assistants (#92)
+- The current document rides along with each message to local models, so small models answer about your file without extra round trips (#92)
+- The Codex model picker now lists the models actually available in your Codex CLI instead of a fixed list (#92)
+- Added the latest Claude models to the model picker (#92)
+- The context bar warns when a conversation gets close to the model's limit, so you know when to start a fresh chat (#92)
+- Long conversations are compacted automatically for small-context local models, keeping older turns from crowding out your question (#92)
+
+## Bug fixes
+
+- The context window size now matches the model you are actually chatting with — it no longer dropped to a smaller model's limit after the first reply (#99)
+- The Codex context window is detected from your installed CLI instead of a stale built-in value (#99)
+- Session instructions are sent once per conversation instead of with every message, so each turn wastes fewer tokens (#99)
+- Token usage no longer double-counts cached tokens on Codex (#99)
+- Edits proposed by local models no longer fail on Windows documents because of line-ending differences (#92)
+- Pinned-fragment markers no longer leak into the document when a local model edits a pinned section (#92)
+
+---
+
+# Release v0.5.5 — Linux AppImage works again on Fedora and openSUSE
+
+## Bug fixes
+
+- Fix the Linux AppImage opening an empty window on up-to-date distributions such as Fedora and openSUSE Tumbleweed — the package no longer ships an outdated system library that broke graphics startup (#106, #109)
+
+---
+
+# Release v0.5.4 — Synced scrolling & live Table of Contents
+
+## Features
+
+- In the Code + Preview split, scrolling either pane now keeps the other roughly aligned, so the preview follows along while you edit the source.
+- The Table of Contents now highlights the section you are reading and updates automatically as you scroll through the document.
+
+---
+
+# Release v0.5.3 — Security updates
+
+## Security
+
+- Update bundled dependencies to clear outstanding Dependabot security advisories (#105).
+
+---
+
+# Release v0.5.2 — Linux blank-window fix
+
+## Bug fixes
+
+- Fix the empty/blank window on Linux so the app starts and renders correctly on recent distributions such as Fedora 44 and openSUSE Tumbleweed (#106).
+
+---
+
+# Release v0.5.1 — macOS printing fix
+
+## Bug fixes
+
+- Fix the **Print / PDF** button doing nothing on macOS — the export dialog now opens the native print dialog, where you can print or save the formatted document as a PDF (#103).
+
+---
+
+# Release v0.5.0 — Code + Preview split editor, accurate Claude context meter
+
+Write Markdown and watch it render at the same time, and trust the AI context meter again. This release adds a side-by-side Code + Preview editor for the document you're working on, and fixes the Claude context-usage meter so it reflects what's actually in the window.
+
+## Features
+
+- **Code + Preview split.** Toggle "Code + Preview" in the toolbar to edit raw Markdown on the left and see the rendered result update live on the right — both showing the same document. Mermaid diagrams you change in the preview (by hand or with the AI button) flow back into the Markdown. (#94)
+
+## Bug fixes
+
+- **Claude context meter no longer over-reports.** A single reply could make it look like one turn ate ~100K tokens when the real context was a fraction of that. The meter now shows the true context size for the turn. (#99)
+
+---
+
 # Release v0.4.1 — Read and write multiple Mermaid fence styles
 
 ## Features

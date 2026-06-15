@@ -42,7 +42,7 @@
 - **WYSIWYG editing** - See your formatted content as you type
 - **Mermaid integration** - Create diagrams directly in your documents
 - **Multi-root workspaces** - Open one folder or many; the AI sees them as scoped read-only context
-- **Local AI assistant** - Talk to Claude or Codex about your notes; they edit your files directly
+- **Local AI assistant** - Talk to Claude, Codex, a fully offline Ollama model, or any OpenAI-compatible local server about your notes; they edit your files directly
 - **Cross-platform** - Available on Windows, macOS and Linux
 
 <p align="center">
@@ -68,7 +68,27 @@ If you already pay for **Claude Code** or **OpenAI Codex** — or both — MerMa
 - **No API token to manage** — the CLI handles auth, MerMark never sees your keys.
 - **Direct to provider** — requests go from your machine straight to Anthropic or OpenAI; nothing else in between.
 - **No telemetry** — zero data leaves the editor beyond the CLI call you'd run in a terminal yourself.
-- **Switch providers per turn** — pick Claude for one chat, Codex for the next; both configured in one panel.
+- **Switch providers per turn** — pick Claude for one chat, Codex for the next; all configured in one panel.
+
+### Fully offline with Ollama
+
+Prefer to keep everything on your own machine? Pick **Ollama** as the provider and chat against a local model — no account, no subscription, no network.
+
+- **Requires a local [Ollama](https://ollama.com/download) install** running on your machine (`ollama serve`); pull a model first (e.g. `ollama pull llama3`).
+- **Models are listed automatically** from your local install (`/api/tags`) — the model dropdown fills with whatever you've pulled.
+- **Streams replies** straight from the local HTTP API; token usage is surfaced in the context bar just like the cloud providers.
+- **Configurable base URL** in *Settings → AI* (defaults to `http://localhost:11434`) if Ollama runs on another host or port.
+- **Graceful when offline** — if Ollama isn't running, the provider shows as *Not running* with a clear hint instead of failing silently.
+
+### Any OpenAI-compatible local server
+
+Run your own model server? Pick **OpenAI-compatible** as the provider and point it at any server that speaks the OpenAI HTTP API — [llama.cpp `llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/tools/server), LM Studio, vLLM, a local Mistral, or even Ollama's own `/v1` endpoint.
+
+- **Speaks the OpenAI API** — `POST /v1/chat/completions` (streamed SSE) and `GET /v1/models`; no account, no subscription, no network beyond your server.
+- **Models are listed automatically** from `/v1/models` — the dropdown fills with every model your server exposes.
+- **Streams replies** straight from the local HTTP API; token usage is surfaced in the context bar just like the cloud providers.
+- **Configurable base URL** in *Settings → AI* (defaults to `http://localhost:8080`); the `/v1` path is appended automatically, so a base that already ends in `/v1` is not doubled.
+- **Graceful when offline** — if the server isn't running, the provider shows as *Not running* with a clear hint instead of failing silently.
 
 ### What it can do
 

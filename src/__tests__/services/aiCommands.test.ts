@@ -40,6 +40,7 @@ describe('aiCommands', () => {
       effort: null,
       prompt: 'hi',
       preamble: 'you are',
+      turnContext: '',
       accessMap: { readPaths: ['/x'], writePaths: ['/x'], tools: { bash: false, network: false, fileRead: false, fileWrite: false } },
       bypass: false,
       workDir: '/x',

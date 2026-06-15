@@ -32,4 +32,18 @@ describe('useAiHealth', () => {
     await check('claude', true);
     expect(aiCommands.healthCheck).toHaveBeenCalledTimes(2);
   });
+
+  it('reset initializes an ollama cache slot', () => {
+    const { cache } = useAiHealth();
+    expect('ollama' in cache.value).toBe(true);
+    expect(cache.value.ollama).toBeNull();
+  });
+
+  it('checkAll probes ollama too', async () => {
+    (aiCommands.healthCheck as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue({ ok: true, version: '2 models', account: null, error: null });
+    const { checkAll } = useAiHealth();
+    await checkAll();
+    expect(aiCommands.healthCheck).toHaveBeenCalledWith('ollama', expect.anything());
+  });
 });

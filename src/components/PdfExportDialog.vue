@@ -321,11 +321,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import printCssRaw from '../styles/print.css?raw';
 import {
   loadPdfSettings,
   savePdfSettings,
   buildPrintDocument,
+  isChromiumWebview,
   SYSTEM_FONTS,
   getFontStack,
   type PdfSettings,
@@ -465,9 +467,17 @@ onBeforeUnmount(() => {
   if (writeTimer) clearTimeout(writeTimer);
 });
 
-function handlePrint() {
+async function handlePrint() {
   savePdfSettings({ ...settings });
-  previewFrame.value?.contentWindow?.print();
+  if (isChromiumWebview) {
+    previewFrame.value?.contentWindow?.print();
+    return;
+  }
+  try {
+    await invoke('print_document', { html: srcdoc.value });
+  } catch (e) {
+    console.error('print_document failed', e);
+  }
 }
 </script>
 

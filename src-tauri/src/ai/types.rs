@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub enum CliKind {
     Claude,
     Codex,
+    Ollama,
+    Openai,
 }
 
 impl CliKind {
@@ -12,6 +14,8 @@ impl CliKind {
         match self {
             CliKind::Claude => "claude",
             CliKind::Codex => "codex",
+            CliKind::Ollama => "ollama",
+            CliKind::Openai => "openai",
         }
     }
 }
@@ -140,6 +144,7 @@ mod tests {
     fn cli_kind_serializes_lowercase() {
         let s = serde_json::to_string(&CliKind::Claude).unwrap();
         assert_eq!(s, "\"claude\"");
+        assert_eq!(serde_json::to_string(&CliKind::Ollama).unwrap(), "\"ollama\"");
     }
 
     #[test]

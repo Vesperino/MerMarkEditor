@@ -3,11 +3,11 @@ import { computed, onMounted, ref } from 'vue';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from '../../i18n';
-import { useSettings, type CliKind, type PanelSide } from '../../composables/useSettings';
+import { useSettings, OLLAMA_MIN_NUM_CTX, type CliKind, type PanelSide } from '../../composables/useSettings';
 import { useAi } from '../../composables/useAi';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
-import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS, CUSTOM_MODEL_SENTINEL } from '../../composables/useAiModels';
+import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS, CUSTOM_MODEL_SENTINEL, modelsFor, useAiModels } from '../../composables/useAiModels';
 
 const { t } = useI18n();
 const {
@@ -16,6 +16,11 @@ const {
   setAiDefaultCli,
   setAiDefaultModelClaude,
   setAiDefaultModelCodex,
+  setAiDefaultModelOllama,
+  setAiDefaultModelOpenai,
+  setAiOllamaBaseUrl,
+  setAiOllamaNumCtx,
+  setAiOpenaiBaseUrl,
   setAiEffortClaude,
   setAiEffortCodex,
   setAiSnapshotsKeep,
@@ -25,24 +30,88 @@ const {
   setAiCliPathCodex,
 } = useSettings();
 const { check, cache, loading } = useAiHealth();
+const { ollamaModels, refreshOllamaModels, openaiModels, refreshOpenaiModels, refreshCodexModels } = useAiModels();
 const { bypassEnabled } = useAi();
 const { entries: auditEntries, load: loadAudit, clear: clearAudit } = useAiAudit();
 
+// CLI providers shown as binary-backed status rows (Ollama is HTTP, handled separately).
+const BINARY_CLIS: CliKind[] = ['claude', 'codex'];
+
 const customClaude = ref<string>('');
 const customCodex = ref<string>('');
+
+const codexModelOptions = computed(() => modelsFor('codex'));
 
 onMounted(async () => {
   await Promise.allSettled([
     check('claude'),
     check('codex'),
+    check('ollama'),
+    check('openai'),
+    refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null),
+    refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null),
+    refreshCodexModels(),
     loadAudit(),
   ]);
   if (isCustom('claude')) customClaude.value = settings.value.ai.defaultModelClaude;
   if (isCustom('codex')) customCodex.value = settings.value.ai.defaultModelCodex;
 });
 
+function isOllamaCustomModel(): boolean {
+  const cur = settings.value.ai.defaultModelOllama;
+  if (!cur) return false;
+  return !ollamaModels.value.some((o) => o.id === cur && !o.custom);
+}
+
+const ollamaModelSelectValue = computed(() =>
+  isOllamaCustomModel() ? CUSTOM_MODEL_SENTINEL : settings.value.ai.defaultModelOllama,
+);
+
+function pickOllamaModel(id: string) {
+  if (id === CUSTOM_MODEL_SENTINEL) {
+    setAiDefaultModelOllama(settings.value.ai.defaultModelOllama || '');
+  } else {
+    setAiDefaultModelOllama(id);
+  }
+}
+
+async function applyOllamaBaseUrl(value: string) {
+  setAiOllamaBaseUrl(value);
+  await Promise.allSettled([
+    check('ollama', true),
+    refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null),
+  ]);
+}
+
+function isOpenaiCustomModel(): boolean {
+  const cur = settings.value.ai.defaultModelOpenai;
+  if (!cur) return false;
+  return !openaiModels.value.some((o) => o.id === cur && !o.custom);
+}
+
+const openaiModelSelectValue = computed(() =>
+  isOpenaiCustomModel() ? CUSTOM_MODEL_SENTINEL : settings.value.ai.defaultModelOpenai,
+);
+
+function pickOpenaiModel(id: string) {
+  if (id === CUSTOM_MODEL_SENTINEL) {
+    setAiDefaultModelOpenai(settings.value.ai.defaultModelOpenai || '');
+  } else {
+    setAiDefaultModelOpenai(id);
+  }
+}
+
+async function applyOpenaiBaseUrl(value: string) {
+  setAiOpenaiBaseUrl(value);
+  await Promise.allSettled([
+    check('openai', true),
+    refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null),
+  ]);
+}
+
 async function recheck(cli: CliKind) {
   await check(cli, true);
+  if (cli === 'codex') await refreshCodexModels();
 }
 
 function dotClass(cli: CliKind): string {
@@ -56,7 +125,13 @@ function statusText(cli: CliKind): string {
   if (loading.value[cli]) return t.value.aiStatusLoading;
   const s = cache.value[cli];
   if (!s) return t.value.aiStatusUnknown;
-  if (s.ok) return t.value.aiStatusOk(s.account ?? '');
+  if (s.ok) {
+    if (cli === 'ollama') return t.value.aiOllamaConnected(s.version ?? '');
+    if (cli === 'openai') return t.value.aiOpenaiConnected(s.version ?? '');
+    return t.value.aiStatusOk(s.account ?? '');
+  }
+  if (cli === 'ollama') return t.value.aiOllamaNotRunning;
+  if (cli === 'openai') return t.value.aiOpenaiNotRunning;
   if (s.error?.toLowerCase().includes('binary') || s.error?.toLowerCase().includes('not found')) {
     return t.value.aiStatusBinaryMissing;
   }
@@ -67,11 +142,13 @@ function statusOk(cli: CliKind): boolean {
   return cache.value[cli]?.ok ?? false;
 }
 
-const anyCliHealthy = computed(() => statusOk('claude') || statusOk('codex'));
+const anyCliHealthy = computed(() => statusOk('claude') || statusOk('codex') || statusOk('ollama') || statusOk('openai'));
 
 const installUrl: Record<CliKind, string> = {
   claude: 'https://docs.claude.com/en/docs/claude-code/setup',
   codex: 'https://github.com/openai/codex',
+  ollama: 'https://ollama.com/download',
+  openai: 'https://github.com/ggml-org/llama.cpp/tree/master/tools/server',
 };
 
 async function openInstall(cli: CliKind) {
@@ -157,7 +234,7 @@ function searchedPaths(): string[] {
 
 function isCustom(cli: 'claude' | 'codex'): boolean {
   const cur = cli === 'claude' ? settings.value.ai.defaultModelClaude : settings.value.ai.defaultModelCodex;
-  const list = cli === 'claude' ? CLAUDE_MODELS : CODEX_MODELS;
+  const list = cli === 'claude' ? CLAUDE_MODELS : codexModelOptions.value;
   return !list.some(o => o.id === cur && !o.custom);
 }
 
@@ -210,7 +287,7 @@ async function copyAudit() {
 
     <section class="ai-settings-section">
       <h4>{{ t.aiSettingsCliHeading }}</h4>
-      <div v-for="cli in (['claude', 'codex'] as CliKind[])" :key="cli" class="ai-cli-block">
+      <div v-for="cli in BINARY_CLIS" :key="cli" class="ai-cli-block">
         <div class="ai-cli-row">
           <div class="ai-cli-name-col">
             <span class="ai-cli-name">{{ cli === 'claude' ? t.aiCliStatusClaude : t.aiCliStatusCodex }}</span>
@@ -261,6 +338,75 @@ async function copyAudit() {
           </ul>
         </details>
       </div>
+
+      <div class="ai-cli-block">
+        <div class="ai-cli-row">
+          <div class="ai-cli-name-col">
+            <span class="ai-cli-name">{{ t.aiCliStatusOllama }}</span>
+            <span class="ai-cli-sub">{{ t.aiOllamaLocalHint }}</span>
+          </div>
+          <div class="ai-cli-status-col">
+            <span class="ai-cli-dot" :class="dotClass('ollama')" />
+            <span class="ai-cli-status">{{ statusText('ollama') }}</span>
+          </div>
+          <div class="ai-cli-actions">
+            <button class="ai-btn" @click="recheck('ollama')" :disabled="loading['ollama']">
+              {{ loading['ollama'] ? '…' : t.aiRecheck }}
+            </button>
+            <button v-if="!statusOk('ollama')" class="ai-btn ai-btn--secondary" @click="openInstall('ollama')">
+              {{ t.aiInstall }}
+            </button>
+          </div>
+        </div>
+        <label class="ai-cli-path-row">
+          <input
+            type="text"
+            :value="settings.ai.ollamaBaseUrl"
+            :placeholder="t.aiOllamaBaseUrlPlaceholder"
+            @change="applyOllamaBaseUrl(($event.target as HTMLInputElement).value)"
+          />
+          <span class="ai-numctx-label">{{ t.aiOllamaNumCtxLabel }}</span>
+          <input
+            class="ai-numctx-input"
+            type="number"
+            :min="OLLAMA_MIN_NUM_CTX"
+            step="1024"
+            :value="settings.ai.ollamaNumCtx"
+            @change="setAiOllamaNumCtx(Number(($event.target as HTMLInputElement).value))"
+          />
+        </label>
+        <small class="ai-helper ai-helper--inline">{{ t.aiOllamaBaseUrlHelper }} {{ t.aiOllamaNumCtxHelper }}</small>
+      </div>
+
+      <div class="ai-cli-block">
+        <div class="ai-cli-row">
+          <div class="ai-cli-name-col">
+            <span class="ai-cli-name">{{ t.aiCliStatusOpenai }}</span>
+            <span class="ai-cli-sub">{{ t.aiOpenaiLocalHint }}</span>
+          </div>
+          <div class="ai-cli-status-col">
+            <span class="ai-cli-dot" :class="dotClass('openai')" />
+            <span class="ai-cli-status">{{ statusText('openai') }}</span>
+          </div>
+          <div class="ai-cli-actions">
+            <button class="ai-btn" @click="recheck('openai')" :disabled="loading['openai']">
+              {{ loading['openai'] ? '…' : t.aiRecheck }}
+            </button>
+            <button v-if="!statusOk('openai')" class="ai-btn ai-btn--secondary" @click="openInstall('openai')">
+              {{ t.aiInstall }}
+            </button>
+          </div>
+        </div>
+        <label class="ai-cli-path-row">
+          <input
+            type="text"
+            :value="settings.ai.openaiBaseUrl"
+            :placeholder="t.aiOpenaiBaseUrlPlaceholder"
+            @change="applyOpenaiBaseUrl(($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <small class="ai-helper ai-helper--inline">{{ t.aiOpenaiBaseUrlHelper }}</small>
+      </div>
     </section>
 
     <section class="ai-settings-section">
@@ -273,6 +419,8 @@ async function copyAudit() {
         >
           <option value="claude">Claude</option>
           <option value="codex">Codex</option>
+          <option value="ollama">Ollama</option>
+          <option value="openai">OpenAI-compatible</option>
         </select>
       </label>
     </section>
@@ -304,13 +452,49 @@ async function copyAudit() {
             :value="isCustom('codex') ? CUSTOM_MODEL_SENTINEL : settings.ai.defaultModelCodex"
             @change="pickModel('codex', ($event.target as HTMLSelectElement).value)"
           >
-            <option v-for="m in CODEX_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+            <option v-for="m in codexModelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
           <input
             v-if="isCustom('codex')"
             type="text"
             :value="customCodex"
             @input="pickCustom('codex', ($event.target as HTMLInputElement).value)"
+            :placeholder="t.aiSettingsModelIdPlaceholder"
+          />
+        </div>
+      </label>
+      <label class="ai-inline-label" style="margin-top: 8px;">
+        {{ t.aiCliStatusOllama }}
+        <div class="ai-inline-control">
+          <select
+            :value="ollamaModelSelectValue"
+            @change="pickOllamaModel(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="m in ollamaModels" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <input
+            v-if="isOllamaCustomModel()"
+            type="text"
+            :value="settings.ai.defaultModelOllama"
+            @input="setAiDefaultModelOllama(($event.target as HTMLInputElement).value)"
+            :placeholder="t.aiSettingsModelIdPlaceholder"
+          />
+        </div>
+      </label>
+      <label class="ai-inline-label" style="margin-top: 8px;">
+        {{ t.aiCliStatusOpenai }}
+        <div class="ai-inline-control">
+          <select
+            :value="openaiModelSelectValue"
+            @change="pickOpenaiModel(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="m in openaiModels" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <input
+            v-if="isOpenaiCustomModel()"
+            type="text"
+            :value="settings.ai.defaultModelOpenai"
+            @input="setAiDefaultModelOpenai(($event.target as HTMLInputElement).value)"
             :placeholder="t.aiSettingsModelIdPlaceholder"
           />
         </div>
@@ -524,6 +708,12 @@ async function copyAudit() {
   margin-top: 6px;
 }
 .ai-cli-path-row input[type="text"] { flex: 1; min-width: 200px; }
+.ai-numctx-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ai-cli-path-row .ai-numctx-input { min-width: 110px; width: 110px; }
 .ai-helper--inline { padding-left: 0; margin-top: 4px; }
 .ai-cli-path-searched {
   margin: 6px 0 0;

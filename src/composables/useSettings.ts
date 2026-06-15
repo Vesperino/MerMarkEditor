@@ -18,8 +18,13 @@ import {
 export type ThemeMode = 'light' | 'dark';
 export type ThemeVariant = 'default' | 'minimal';
 export type CodeThemeMode = 'dark' | 'white';
-export type CliKind = 'claude' | 'codex';
+export type CliKind = 'claude' | 'codex' | 'ollama' | 'openai';
 export type PanelSide = 'left' | 'right';
+
+export const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
+export const OPENAI_DEFAULT_BASE_URL = 'http://localhost:8080';
+export const OLLAMA_DEFAULT_NUM_CTX = 8192;
+export const OLLAMA_MIN_NUM_CTX = 512;
 
 /** A workspace currently pinned in the sidebar (one of N concurrent roots). */
 export interface OpenWorkspaceEntry {
@@ -63,8 +68,16 @@ export interface AiSettings {
   defaultCli: CliKind;
   defaultModelClaude: string;
   defaultModelCodex: string;
+  defaultModelOllama: string;
+  defaultModelOpenai: string;
   effortClaude: string;
   effortCodex: string;
+  /** Base URL of the local Ollama HTTP API. Empty = default localhost:11434. */
+  ollamaBaseUrl: string;
+  /** Ollama runtime context window (options.num_ctx). Bigger = more RAM/VRAM. */
+  ollamaNumCtx: number;
+  /** Base URL of the local OpenAI-compatible server. Empty = default localhost:8080. */
+  openaiBaseUrl: string;
   snapshotsKeep: number;
   hasSeenFirstRun: boolean;
   panelSide: PanelSide;
@@ -376,8 +389,13 @@ function getDefaultSettings(): AppSettings {
       defaultCli: 'claude',
       defaultModelClaude: 'claude-opus-4-7',
       defaultModelCodex: 'gpt-5.5',
+      defaultModelOllama: '',
+      defaultModelOpenai: '',
       effortClaude: 'high',
       effortCodex: 'high',
+      ollamaBaseUrl: OLLAMA_DEFAULT_BASE_URL,
+      ollamaNumCtx: OLLAMA_DEFAULT_NUM_CTX,
+      openaiBaseUrl: OPENAI_DEFAULT_BASE_URL,
       snapshotsKeep: 3,
       hasSeenFirstRun: false,
       panelSide: 'right',
@@ -635,6 +653,16 @@ export function useSettings() {
   const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
   const setAiDefaultModelClaude = (v: string) => { settings.value.ai.defaultModelClaude = v; };
   const setAiDefaultModelCodex = (v: string) => { settings.value.ai.defaultModelCodex = v; };
+  const setAiDefaultModelOllama = (v: string) => { settings.value.ai.defaultModelOllama = v; };
+  const setAiDefaultModelOpenai = (v: string) => { settings.value.ai.defaultModelOpenai = v; };
+  const setAiOllamaBaseUrl = (v: string) => { settings.value.ai.ollamaBaseUrl = (v ?? '').trim(); };
+  const setAiOllamaNumCtx = (v: number) => {
+    const n = Math.floor(v);
+    settings.value.ai.ollamaNumCtx = Number.isFinite(n)
+      ? Math.max(OLLAMA_MIN_NUM_CTX, n)
+      : OLLAMA_DEFAULT_NUM_CTX;
+  };
+  const setAiOpenaiBaseUrl = (v: string) => { settings.value.ai.openaiBaseUrl = (v ?? '').trim(); };
   const setAiEffortClaude = (v: string) => { settings.value.ai.effortClaude = v; };
   const setAiEffortCodex = (v: string) => { settings.value.ai.effortCodex = v; };
   const setAiSnapshotsKeep = (v: number) => {
@@ -689,6 +717,11 @@ export function useSettings() {
     setAiDefaultCli,
     setAiDefaultModelClaude,
     setAiDefaultModelCodex,
+    setAiDefaultModelOllama,
+    setAiDefaultModelOpenai,
+    setAiOllamaBaseUrl,
+    setAiOllamaNumCtx,
+    setAiOpenaiBaseUrl,
     setAiEffortClaude,
     setAiEffortCodex,
     setAiSnapshotsKeep,

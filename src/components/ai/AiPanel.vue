@@ -8,13 +8,13 @@ import { useAiSession } from '../../composables/useAiSession';
 import { useAiAccessMap } from '../../composables/useAiAccessMap';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiContext } from '../../composables/useAiContext';
-import { modelsFor, effortsFor } from '../../composables/useAiModels';
+import { modelsFor, effortsFor, useAiModels } from '../../composables/useAiModels';
 import { aiCommands } from '../../services/aiCommands';
 import { useAiPanelLayout } from '../../composables/useAiPanelLayout';
 import { useAiToolToast } from '../../composables/useAiToolToast';
 import { useAiPinnedSelections } from '../../composables/useAiPinnedSelections';
 import { useAiPendingImages, type PendingImage } from '../../composables/useAiPendingImages';
-import { buildPreamble } from '../../composables/useAiPreamble';
+import { buildDocAttachment, buildStaticPreamble, buildTurnContext, hashPreamble, shouldSendStaticPreamble, type PreambleOptions } from '../../composables/useAiPreamble';
 import { useAiMermaidTarget, extractMermaidCodeFromResponse } from '../../composables/useAiMermaidTarget';
 import { withWorkspaceReadAccess } from '../../composables/useAiWorkspaceContext';
 import { buildMermaidBlockFor } from '../../utils/mermaid-formats';
@@ -50,26 +50,33 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { settings, setAiDefaultCli, setAiDefaultModelClaude, setAiDefaultModelCodex, setAiEffortClaude, setAiEffortCodex } = useSettings();
+const { settings, setAiDefaultCli, setAiDefaultModelClaude, setAiDefaultModelCodex, setAiDefaultModelOllama, setAiDefaultModelOpenai, setAiEffortClaude, setAiEffortCodex } = useSettings();
 const ai = useAi();
 const session = useAiSession();
 const access = useAiAccessMap();
 const health = useAiHealth();
 const aiContext = useAiContext();
 
+const aiModels = useAiModels();
+
 const docNeedsSave = computed<boolean>(() => !props.docPath || props.docPath.trim() === '');
 
+function defaultModelFor(cli: CliKind): string {
+  if (cli === 'claude') return settings.value.ai.defaultModelClaude;
+  if (cli === 'codex') return settings.value.ai.defaultModelCodex;
+  if (cli === 'openai') return settings.value.ai.defaultModelOpenai;
+  return settings.value.ai.defaultModelOllama;
+}
+
+function defaultEffortFor(cli: CliKind): string {
+  if (cli === 'claude') return settings.value.ai.effortClaude;
+  if (cli === 'codex') return settings.value.ai.effortCodex;
+  return '';
+}
+
 const selectedCli = ref<CliKind>(settings.value.ai.defaultCli);
-const selectedModel = ref<string>(
-  selectedCli.value === 'claude'
-    ? settings.value.ai.defaultModelClaude
-    : settings.value.ai.defaultModelCodex,
-);
-const selectedEffort = ref<string>(
-  selectedCli.value === 'claude'
-    ? settings.value.ai.effortClaude
-    : settings.value.ai.effortCodex,
-);
+const selectedModel = ref<string>(defaultModelFor(selectedCli.value));
+const selectedEffort = ref<string>(defaultEffortFor(selectedCli.value));
 const customModelInput = ref<string>('');
 const inputValue = ref('');
 
@@ -159,18 +166,26 @@ const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
   if (health.cache.value.claude?.ok) out.push('claude');
   if (health.cache.value.codex?.ok) out.push('codex');
-  return out.length > 0 ? out : (['claude', 'codex'] as CliKind[]);
+  if (health.cache.value.ollama?.ok) out.push('ollama');
+  if (health.cache.value.openai?.ok) out.push('openai');
+  return out.length > 0 ? out : (['claude', 'codex', 'ollama', 'openai'] as CliKind[]);
 });
 
 const modelOptions = computed(() => modelsFor(selectedCli.value));
 const effortOptions = computed(() => effortsFor(selectedCli.value));
 const cliConnected = computed(() => health.cache.value[selectedCli.value]?.ok ?? false);
-const anyHealthLoading = computed(() => health.loading.value.claude || health.loading.value.codex);
+const anyHealthLoading = computed(() => health.loading.value.claude || health.loading.value.codex || health.loading.value.ollama || health.loading.value.openai);
 
 const isCustomModel = computed(() => {
   const opts = modelOptions.value;
   return !opts.some(o => o.id === selectedModel.value && !o.custom);
 });
+
+// Local providers have no server-side default model — an empty id would just
+// 400. Disable send and surface a hint instead.
+const modelMissing = computed(() =>
+  (selectedCli.value === 'ollama' || selectedCli.value === 'openai') && !selectedModel.value.trim(),
+);
 
 watch(isCustomModel, (custom) => {
   if (custom && !customModelInput.value) {
@@ -186,12 +201,15 @@ const restoringThread = ref(false);
 watch(selectedCli, (cli, oldCli) => {
   setAiDefaultCli(cli);
   if (!restoringThread.value) {
-    selectedModel.value = cli === 'claude'
-      ? settings.value.ai.defaultModelClaude
-      : settings.value.ai.defaultModelCodex;
-    selectedEffort.value = cli === 'claude'
-      ? settings.value.ai.effortClaude
-      : settings.value.ai.effortCodex;
+    selectedModel.value = defaultModelFor(cli);
+    selectedEffort.value = defaultEffortFor(cli);
+  }
+  if (cli === 'ollama') {
+    void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
+  } else if (cli === 'openai') {
+    void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
+  } else if (cli === 'codex') {
+    void aiModels.refreshCodexModels();
   }
   aiContext.reset(cli);
   if (oldCli && oldCli !== cli && !restoringThread.value) {
@@ -202,17 +220,26 @@ watch(selectedCli, (cli, oldCli) => {
 
 watch(selectedModel, (m) => {
   if (selectedCli.value === 'claude') setAiDefaultModelClaude(m);
-  else setAiDefaultModelCodex(m);
+  else if (selectedCli.value === 'codex') setAiDefaultModelCodex(m);
+  else if (selectedCli.value === 'openai') setAiDefaultModelOpenai(m);
+  else setAiDefaultModelOllama(m);
 });
 
 watch(selectedEffort, (e) => {
   if (selectedCli.value === 'claude') setAiEffortClaude(e);
-  else setAiEffortCodex(e);
+  else if (selectedCli.value === 'codex') setAiEffortCodex(e);
 });
 
 onMounted(async () => {
   layout.mount();
   ai.bindDoc(props.docPath || '');
+  if (selectedCli.value === 'ollama') {
+    void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
+  } else if (selectedCli.value === 'openai') {
+    void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
+  } else if (selectedCli.value === 'codex') {
+    void aiModels.refreshCodexModels();
+  }
   if (props.docPath) {
     await Promise.all([
       session.loadFor(props.docPath),
@@ -251,9 +278,9 @@ function effectiveAccessMap() {
   return withWorkspaceReadAccess(access.current.value, props.workspaceRoot ?? '');
 }
 
-function buildPreambleForSend(): string {
+function preambleOptions(): PreambleOptions {
   const localeKey = (typeof navigator !== 'undefined' && (localStorage.getItem('mermark-locale') ?? 'en')) || 'en';
-  return buildPreamble({
+  return {
     pins: pins.includePinned.value
       ? pins.pinnedSelections.value.map(p => ({ id: p.id, text: p.text }))
       : [],
@@ -270,11 +297,12 @@ function buildPreambleForSend(): string {
     workspaceRoot: props.workspaceRoot ?? '',
     mermaidEditMode: mermaidEditMode.value,
     mermaidWriteFormat: resolveMermaidWriteFormat(settings.value),
-  });
+    localTools: selectedCli.value === 'ollama' || selectedCli.value === 'openai',
+  };
 }
 
 async function onSend() {
-  if (!inputValue.value.trim() || !access.current.value) return;
+  if (!inputValue.value.trim() || !access.current.value || modelMissing.value) return;
 
   if (pins.pinnedSelections.value.length === 0 && liveSelectionText.value) {
     pins.pinCurrentSelection();
@@ -304,6 +332,10 @@ async function onSend() {
     ai.pushAttachment({ pins: sentPins, images: sentImages });
   }
 
+  const sessionIdToSend = (session.current.value && session.current.value.cli === selectedCli.value)
+    ? session.current.value.sessionId
+    : null;
+
   if (!docNeedsSave.value) {
     try {
       const { readTextFile } = await import('@tauri-apps/plugin-fs');
@@ -311,7 +343,7 @@ async function onSend() {
       await aiCommands.snapshotCreate(
         props.docPath,
         onDiskBefore,
-        (session.current.value && session.current.value.cli === selectedCli.value ? session.current.value.sessionId : null),
+        sessionIdToSend,
         settings.value.ai.snapshotsKeep,
       );
     } catch (e) {
@@ -319,16 +351,34 @@ async function onSend() {
     }
   }
 
+  const opts = preambleOptions();
+  const docAttachment = buildDocAttachment(selectedCli.value, docMarkdown.value, settings.value.ai.ollamaNumCtx);
+  const turnContext = [buildTurnContext(opts), docAttachment.omittedNote ?? '']
+    .filter(Boolean)
+    .join('\n\n');
+  const staticPreamble = buildStaticPreamble(opts);
+  const staticHash = hashPreamble(staticPreamble);
+  const sendStatic = shouldSendStaticPreamble({
+    sessionId: sessionIdToSend,
+    cli: selectedCli.value,
+    hasImages: imagePaths.length > 0,
+    staticHash,
+    lastSentStaticHash: ai.activeThread.value?.lastSentStaticHash ?? null,
+  });
+
   await ai.send({
     cli: selectedCli.value,
-    sessionId: (session.current.value && session.current.value.cli === selectedCli.value ? session.current.value.sessionId : null),
+    sessionId: sessionIdToSend,
     model: selectedModel.value,
     effort: selectedEffort.value,
     prompt,
-    preamble: buildPreambleForSend(),
+    preamble: sendStatic ? staticPreamble : '',
+    turnContext,
+    staticPreambleHash: staticHash,
     accessMap: effectiveAccessMap()!,
     workDir: props.workDir,
     images: imagePaths,
+    docContent: docAttachment.content,
     onSessionId: async (sid) => {
       await session.persistFromResponse({
         docPath: props.docPath,
@@ -541,6 +591,7 @@ function onPreviewImage(img: PendingImage) {
     <AiPanelComposer
       :input-value="inputValue"
       :cli-connected="cliConnected"
+      :model-missing="modelMissing"
       :is-sending="ai.isSending.value"
       :auth-required-hint="t.aiStatusAuthRequired"
       :empty-key-hint="t.aiEmptyKeyHint"

@@ -26,8 +26,26 @@ export interface ContextUsage {
 
 const DEFAULT_CONTEXT_WINDOW: Record<CliKind, number> = {
   claude: 200_000,
-  codex: 256_000,
+  codex: 272_000,
+  ollama: 8_192,
+  // Local OpenAI-compatible servers don't advertise the window in the streamed
+  // usage payload, so 128k is a conservative fallback for typical local models.
+  // Lifting the real n_ctx (llama.cpp /v1/models data[].meta.n_ctx_train or
+  // GET {base}/props) is a follow-up.
+  openai: 128_000,
 };
+
+export type ContextWarnLevel = 'none' | 'warn' | 'danger';
+
+export const CONTEXT_WARN_THRESHOLD = 0.8;
+export const CONTEXT_DANGER_THRESHOLD = 0.95;
+
+/** Pressure tier for the context bar: amber at 80%, red at 95%. */
+export function contextWarnLevel(fraction: number): ContextWarnLevel {
+  if (fraction >= CONTEXT_DANGER_THRESHOLD) return 'danger';
+  if (fraction >= CONTEXT_WARN_THRESHOLD) return 'warn';
+  return 'none';
+}
 
 const usage = ref<ContextUsage>(emptyUsage('claude'));
 
@@ -59,20 +77,47 @@ export function parseUsage(cli: CliKind, raw: unknown): ContextUsage {
 
   const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
 
-  const inputTokens = num(r.input_tokens) || num(r.inputTokens);
+  let inputTokens = num(r.input_tokens) || num(r.inputTokens);
   const cacheCreationTokens = num(r.cache_creation_input_tokens) || num(r.cacheCreationInputTokens);
-  const cacheReadTokens = num(r.cache_read_input_tokens) || num(r.cacheReadInputTokens);
+  let cacheReadTokens = num(r.cache_read_input_tokens) || num(r.cacheReadInputTokens);
+  // codex counts cached tokens INSIDE input_tokens; split them out so the
+  // breakdown matches claude's fresh-input vs cache-read semantics. claude
+  // never emits cached_input_tokens, so its path is untouched.
+  const cachedInput = typeof r.cached_input_tokens === 'number'
+    ? r.cached_input_tokens
+    : typeof r.cachedInputTokens === 'number' ? r.cachedInputTokens : null;
+  if (cachedInput !== null) {
+    cacheReadTokens = cachedInput;
+    inputTokens = Math.max(0, inputTokens - cachedInput);
+  }
   const outputTokens = num(r.output_tokens) || num(r.outputTokens);
   const totalInputTokens = inputTokens + cacheCreationTokens + cacheReadTokens;
 
-  // Try to lift contextWindow from claude's modelUsage block when present.
+  // Lift contextWindow from the modelUsage block when present.
   let contextWindow = DEFAULT_CONTEXT_WINDOW[cli];
   const mu = r.modelUsage ?? r.model_usage;
   if (mu && typeof mu === 'object') {
-    const inner = Object.values(mu as Record<string, unknown>)[0];
-    if (inner && typeof inner === 'object') {
-      const cw = (inner as Record<string, unknown>).contextWindow;
-      if (typeof cw === 'number') contextWindow = cw;
+    const entries = mu as Record<string, unknown>;
+    const windowOf = (entry: unknown): number | null => {
+      if (entry && typeof entry === 'object') {
+        const cw = (entry as Record<string, unknown>).contextWindow;
+        if (typeof cw === 'number') return cw;
+      }
+      return null;
+    };
+    const mainWindow = typeof r.model === 'string' ? windowOf(entries[r.model]) : null;
+    if (mainWindow !== null && mainWindow > 0) {
+      contextWindow = mainWindow;
+    } else {
+      // No usable model key (older payloads): pick the MAX window. Side
+      // models (haiku helpers, "<synthetic>") never exceed the main model,
+      // and key order is alphabetical, not significance.
+      let best = 0;
+      for (const entry of Object.values(entries)) {
+        const cw = windowOf(entry);
+        if (cw !== null && cw > best) best = cw;
+      }
+      if (best > 0) contextWindow = best;
     }
   }
 
