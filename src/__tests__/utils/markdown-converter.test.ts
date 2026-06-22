@@ -121,6 +121,59 @@ describe('htmlToMarkdown', () => {
     });
   });
 
+  describe('images inside list items (issue #115)', () => {
+    it('keeps an image inside an ordered list item', () => {
+      const html =
+        '<ol><li><p><strong>H</strong></p><img src="i.png" alt="Veronica is ready" /></li></ol>';
+      const md = htmlToMarkdown(html);
+      expect(md).toContain('![Veronica is ready](i.png)');
+    });
+
+    it('keeps an image inside an unordered list item', () => {
+      const html = '<ul><li><p>item</p><img src="i.png" alt="pic" /></li></ul>';
+      const md = htmlToMarkdown(html);
+      expect(md).toContain('![pic](i.png)');
+    });
+
+    it('keeps an image with empty alt inside a list item', () => {
+      const html = '<ul><li><p>item</p><img src="x.png" alt="" /></li></ul>';
+      const md = htmlToMarkdown(html);
+      expect(md).toContain('![](x.png)');
+    });
+
+    it('still converts a standalone block image in a paragraph', () => {
+      expect(htmlToMarkdown('<p>before</p><img src="i.png" alt="solo" />')).toContain(
+        '![solo](i.png)',
+      );
+    });
+
+    it('round-trips an image inside an ordered list item (md -> html -> md)', () => {
+      const md = '1. **H**\n   ![Veronica is ready](i.png)';
+      const roundTripped = htmlToMarkdown(markdownToHtml(md));
+      expect(roundTripped).toContain('![Veronica is ready](i.png)');
+    });
+
+    it('round-trips an image inside an unordered list item (md -> html -> md)', () => {
+      const md = '- item\n  ![pic](i.png)';
+      const roundTripped = htmlToMarkdown(markdownToHtml(md));
+      expect(roundTripped).toContain('![pic](i.png)');
+    });
+
+    it('prefers data-original-src over a blob src for a list-item image', () => {
+      const html =
+        '<ul><li><p>item</p><img src="blob:abc" alt="pic" data-original-src="i.png" /></li></ul>';
+      const md = htmlToMarkdown(html);
+      expect(md).toContain('![pic](i.png)');
+      expect(md).not.toContain('blob:abc');
+    });
+
+    it('preserves a title on a list-item image', () => {
+      const html = '<ul><li><p>item</p><img src="i.png" alt="pic" title="hover" /></li></ul>';
+      const md = htmlToMarkdown(html);
+      expect(md).toContain('![pic](i.png "hover")');
+    });
+  });
+
   describe('inline code', () => {
     it('converts code tags', () => {
       expect(htmlToMarkdown('<code>const x = 1</code>')).toBe('`const x = 1`');

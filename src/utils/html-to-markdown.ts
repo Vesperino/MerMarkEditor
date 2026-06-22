@@ -25,6 +25,19 @@ export function convertInlineToMarkdown(html: string): string {
   result = result.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
   result = result.replace(/<s[^>]*>(.*?)<\/s>/gi, '~~$1~~');
 
+  // Images — must run before the blanket tag-strip below, otherwise <img>
+  // inside a list item is deleted (issue #115). Prefer data-original-src so a
+  // blob-resolved local path survives the round trip (mirrors markdown-converter).
+  result = result.replace(/<img\s+[^>]*?\/?>/gi, (match) => {
+    const srcMatch = match.match(/data-original-src=["']([^"']*)["']/i) || match.match(/src=["']([^"']*)["']/i);
+    const altMatch = match.match(/alt=["']([^"']*)["']/i);
+    const titleMatch = match.match(/title=["']([^"']*)["']/i);
+    const src = srcMatch ? srcMatch[1] : '';
+    const alt = altMatch ? altMatch[1] : '';
+    const title = titleMatch ? titleMatch[1] : '';
+    return title ? `![${alt}](${src} "${title}")` : `![${alt}](${src})`;
+  });
+
   // Remove remaining HTML tags
   result = result.replace(/<[^>]+>/g, '');
   result = decodeHtmlEntities(result);
