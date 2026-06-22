@@ -2,6 +2,7 @@ import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
+import { targetScrollTop } from '../utils/scroll';
 import {
   DOM_SELECTORS,
   TIMING,
@@ -202,8 +203,7 @@ const getFallbackEditorContainer = (): HTMLElement | null => {
 const scrollContainerToElement = (container: HTMLElement, target: HTMLElement, offset: number) => {
   const containerRect = container.getBoundingClientRect();
   const targetRect = target.getBoundingClientRect();
-  const targetTop = targetRect.top - containerRect.top + container.scrollTop - offset;
-  container.scrollTop = Math.max(0, targetTop);
+  container.scrollTop = targetScrollTop(containerRect.top, targetRect.top, container.scrollTop, offset);
 };
 
 const getProseMirrorRoot = (container: HTMLElement): HTMLElement | null => {

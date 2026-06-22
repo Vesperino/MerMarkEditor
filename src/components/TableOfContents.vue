@@ -3,6 +3,7 @@ import { ref, computed, watch, onUnmounted, inject, nextTick, type Ref } from 'v
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from '../i18n';
 import { SCROLL_OFFSET } from '../constants';
+import { targetScrollTop } from '../utils/scroll';
 import { pickActiveHeading } from '../composables/useScrollSpy';
 
 const { t } = useI18n();
@@ -69,8 +70,8 @@ const minLevel = computed(() => {
 const scrollContainerTo = (container: Element, target: Element) => {
   const containerRect = container.getBoundingClientRect();
   const targetRect = target.getBoundingClientRect();
-  const offset = targetRect.top - containerRect.top + container.scrollTop - 20;
-  container.scrollTo({ top: offset, behavior: 'smooth' });
+  const top = targetScrollTop(containerRect.top, targetRect.top, container.scrollTop, SCROLL_OFFSET);
+  container.scrollTo({ top, behavior: 'smooth' });
 };
 
 const scrollToHeading = (item: TocItem) => {
@@ -78,24 +79,29 @@ const scrollToHeading = (item: TocItem) => {
 
   // Footnotes entry: direct DOM scroll to section wrapper (atom block, no inner content)
   if (item.kind === 'footnotes') {
-    editor.value.commands.focus();
+    // scrollIntoView:false + rAF defer keep OUR scroll authoritative — otherwise the
+    // editor's own caret-into-view runs and can leave the target at the viewport
+    // bottom instead of the top (issue #114).
+    editor.value.commands.focus(undefined, { scrollIntoView: false });
     const container = document.querySelector('.editor-container');
     const section = container?.querySelector('.footnote-section-wrapper');
-    if (container && section) scrollContainerTo(container, section);
+    if (container && section) requestAnimationFrame(() => scrollContainerTo(container, section));
     activeHeadingId.value = item.id;
     return;
   }
 
-  // Regular heading: cursor + scroll to DOM element
-  editor.value.commands.focus();
+  // Regular heading: move the cursor WITHOUT the editor auto-scrolling, then run our
+  // own scroll on the next frame so it wins (issue #114: heading was landing at the
+  // bottom of the viewport instead of the top).
   editor.value.commands.setTextSelection(item.pos + 1);
+  editor.value.commands.focus(undefined, { scrollIntoView: false });
 
   const { node } = editor.value.view.domAtPos(item.pos + 1);
   const headingEl = node instanceof HTMLElement ? node : node.parentElement;
 
   if (headingEl) {
     const container = headingEl.closest('.editor-container');
-    if (container) scrollContainerTo(container, headingEl);
+    if (container) requestAnimationFrame(() => scrollContainerTo(container, headingEl));
   }
 
   activeHeadingId.value = item.id;
