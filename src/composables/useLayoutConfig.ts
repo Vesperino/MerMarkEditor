@@ -10,11 +10,12 @@ export interface LayoutItemPlacement {
 }
 
 export interface LayoutConfig {
-  version: 1;
+  version: number;
   placements: LayoutItemPlacement[];
 }
 
 const STORAGE_KEY = 'mermark-layout';
+const CONFIG_VERSION = 2;
 
 function generateDefaults(): LayoutItemPlacement[] {
   return TOOLBAR_ITEMS.map(item => ({
@@ -29,7 +30,7 @@ function loadConfig(): LayoutConfig {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as LayoutConfig;
-      if (parsed.version === 1 && Array.isArray(parsed.placements)) {
+      if (parsed.version >= 1 && parsed.version <= CONFIG_VERSION && Array.isArray(parsed.placements)) {
         // Ensure all registry items exist in placements (handles new items added in updates)
         const existingIds = new Set(parsed.placements.map(p => p.id));
         const defaults = generateDefaults();
@@ -54,13 +55,26 @@ function loadConfig(): LayoutConfig {
             }
           }
         }
+        // Migration v1 -> v2: zoom-controls' defaultZone changed from 'toolbar'
+        // to 'statusbar'. Layouts saved under the old default keep zoom in the
+        // toolbar; move it to the status bar unless the user parked it elsewhere
+        // (hidden, leftbar, …) — those count as "set otherwise" and stay put.
+        if (parsed.version < 2) {
+          const zoom = parsed.placements.find(p => p.id === 'zoom-controls');
+          if (zoom && zoom.zone === 'toolbar') {
+            const def = getItemDef('zoom-controls');
+            zoom.zone = def?.defaultZone ?? 'statusbar';
+            zoom.order = def?.defaultOrder ?? 1000;
+          }
+          parsed.version = CONFIG_VERSION;
+        }
         return parsed;
       }
     }
   } catch (error) {
     console.error('Error loading layout config:', error);
   }
-  return { version: 1, placements: generateDefaults() };
+  return { version: CONFIG_VERSION, placements: generateDefaults() };
 }
 
 function saveConfig(config: LayoutConfig): void {
@@ -141,7 +155,7 @@ export function useLayoutConfig() {
   }
 
   function resetToDefaults(): void {
-    layoutConfig.value = { version: 1, placements: generateDefaults() };
+    layoutConfig.value = { version: CONFIG_VERSION, placements: generateDefaults() };
   }
 
   const hasStatusBarItems = computed(() =>

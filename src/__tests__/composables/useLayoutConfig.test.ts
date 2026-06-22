@@ -14,7 +14,7 @@ describe('useLayoutConfig', () => {
   describe('initialization', () => {
     it('creates default placements for all toolbar items', () => {
       const { layoutConfig } = useLayoutConfig();
-      expect(layoutConfig.value.version).toBe(1);
+      expect(layoutConfig.value.version).toBe(2);
       expect(layoutConfig.value.placements.length).toBe(TOOLBAR_ITEMS.length);
     });
 

@@ -459,11 +459,11 @@ const showLabel = (id: string) => {
     </template>
   </div>
 
-  <!-- Zoom controls â€” slider in status bar (Word-style), button trio elsewhere.
+  <!-- Zoom controls - slider in status bar (Word-style), button trio elsewhere.
        Compact mode == status bar; the horizontal slider feels native there
        and gives drag-to-set instead of click-stepping. -->
   <div v-else-if="itemId === 'zoom-controls' && props.compact" class="toolbar-group zoom-slider-group">
-    <button @click="zoomOut" class="zoom-slider-btn" v-tooltip="t.zoomOut" aria-label="zoom out">â’</button>
+    <button @click="zoomOut" class="zoom-slider-btn" v-tooltip="t.zoomOut" aria-label="zoom out">−</button>
     <input
       type="range"
       class="zoom-slider"
