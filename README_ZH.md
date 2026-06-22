@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="#本地-ai-助手">AI 助手</a> •
+  <a href="#演示文稿-marp">演示文稿</a> •
   <a href="#功能">功能</a> •
   <a href="#截图">截图</a> •
   <a href="#安装">安装</a> •
@@ -41,6 +42,7 @@
 - **原生性能** - 基于 Tauri 构建，快速且轻量
 - **所见即所得编辑** - 边输入边查看格式化内容
 - **Mermaid 集成** - 直接在文档中创建图表
+- **Marp 演示文稿** - 用 Markdown 制作幻灯片，支持实时预览和全屏演示
 - **多根工作区** - 打开一个或多个文件夹；AI 自动将其作为只读上下文范围
 - **本地 AI 助手** - 与 Claude 或 Codex 对话来处理你的笔记，AI 会直接编辑文件
 - **跨平台** - 支持 Windows、macOS 和 Linux
@@ -49,6 +51,21 @@
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-light-mode.png" alt="MerMark — Minimal 主题与工作区侧栏" width="48%" />
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-with-ai-panel.png" alt="MerMark — 同样的布局，AI 助手停靠在右侧" width="48%" />
 </p>
+
+---
+
+## 演示文稿 (Marp)
+
+把任意笔记变成幻灯片。新建文件时选择 *Marp 演示文稿*（或打开已有的演示稿），用纯 Markdown 编写幻灯片，并在编辑器旁实时查看渲染效果。专用工具栏可以添加幻灯片、切换主题、设置单页布局、添加背景、开关页码、调整字号，然后全屏演示。
+
+<p align="center">
+  <img src="assets/screenshots/marp-presentation.png" alt="MerMark — Marp 演示文稿与编辑器旁的实时幻灯片预览" width="90%" />
+</p>
+
+- **实时分屏预览** - 左侧编辑，右侧查看真实幻灯片，滚动同步
+- **带预览的主题** - gaia、default、uncover；从图形缩略图中选择
+- **本地与网络图片** - 在实时预览和导出中都能显示
+- **全屏演示** - 用方向键、点击或自动切换
 
 ---
 
@@ -172,6 +189,13 @@
 - **可调整分屏** - 全屏编辑中拖动代码与预览面板之间的分隔条
 - **AI 辅助** - 在任意图表上点击 AI，主 AI 面板将以图表为上下文接管
 - **快速模板** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap 一键插入
+
+### 演示文稿 (Marp)
+- **Marp 演示稿** - 新建文件时选择 *Marp 演示文稿*，或打开已有的演示稿
+- **实时分屏预览** - 左侧编辑，右侧渲染幻灯片，滚动同步
+- **演示工具栏** - 添加幻灯片、切换主题（gaia / default / uncover）并预览、设置单页布局、添加背景、页码、宽高比和字号
+- **全屏演示** - 方向键、点击或自动切换
+- **图片** - 本地文件和网络 URL 在预览和导出中均可显示
 
 ### 工作区
 - **多根侧栏** — 打开一个或多个文件夹；每个都有自己的可折叠区段，包含独立的文件树

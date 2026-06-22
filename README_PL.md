@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="#asystent-ai-lokalnie">Asystent AI</a> •
+  <a href="#prezentacje-marp">Prezentacje</a> •
   <a href="#funkcje">Funkcje</a> •
   <a href="#zrzuty-ekranu">Zrzuty ekranu</a> •
   <a href="#instalacja">Instalacja</a> •
@@ -41,6 +42,7 @@
 - **Natywna wydajność** - Zbudowany z Tauri dla szybkiego, lekkiego działania
 - **Edycja WYSIWYG** - Zobacz sformatowaną treść podczas pisania
 - **Integracja Mermaid** - Twórz diagramy bezpośrednio w dokumentach
+- **Prezentacje Marp** - Twórz slajdy w Markdown z podglądem na żywo i trybem prezentacji na pełnym ekranie
 - **Workspace'y wielu folderów** - Otwórz jeden lub kilka folderów; AI widzi je jako scoped read-only context
 - **Lokalny asystent AI** - Rozmawiaj z Claude lub Codex o swoich notatkach; AI edytuje pliki bezpośrednio
 - **Wieloplatformowy** - Dostępny na Windows, macOS i Linux
@@ -49,6 +51,21 @@
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-light-mode.png" alt="MerMark — motyw Minimal z paskiem workspace'ów" width="48%" />
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-with-ai-panel.png" alt="MerMark — ten sam układ z asystentem AI po prawej" width="48%" />
 </p>
+
+---
+
+## Prezentacje (Marp)
+
+Zamień dowolną notatkę w zestaw slajdów. Wybierz *Prezentacja Marp* przy nowym pliku (albo otwórz istniejący deck), pisz slajdy w zwykłym Markdown i oglądaj je renderowane na żywo obok edytora. Dedykowany pasek pozwala dodawać slajdy, zmieniać motywy, ustawiać układ slajdu, dodawać tła, włączać numery slajdów i zmieniać rozmiar czcionki, a potem prezentować na pełnym ekranie.
+
+<p align="center">
+  <img src="assets/screenshots/marp-presentation.png" alt="MerMark — prezentacja Marp z podglądem slajdów na żywo obok edytora" width="90%" />
+</p>
+
+- **Podgląd na żywo (split)** - edytuj po lewej, oglądaj realne slajdy po prawej, ze scrollem w synchronizacji
+- **Motywy z podglądem** - gaia, default, uncover; wybór z miniatur graficznych
+- **Obrazy lokalne i z sieci** - renderują się w podglądzie na żywo i w eksporcie
+- **Prezentacja pełnoekranowa** - przewijaj strzałkami, klikiem lub automatycznie
 
 ---
 
@@ -172,6 +189,13 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **Skalowanie split** w fullscreen edycji — przeciągnij divider między panelami kodu i podglądu
 - **AI assist** — klik AI na diagramie i główny panel AI przejmuje sterowanie z diagramem przypiętym jako kontekst
 - **Szybkie szablony** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap jednym klikiem
+
+### Prezentacje (Marp)
+- **Decki Marp** - wybierz *Prezentacja Marp* dla nowego pliku albo otwórz istniejący deck
+- **Podgląd na żywo (split)** - edytor po lewej, renderowane slajdy po prawej, ze scrollem w synchronizacji
+- **Pasek prezentacji** - dodawaj slajdy, zmieniaj motyw (gaia / default / uncover) z podglądem, ustawiaj układ slajdu, dodawaj tła, numery slajdów, proporcje i rozmiar czcionki
+- **Prezentacja pełnoekranowa** - strzałki, klik lub auto-przejście
+- **Obrazy** - pliki lokalne i adresy URL renderują się w podglądzie i w eksporcie
 
 ### Workspace'y
 - **Pasek wielu folderów** — otwórz jeden lub kilka; każdy ma własną sekcję z drzewem plików
