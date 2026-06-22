@@ -16,6 +16,21 @@ export function proportionalTarget(
   return ratio * dstMax;
 }
 
+/**
+ * Convert a saved scroll ratio (0..1) back into a scrollTop for a container,
+ * clamped to its current scrollable range. Returns 0 when the content fits
+ * the viewport. Used to restore scroll position after content is rebuilt.
+ */
+export function scrollTopFromRatio(
+  ratio: number,
+  scrollHeight: number,
+  clientHeight: number,
+): number {
+  const max = scrollHeight - clientHeight;
+  if (max <= 0) return 0;
+  return Math.round(Math.min(Math.max(ratio, 0), 1) * max);
+}
+
 export interface ScrollSync {
   attach: (codeEl: HTMLElement, previewEl: HTMLElement) => void;
   detach: () => void;

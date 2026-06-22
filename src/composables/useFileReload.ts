@@ -1,10 +1,46 @@
-import { ref, computed, nextTick, type Ref, type ComputedRef } from 'vue';
+import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { markdownToHtml, htmlToMarkdown } from '../utils/markdown-converter';
 import { generateDiff, type DiffLine, type DiffStats } from './useDiffPreview';
 import { useFileWatcher } from './useFileWatcher';
+import { scrollTopFromRatio } from './useScrollSync';
+import { DOM_SELECTORS, TIMING, MAX_DOM_RESTORE_ATTEMPTS } from '../constants';
 import { t } from '../i18n';
 import type { Tab } from './useTabs';
+
+// Reading the live container (not the stale tab.scrollTop) is the whole point:
+// an external edit can fire while the user is mid-scroll.
+// ponytail: Visual view only. Code view (and split) reload doesn't refresh the
+// textarea content at all (reloadTabContent updates tab.content but nothing
+// syncs that into codeContent), so there's no rebuilt content to scroll-restore
+// there. Wire those modes here once code-view/split reload actually re-seeds.
+const getActiveScrollContainer = (): HTMLElement | null =>
+  document.querySelector<HTMLElement>(DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER);
+
+const getScrollRatio = (el: HTMLElement): number => {
+  const max = el.scrollHeight - el.clientHeight;
+  return max > 0 ? el.scrollTop / max : 0;
+};
+
+// Content was just rebuilt; the container may not have its final scrollHeight
+// for a few frames. Retry until it can honour the target or attempts run out.
+// ponytail: ratio restore only. Upgrade path if "external edit changed content
+// a lot" drifts noticeably: reuse useCodeView's findElementByBlockMap to anchor
+// on the block under the viewport instead of a proportional position.
+const restoreScrollRatio = (ratio: number): void => {
+  let attempts = 0;
+  const tryRestore = () => {
+    const el = getActiveScrollContainer();
+    if (el && el.scrollHeight - el.clientHeight > 0) {
+      el.scrollTop = scrollTopFromRatio(ratio, el.scrollHeight, el.clientHeight);
+      return;
+    }
+    if (attempts++ < MAX_DOM_RESTORE_ATTEMPTS) {
+      window.setTimeout(tryRestore, TIMING.DOM_RETRY_INTERVAL);
+    }
+  };
+  tryRestore();
+};
 
 interface PaneTabResult {
   pane: { id: string; activeTabId: string; tabs: Tab[] };
@@ -66,7 +102,11 @@ export function useFileReload(options: UseFileReloadOptions) {
 
     const { pane, tab } = result;
     const htmlContent = markdownToHtml(newContent);
-    const savedScrollTop = tab.scrollTop;
+    const isActive = tab.id === pane.activeTabId && pane.id === activePaneId.value;
+
+    // Capture the user's LIVE scroll position before the DOM is rebuilt.
+    const container = isActive ? getActiveScrollContainer() : null;
+    const savedRatio = container ? getScrollRatio(container) : 0;
 
     tab.content = htmlContent;
     tab.originalMarkdown = newContent;
@@ -74,14 +114,9 @@ export function useFileReload(options: UseFileReloadOptions) {
 
     fileWatcher.updateKnownContent(filePath, newContent);
 
-    if (tab.id === pane.activeTabId && pane.id === activePaneId.value) {
+    if (isActive) {
       setEditorContent(htmlContent);
-      nextTick(() => {
-        const editorContainer = document.querySelector('.editor-pane.active .editor-container');
-        if (editorContainer) {
-          editorContainer.scrollTop = savedScrollTop;
-        }
-      });
+      restoreScrollRatio(savedRatio);
     }
   };
 
