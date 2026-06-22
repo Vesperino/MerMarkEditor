@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { proportionalTarget, useScrollSync } from '../../composables/useScrollSync';
+import { proportionalTarget, scrollTopFromRatio, useScrollSync } from '../../composables/useScrollSync';
 
 describe('proportionalTarget', () => {
   it('maps the top of the source to the top of the destination', () => {
@@ -27,6 +27,36 @@ describe('proportionalTarget', () => {
 
   it('clamps a source position beyond its range', () => {
     expect(proportionalTarget(99999, 1000, 200, 2000, 200)).toBe(1800);
+  });
+});
+
+describe('scrollTopFromRatio', () => {
+  it('maps a 0.5 ratio to half the scrollable range', () => {
+    expect(scrollTopFromRatio(0.5, 1000, 500)).toBe(250);
+  });
+
+  it('returns 0 when content fits the viewport (no scroll range)', () => {
+    expect(scrollTopFromRatio(0.5, 500, 500)).toBe(0);
+  });
+
+  it('returns 0 for a zero ratio', () => {
+    expect(scrollTopFromRatio(0, 1000, 200)).toBe(0);
+  });
+
+  it('clamps a ratio above 1 to the bottom of the range', () => {
+    expect(scrollTopFromRatio(1.5, 1000, 200)).toBe(800);
+  });
+
+  it('clamps a negative ratio to 0', () => {
+    expect(scrollTopFromRatio(-0.3, 1000, 200)).toBe(0);
+  });
+
+  it('handles content shorter than the viewport (negative max scroll)', () => {
+    expect(scrollTopFromRatio(0.7, 100, 500)).toBe(0);
+  });
+
+  it('rounds to an integer scrollTop', () => {
+    expect(scrollTopFromRatio(1 / 3, 1000, 100)).toBe(300);
   });
 });
 
