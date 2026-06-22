@@ -7,6 +7,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { writeTextFile, exists, readTextFile, remove } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { htmlToMarkdown, detectLineEnding, applyLineEnding, markdownToHtml } from './utils/markdown-converter';
+import { inlineMarkdownImages, getDirectoryFromFilePath } from './utils/image-resolver';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 // Components
@@ -60,6 +61,11 @@ import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
 import PdfExportDialog from './components/PdfExportDialog.vue';
 import MarpPreviewDialog from './components/MarpPreviewDialog.vue';
+import MarpToolbar from './components/MarpToolbar.vue';
+import MarpLivePreview from './components/MarpLivePreview.vue';
+import NewFileModal from './components/NewFileModal.vue';
+import { getFrontmatterKey, setFrontmatterKey, removeFrontmatterKey } from './utils/frontmatter';
+import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { usePdfExport } from './composables/usePdfExport';
 import { useDocxExport } from './composables/useDocxExport';
 import { serializeEditorContent } from './utils/documentSerializer';
@@ -193,7 +199,18 @@ const createNewTab = (filePath?: string | null, content?: string, fileName?: str
 };
 
 // Create a new empty document — exit code view first to commit edits
-const newFile = async () => {
+const showNewFileModal = ref(false);
+
+function buildMarpSeed(): string {
+  return `---\nmarp: true\ntheme: gaia\npaginate: true\n---\n\n# ${t.value.marpSeedTitle}\n\n## ${t.value.marpSeedSubtitle}\n`;
+}
+
+const newFile = () => {
+  showNewFileModal.value = true;
+};
+
+const createDocument = async (kind: 'plain' | 'marp') => {
+  showNewFileModal.value = false;
   if (codeView.value) {
     await toggleCodeView();
   }
@@ -203,7 +220,11 @@ const newFile = async () => {
     activeTab.value.content = exitSplitEditor();
     activeTab.value.hasChanges = true;
   }
-  createNewTab();
+  if (kind === 'marp') {
+    createNewTab(null, markdownToHtml(buildMarpSeed()));
+  } else {
+    createNewTab();
+  }
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   if (splitEditorActive.value) {
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -523,13 +544,201 @@ const showMarpDialog = ref(false);
 const marpMarkdown = ref('');
 const marpTitle = ref('deck');
 
-function openMarpDialog() {
-  marpMarkdown.value = htmlToMarkdown(getEditorContent() ?? '');
+async function openMarpDialog() {
   const tab = activeTab.value;
   const fileName = tab?.fileName ?? '';
   marpTitle.value = fileName.replace(/\.(md|markdown)$/i, '') || 'deck';
+  // In code / split-editor modes the WYSIWYG editor is unmounted and serializes
+  // to empty — read the live markdown source instead so Present isn't blank.
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  const override = splitEditorActive.value
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    ? (splitSourceTabId.value === activeTabId.value ? splitMarkdownSource.value : null)
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    : (codeView.value ? codeContent.value : null);
+  const raw = override ?? htmlToMarkdown(getEditorContent() ?? '');
+  // Inline local images as data URIs: the deck renders inside a sandboxed
+  // iframe (srcdoc) with no base URL, so relative/local paths won't load.
+  const baseDir = tab?.filePath ? getDirectoryFromFilePath(tab.filePath) : undefined;
+  marpMarkdown.value = await inlineMarkdownImages(raw, baseDir);
   showMarpDialog.value = true;
 }
+
+// Marp mode = active doc has a `marp: true` front-matter badge node.
+const isMarp = computed(() => (activeTab.value?.content || '').includes('data-marp="true"'));
+
+// Run a callback against the active WYSIWYG editor instance (null in code view).
+function withMarpEditor(fn: (ed: TiptapEditor) => void) {
+  const ed = splitContainerRef.value?.getActiveEditor?.() as TiptapEditor | null | undefined;
+  if (ed) fn(ed);
+}
+
+// value === null removes the key (back to theme default).
+function marpUpdateFrontmatter(key: string, value: string | null) {
+  withMarpEditor((ed) => {
+    ed.state.doc.descendants((node, pos) => {
+      if (node.type.name !== 'marpFrontmatter') return true;
+      const cur = (node.attrs.raw as string) || '';
+      const raw = value === null ? removeFrontmatterKey(cur, key) : setFrontmatterKey(cur, key, value);
+      ed.chain().focus().command(({ tr }) => {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, raw });
+        return true;
+      }).run();
+      return false;
+    });
+  });
+}
+
+// Global slide font size via the `style:` directive. Marp clips overflow (no
+// auto-shrink), so a smaller font is the lever to fit more on a slide. px<=0
+// removes the override (theme default).
+function marpSetFont(px: number) {
+  marpUpdateFrontmatter('style', px > 0 ? `section { font-size: ${px}px; }` : null);
+}
+
+function marpNewSlide() {
+  withMarpEditor((ed) => ed.chain().focus().setHorizontalRule().run());
+}
+
+// Set the current slide's `_class` layout: replaces any existing `_class`
+// directive(s) in this slide instead of stacking new ones; an empty value
+// removes the layout (back to default). "Current slide" = the run of top-level
+// blocks around the cursor, bounded by horizontal-rule slide separators.
+function marpSetLayout(value: string) {
+  withMarpEditor((ed) => {
+    const { state } = ed;
+    const head = state.selection.head;
+    const kids: { node: import('@tiptap/pm/model').Node; pos: number }[] = [];
+    state.doc.forEach((node, offset) => kids.push({ node, pos: offset }));
+    if (kids.length === 0) return;
+
+    let cur = kids.findIndex((k) => head >= k.pos && head <= k.pos + k.node.nodeSize);
+    if (cur === -1) cur = kids.length - 1;
+
+    let startIdx = cur;
+    while (startIdx > 0 && kids[startIdx - 1].node.type.name !== 'horizontalRule') startIdx--;
+    let endIdx = cur;
+    while (endIdx < kids.length - 1 && kids[endIdx + 1].node.type.name !== 'horizontalRule') endIdx++;
+
+    // Insert position = slide start, but after a leading front-matter node.
+    const first = kids[startIdx];
+    const slideStart =
+      first.node.type.name === 'marpFrontmatter' ? first.pos + first.node.nodeSize : first.pos;
+
+    const existing = [];
+    for (let i = startIdx; i <= endIdx; i++) {
+      const k = kids[i];
+      if (k.node.type.name === 'marpDirective' && /^_class\s*:/.test((k.node.attrs.raw as string) || '')) {
+        existing.push(k);
+      }
+    }
+
+    let tr = state.tr;
+    // Delete existing _class directives (descending so positions stay valid).
+    for (let i = existing.length - 1; i >= 0; i--) {
+      tr = tr.delete(existing[i].pos, existing[i].pos + existing[i].node.nodeSize);
+    }
+    // slideStart <= every existing pos, so it is unaffected by the deletions.
+    if (value) {
+      tr = tr.insert(slideStart, state.schema.nodes.marpDirective.create({ raw: `_class: ${value}` }));
+    }
+    if (tr.docChanged) {
+      ed.view.dispatch(tr);
+      ed.view.focus();
+    }
+  });
+}
+
+function marpTogglePaginate() {
+  withMarpEditor((ed) => {
+    let cur = 'false';
+    ed.state.doc.descendants((node) => {
+      if (node.type.name === 'marpFrontmatter') {
+        cur = getFrontmatterKey((node.attrs.raw as string) || '', 'paginate') ?? 'false';
+        return false;
+      }
+      return true;
+    });
+    const enabled = /^true\b/i.test(cur.trim());
+    marpUpdateFrontmatter('paginate', enabled ? 'false' : 'true');
+  });
+}
+
+async function marpInsertBg(opts: { source: 'local' | 'url'; pos: string }) {
+  const alt = `bg ${opts.pos}`.trim();
+  let src: string;
+  if (opts.source === 'local') {
+    const picked = await openFileDialog({
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
+    });
+    if (typeof picked !== 'string') return;
+    src = picked;
+  } else {
+    const url = window.prompt(t.value.imagePrompt);
+    if (!url) return;
+    src = url.trim();
+  }
+  withMarpEditor((ed) => ed.chain().focus().setImage({ src, alt }).run());
+}
+
+// ---- Marp live preview pane (editor left, rendered slides right, synced) ----
+const showMarpPreview = ref(false);
+const marpLiveMarkdown = ref('');
+const marpLivePreviewRef = ref<InstanceType<typeof MarpLivePreview> | null>(null);
+const marpScrollSync = useScrollSync();
+let marpLiveTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Visible only in the plain WYSIWYG editor mode for a Marp doc.
+const marpPreviewVisible = computed(
+  () => showMarpPreview.value && isMarp.value && !codeView.value && !splitEditorActive.value
+);
+
+async function refreshMarpLive() {
+  const tab = activeTab.value;
+  const raw = htmlToMarkdown(getEditorContent() ?? '');
+  const baseDir = tab?.filePath ? getDirectoryFromFilePath(tab.filePath) : undefined;
+  marpLiveMarkdown.value = await inlineMarkdownImages(raw, baseDir);
+}
+
+function scheduleMarpLive() {
+  if (marpLiveTimer) clearTimeout(marpLiveTimer);
+  marpLiveTimer = setTimeout(refreshMarpLive, 300);
+}
+
+function attachMarpScroll() {
+  const codeEl =
+    document.querySelector<HTMLElement>('.editor-pane.active .editor-container') ||
+    document.querySelector<HTMLElement>('.editor-area .editor-container');
+  const prevEl = marpLivePreviewRef.value?.scrollEl as HTMLElement | null | undefined;
+  if (codeEl && prevEl) marpScrollSync.attach(codeEl, prevEl);
+}
+
+async function toggleMarpPreview() {
+  showMarpPreview.value = !showMarpPreview.value;
+  if (showMarpPreview.value) {
+    await refreshMarpLive();
+    await nextTick();
+    attachMarpScroll();
+  } else {
+    marpScrollSync.detach();
+  }
+}
+
+watch(() => activeTab.value?.content, () => {
+  if (marpPreviewVisible.value) scheduleMarpLive();
+});
+
+// Re-attach scroll-sync when the pane shows or the active pane changes; detach
+// when hidden by a mode change. (attach() detaches first, so no duplicate listeners.)
+watch([marpPreviewVisible, activePaneId], async () => {
+  if (marpPreviewVisible.value) {
+    await refreshMarpLive();
+    await nextTick();
+    attachMarpScroll();
+  } else {
+    marpScrollSync.detach();
+  }
+});
 
 // ============ Code View ============
 const codeEditorComponentRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -1687,6 +1896,8 @@ onUnmounted(async () => {
   window.removeEventListener('keydown', handleKeyboard);
   window.removeEventListener('wheel', handleWheel);
   scrollSync.detach();
+  marpScrollSync.detach();
+  if (marpLiveTimer) clearTimeout(marpLiveTimer);
   unwatchAll();
   if (unlistenOpenFile) {
     unlistenOpenFile();
@@ -1753,6 +1964,21 @@ onUnmounted(async () => {
       @toggle-ai="toggleAiPanel"
     />
 
+    <!-- Marp strip: extra deck actions, only when the active doc is a Marp deck -->
+    <MarpToolbar
+      v-if="isMarp && !codeView && !splitEditorActive"
+      :preview-active="showMarpPreview"
+      @new-slide="marpNewSlide"
+      @set-theme="(v) => marpUpdateFrontmatter('theme', v)"
+      @set-layout="marpSetLayout"
+      @insert-bg="marpInsertBg"
+      @toggle-paginate="marpTogglePaginate"
+      @set-size="(v) => marpUpdateFrontmatter('size', v)"
+      @set-font="marpSetFont"
+      @present="openMarpDialog"
+      @toggle-preview="toggleMarpPreview"
+    />
+
     <!-- Main content area with optional left bar -->
     <div class="main-area">
       <!-- Workspace Sidebar (folder browser).
@@ -1796,7 +2022,7 @@ onUnmounted(async () => {
       />
 
       <!-- Code + Preview split: raw markdown (left) -> live WYSIWYG render (right) -->
-      <div v-if="splitEditorActive && !codeView" class="split-editor-area">
+      <div v-if="splitEditorActive && !codeView" class="split-editor-area" :class="{ 'is-marp': isMarp }">
         <TabBar
           :tabs="tabs"
           :active-tab-id="activeTabId"
@@ -1824,7 +2050,11 @@ onUnmounted(async () => {
       </div>
 
       <!-- Editor area with optional TOC sidebar -->
-      <div v-else-if="!codeView" class="editor-area">
+      <div
+        v-else-if="!codeView"
+        class="editor-area"
+        :class="{ 'is-marp': isMarp, 'with-marp-preview': marpPreviewVisible }"
+      >
         <!-- Table of Contents Panel -->
         <TableOfContents
           v-if="showTocPanel"
@@ -1844,6 +2074,14 @@ onUnmounted(async () => {
           @close-saved="handleTabCloseSaved"
           @drop-file="handleWorkspaceDropFile"
           @open-dropped-files="handleOpenDroppedFiles"
+        />
+
+        <!-- Live Marp slide preview (scroll-synced with the editor) -->
+        <MarpLivePreview
+          v-if="marpPreviewVisible"
+          ref="marpLivePreviewRef"
+          class="marp-live-pane"
+          :markdown="marpLiveMarkdown"
         />
       </div>
 
@@ -1912,6 +2150,13 @@ onUnmounted(async () => {
       :markdown="marpMarkdown"
       :title="marpTitle"
       @close="showMarpDialog = false"
+    />
+
+    <!-- New file: Document vs Marp -->
+    <NewFileModal
+      v-if="showNewFileModal"
+      @choose="createDocument"
+      @close="showNewFileModal = false"
     />
 
     <!-- Loading Overlay -->
@@ -2115,6 +2360,18 @@ onUnmounted(async () => {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+}
+
+/* Marp live preview: editor (left) + rendered slides (right), each ~half. */
+.editor-area.with-marp-preview :deep(.split-container) {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+.editor-area.with-marp-preview .marp-live-pane {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border-primary);
 }
 
 .code-view-area {

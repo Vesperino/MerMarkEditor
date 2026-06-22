@@ -28,9 +28,8 @@ function resolveToAbsolutePath(src: string, baseDir: string): string {
 /**
  * Reads a local file and returns a blob URL.
  */
-async function fileToBlobUrl(absolutePath: string): Promise<string> {
-  const bytes = await readFile(absolutePath);
-  const ext = absolutePath.split('.').pop()?.toLowerCase() || '';
+function mimeForPath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || '';
   const mimeMap: Record<string, string> = {
     png: 'image/png',
     jpg: 'image/jpeg',
@@ -41,9 +40,73 @@ async function fileToBlobUrl(absolutePath: string): Promise<string> {
     bmp: 'image/bmp',
     ico: 'image/x-icon',
   };
-  const mime = mimeMap[ext] || 'image/png';
-  const blob = new Blob([bytes], { type: mime });
+  return mimeMap[ext] || 'image/png';
+}
+
+async function fileToBlobUrl(absolutePath: string): Promise<string> {
+  const bytes = await readFile(absolutePath);
+  const blob = new Blob([bytes], { type: mimeForPath(absolutePath) });
   return URL.createObjectURL(blob);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+const dataUriCache = new Map<string, string>();
+const DATA_URI_CACHE_MAX = 40;
+
+async function fileToDataUri(absolutePath: string): Promise<string> {
+  if (dataUriCache.has(absolutePath)) return dataUriCache.get(absolutePath)!;
+  const bytes = await readFile(absolutePath);
+  const uri = `data:${mimeForPath(absolutePath)};base64,${bytesToBase64(bytes)}`;
+  dataUriCache.set(absolutePath, uri);
+  // Bound memory: base64 of large images is heavy; evict oldest beyond the cap.
+  if (dataUriCache.size > DATA_URI_CACHE_MAX) {
+    dataUriCache.delete(dataUriCache.keys().next().value as string);
+  }
+  return uri;
+}
+
+/**
+ * Inlines local image references in a markdown string as base64 data URIs.
+ * Used for Marp export/preview where the rendered HTML lives in a sandboxed
+ * iframe (srcdoc) with no base URL, so relative/local paths can't be fetched.
+ * Remote (http/https), data: and blob: sources are left untouched.
+ */
+export async function inlineMarkdownImages(markdown: string, baseDir?: string): Promise<string> {
+  const imageRe = /!\[([^\]]*)\]\(\s*([^)\s]+)((?:\s+"[^"]*")?)\s*\)/g;
+  const matches = [...markdown.matchAll(imageRe)];
+  const replacements = new Map<string, string>();
+
+  await Promise.all(
+    matches.map(async (m) => {
+      const src = m[2];
+      if (replacements.has(src)) return;
+      if (/^(data:|blob:|https?:)/i.test(src)) return;
+
+      const isAbsolute = /^[a-zA-Z]:/.test(src) || src.startsWith('/');
+      if (!isAbsolute && !baseDir) return;
+      const absolutePath = isAbsolute ? src : resolveToAbsolutePath(src, baseDir!);
+
+      try {
+        replacements.set(src, await fileToDataUri(absolutePath));
+      } catch (e) {
+        console.warn(`[ImageResolver] Failed to inline image: ${absolutePath}`, e);
+      }
+    })
+  );
+
+  if (replacements.size === 0) return markdown;
+  return markdown.replace(imageRe, (full, alt, src, title) => {
+    const uri = replacements.get(src);
+    return uri ? `![${alt}](${uri}${title})` : full;
+  });
 }
 
 // Cache to avoid re-reading same files

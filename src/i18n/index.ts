@@ -626,6 +626,46 @@ export interface Translations {
   marpPrevSlide: string;
   marpNextSlide: string;
   marpSlideCounter: (current: number, total: number) => string;
+  marpFullscreen: string;
+  marpPlay: string;
+  marpPause: string;
+  marpBarNewSlide: string;
+  marpBarTheme: string;
+  marpBarLayout: string;
+  marpBarLayoutDefault: string;
+  marpBarBackground: string;
+  marpBgLocalFull: string;
+  marpBgLocalLeft: string;
+  marpBgLocalRight: string;
+  marpBgUrl: string;
+  marpBarPaginate: string;
+  marpBarSize: string;
+  marpBarPresent: string;
+  marpBarPreview: string;
+  marpBarFont: string;
+  marpTipFont: string;
+  marpFontDefault: string;
+  marpThemeTitle: string;
+  marpBgTitle: string;
+  marpLayoutTitle: string;
+  marpTipNewSlide: string;
+  marpTipTheme: string;
+  marpTipLayout: string;
+  marpTipBackground: string;
+  marpTipPaginate: string;
+  marpTipSize: string;
+  marpTipPresent: string;
+  marpTipPreview: string;
+  marpLayoutLeadDesc: string;
+  marpLayoutInvertDesc: string;
+  marpLayoutDefaultDesc: string;
+  newFileChoiceTitle: string;
+  newFilePlain: string;
+  newFilePlainDesc: string;
+  newFileMarp: string;
+  newFileMarpDesc: string;
+  marpSeedTitle: string;
+  marpSeedSubtitle: string;
 }
 
 const translations: Record<Locale, Translations> = {

@@ -437,3 +437,95 @@ button:disabled {
   letter-spacing: 0.5px;
 }
 
+/* ========== Marp — scoped under .is-marp so the normal editor is untouched ========== */
+.is-marp .marp-frontmatter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 20px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-secondary, #6b5bd2);
+  background: linear-gradient(135deg, rgba(107, 91, 210, 0.16), rgba(107, 91, 210, 0.04));
+  user-select: none;
+  cursor: default;
+}
+
+.is-marp .marp-frontmatter .mf-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.is-marp .marp-frontmatter .mf-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.is-marp .marp-frontmatter .mf-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted, #777);
+  font-variant-numeric: tabular-nums;
+}
+
+.is-marp .marp-frontmatter.ProseMirror-selectednode {
+  outline: 2px solid var(--primary, #6b5bd2);
+  outline-offset: 1px;
+}
+
+.is-marp .marp-directive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-secondary, #4a4a5a);
+  background: var(--hover-bg, rgba(127, 127, 127, 0.1));
+  font-size: 12px;
+  color: var(--text-muted, #777);
+  font-family: var(--font-mono, monospace);
+  user-select: none;
+  cursor: default;
+}
+
+.is-marp .marp-directive .md-icon {
+  opacity: 0.7;
+}
+
+.is-marp .marp-directive.ProseMirror-selectednode {
+  outline: 2px solid var(--primary, #6b5bd2);
+  outline-offset: 1px;
+}
+
+/* Slide boundaries: each `---` separator becomes a labelled divider. Scoped to
+   .is-marp, so a normal document's <hr> is unchanged. */
+.is-marp {
+  counter-reset: marp-slide 1;
+}
+
+.is-marp hr {
+  border: none;
+  border-top: 2px solid var(--primary, #6b5bd2);
+  height: 0;
+  margin: 30px 0;
+  position: relative;
+  counter-increment: marp-slide;
+  overflow: visible;
+}
+
+.is-marp hr::before {
+  content: "◆ " counter(marp-slide);
+  position: absolute;
+  top: -11px;
+  left: 16px;
+  background: var(--bg-primary, #fff);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--primary, #6b5bd2);
+}
+

@@ -72,6 +72,8 @@ let imageResolutionInProgress = false;
 let lastSavedHtml = '';
 import { MermaidExtension } from "../extensions/MermaidExtension";
 import { PageBreakExtension } from "../extensions/PageBreakExtension";
+import { MarpFrontmatterExtension } from "../extensions/MarpFrontmatterExtension";
+import { MarpDirectiveExtension } from "../extensions/MarpDirectiveExtension";
 import { FootnoteRef, FootnoteSection } from "../extensions/FootnoteExtension";
 import { DocumentSearchExtension } from "../extensions/DocumentSearchExtension";
 import { MoveBlockExtension } from "../extensions/MoveBlockExtension";
@@ -485,6 +487,8 @@ const editor = useEditor({
     }),
     MermaidExtension,
     PageBreakExtension,
+    MarpFrontmatterExtension,
+    MarpDirectiveExtension,
     FootnoteRef,
     FootnoteSection,
     DocumentSearchExtension,
