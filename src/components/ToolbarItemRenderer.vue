@@ -34,6 +34,7 @@ const emit = defineEmits<{
   saveFileAs: [];
   exportPdf: [];
   exportDocx: [];
+  presentMarp: [];
   toggleCodeView: [];
   toggleSplit: [];
   toggleSplitEditor: [];
@@ -176,6 +177,15 @@ const showLabel = (id: string) => {
       <path d="M9 12h6M9 16h4"/>
     </svg>
     <span v-if="showLabel(itemId)">{{ t.exportDocx }}</span>
+  </button>
+
+  <button v-else-if="itemId === 'present-marp'" @click="emit('presentMarp')" class="toolbar-btn" :class="{ 'icon-only': !showLabel(itemId) }" v-tooltip="t.presentMarp" :disabled="isDisabled(itemId)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/>
+      <line x1="12" y1="17" x2="12" y2="21"/>
+    </svg>
+    <span v-if="showLabel(itemId)">{{ t.presentMarp }}</span>
   </button>
 
   <button v-else-if="itemId === 'show-shortcuts'" @click="emit('showShortcuts')" class="toolbar-btn icon-only shortcuts-btn" v-tooltip="`${t.keyboardShortcuts} (Ctrl+/)`">
@@ -449,11 +459,11 @@ const showLabel = (id: string) => {
     </template>
   </div>
 
-  <!-- Zoom controls â€” slider in status bar (Word-style), button trio elsewhere.
+  <!-- Zoom controls - slider in status bar (Word-style), button trio elsewhere.
        Compact mode == status bar; the horizontal slider feels native there
        and gives drag-to-set instead of click-stepping. -->
   <div v-else-if="itemId === 'zoom-controls' && props.compact" class="toolbar-group zoom-slider-group">
-    <button @click="zoomOut" class="zoom-slider-btn" v-tooltip="t.zoomOut" aria-label="zoom out">â’</button>
+    <button @click="zoomOut" class="zoom-slider-btn" v-tooltip="t.zoomOut" aria-label="zoom out">−</button>
     <input
       type="range"
       class="zoom-slider"

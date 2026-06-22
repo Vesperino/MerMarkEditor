@@ -56,6 +56,25 @@ export function htmlToMarkdown(
 
   const protectedBlocks: string[] = [];
 
+  // Front matter badge -> restore raw `---\n…\n---` at the very top before the
+  // generic <div> strip below would otherwise delete it.
+  md = md.replace(/<div[^>]*data-marp-frontmatter=["']([^"']*)["'][^>]*>[\s\S]*?<\/div>/gi, (_, enc) => {
+    let raw = '';
+    try { raw = decodeURIComponent(enc); } catch { raw = enc; }
+    const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
+    protectedBlocks.push(`---\n${raw}\n---\n\n`);
+    return placeholder;
+  });
+
+  // Directive chip -> restore `<!-- … -->` comment before the generic div strip.
+  md = md.replace(/<div[^>]*data-marp-directive=["']([^"']*)["'][^>]*>[\s\S]*?<\/div>/gi, (_, enc) => {
+    let raw = '';
+    try { raw = decodeURIComponent(enc); } catch { raw = enc; }
+    const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
+    protectedBlocks.push(`\n<!-- ${raw} -->\n`);
+    return placeholder;
+  });
+
   // Mermaid blocks - extract first.
   // Attributes the user can adjust per-diagram (e.g. dragged width, print
   // scale) are serialized into an HTML comment on the line preceding the
@@ -278,6 +297,36 @@ export function markdownToHtmlWithMeta(
 ): MarkdownConversionResult {
   let html = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
+  // Leading YAML front matter -> compact badge node (rendered after escaping so
+  // its HTML is not mangled). Keeps the raw block for a verbatim round-trip.
+  // Marp-only UI (badge + directive chips) is gated on the doc actually being a
+  // Marp deck — `marp:` in the leading front matter. Plain markdown (even with
+  // front matter or HTML comments) is left exactly as before: no regression.
+  let frontmatterHtml = '';
+  const fmMatch = html.match(/^---[ \t]*\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
+  const isMarpDoc = !!fmMatch && /(?:^|\n)[ \t]*marp[ \t]*:[ \t]*true\b/i.test(fmMatch[1]);
+  if (fmMatch && isMarpDoc) {
+    frontmatterHtml = buildFrontmatterBadge(fmMatch[1]);
+    html = html.slice(fmMatch[0].length);
+  }
+
+  // Standalone Marp directive comments (e.g. `<!-- _class: lead -->`) -> chip
+  // placeholders, restored after escaping/paragraph-wrapping so the chip HTML
+  // is not mangled. `__`-prefixed token is skipped by the paragraph wrapper.
+  const directiveChips: string[] = [];
+  if (isMarpDoc) {
+    html = html.replace(/^[ \t]*<!--([\s\S]*?)-->[ \t]*$/gm, (full, inner) => {
+      const raw = String(inner).trim();
+      // Leave functional comments (e.g. mermaid attrs) for their own parsers.
+      if (/^mermaid-attrs:/i.test(raw)) return full;
+      const ph = `__MARP_DIRECTIVE_${directiveChips.length}__`;
+      directiveChips.push(
+        `<div class="marp-directive" data-marp-directive="${encodeURIComponent(raw)}" contenteditable="false"><span class="md-icon">⚙</span><span class="md-text">${escapeHtml(raw)}</span></div>`
+      );
+      return ph;
+    });
+  }
+
   // Extract page breaks and code blocks before escaping
   html = extractPageBreaks(html);
   const extracted = extractCodeBlocks(html, readFormats);
@@ -331,10 +380,24 @@ export function markdownToHtmlWithMeta(
   html = html.replace(/<p>__PAGE_BREAK__<\/p>/g, '<div class="page-break"></div>');
   html = html.replace(/__PAGE_BREAK__/g, '<div class="page-break"></div>');
 
+  // Restore Marp directive chips
+  directiveChips.forEach((chip, i) => {
+    html = html.replace(`<p>__MARP_DIRECTIVE_${i}__</p>`, chip).replace(`__MARP_DIRECTIVE_${i}__`, chip);
+  });
+
   // Append footnotes section
   html += buildFootnoteSectionHtml(footnoteDefs);
 
-  return { html: html.trimEnd(), detectedMermaidFormatIds };
+  return { html: (frontmatterHtml + html).trimEnd(), detectedMermaidFormatIds };
+}
+
+function buildFrontmatterBadge(raw: string): string {
+  const enc = encodeURIComponent(raw);
+  const isMarp = /(?:^|\n)\s*marp\s*:/i.test(raw);
+  const themeMatch = raw.match(/(?:^|\n)\s*theme\s*:\s*([^\n]+)/i);
+  const title = isMarp ? 'Marp presentation' : 'Front matter';
+  const meta = themeMatch ? `<span class="mf-meta">theme: ${escapeHtml(themeMatch[1].trim())}</span>` : '';
+  return `<div class="marp-frontmatter" data-marp-frontmatter="${enc}" data-marp="${isMarp}" contenteditable="false"><span class="mf-icon">🎬</span><span class="mf-title">${title}</span>${meta}</div>`;
 }
 
 export function detectLineEnding(text: string): string {

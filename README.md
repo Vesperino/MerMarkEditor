@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="#local-ai-assistant">AI Assistant</a> •
+  <a href="#presentations-marp">Presentations</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#installation">Installation</a> •
@@ -41,6 +42,7 @@
 - **Native performance** - Built with Tauri for fast, lightweight operation
 - **WYSIWYG editing** - See your formatted content as you type
 - **Mermaid integration** - Create diagrams directly in your documents
+- **Marp presentations** - Build slide decks in Markdown with a live preview and fullscreen present mode
 - **Multi-root workspaces** - Open one folder or many; the AI sees them as scoped read-only context
 - **Local AI assistant** - Talk to Claude, Codex, a fully offline Ollama model, or any OpenAI-compatible local server about your notes; they edit your files directly
 - **Cross-platform** - Available on Windows, macOS and Linux
@@ -49,6 +51,21 @@
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-light-mode.png" alt="MerMark — Minimal theme with workspace sidebar" width="48%" />
   <img src="https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/docs/release-notes/v0.2.6/ui-with-ai-panel.png" alt="MerMark — same layout with the AI Assistant docked on the right" width="48%" />
 </p>
+
+---
+
+## Presentations (Marp)
+
+Turn any note into a slide deck. Start a **Marp presentation** from the New menu (or open an existing deck), write your slides in plain Markdown, and watch them render live next to the editor. A dedicated toolbar lets you add slides, switch themes, set per-slide layouts, drop in backgrounds, toggle slide numbers, and change the font size — then present fullscreen.
+
+<p align="center">
+  <img src="assets/screenshots/marp-presentation.png" alt="MerMark — Marp presentation with a live slide preview beside the editor" width="90%" />
+</p>
+
+- **Live split preview** - edit on the left, see the real slides on the right, scrolling in sync
+- **Themes with previews** - gaia, default, uncover; pick from graphical thumbnails
+- **Local and web images** - both render in the live preview and in exports
+- **Present fullscreen** - advance with arrow keys, a click, or auto-advance
 
 ---
 
@@ -192,6 +209,13 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **Resizable split** in fullscreen edit — drag the divider between code and preview pane
 - **AI assist** — click AI on any diagram and the main AI panel takes over with the diagram pinned as context
 - **Quick templates** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap one-click inserts
+
+### Presentations (Marp)
+- **Marp decks** — pick *Marp presentation* for a new file, or open any existing deck
+- **Live split preview** — edit on the left, see the rendered slides on the right, scrolling in sync
+- **Presentation toolbar** — add slides, switch theme (gaia / default / uncover) with previews, set per-slide layout, add backgrounds, toggle slide numbers, change aspect ratio and font size
+- **Present fullscreen** — advance with arrow keys, a click, or auto-advance
+- **Images** — local files and web URLs render in the live preview and in exports
 
 ### Workspaces
 - **Multi-root sidebar** — open one folder or many; each gets a collapsible section with its own file tree

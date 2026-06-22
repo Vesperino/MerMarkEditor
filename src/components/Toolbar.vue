@@ -30,6 +30,7 @@ const emit = defineEmits<{
   saveFileAs: [];
   exportPdf: [];
   exportDocx: [];
+  presentMarp: [];
   toggleCodeView: [];
   toggleSplit: [];
   toggleSplitEditor: [];
@@ -95,6 +96,7 @@ const needsSpacerBefore = (index: number) => {
           @save-file-as="emit('saveFileAs')"
           @export-pdf="emit('exportPdf')"
           @export-docx="emit('exportDocx')"
+          @present-marp="emit('presentMarp')"
           @toggle-code-view="emit('toggleCodeView')"
           @toggle-split="emit('toggleSplit')"
           @toggle-split-editor="emit('toggleSplitEditor')"

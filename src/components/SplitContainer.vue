@@ -254,6 +254,11 @@ const getActiveVisualSearchApi = () => {
   };
 };
 
+const getActiveEditor = () => {
+  const paneRef = activePaneId.value === 'left' ? leftPaneRef.value : rightPaneRef.value;
+  return paneRef?.editor ?? null;
+};
+
 onUnmounted(() => {
   if (isDragging.value) {
     stopDrag();
@@ -265,6 +270,7 @@ defineExpose({
   setEditorContent,
   getActiveEditorContent,
   setActiveEditorContent,
+  getActiveEditor,
   getActiveVisualSearchApi,
   findVisualTargetAt,
   leftPaneRef,
