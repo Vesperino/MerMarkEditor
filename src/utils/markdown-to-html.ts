@@ -325,7 +325,76 @@ export function extractCodeBlocks(
     return placeholder;
   });
 
+  html = extractIndentedCodeBlocks(html, codeBlocks);
+
   return { html, codeBlocks, detectedMermaidFormatIds: detectedIds };
+}
+
+// Indented code blocks (CommonMark: lines with 4+ spaces / tab). Runs after
+// fence extraction so leftover indented fence placeholders are never
+// re-captured. A block starts only after a blank line (indented code cannot
+// interrupt a paragraph) and never inside a list, where indentation means
+// item continuation (issues #33/#95).
+const BLOCK_PLACEHOLDER = /^__(?:CODE_BLOCK|MERMAID_BLOCK)_\d+__$/;
+const INDENTED_LINE = /^(?: {4}|\t)/;
+
+function isListItemLine(line: string): boolean {
+  return /^\s*(?:[-*+]|\d+[.)])\s/.test(line);
+}
+
+function isInsideListContext(lines: string[], startIdx: number): boolean {
+  for (let k = startIdx - 1; k >= 0; k--) {
+    const line = lines[k];
+    if (line.trim() === '') continue;
+    if (isListItemLine(line)) return true;
+    // Continuation-shaped line — the list (if any) starts further up.
+    if (/^\s{2,}/.test(line)) continue;
+    return false;
+  }
+  return false;
+}
+
+function extractIndentedCodeBlocks(text: string, codeBlocks: string[]): string {
+  const lines = text.split('\n');
+  const out: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const isCandidate = INDENTED_LINE.test(line)
+      && line.trim() !== ''
+      && !BLOCK_PLACEHOLDER.test(line.trim());
+    const prevBlankOrStart = out.length === 0 || out[out.length - 1].trim() === '';
+
+    if (isCandidate && prevBlankOrStart && !isInsideListContext(lines, i)) {
+      let j = i;
+      let lastContent = i;
+      while (j < lines.length) {
+        const l = lines[j];
+        if (l.trim() === '') { j++; continue; }
+        if (INDENTED_LINE.test(l) && !BLOCK_PLACEHOLDER.test(l.trim())) {
+          lastContent = j;
+          j++;
+          continue;
+        }
+        break;
+      }
+
+      const content = lines
+        .slice(i, lastContent + 1)
+        .map(l => l.replace(INDENTED_LINE, ''))
+        .join('\n');
+      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(`<pre data-indented="true"><code class="language-plaintext">${escapeHtml(content)}</code></pre>`);
+      out.push(placeholder);
+      i = lastContent + 1;
+    } else {
+      out.push(line);
+      i++;
+    }
+  }
+
+  return out.join('\n');
 }
 
 export function restoreCodeBlocks(html: string, codeBlocks: string[]): string {
