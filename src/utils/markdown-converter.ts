@@ -105,6 +105,21 @@ export function htmlToMarkdown(
     return '';
   });
 
+  // Indented code blocks (issue #118) - written back as 4-space indentation,
+  // not fences, so the original document form survives the round trip. Must
+  // run before the generic pre/code handlers below, which would otherwise
+  // consume the same markup.
+  md = md.replace(/<pre[^>]*data-indented=["']true["'][^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, code) => {
+    const decodedCode = decodeHtmlEntities(code).replace(/\n+$/, '');
+    const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
+    const indented = decodedCode
+      .split('\n')
+      .map(line => (line.length > 0 ? `    ${line}` : ''))
+      .join('\n');
+    protectedBlocks.push(`\n${indented}\n`);
+    return placeholder;
+  });
+
   // Code blocks - extract language from class attribute
   md = md.replace(/<pre[^>]*>\s*<code[^>]*class=["']language-(\w+)["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, lang, code) => {
     const decodedCode = decodeHtmlEntities(code);
@@ -265,9 +280,11 @@ export function htmlToMarkdown(
     }
   });
 
-  // Clean up whitespace
+  // Clean up whitespace. Leading blank lines are stripped without trimming
+  // the first line's own indentation — a document can start with an indented
+  // code block (issue #118).
   md = md.replace(/\n{3,}/g, '\n\n');
-  md = md.trim();
+  md = md.replace(/^(?:[ \t]*\n)+/, '').trimEnd();
 
   // Append footnote definitions at end
   if (footnoteSection.definitions) {

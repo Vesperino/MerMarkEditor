@@ -45,6 +45,24 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+
+// Indented (4-space) code blocks round-trip through a data-indented marker so
+// htmlToMarkdown can write them back in their original form instead of a
+// fence (issue #118). Without this attribute TipTap would drop the marker on
+// getHTML() and every save would rewrite the block as ``` fences.
+const IndentAwareCodeBlock = CodeBlockLowlight.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      indented: {
+        default: false,
+        parseHTML: (element) => element.getAttribute("data-indented") === "true",
+        renderHTML: (attributes) =>
+          attributes.indented ? { "data-indented": "true" } : {},
+      },
+    };
+  },
+});
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
@@ -479,7 +497,7 @@ const editor = useEditor({
     TaskItem.configure({
       nested: true,
     }),
-    CodeBlockLowlight.configure({
+    IndentAwareCodeBlock.configure({
       lowlight,
     }),
     Placeholder.configure({

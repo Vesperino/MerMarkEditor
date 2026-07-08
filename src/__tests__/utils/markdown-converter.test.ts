@@ -772,6 +772,86 @@ The server automatically selects a free port on startup.
   });
 });
 
+describe('indented code blocks (issue #118)', () => {
+  const tree = [
+    '## Tree',
+    '',
+    '    Src/',
+    '      App/                     friday-app container monolith (one process)',
+    '        Friday.Core/           contracts + domain types + enums; BCL only, zero IO',
+    '',
+    '      Host/                    deployed to the Windows host, never containerized',
+    '        Friday.HostProxy/      host-side game/debug proxy; references Friday.Core only',
+  ].join('\n');
+
+  describe('markdownToHtml', () => {
+    it('converts a 4-space indented block to a code block', () => {
+      const html = markdownToHtml(tree);
+      expect(html).toContain('<pre data-indented="true"><code class="language-plaintext">');
+      expect(html).not.toContain('<p>Src/');
+    });
+
+    it('preserves relative indentation inside the block', () => {
+      const html = markdownToHtml(tree);
+      expect(html).toContain('Src/\n  App/');
+      expect(html).toContain('\n    Friday.Core/');
+    });
+
+    it('keeps internal blank lines within a single block', () => {
+      const html = markdownToHtml(tree);
+      expect((html.match(/<pre/g) || []).length).toBe(1);
+      expect(html).toContain('zero IO\n\n  Host/');
+    });
+
+    it('supports tab-indented blocks', () => {
+      const html = markdownToHtml('para\n\n\tcode line\n\t\tdeeper');
+      expect(html).toContain('<pre data-indented="true">');
+      expect(html).toContain('code line\n\tdeeper');
+    });
+
+    it('does not treat indented list continuations as code (issue #33 regression guard)', () => {
+      const md = '1. Start:\n    ```bash\n    cd /app\n    ```\n2. Done.';
+      const html = markdownToHtml(md);
+      expect(html).not.toContain('data-indented');
+    });
+
+    it('does not treat indented text after a list item as code', () => {
+      const md = '- item\n\n    continuation text';
+      const html = markdownToHtml(md);
+      expect(html).not.toContain('data-indented');
+    });
+
+    it('does not let indented lines interrupt a paragraph', () => {
+      const md = 'paragraph line\n    lazy continuation';
+      const html = markdownToHtml(md);
+      expect(html).not.toContain('data-indented');
+    });
+
+    it('escapes HTML inside indented code blocks', () => {
+      const html = markdownToHtml('intro\n\n    <div>&amp;</div>');
+      expect(html).toContain('&lt;div&gt;');
+    });
+  });
+
+  describe('htmlToMarkdown', () => {
+    it('serializes a data-indented code block back to 4-space indentation', () => {
+      const html = '<pre data-indented="true"><code class="language-plaintext">Src/\n  App/</code></pre>';
+      const md = htmlToMarkdown(html);
+      expect(md).toBe('    Src/\n      App/');
+      expect(md).not.toContain('```');
+    });
+
+    it('keeps fenced serialization for regular code blocks', () => {
+      const html = '<pre><code class="language-js">const x = 1;</code></pre>';
+      expect(htmlToMarkdown(html)).toContain('```js');
+    });
+  });
+
+  it('round-trips the issue #118 tree exactly (md -> html -> md)', () => {
+    expect(htmlToMarkdown(markdownToHtml(tree))).toBe(tree);
+  });
+});
+
 describe('detectLineEnding', () => {
   it('detects CRLF line endings', () => {
     expect(detectLineEnding('line1\r\nline2\r\nline3')).toBe('\r\n');

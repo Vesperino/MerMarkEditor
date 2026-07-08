@@ -323,6 +323,23 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
       continue;
     }
 
+    // Indented code blocks (4 spaces / tab, after a blank line) render as a
+    // single <pre> (issue #118). Lines reaching this point are never list
+    // continuations — the list branch above consumes those.
+    if (/^(?: {4}|\t)/.test(line) && (i === 0 || lines[i - 1].trim() === '')) {
+      const startLine = i;
+      let j = i;
+      let lastContent = i;
+      while (j < lines.length) {
+        if (!lines[j].trim()) { j++; continue; }
+        if (/^(?: {4}|\t)/.test(lines[j])) { lastContent = j; j++; continue; }
+        break;
+      }
+      i = lastContent + 1;
+      blocks.push({ startLine, endLine: i, type: 'code' });
+      continue;
+    }
+
     // Paragraph: each non-block line is its own paragraph in the converter
     blocks.push({ startLine: i, endLine: i + 1, type: 'paragraph' });
     i++;
