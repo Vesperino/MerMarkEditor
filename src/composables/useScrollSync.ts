@@ -38,33 +38,48 @@ export interface ScrollSync {
 
 /**
  * Bidirectional proportional scroll-sync between two scroll containers.
- * A shared lock plus a requestAnimationFrame release prevents the programmatic
- * scroll of one side from bouncing back through the other side's scroll event.
+ * Ownership prevents asynchronously delivered programmatic scroll events from
+ * bouncing back after the originating handler has completed.
  */
 export function useScrollSync(): ScrollSync {
   let code: HTMLElement | null = null;
   let preview: HTMLElement | null = null;
-  let lock = false;
+  let owner: 'code' | 'preview' | null = null;
 
   const sync = (src: HTMLElement, dst: HTMLElement) => {
-    if (lock) return;
-    lock = true;
-    dst.scrollTop = proportionalTarget(
+    const target = proportionalTarget(
       src.scrollTop, src.scrollHeight, src.clientHeight,
       dst.scrollHeight, dst.clientHeight,
     );
-    requestAnimationFrame(() => { lock = false; });
+    if (Math.abs(target - dst.scrollTop) < 1) return;
+    dst.scrollTop = target;
   };
 
-  const onCodeScroll = () => { if (code && preview) sync(code, preview); };
-  const onPreviewScroll = () => { if (code && preview) sync(preview, code); };
+  const onCodeIntent = () => { owner = 'code'; };
+  const onPreviewIntent = () => { owner = 'preview'; };
+  const onCodeScroll = () => {
+    if (!code || !preview) return;
+    if (owner === null) owner = 'code';
+    if (owner === 'code') sync(code, preview);
+  };
+  const onPreviewScroll = () => {
+    if (!code || !preview) return;
+    if (owner === null) owner = 'preview';
+    if (owner === 'preview') sync(preview, code);
+  };
 
   const detach = () => {
     code?.removeEventListener('scroll', onCodeScroll);
+    code?.removeEventListener('wheel', onCodeIntent);
+    code?.removeEventListener('touchstart', onCodeIntent);
+    code?.removeEventListener('pointerdown', onCodeIntent);
     preview?.removeEventListener('scroll', onPreviewScroll);
+    preview?.removeEventListener('wheel', onPreviewIntent);
+    preview?.removeEventListener('touchstart', onPreviewIntent);
+    preview?.removeEventListener('pointerdown', onPreviewIntent);
     code = null;
     preview = null;
-    lock = false;
+    owner = null;
   };
 
   const attach = (codeEl: HTMLElement, previewEl: HTMLElement) => {
@@ -72,7 +87,13 @@ export function useScrollSync(): ScrollSync {
     code = codeEl;
     preview = previewEl;
     code.addEventListener('scroll', onCodeScroll, { passive: true });
+    code.addEventListener('wheel', onCodeIntent, { passive: true });
+    code.addEventListener('touchstart', onCodeIntent, { passive: true });
+    code.addEventListener('pointerdown', onCodeIntent, { passive: true });
     preview.addEventListener('scroll', onPreviewScroll, { passive: true });
+    preview.addEventListener('wheel', onPreviewIntent, { passive: true });
+    preview.addEventListener('touchstart', onPreviewIntent, { passive: true });
+    preview.addEventListener('pointerdown', onPreviewIntent, { passive: true });
   };
 
   return { attach, detach };
