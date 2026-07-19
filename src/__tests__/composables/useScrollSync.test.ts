@@ -60,8 +60,91 @@ describe('scrollTopFromRatio', () => {
   });
 });
 
-describe('useScrollSync attach/detach', () => {
-  it('adds scroll listeners on attach and removes them on detach', () => {
+describe('useScrollSync', () => {
+  const defineScrollMetrics = (
+    element: HTMLElement,
+    scrollTop: number,
+    scrollHeight: number,
+    clientHeight: number,
+  ) => {
+    Object.defineProperties(element, {
+      scrollTop: { value: scrollTop, writable: true },
+      scrollHeight: { value: scrollHeight },
+      clientHeight: { value: clientHeight },
+    });
+  };
+
+  it('syncs the other pane when the owner scrolls', () => {
+    const code = document.createElement('div');
+    const preview = document.createElement('div');
+    defineScrollMetrics(code, 400, 1000, 200);
+    defineScrollMetrics(preview, 0, 2000, 200);
+
+    const sync = useScrollSync();
+    sync.attach(code, preview);
+    code.dispatchEvent(new Event('wheel'));
+    code.dispatchEvent(new Event('scroll'));
+
+    expect(preview.scrollTop).toBe(900);
+  });
+
+  it('does not write back when the non-owner pane emits a scroll event', () => {
+    const code = document.createElement('div');
+    const preview = document.createElement('div');
+    defineScrollMetrics(code, 400, 1000, 200);
+    defineScrollMetrics(preview, 0, 2000, 200);
+
+    const sync = useScrollSync();
+    sync.attach(code, preview);
+    code.dispatchEvent(new Event('wheel'));
+    code.dispatchEvent(new Event('scroll'));
+    code.scrollTop = 401;
+    preview.dispatchEvent(new Event('scroll'));
+
+    expect(code.scrollTop).toBe(401);
+  });
+
+  it('switches ownership when the user wheels the other pane', () => {
+    const code = document.createElement('div');
+    const preview = document.createElement('div');
+    defineScrollMetrics(code, 400, 1000, 200);
+    defineScrollMetrics(preview, 0, 2000, 200);
+
+    const sync = useScrollSync();
+    sync.attach(code, preview);
+    code.dispatchEvent(new Event('wheel'));
+    code.dispatchEvent(new Event('scroll'));
+    preview.scrollTop = 450;
+    preview.dispatchEvent(new Event('wheel'));
+    preview.dispatchEvent(new Event('scroll'));
+
+    expect(code.scrollTop).toBe(200);
+  });
+
+  it('skips destination writes within the 1px deadband', () => {
+    const code = document.createElement('div');
+    const preview = document.createElement('div');
+    defineScrollMetrics(code, 400, 1000, 200);
+    let previewTop = 900.5;
+    const previewSetter = vi.fn((value: number) => { previewTop = value; });
+    Object.defineProperties(preview, {
+      scrollTop: {
+        get: () => previewTop,
+        set: previewSetter,
+      },
+      scrollHeight: { value: 2000 },
+      clientHeight: { value: 200 },
+    });
+
+    const sync = useScrollSync();
+    sync.attach(code, preview);
+    code.dispatchEvent(new Event('scroll'));
+
+    expect(previewSetter).not.toHaveBeenCalled();
+    expect(preview.scrollTop).toBe(900.5);
+  });
+
+  it('adds and removes listeners for every handled event type', () => {
     const code = document.createElement('div');
     const preview = document.createElement('div');
     const codeAdd = vi.spyOn(code, 'addEventListener');
@@ -71,11 +154,15 @@ describe('useScrollSync attach/detach', () => {
 
     const sync = useScrollSync();
     sync.attach(code, preview);
-    expect(codeAdd).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true });
-    expect(previewAdd).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true });
+    for (const eventType of ['scroll', 'wheel', 'touchstart', 'pointerdown']) {
+      expect(codeAdd).toHaveBeenCalledWith(eventType, expect.any(Function), { passive: true });
+      expect(previewAdd).toHaveBeenCalledWith(eventType, expect.any(Function), { passive: true });
+    }
 
     sync.detach();
-    expect(codeRemove).toHaveBeenCalledWith('scroll', expect.any(Function));
-    expect(previewRemove).toHaveBeenCalledWith('scroll', expect.any(Function));
+    for (const eventType of ['scroll', 'wheel', 'touchstart', 'pointerdown']) {
+      expect(codeRemove).toHaveBeenCalledWith(eventType, expect.any(Function));
+      expect(previewRemove).toHaveBeenCalledWith(eventType, expect.any(Function));
+    }
   });
 });
