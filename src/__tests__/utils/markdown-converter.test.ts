@@ -616,6 +616,35 @@ describe('round-trip conversion', () => {
 });
 
 describe('nested list round-trip', () => {
+  it('nests an unordered list indented by a tab', () => {
+    const html = markdownToHtml('- a\n\t- b');
+    expect(html).toContain('<li><p>a</p><ul><li><p>b</p></li></ul></li>');
+  });
+
+  it('preserves two levels of tab indentation', () => {
+    const html = markdownToHtml('- a\n\t\t- b');
+    expect((html.match(/<ul>/g) || []).length).toBe(3);
+    expect(htmlToMarkdown(html)).toBe('- a\n    - b');
+  });
+
+  it('treats two spaces and one tab as the same indentation level', () => {
+    const html = markdownToHtml('- a\n  - b\n\t- c');
+    expect(html).toContain('<ul><li><p>b</p></li><li><p>c</p></li></ul>');
+  });
+
+  it('nests ordered and task lists indented by a tab', () => {
+    const orderedHtml = markdownToHtml('1. a\n\t1. b');
+    const taskHtml = markdownToHtml('- [ ] a\n\t- [x] b');
+
+    expect(orderedHtml).toContain('<li><p>a</p><ol><li><p>b</p></li></ol></li>');
+    expect((taskHtml.match(/data-type="taskList"/g) || []).length).toBe(2);
+    expect(taskHtml).toContain('<p>a</p><ul data-type="taskList">');
+  });
+
+  it('keeps space-indented list behavior unchanged', () => {
+    expect(markdownToHtml('- a\n  - b')).toBe(markdownToHtml('- a\n\t- b'));
+  });
+
   it('preserves simple nested unordered list', () => {
     const original = '- Parent\n  - Child 1\n  - Child 2';
     const html = markdownToHtml(original);
