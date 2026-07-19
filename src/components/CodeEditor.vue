@@ -3,6 +3,7 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
 import { useTextareaLineMove } from '../composables/useTextareaLineMove';
+import { useTextareaTabIndent } from '../composables/useTextareaTabIndent';
 
 const { zoomScale } = useEditorZoom();
 const { settings } = useSettings();
@@ -136,6 +137,16 @@ const { handleKeydown: handleLineMoveKeydown } = useTextareaLineMove({
   onChange: (value) => emit('update:modelValue', value),
 });
 
+const { handleKeydown: handleTabIndentKeydown } = useTextareaTabIndent({
+  textareaRef,
+  onChange: (value) => emit('update:modelValue', value),
+});
+
+const handleKeydown = (event: KeyboardEvent) => {
+  handleLineMoveKeydown(event);
+  handleTabIndentKeydown(event);
+};
+
 const handleScroll = (event: Event) => {
   const target = event.target as HTMLTextAreaElement;
   if (gutterRef.value) {
@@ -173,7 +184,7 @@ const handleScroll = (event: Event) => {
       :style="codeZoomStyle"
       :value="modelValue"
       @input="handleInput"
-      @keydown="handleLineMoveKeydown"
+      @keydown="handleKeydown"
       @scroll="handleScroll"
       spellcheck="false"
       autocomplete="off"
