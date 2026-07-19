@@ -786,7 +786,11 @@ function applyCodeThemeVars(root: CSSStyleDeclaration, theme: CodeThemeMode) {
 // Apply all CSS custom properties to document root
 function applyCssVars(s: AppSettings) {
   const root = document.documentElement.style;
-  root.setProperty('--editor-font-family', resolveEditorFont(s.editorFontFamily));
+  if (s.editorFontFamily === 'system') {
+    root.removeProperty('--editor-font-family');
+  } else {
+    root.setProperty('--editor-font-family', resolveEditorFont(s.editorFontFamily));
+  }
   root.setProperty('--code-font-family', resolveCodeFont(s.codeFontFamily));
   root.setProperty('--editor-line-height', `${s.editorLineHeight}`);
   // Editor surface paddings — picked up by the Minimal theme via

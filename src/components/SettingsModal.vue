@@ -727,7 +727,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Font preview -->
-            <div class="font-preview" :style="{ fontFamily: `var(--editor-font-family)`, lineHeight: settings.editorLineHeight }">
+            <div class="font-preview" :style="{ fontFamily: `var(--editor-font-family, inherit)`, lineHeight: settings.editorLineHeight }">
               The quick brown fox jumps over the lazy dog. 0123456789
             </div>
           </div>

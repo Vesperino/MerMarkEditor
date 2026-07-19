@@ -109,17 +109,28 @@ describe('useSettings', () => {
       expect(settings.value.mermaidFenceClose).toBe('```');
     });
 
-    it('should set editor font family', () => {
+    it('should set the resolved editor font family CSS variable for a non-system font', () => {
       const { settings, setEditorFontFamily } = useSettings();
       setEditorFontFamily('georgia');
       expect(settings.value.editorFontFamily).toBe('georgia');
+      expect(document.documentElement.style.getPropertyValue('--editor-font-family'))
+        .toBe('Georgia, "Times New Roman", Times, serif');
       setEditorFontFamily('system');
     });
 
-    it('should set code font family', () => {
+    it('should remove the editor font family CSS variable for the system font', () => {
+      const { setEditorFontFamily } = useSettings();
+      setEditorFontFamily('georgia');
+      setEditorFontFamily('system');
+      expect(document.documentElement.style.getPropertyValue('--editor-font-family')).toBe('');
+    });
+
+    it('should keep setting the resolved code font family CSS variable', () => {
       const { settings, setCodeFontFamily } = useSettings();
       setCodeFontFamily('consolas');
       expect(settings.value.codeFontFamily).toBe('consolas');
+      expect(document.documentElement.style.getPropertyValue('--code-font-family'))
+        .toBe('"Consolas", "Courier New", monospace');
       setCodeFontFamily('fira-code');
     });
 
