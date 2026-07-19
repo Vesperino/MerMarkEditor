@@ -14,6 +14,15 @@ interface ListItem {
   extraContent: string[];
 }
 
+function getIndentWidth(whitespace: string): number {
+  return Array.from(whitespace).reduce((width, character) => width + (character === '\t' ? 2 : 1), 0);
+}
+
+function hasListContinuationIndent(line: string): boolean {
+  const leadingWhitespace = line.match(/^\s*/)?.[0] ?? '';
+  return getIndentWidth(leadingWhitespace) >= 2;
+}
+
 function parseMarkdownListBlock(lines: string[], startIndex: number): { html: string; endIndex: number } {
   const items: ListItem[] = [];
   let idx = startIndex;
@@ -27,7 +36,7 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
     const olMatch = line.match(/^(\s*)(\d+)\. (.*)$/);
 
     if (taskMatch) {
-      const indent = Math.floor(taskMatch[1].length / 2);
+      const indent = Math.floor(getIndentWidth(taskMatch[1]) / 2);
       const content = taskMatch[3].trim();
       if (content) {
         items.push({
@@ -40,14 +49,14 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
       }
       idx++;
     } else if (ulMatch) {
-      const indent = Math.floor(ulMatch[1].length / 2);
+      const indent = Math.floor(getIndentWidth(ulMatch[1]) / 2);
       const content = ulMatch[2].trim();
       if (content) {
         items.push({ indent, content, type: 'ul', extraContent: [] });
       }
       idx++;
     } else if (olMatch) {
-      const indent = Math.floor(olMatch[1].length / 2);
+      const indent = Math.floor(getIndentWidth(olMatch[1]) / 2);
       const content = olMatch[3].trim();
       if (content) {
         items.push({ indent, content, type: 'ol', number: parseInt(olMatch[2]), extraContent: [] });
@@ -62,12 +71,12 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
           lookAhead++;
         }
         if (lookAhead < lines.length &&
-            (/^\s*- /.test(lines[lookAhead]) || /^\s*\d+\. /.test(lines[lookAhead]) || /^\s{2,}/.test(lines[lookAhead]))) {
+            (/^\s*- /.test(lines[lookAhead]) || /^\s*\d+\. /.test(lines[lookAhead]) || hasListContinuationIndent(lines[lookAhead]))) {
           idx++;
           continue;
         }
         break;
-      } else if (/^\s{2,}/.test(line)) {
+      } else if (hasListContinuationIndent(line)) {
         // Indented continuation line - belongs to the previous list item
         const lastItem = items[items.length - 1];
         lastItem.extraContent.push(trimmed);
@@ -83,6 +92,18 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
   if (items.length === 0) {
     return { html: '', endIndex: idx };
   }
+
+  const wrapMissingListLevels = (html: string, type: ListItem['type'], count: number): string => {
+    let wrapped = html;
+    for (let level = 0; level < count; level++) {
+      if (type === 'task') {
+        wrapped = `<ul data-type="taskList"><li data-type="taskItem" data-checked="false">${wrapped}</li></ul>`;
+      } else {
+        wrapped = `<${type}><li>${wrapped}</li></${type}>`;
+      }
+    }
+    return wrapped;
+  };
 
   const buildNestedList = (items: ListItem[], startIdx: number, baseIndent: number): { html: string; endIdx: number } => {
     if (startIdx >= items.length) {
@@ -126,8 +147,9 @@ function parseMarkdownListBlock(lines: string[], startIndex: number): { html: st
         i++;
 
         if (i < items.length && items[i].indent > baseIndent) {
-          const nested = buildNestedList(items, i, items[i].indent);
-          html += nested.html;
+          const nestedIndent = items[i].indent;
+          const nested = buildNestedList(items, i, nestedIndent);
+          html += wrapMissingListLevels(nested.html, items[i].type, nestedIndent - baseIndent - 1);
           i = nested.endIdx;
         }
 
@@ -348,7 +370,7 @@ function isInsideListContext(lines: string[], startIdx: number): boolean {
     if (line.trim() === '') continue;
     if (isListItemLine(line)) return true;
     // Continuation-shaped line — the list (if any) starts further up.
-    if (/^\s{2,}/.test(line)) continue;
+    if (hasListContinuationIndent(line)) continue;
     return false;
   }
   return false;

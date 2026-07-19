@@ -264,16 +264,24 @@ const ListKeymap = Extension.create({
   addKeyboardShortcuts() {
     return {
       Tab: ({ editor }) => {
-        if (editor.isActive("listItem") || editor.isActive("taskItem")) {
-          return editor.commands.sinkListItem("listItem") || editor.commands.sinkListItem("taskItem");
+        if (editor.isActive("codeBlock")) {
+          editor.commands.insertContent("\t");
+          return true;
         }
-        return false;
+        if (editor.isActive("listItem") || editor.isActive("taskItem")) {
+          if (!editor.commands.sinkListItem("listItem")) {
+            editor.commands.sinkListItem("taskItem");
+          }
+        }
+        return true;
       },
       "Shift-Tab": ({ editor }) => {
         if (editor.isActive("listItem") || editor.isActive("taskItem")) {
-          return editor.commands.liftListItem("listItem") || editor.commands.liftListItem("taskItem");
+          if (!editor.commands.liftListItem("listItem")) {
+            editor.commands.liftListItem("taskItem");
+          }
         }
-        return false;
+        return true;
       },
     };
   },
