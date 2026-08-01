@@ -836,10 +836,54 @@ fn apply_linux_webkit_overrides() {
     }
 }
 
+// The AppImage AppRun hook shipped by linuxdeploy-plugin-gtk used to pin
+// `GDK_BACKEND=x11`, so a GNOME/Wayland session got XWayland and its resize bugs
+// (#126). release.yml now strips that line, and the preference is pinned here so
+// it no longer depends on the compiled-in backend order of whichever GTK build a
+// distro package links against. `wayland,x11` keeps the X11 fallback for
+// sessions where the Wayland backend cannot connect.
+#[cfg(any(test, target_os = "linux"))]
+const LINUX_WAYLAND_GDK_BACKEND: &str = "wayland,x11";
+
+#[cfg(any(test, target_os = "linux"))]
+fn wayland_gdk_backend(
+    gdk_backend: Option<&std::ffi::OsStr>,
+    wayland_display: Option<&std::ffi::OsStr>,
+    session_type: Option<&std::ffi::OsStr>,
+) -> Option<&'static str> {
+    let user_pinned_backend = gdk_backend
+        .map(|v| !v.to_string_lossy().trim().is_empty())
+        .unwrap_or(false);
+    if user_pinned_backend {
+        return None;
+    }
+    let has_wayland_socket = wayland_display
+        .map(|v| !v.to_string_lossy().trim().is_empty())
+        .unwrap_or(false);
+    let is_wayland_session = session_type
+        .map(|v| v.to_string_lossy().trim().eq_ignore_ascii_case("wayland"))
+        .unwrap_or(false);
+
+    (has_wayland_socket || is_wayland_session).then_some(LINUX_WAYLAND_GDK_BACKEND)
+}
+
+#[cfg(any(test, target_os = "linux"))]
+fn apply_linux_gdk_backend() {
+    if let Some(backend) = wayland_gdk_backend(
+        std::env::var_os("GDK_BACKEND").as_deref(),
+        std::env::var_os("WAYLAND_DISPLAY").as_deref(),
+        std::env::var_os("XDG_SESSION_TYPE").as_deref(),
+    ) {
+        std::env::set_var("GDK_BACKEND", backend);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
     apply_linux_webkit_overrides();
+    #[cfg(target_os = "linux")]
+    apply_linux_gdk_backend();
 
     tauri::Builder::default()
         .register_uri_scheme_protocol(PRINT_SCHEME, |ctx, _request| {
@@ -1048,5 +1092,61 @@ mod tests {
         assert!(LINUX_WEBKIT_RENDER_OVERRIDES.iter().all(|o| o.value == "1"));
         // Symbol must build on every platform so the Linux applier is type-checked in CI.
         let _f: fn() = apply_linux_webkit_overrides;
+    }
+
+    #[test]
+    fn gdk_backend_prefers_wayland_when_socket_is_present() {
+        assert_eq!(
+            wayland_gdk_backend(None, Some(OsStr::new("wayland-0")), None),
+            Some("wayland,x11")
+        );
+    }
+
+    #[test]
+    fn gdk_backend_prefers_wayland_for_wayland_session_type() {
+        assert_eq!(
+            wayland_gdk_backend(None, None, Some(OsStr::new("Wayland"))),
+            Some("wayland,x11")
+        );
+    }
+
+    #[test]
+    fn gdk_backend_untouched_without_wayland_session() {
+        assert_eq!(wayland_gdk_backend(None, None, None), None);
+        assert_eq!(
+            wayland_gdk_backend(None, Some(OsStr::new("  ")), Some(OsStr::new("x11"))),
+            None
+        );
+    }
+
+    #[test]
+    fn gdk_backend_respects_explicit_user_value() {
+        assert_eq!(
+            wayland_gdk_backend(
+                Some(OsStr::new("x11")),
+                Some(OsStr::new("wayland-0")),
+                Some(OsStr::new("wayland"))
+            ),
+            None
+        );
+        assert_eq!(
+            wayland_gdk_backend(
+                Some(OsStr::new("broadway")),
+                Some(OsStr::new("wayland-0")),
+                None
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn gdk_backend_applies_over_blank_value_and_keeps_x11_fallback() {
+        assert_eq!(
+            wayland_gdk_backend(Some(OsStr::new("   ")), Some(OsStr::new("wayland-0")), None),
+            Some("wayland,x11")
+        );
+        assert!(LINUX_WAYLAND_GDK_BACKEND.ends_with(",x11"));
+        // Symbol must build on every platform so the Linux applier is type-checked in CI.
+        let _f: fn() = apply_linux_gdk_backend;
     }
 }
