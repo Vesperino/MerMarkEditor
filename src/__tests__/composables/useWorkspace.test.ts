@@ -34,6 +34,9 @@ function resetWorkspaceState() {
   ws.expandedFolders.value = new Set();
   ws.collapsedWorkspaceIds.value = new Set();
   ws.highlightedPath.value = null;
+  ws.revealSignal.value = null;
+  ws.clearSelection();
+  ws.setDropTargetPane(null);
 }
 
 describe('useWorkspace', () => {
@@ -326,6 +329,27 @@ describe('useWorkspace', () => {
     });
   });
 
+  describe('dragSelectionFor', () => {
+    it('drags the whole selection when the grabbed row belongs to it', () => {
+      const ws = useWorkspace();
+      ws.selectOnly('/r/a.md');
+      ws.toggleSelect('/r/b.md');
+      expect(ws.dragSelectionFor('/r/a.md').sort()).toEqual(['/r/a.md', '/r/b.md']);
+    });
+
+    it('drags only the grabbed row when it is outside the selection', () => {
+      const ws = useWorkspace();
+      ws.selectOnly('/r/a.md');
+      expect(ws.dragSelectionFor('/r/z.md')).toEqual(['/r/z.md']);
+    });
+
+    it('drags only the grabbed row when nothing is selected', () => {
+      const ws = useWorkspace();
+      ws.clearSelection();
+      expect(ws.dragSelectionFor('/r/a.md')).toEqual(['/r/a.md']);
+    });
+  });
+
   describe('openWorkspaceDialog', () => {
     it('opens picker, then loads picked path', async () => {
       const ws = useWorkspace();
@@ -389,6 +413,35 @@ describe('useWorkspace', () => {
       ws.collapseAllWorkspaceSections();
       expect(ws.isWorkspaceSectionCollapsed(a.id)).toBe(true);
       expect(ws.isWorkspaceSectionCollapsed(b.id)).toBe(true);
+    });
+
+    it('revealWorkspace activates, expands and signals the sidebar to scroll', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValue(makeFolderNode('any'));
+      const a = await ws.openWorkspace('/a');
+      const b = await ws.openWorkspace('/b');
+      ws.collapseWorkspaceSection(a.id);
+
+      ws.revealWorkspace(a.id);
+
+      expect(ws.activeWorkspace.value?.id).toBe(a.id);
+      expect(ws.isWorkspaceSectionCollapsed(a.id)).toBe(false);
+      expect(ws.revealSignal.value?.id).toBe(a.id);
+
+      const firstSeq = ws.revealSignal.value!.seq;
+      ws.revealWorkspace(b.id);
+      expect(ws.revealSignal.value!.seq).toBeGreaterThan(firstSeq);
+    });
+
+    it('revealWorkspace ignores an unknown id', async () => {
+      const ws = useWorkspace();
+      invokeMock.mockResolvedValue(makeFolderNode('any'));
+      const a = await ws.openWorkspace('/a');
+
+      ws.revealWorkspace('nope');
+
+      expect(ws.activeWorkspace.value?.id).toBe(a.id);
+      expect(ws.revealSignal.value).toBeNull();
     });
 
     it('setHighlightedPath auto-expands the owning collapsed section', async () => {

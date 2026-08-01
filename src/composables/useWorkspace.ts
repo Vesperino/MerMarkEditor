@@ -7,7 +7,7 @@ import {
   type OpenWorkspaceEntry,
 } from './useSettings';
 import { workspaceFs, type WorkspaceNode } from '../services/workspaceFs';
-import { basenameOf, isAncestor } from '../utils/path-utils';
+import { basenameOf, isAncestor, trimTrailingSep } from '../utils/path-utils';
 import {
   sortNodes,
   resolveSortMode,
@@ -34,18 +34,25 @@ const selectedPaths = ref<Set<string>>(new Set());
 /** Anchor for shift-range selection. */
 const lastSelectedPath = ref<string | null>(null);
 
-/** True while a workspace tree drag is in flight; lets drop targets accept without MIME-type sniffing. */
-const isDraggingNode = ref<boolean>(false);
-/** Snapshot of paths being dragged (single, or full selection when source row is part of it). */
-const draggedPaths = ref<string[]>([]);
+/** Editor pane currently under a tree drag — drives the pane's drop highlight. */
+const dropTargetPaneId = ref<string | null>(null);
 
 /** File paths open in an editor tab with unsaved changes — drives the tree's dirty dot. */
 const dirtyPaths = ref<Set<string>>(new Set());
+
+/** Bumped when a workspace section should be scrolled into view; the sidebar watches it. */
+const revealSignal = ref<{ id: string; seq: number } | null>(null);
+let revealSeq = 0;
 
 function moveToFront(list: string[], item: string, limit: number): string[] {
   const filtered = list.filter((p) => p !== item);
   filtered.unshift(item);
   return filtered.slice(0, limit);
+}
+
+/** Comparison key for workspace roots — a dropped path may carry a trailing or foreign separator. */
+function rootKey(path: string): string {
+  return trimTrailingSep(path.replace(/\\/g, '/'));
 }
 
 function newId(): string {
@@ -164,7 +171,8 @@ export function useWorkspace() {
   }
 
   function findOpenByPath(path: string): OpenWorkspaceEntry | null {
-    return openWorkspaces.value.find((w) => w.rootPath === path) ?? null;
+    const key = rootKey(path);
+    return openWorkspaces.value.find((w) => rootKey(w.rootPath) === key) ?? null;
   }
 
   // ===== Public API: workspace lifecycle =====
@@ -453,6 +461,14 @@ export function useWorkspace() {
     else collapseWorkspaceSection(id);
   }
 
+  /** Bring a workspace section into view: make it active, expand it, ask the sidebar to scroll. */
+  function revealWorkspace(id: string) {
+    if (!openWorkspaces.value.some((w) => w.id === id)) return;
+    setActiveWorkspaceId(id);
+    expandWorkspaceSection(id);
+    revealSignal.value = { id, seq: ++revealSeq };
+  }
+
   function expandAllWorkspaceSections() {
     if (collapsedWorkspaceIds.value.size > 0) {
       collapsedWorkspaceIds.value = new Set();
@@ -533,18 +549,14 @@ export function useWorkspace() {
 
   // ===== Drag (workspace tree → editor or workspace tree → tree folder) =====
 
-  /** Begin a drag — if path is part of current selection, drag whole set; else drag just that path. */
-  function beginNodeDrag(path: string): string[] {
+  /** Paths a drag from `path` carries — the whole selection when it contains that row, else just it. */
+  function dragSelectionFor(path: string): string[] {
     const set = selectedPaths.value;
-    const paths = set.size > 0 && set.has(path) ? Array.from(set) : [path];
-    draggedPaths.value = paths;
-    isDraggingNode.value = true;
-    return paths;
+    return set.size > 0 && set.has(path) ? Array.from(set) : [path];
   }
 
-  function endNodeDrag() {
-    isDraggingNode.value = false;
-    draggedPaths.value = [];
+  function setDropTargetPane(paneId: string | null) {
+    if (dropTargetPaneId.value !== paneId) dropTargetPaneId.value = paneId;
   }
 
   return {
@@ -572,8 +584,6 @@ export function useWorkspace() {
     highlightedPath,
     selectedPaths,
     lastSelectedPath,
-    isDraggingNode,
-    draggedPaths,
     dirtyPaths,
     setDirtyPaths,
     isDirty,
@@ -615,6 +625,8 @@ export function useWorkspace() {
     toggleWorkspaceSection,
     expandAllWorkspaceSections,
     collapseAllWorkspaceSections,
+    revealSignal,
+    revealWorkspace,
 
     // Sidebar
     setSidebarVisible,
@@ -630,7 +642,8 @@ export function useWorkspace() {
     clearSelection,
 
     // Drag
-    beginNodeDrag,
-    endNodeDrag,
+    dragSelectionFor,
+    dropTargetPaneId,
+    setDropTargetPane,
   };
 }

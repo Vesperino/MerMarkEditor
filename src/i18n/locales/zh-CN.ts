@@ -179,6 +179,7 @@ const zhCN: Translations = {
   autoSaveOff: '关',
   wordWrap: '自动换行',
   dropFilesHere: '将 .md 文件拖放至此',
+  dropFolderHere: '拖放文件夹以添加工作区',
   editorFont: '编辑器字体',
   codeFont: '代码字体',
   codeTheme: '代码主题',
