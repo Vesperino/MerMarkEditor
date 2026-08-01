@@ -701,8 +701,49 @@ fn read_file_capped(path: &Path, max_bytes: usize) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
+/// `Some(open target)` when `path` is a filesystem root — a drive (`C:`) or a UNC
+/// share (`\\server\share`). A root cannot be selected inside a parent, and
+/// `/select,` on one drops explorer at "This PC", so roots get opened directly.
+#[cfg(any(test, target_os = "windows"))]
+fn windows_reveal_root(path: &str) -> Option<String> {
+    if let Some(rest) = path.strip_prefix(r"\\") {
+        let mut parts = rest.split('\\').filter(|s| !s.is_empty());
+        let server = parts.next()?;
+        let share = parts.next();
+        if parts.next().is_some() {
+            return None;
+        }
+        return Some(match share {
+            Some(share) => format!(r"\\{}\{}", server, share),
+            None => format!(r"\\{}", server),
+        });
+    }
+
+    let bytes = path.as_bytes();
+    if bytes.len() == 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return Some(format!("{}\\", path));
+    }
+    None
+}
+
+/// Build the raw `explorer.exe` command line for revealing `path` (#125).
+///
+/// This has to bypass `Command::arg`: std wraps any argument containing a space
+/// in quotes, and explorer parses the resulting `"/select,C:\a b\c.md"` as a path
+/// rather than a switch, then silently falls back to the user's Documents folder.
+/// Explorer also only understands backslashes — a `C:/…` path lands it on "This PC".
+#[cfg(any(test, target_os = "windows"))]
+fn windows_reveal_arg(path: &str) -> String {
+    let normalized = path.replace('/', "\\");
+    let target = normalized.trim_end_matches('\\');
+    match windows_reveal_root(target) {
+        Some(root) => format!("\"{}\"", root),
+        None => format!("/select,\"{}\"", target),
+    }
+}
+
 /// Reveal a file or folder in the host OS file manager.
-/// On Windows uses `explorer /select,<path>`; on macOS uses `open -R <path>`;
+/// On Windows uses `explorer /select,"<path>"`; on macOS uses `open -R <path>`;
 /// on Linux falls back to opening the parent folder via xdg-open.
 #[tauri::command]
 fn reveal_in_os(path: String) -> Result<(), String> {
@@ -713,8 +754,9 @@ fn reveal_in_os(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         std::process::Command::new("explorer.exe")
-            .arg(format!("/select,{}", path))
+            .raw_arg(windows_reveal_arg(&path))
             .spawn()
             .map_err(|e| format!("explorer: {}", e))?;
         return Ok(());
@@ -1048,5 +1090,69 @@ mod tests {
         assert!(LINUX_WEBKIT_RENDER_OVERRIDES.iter().all(|o| o.value == "1"));
         // Symbol must build on every platform so the Linux applier is type-checked in CI.
         let _f: fn() = apply_linux_webkit_overrides;
+    }
+
+    #[test]
+    fn reveal_arg_quotes_the_path_not_the_whole_switch() {
+        assert_eq!(
+            windows_reveal_arg(r"C:\Users\edy\My Notes\a.md"),
+            "/select,\"C:\\Users\\edy\\My Notes\\a.md\""
+        );
+        assert_eq!(
+            windows_reveal_arg(r"C:\notes\a.md"),
+            "/select,\"C:\\notes\\a.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_normalizes_forward_slashes() {
+        assert_eq!(
+            windows_reveal_arg("C:/Users/edy/My Notes/a.md"),
+            "/select,\"C:\\Users\\edy\\My Notes\\a.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_keeps_unc_paths_intact() {
+        assert_eq!(
+            windows_reveal_arg(r"\\server\share\notes\a.md"),
+            "/select,\"\\\\server\\share\\notes\\a.md\""
+        );
+        assert_eq!(
+            windows_reveal_arg("//server/share/notes/a.md"),
+            "/select,\"\\\\server\\share\\notes\\a.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_opens_roots_instead_of_selecting_them() {
+        assert_eq!(windows_reveal_arg(r"C:\"), "\"C:\\\"");
+        assert_eq!(windows_reveal_arg("C:"), "\"C:\\\"");
+        assert_eq!(windows_reveal_arg("d:/"), "\"d:\\\"");
+        assert_eq!(windows_reveal_arg(r"\\server\share"), "\"\\\\server\\share\"");
+        assert_eq!(windows_reveal_arg("//server/share/"), "\"\\\\server\\share\"");
+    }
+
+    #[test]
+    fn reveal_arg_drops_trailing_separator_on_folders() {
+        // A trailing `\` before the closing quote would read as an escaped quote.
+        assert_eq!(
+            windows_reveal_arg(r"C:\Users\edy\My Notes\"),
+            "/select,\"C:\\Users\\edy\\My Notes\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_preserves_non_ascii_names() {
+        assert_eq!(
+            windows_reveal_arg(r"C:\Notatki\zażółć gęślą jaźń.md"),
+            "/select,\"C:\\Notatki\\zażółć gęślą jaźń.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_root_rejects_paths_below_a_share() {
+        assert_eq!(windows_reveal_root(r"\\server\share\notes"), None);
+        assert_eq!(windows_reveal_root(r"C:\notes"), None);
     }
 }
