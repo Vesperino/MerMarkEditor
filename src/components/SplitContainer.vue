@@ -44,8 +44,6 @@ const emit = defineEmits<{
   closeAll: [paneId: string];
   closeAllButPinned: [paneId: string];
   closeSaved: [paneId: string];
-  dropFile: [paneId: string, filePath: string];
-  openDroppedFiles: [files: File[]];
 }>();
 
 const leftPaneRef = ref<InstanceType<typeof EditorPane> | null>(null);
@@ -218,6 +216,11 @@ const setActiveEditorContent = (content: string) => {
   setEditorContent(activePaneId.value, content);
 };
 
+const findPaneIdAt = (x: number, y: number): string | null => {
+  const el = document.elementFromPoint(x, y);
+  return el?.closest<HTMLElement>('[data-pane-id]')?.dataset.paneId ?? null;
+};
+
 const findVisualTargetAt = (x: number, y: number) => {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
@@ -273,6 +276,7 @@ defineExpose({
   getActiveEditor,
   getActiveVisualSearchApi,
   findVisualTargetAt,
+  findPaneIdAt,
   leftPaneRef,
   rightPaneRef,
 });
@@ -301,8 +305,6 @@ defineExpose({
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('left', tabId, hasChanges)"
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('left')"
-      @drop-file="(filePath) => emit('dropFile', 'left', filePath)"
-      @open-dropped-files="(files) => emit('openDroppedFiles', files)"
     />
 
     <!-- Divider (only visible in split mode) -->
@@ -333,8 +335,6 @@ defineExpose({
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('right', tabId, hasChanges)"
       @link-click="handleLinkClick"
       @focus="handlePaneFocus('right')"
-      @drop-file="(filePath) => emit('dropFile', 'right', filePath)"
-      @open-dropped-files="(files) => emit('openDroppedFiles', files)"
     />
   </div>
 </template>

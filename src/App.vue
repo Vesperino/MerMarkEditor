@@ -1313,27 +1313,6 @@ const handleWorkspaceOpenFile = (path: string) => {
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
 
-/**
- * OS files dropped onto the editor that aren't images (md/txt/markdown).
- * With Tauri's dragDropEnabled=false we receive the browser File objects but
- * no absolute path, so we read the text and open each as a fresh unsaved tab
- * in the active pane. The user gives it a real path on first Save.
- */
-const handleOpenDroppedFiles = async (files: File[]) => {
-  for (const file of files) {
-    const name = file.name.toLowerCase();
-    const isText = /\.(md|markdown|txt|mermark)$/.test(name) || file.type.startsWith('text/');
-    if (!isText) continue;
-    try {
-      const text = await file.text();
-      const html = markdownToHtml(text);
-      createNewTab(null, html, file.name);
-    } catch (e) {
-      console.error('[App] open dropped file:', file.name, e);
-    }
-  }
-};
-
 const handleWorkspaceDropFile = (paneId: string, path: string) => {
   splitState.value.activePaneId = paneId;
   if (isImageFile(path)) {
@@ -1343,6 +1322,10 @@ const handleWorkspaceDropFile = (paneId: string, path: string) => {
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] drop file in pane:', e));
 };
+const handleWorkspaceDropInPane = (payload: { paneId: string; paths: string[] }) => {
+  for (const path of payload.paths) handleWorkspaceDropFile(payload.paneId, path);
+};
+
 const handleOpenWorkspaceFromToolbar = () => {
   workspace.openWorkspaceDialog().catch((e) => console.error('[App] open workspace dialog:', e));
 };
@@ -1676,6 +1659,7 @@ let currentWindowLabel = '';
 
 // ============ File Drag & Drop ============
 const isDragOver = ref(false);
+const DROPPABLE_DOC_RE = /\.(md|markdown|txt|mermark)$/i;
 
 // ============ Folder Drag & Drop (adds a workspace, #124) ============
 const workspaceSidebarRef = ref<InstanceType<typeof WorkspaceSidebar> | null>(null);
@@ -1893,8 +1877,16 @@ onMounted(async () => {
         isDragOver.value = false;
         const { paths, position } = event.payload;
 
-        const mdPaths = paths.filter(p => p.toLowerCase().endsWith('.md'));
-        for (const filePath of mdPaths) {
+        // Route the drop to the pane it landed on before opening anything —
+        // both the tab and the image insert target the active pane.
+        if (position) {
+          const dpr = window.devicePixelRatio || 1;
+          const paneId = splitContainerRef.value?.findPaneIdAt?.(position.x / dpr, position.y / dpr);
+          if (paneId) splitState.value.activePaneId = paneId;
+        }
+
+        const docPaths = paths.filter((p) => DROPPABLE_DOC_RE.test(p));
+        for (const filePath of docPaths) {
           await openFileWithCrossWindowCheck(filePath);
         }
 
@@ -2020,6 +2012,7 @@ onUnmounted(async () => {
         @open-file="handleWorkspaceOpenFile"
         @open-quick-switcher="showWorkspaceQuickSwitcher = true"
         @view-changes="handleWorkspaceViewChanges"
+        @drop-in-pane="handleWorkspaceDropInPane"
       />
 
       <!-- Left Bar (configurable) -->
@@ -2103,8 +2096,6 @@ onUnmounted(async () => {
           @close-all="handleTabCloseAll"
           @close-all-but-pinned="handleTabCloseAllButPinned"
           @close-saved="handleTabCloseSaved"
-          @drop-file="handleWorkspaceDropFile"
-          @open-dropped-files="handleOpenDroppedFiles"
         />
 
         <!-- Live Marp slide preview (scroll-synced with the editor) -->

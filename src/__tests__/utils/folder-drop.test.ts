@@ -5,8 +5,6 @@ import {
   acceptsFolderDrop,
   droppedFolders,
   droppedFiles,
-  carriesOsFiles,
-  hasDirectoryEntry,
 } from '../../utils/folder-drop';
 
 const sidebar = { left: 0, top: 32, right: 240, bottom: 800 };
@@ -84,36 +82,5 @@ describe('droppedFiles', () => {
         { path: '/gone', kind: 'missing' },
       ]),
     ).toEqual(['/a/note.md']);
-  });
-});
-
-describe('carriesOsFiles', () => {
-  it('recognises an OS drag', () => {
-    expect(carriesOsFiles(['Files'])).toBe(true);
-    expect(carriesOsFiles(['text/plain', 'Files'])).toBe(true);
-  });
-
-  it('rejects a workspace-internal drag and an empty transfer', () => {
-    expect(carriesOsFiles(['application/x-mermark-ws-node'])).toBe(false);
-    expect(carriesOsFiles([])).toBe(false);
-    expect(carriesOsFiles(undefined)).toBe(false);
-  });
-});
-
-describe('hasDirectoryEntry', () => {
-  const dirItem = { webkitGetAsEntry: () => ({ isDirectory: true }) };
-  const fileItem = { webkitGetAsEntry: () => ({ isDirectory: false }) };
-
-  it('detects a directory among the dropped items', () => {
-    expect(hasDirectoryEntry([fileItem, dirItem])).toBe(true);
-  });
-
-  it('is false for a file-only drop', () => {
-    expect(hasDirectoryEntry([fileItem])).toBe(false);
-  });
-
-  it('tolerates items without the entry API', () => {
-    expect(hasDirectoryEntry([{}, { webkitGetAsEntry: () => null }])).toBe(false);
-    expect(hasDirectoryEntry([])).toBe(false);
   });
 });

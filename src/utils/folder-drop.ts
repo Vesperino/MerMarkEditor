@@ -66,16 +66,3 @@ export function droppedFolders(classified: ClassifiedPath[]): string[] {
 export function droppedFiles(classified: ClassifiedPath[]): string[] {
   return classified.filter((entry) => entry.kind === 'file').map((entry) => entry.path);
 }
-
-/** True for a drag coming from the OS file manager, false for a workspace-internal one. */
-export function carriesOsFiles(types: readonly string[] | undefined): boolean {
-  return !!types && Array.from(types).includes('Files');
-}
-
-interface EntryLikeItem {
-  webkitGetAsEntry?: () => { isDirectory: boolean } | null;
-}
-
-export function hasDirectoryEntry(items: readonly EntryLikeItem[]): boolean {
-  return items.some((item) => item.webkitGetAsEntry?.()?.isDirectory === true);
-}

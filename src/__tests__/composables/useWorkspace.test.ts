@@ -35,6 +35,8 @@ function resetWorkspaceState() {
   ws.collapsedWorkspaceIds.value = new Set();
   ws.highlightedPath.value = null;
   ws.revealSignal.value = null;
+  ws.clearSelection();
+  ws.setDropTargetPane(null);
 }
 
 describe('useWorkspace', () => {
@@ -324,6 +326,27 @@ describe('useWorkspace', () => {
       ws.setHighlightedPath('/x/y.md');
       ws.setHighlightedPath(null);
       expect(ws.highlightedPath.value).toBeNull();
+    });
+  });
+
+  describe('dragSelectionFor', () => {
+    it('drags the whole selection when the grabbed row belongs to it', () => {
+      const ws = useWorkspace();
+      ws.selectOnly('/r/a.md');
+      ws.toggleSelect('/r/b.md');
+      expect(ws.dragSelectionFor('/r/a.md').sort()).toEqual(['/r/a.md', '/r/b.md']);
+    });
+
+    it('drags only the grabbed row when it is outside the selection', () => {
+      const ws = useWorkspace();
+      ws.selectOnly('/r/a.md');
+      expect(ws.dragSelectionFor('/r/z.md')).toEqual(['/r/z.md']);
+    });
+
+    it('drags only the grabbed row when nothing is selected', () => {
+      const ws = useWorkspace();
+      ws.clearSelection();
+      expect(ws.dragSelectionFor('/r/a.md')).toEqual(['/r/a.md']);
     });
   });
 

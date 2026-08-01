@@ -27,13 +27,9 @@ const emit = defineEmits<{
   updateChanges: [tabId: string, hasChanges: boolean];
   linkClick: [href: string];
   focus: [];
-  dropFile: [filePath: string];
-  openDroppedFiles: [files: File[]];
 }>();
 
-const WS_NODE_MIME = 'application/x-mermark-ws-node';
-
-const isFileDragOver = ref(false);
+const isFileDragOver = computed(() => ws.dropTargetPaneId.value === props.pane.id);
 
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
 const { isDragging, draggedTab, setDropZone, clearDropZone } = useTabDrag();
@@ -91,88 +87,6 @@ const handlePaneMouseLeave = () => {
   }
 };
 
-// Capture phase + dragenter — TipTap installs its own dragover handler that
-// preventDefaults text/html drags but ignores our custom mime; without
-// capture the cursor stays in not-allowed state.
-//
-// Primary signal is `ws.isDraggingNode` (set in onTreeDragStart). MIME-type
-// sniffing via `dataTransfer.types` is unreliable across the
-// TipTap/iframe/webview event path — Chromium sometimes hides the custom
-// mime during dragenter, leaving us with a "no-drop" cursor even though
-// the drag is legit. Trusting the module-level flag avoids that.
-function isWorkspaceDrag(dt: DataTransfer | null): boolean {
-  if (ws.isDraggingNode.value) return true;
-  if (!dt) return false;
-  return Array.from(dt.types as unknown as Iterable<string>).includes(WS_NODE_MIME);
-}
-
-// True for OS file drags (Explorer/Finder/other apps). These carry a "Files"
-// entry in dataTransfer.types. The actual file handling happens in the editor
-// (ProseMirror handleDrop) — here we only need to let the drop through by
-// preventing the default "no-drop" behavior on the pane chrome.
-function isOsFileDrag(dt: DataTransfer | null): boolean {
-  if (!dt) return false;
-  return Array.from(dt.types as unknown as Iterable<string>).includes('Files');
-}
-
-const handleFileDragEnter = (e: DragEvent) => {
-  const osFile = isOsFileDrag(e.dataTransfer);
-  if (!isWorkspaceDrag(e.dataTransfer) && !osFile) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-  // Only paint the pane-wide overlay for workspace drags; OS file drops are
-  // handled inline by the editor at the cursor, no full-pane highlight.
-  if (!osFile) isFileDragOver.value = true;
-};
-
-const handleFileDragOver = (e: DragEvent) => {
-  const osFile = isOsFileDrag(e.dataTransfer);
-  if (!isWorkspaceDrag(e.dataTransfer) && !osFile) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-  // For OS file drags, don't stopPropagation — the event must reach the
-  // editor (ProseMirror handleDrop) which does the actual import/insert.
-  if (osFile) return;
-  e.stopPropagation();
-  isFileDragOver.value = true;
-};
-
-const handleFileDragLeave = (e: DragEvent) => {
-  const related = e.relatedTarget as Node | null;
-  if (related && (e.currentTarget as Node).contains(related)) return;
-  isFileDragOver.value = false;
-};
-
-const handleFileDrop = (e: DragEvent) => {
-  if (!isWorkspaceDrag(e.dataTransfer)) {
-    isFileDragOver.value = false;
-    return;
-  }
-  e.preventDefault();
-  e.stopPropagation();
-  isFileDragOver.value = false;
-
-  // Prefer the MIME payload (carries kind=file|folder) but fall back to the
-  // shared draggedPaths snapshot when getData returns empty (Chromium quirk
-  // during cross-pane drops).
-  let paths: string[] = [];
-  let kind: 'file' | 'folder' = 'file';
-  const raw = e.dataTransfer?.getData(WS_NODE_MIME);
-  if (raw) {
-    try {
-      const info = JSON.parse(raw) as { paths?: string[]; primary?: string; kind?: 'file' | 'folder' };
-      paths = info.paths ?? (info.primary ? [info.primary] : []);
-      kind = info.kind ?? 'file';
-    } catch {
-      paths = ws.draggedPaths.value;
-    }
-  } else {
-    paths = ws.draggedPaths.value;
-  }
-  if (kind !== 'file') return;
-  for (const p of paths) emit('dropFile', p);
-};
-
 defineExpose({
   editor: computed(() => editorRef.value?.editor),
   paneId: computed(() => props.pane.id),
@@ -198,14 +112,11 @@ defineExpose({
       'drop-target': isValidDropTarget || isFileDragOver,
       empty: isEmpty
     }"
+    :data-pane-id="pane.id"
     @mousedown="handlePaneFocus"
     @focusin="handlePaneFocus"
     @mouseenter="handlePaneMouseEnter"
     @mouseleave="handlePaneMouseLeave"
-    @dragenter.capture="handleFileDragEnter"
-    @dragover.capture="handleFileDragOver"
-    @dragleave="handleFileDragLeave"
-    @drop.capture="handleFileDrop"
   >
     <!-- Tab bar (only show if has tabs) -->
     <TabBar
@@ -232,7 +143,6 @@ defineExpose({
         @update:model-value="handleContentUpdate"
         @update:has-changes="handleChangesUpdate"
         @link-click="handleLinkClick"
-        @open-dropped-files="(files) => emit('openDroppedFiles', files)"
       />
 
       <!-- Empty state - shown when no tabs -->

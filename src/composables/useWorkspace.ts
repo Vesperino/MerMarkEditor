@@ -34,10 +34,8 @@ const selectedPaths = ref<Set<string>>(new Set());
 /** Anchor for shift-range selection. */
 const lastSelectedPath = ref<string | null>(null);
 
-/** True while a workspace tree drag is in flight; lets drop targets accept without MIME-type sniffing. */
-const isDraggingNode = ref<boolean>(false);
-/** Snapshot of paths being dragged (single, or full selection when source row is part of it). */
-const draggedPaths = ref<string[]>([]);
+/** Editor pane currently under a tree drag — drives the pane's drop highlight. */
+const dropTargetPaneId = ref<string | null>(null);
 
 /** File paths open in an editor tab with unsaved changes — drives the tree's dirty dot. */
 const dirtyPaths = ref<Set<string>>(new Set());
@@ -551,18 +549,14 @@ export function useWorkspace() {
 
   // ===== Drag (workspace tree → editor or workspace tree → tree folder) =====
 
-  /** Begin a drag — if path is part of current selection, drag whole set; else drag just that path. */
-  function beginNodeDrag(path: string): string[] {
+  /** Paths a drag from `path` carries — the whole selection when it contains that row, else just it. */
+  function dragSelectionFor(path: string): string[] {
     const set = selectedPaths.value;
-    const paths = set.size > 0 && set.has(path) ? Array.from(set) : [path];
-    draggedPaths.value = paths;
-    isDraggingNode.value = true;
-    return paths;
+    return set.size > 0 && set.has(path) ? Array.from(set) : [path];
   }
 
-  function endNodeDrag() {
-    isDraggingNode.value = false;
-    draggedPaths.value = [];
+  function setDropTargetPane(paneId: string | null) {
+    if (dropTargetPaneId.value !== paneId) dropTargetPaneId.value = paneId;
   }
 
   return {
@@ -590,8 +584,6 @@ export function useWorkspace() {
     highlightedPath,
     selectedPaths,
     lastSelectedPath,
-    isDraggingNode,
-    draggedPaths,
     dirtyPaths,
     setDirtyPaths,
     isDirty,
@@ -650,7 +642,8 @@ export function useWorkspace() {
     clearSelection,
 
     // Drag
-    beginNodeDrag,
-    endNodeDrag,
+    dragSelectionFor,
+    dropTargetPaneId,
+    setDropTargetPane,
   };
 }

@@ -9,7 +9,16 @@ import WorkspaceSortMenu from './WorkspaceSortMenu.vue';
 import WorkspaceInputDialog from './WorkspaceInputDialog.vue';
 import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
 import type { WorkspaceSortMode } from '../utils/workspace-sort';
-import { carriesOsFiles, hasDirectoryEntry } from '../utils/folder-drop';
+import { basenameOf } from '../utils/path-utils';
+import {
+  autoScrollStep,
+  exceedsThreshold,
+  planMoves,
+  resolveDragSource,
+  resolveDropHit,
+  type DragSource,
+  type Point,
+} from '../utils/pointer-drag';
 
 /**
  * Multi-root workspace sidebar (VS Code / Obsidian inspired).
@@ -29,7 +38,7 @@ import { carriesOsFiles, hasDirectoryEntry } from '../utils/folder-drop';
 const { t } = useI18n();
 const ws = useWorkspace();
 
-const props = defineProps<{
+defineProps<{
   /** True while an OS drag carrying a directory hovers the window (#124). */
   folderDropActive?: boolean;
 }>();
@@ -38,6 +47,7 @@ const emit = defineEmits<{
   (e: 'open-file', path: string): void;
   (e: 'open-quick-switcher'): void;
   (e: 'view-changes', path: string): void;
+  (e: 'drop-in-pane', payload: { paneId: string; paths: string[] }): void;
 }>();
 
 const showHeaderMenu = ref(false);
@@ -319,93 +329,155 @@ function startNewFileInActiveWorkspace() {
   pendingAction.value = { kind: 'new-file', parent: target.rootPath };
 }
 
-// ===== Tree drag&drop (file -> folder = move via rename) =====
+// ===== Internal drag (tree move, drop into editor, section reorder) =====
+// Pointer events, not HTML5 drag & drop: Tauri's native drag-drop handler owns
+// the webview's drop target (that is what delivers absolute OS paths), and on
+// WebView2 that also disables page-internal HTML5 drags. Pointer events are
+// independent of that pipeline.
 const dragOverFolderPath = ref<string | null>(null);
+const sectionDropIndex = ref<number | null>(null);
+const dragGhost = ref<{ label: string; x: number; y: number } | null>(null);
 
-// Document-level capture listeners installed for the duration of a workspace
-// tree drag. WebView2 / ProseMirror occasionally swallow the dragover that
-// reaches the editor pane, leaving the cursor stuck in `no-drop` state even
-// though our handler would have accepted it. Forcing preventDefault at the
-// document capture level is a belt-and-braces guarantee that every element
-// becomes a valid drop target while the drag is in flight; the actual drop
-// is still routed to whichever target Vue/DOM picks (EditorPane.handleFileDrop
-// or onTreeDrop). They both read `ws.draggedPaths` so the payload still flows.
-let globalDragOver: ((e: DragEvent) => void) | null = null;
-let globalDragEnd: ((e: DragEvent) => void) | null = null;
-let globalDrop: ((e: DragEvent) => void) | null = null;
-
-function installGlobalDragHandlers() {
-  removeGlobalDragHandlers();
-  globalDragOver = (e: DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-  };
-  globalDragEnd = () => {
-    ws.endNodeDrag();
-    removeGlobalDragHandlers();
-  };
-  globalDrop = () => {
-    // Any drop ends the workspace drag. If a pane handler accepted it, the
-    // payload was already consumed; otherwise dragend would fire too.
-    ws.endNodeDrag();
-    removeGlobalDragHandlers();
-  };
-  document.addEventListener('dragover', globalDragOver, true);
-  document.addEventListener('dragend', globalDragEnd, true);
-  document.addEventListener('drop', globalDrop, true);
-}
-function removeGlobalDragHandlers() {
-  if (globalDragOver) document.removeEventListener('dragover', globalDragOver, true);
-  if (globalDragEnd) document.removeEventListener('dragend', globalDragEnd, true);
-  if (globalDrop) document.removeEventListener('drop', globalDrop, true);
-  globalDragOver = null;
-  globalDragEnd = null;
-  globalDrop = null;
+interface DragState {
+  pointerId: number;
+  origin: Point;
+  source: DragSource;
+  paths: string[];
+  active: boolean;
 }
 
-function onTreeDragStart(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
-  // Begin shared drag state — captures the full selection if the source row
-  // is part of it; otherwise just this one path. EditorPane and onTreeDrop
-  // read `ws.draggedPaths` instead of sniffing dataTransfer types, which is
-  // unreliable across the iframe/webview boundary.
-  const paths = ws.beginNodeDrag(payload.path);
-  if (payload.ev.dataTransfer) {
-    payload.ev.dataTransfer.setData(
-      'application/x-mermark-ws-node',
-      JSON.stringify({ paths, primary: payload.path, kind: payload.kind }),
-    );
-    payload.ev.dataTransfer.effectAllowed = 'copyMove';
+let drag: DragState | null = null;
+let swallowNextClick = false;
+let autoScrollFrame: number | null = null;
+let autoScrollX = 0;
+let autoScrollY = 0;
+
+function ghostLabel(source: DragSource, paths: string[]): string {
+  if (source.kind === 'section') return ws.openWorkspaces.value[source.index]?.name ?? '';
+  if (paths.length > 1) return `${paths.length} ${t.value.workspaceItemsLabel}`;
+  return basenameOf(source.path);
+}
+
+function onSidebarPointerDown(ev: PointerEvent) {
+  swallowNextClick = false;
+  if (ev.button !== 0 || drag) return;
+  const source = resolveDragSource(ev.target as Element | null);
+  if (!source) return;
+  drag = {
+    pointerId: ev.pointerId,
+    origin: { x: ev.clientX, y: ev.clientY },
+    source,
+    paths: [],
+    active: false,
+  };
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragUp);
+  window.addEventListener('pointercancel', onDragCancel);
+  window.addEventListener('keydown', onDragKeyDown, true);
+}
+
+function activateDrag(point: Point) {
+  if (!drag) return;
+  drag.active = true;
+  if (drag.source.kind === 'node') {
+    drag.paths = ws.dragSelectionFor(drag.source.path);
+  } else {
+    sectionDropIndex.value = drag.source.index;
   }
-  installGlobalDragHandlers();
+  try {
+    sidebarRootEl.value?.setPointerCapture(drag.pointerId);
+  } catch {
+    // Pointer already released — the drag still works off the window listeners.
+  }
+  document.body.style.userSelect = 'none';
+  dragGhost.value = { label: ghostLabel(drag.source, drag.paths), ...point };
 }
-function onTreeDragOver(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
-  if (payload.kind !== 'folder') return;
-  payload.ev.preventDefault();
-  if (payload.ev.dataTransfer) payload.ev.dataTransfer.dropEffect = 'move';
-  dragOverFolderPath.value = payload.path;
+
+function onDragMove(ev: PointerEvent) {
+  if (!drag || ev.pointerId !== drag.pointerId) return;
+  const point = { x: ev.clientX, y: ev.clientY };
+  if (!drag.active) {
+    if (!exceedsThreshold(drag.origin, point)) return;
+    activateDrag(point);
+  }
+  if (dragGhost.value) dragGhost.value = { ...dragGhost.value, ...point };
+  paintDropTarget(point);
+  runAutoScroll(point);
 }
-function onTreeDragLeave(payload: { path: string }) {
-  if (dragOverFolderPath.value === payload.path) dragOverFolderPath.value = null;
+
+function paintDropTarget(point: Point) {
+  if (!drag) return;
+  const hit = resolveDropHit(document.elementFromPoint(point.x, point.y));
+  if (drag.source.kind === 'section') {
+    sectionDropIndex.value = hit.sectionIndex ?? drag.source.index;
+    return;
+  }
+  dragOverFolderPath.value = hit.nodeKind === 'folder' ? hit.nodePath : null;
+  ws.setDropTargetPane(hit.paneId);
 }
-async function onTreeDrop(payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }) {
-  payload.ev.preventDefault();
-  dragOverFolderPath.value = null;
-  if (payload.kind !== 'folder') return;
-  const sources = ws.draggedPaths.value.length > 0
-    ? [...ws.draggedPaths.value]
-    : [];
-  ws.endNodeDrag();
-  if (sources.length === 0) return;
-  const sep = payload.path.includes('\\') ? '\\' : '/';
-  for (const src of sources) {
-    if (src === payload.path) continue;
-    if (payload.path.startsWith(src + sep) || payload.path.startsWith(src + '/') || payload.path.startsWith(src + '\\')) continue;
-    const fromName = src.split(/[/\\]/).pop() || '';
-    if (!fromName) continue;
-    const dest = `${payload.path}${sep}${fromName}`;
-    if (dest === src) continue;
+
+async function onDragUp(ev: PointerEvent) {
+  if (!drag || ev.pointerId !== drag.pointerId) return;
+  const { source, paths, active } = drag;
+  const point = { x: ev.clientX, y: ev.clientY };
+  endDrag();
+  if (!active) return;
+  swallowNextClick = true;
+
+  const hit = resolveDropHit(document.elementFromPoint(point.x, point.y));
+  if (source.kind === 'section') {
+    if (hit.sectionIndex !== null) ws.reorderOpenWorkspaces(source.index, hit.sectionIndex);
+    return;
+  }
+  if (hit.nodeKind === 'folder' && hit.nodePath) {
+    await applyMoves(paths, hit.nodePath);
+    return;
+  }
+  if (hit.paneId && source.nodeKind === 'file' && paths.length > 0) {
+    emit('drop-in-pane', { paneId: hit.paneId, paths });
+  }
+}
+
+function onDragCancel() {
+  const wasActive = drag?.active === true;
+  endDrag();
+  if (wasActive) swallowNextClick = true;
+}
+
+function onDragKeyDown(ev: KeyboardEvent) {
+  if (ev.key !== 'Escape') return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  onDragCancel();
+}
+
+function endDrag() {
+  if (!drag) return;
+  const { pointerId, active } = drag;
+  drag = null;
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragUp);
+  window.removeEventListener('pointercancel', onDragCancel);
+  window.removeEventListener('keydown', onDragKeyDown, true);
+  stopAutoScroll();
+  if (active) {
     try {
-      await ws.renamePath(src, dest);
+      sidebarRootEl.value?.releasePointerCapture(pointerId);
+    } catch {
+      // Capture already lost; nothing to release.
+    }
+    document.body.style.userSelect = '';
+  }
+  dragGhost.value = null;
+  dragOverFolderPath.value = null;
+  sectionDropIndex.value = null;
+  ws.setDropTargetPane(null);
+}
+
+async function applyMoves(sources: string[], destFolder: string) {
+  for (const op of planMoves(sources, destFolder)) {
+    try {
+      await ws.renamePath(op.from, op.to);
     } catch (e) {
       console.error('move:', e);
       window.alert(String(e));
@@ -413,62 +485,38 @@ async function onTreeDrop(payload: { path: string; kind: 'file' | 'folder'; ev: 
   }
 }
 
-// ===== OS folder drop (#124) =====
-// The app runs with dragDropEnabled=false — required so WebView2 lets the
-// tree's own HTML5 drag reach the editor pane — which means an Explorer drop
-// arrives here as a plain HTML5 event that never exposes an absolute path.
-// The gesture is therefore completed through the folder picker; when a build
-// does deliver the OS-level `tauri://drag-drop` event, App.vue resolves the
-// dropped paths directly and this handler never sees the drop.
-const osDragOver = ref(false);
-const dropTargetActive = computed(() => props.folderDropActive || osDragOver.value);
-
-function onOsDragOver(ev: DragEvent) {
-  if (!carriesOsFiles(ev.dataTransfer?.types)) return;
+// A drag that ends on a row would otherwise fire a click and reselect it.
+function onDocClickCapture(ev: MouseEvent) {
+  if (!swallowNextClick) return;
+  swallowNextClick = false;
   ev.preventDefault();
-  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
-  osDragOver.value = true;
+  ev.stopPropagation();
 }
 
-function onOsDragLeave(ev: DragEvent) {
-  const next = ev.relatedTarget as Node | null;
-  if (next && sidebarRootEl.value?.contains(next)) return;
-  osDragOver.value = false;
+function runAutoScroll(point: Point) {
+  autoScrollX = point.x;
+  autoScrollY = point.y;
+  if (autoScrollFrame !== null) return;
+  const tick = () => {
+    const body = sidebarEl.value;
+    if (!drag?.active || !body) {
+      autoScrollFrame = null;
+      return;
+    }
+    const step = autoScrollStep(autoScrollY, body.getBoundingClientRect());
+    if (step !== 0) {
+      body.scrollTop += step;
+      // Rows slide under a stationary pointer while auto-scrolling.
+      paintDropTarget({ x: autoScrollX, y: autoScrollY });
+    }
+    autoScrollFrame = requestAnimationFrame(tick);
+  };
+  autoScrollFrame = requestAnimationFrame(tick);
 }
 
-function onOsDrop(ev: DragEvent) {
-  if (!carriesOsFiles(ev.dataTransfer?.types)) return;
-  ev.preventDefault();
-  osDragOver.value = false;
-  if (!hasDirectoryEntry(Array.from(ev.dataTransfer?.items ?? []))) return;
-  void pickFolder();
-}
-
-// ===== Section reorder (drag the section header) =====
-const SECTION_DRAG_TYPE = 'application/x-mermark-ws-section';
-const sectionDragFromIndex = ref<number | null>(null);
-
-function onSectionDragStart(payload: { index: number; ev: DragEvent }) {
-  sectionDragFromIndex.value = payload.index;
-  if (payload.ev.dataTransfer) {
-    payload.ev.dataTransfer.setData(SECTION_DRAG_TYPE, String(payload.index));
-    payload.ev.dataTransfer.effectAllowed = 'move';
-  }
-}
-function onSectionDragOver(payload: { index: number; ev: DragEvent }) {
-  if (sectionDragFromIndex.value === null) return;
-  payload.ev.preventDefault();
-  if (payload.ev.dataTransfer) payload.ev.dataTransfer.dropEffect = 'move';
-}
-function onSectionDrop(payload: { index: number; ev: DragEvent }) {
-  payload.ev.preventDefault();
-  const from = sectionDragFromIndex.value;
-  sectionDragFromIndex.value = null;
-  if (from === null || from === payload.index) return;
-  ws.reorderOpenWorkspaces(from, payload.index);
-}
-function onSectionDragEnd() {
-  sectionDragFromIndex.value = null;
+function stopAutoScroll() {
+  if (autoScrollFrame !== null) cancelAnimationFrame(autoScrollFrame);
+  autoScrollFrame = null;
 }
 
 // ===== Resize handle =====
@@ -545,10 +593,13 @@ watch(
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
   document.addEventListener('mousedown', onDocMouseDown);
+  document.addEventListener('click', onDocClickCapture, true);
 });
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown);
   document.removeEventListener('mousedown', onDocMouseDown);
+  document.removeEventListener('click', onDocClickCapture, true);
+  endDrag();
 });
 </script>
 
@@ -556,13 +607,11 @@ onBeforeUnmount(() => {
   <aside
     ref="sidebarRootEl"
     class="workspace-sidebar"
-    :class="{ resizing, 'folder-drop-active': dropTargetActive }"
+    :class="{ resizing, 'folder-drop-active': folderDropActive }"
     :style="{ width: widthPx }"
-    @dragover="onOsDragOver"
-    @dragleave="onOsDragLeave"
-    @drop="onOsDrop"
+    @pointerdown="onSidebarPointerDown"
   >
-    <div v-if="dropTargetActive" class="ws-folder-drop-hint">
+    <div v-if="folderDropActive" class="ws-folder-drop-hint">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         <line x1="12" y1="11" x2="12" y2="17"/>
@@ -688,20 +737,13 @@ onBeforeUnmount(() => {
           :index="idx"
           :is-active-context="activeContextWorkspaceId === w.id"
           :drag-over-path="dragOverFolderPath"
+          :is-reorder-target="sectionDropIndex === idx"
           @open-file="(p) => emit('open-file', p)"
           @view-changes="(p) => emit('view-changes', p)"
           @sort-folder="onFolderSortRequest"
           @context="openContext"
           @new-file-at="(parent) => (pendingAction = { kind: 'new-file', parent })"
           @new-folder-at="(parent) => (pendingAction = { kind: 'new-folder', parent })"
-          @node-dragstart="onTreeDragStart"
-          @node-dragover="onTreeDragOver"
-          @node-dragleave="onTreeDragLeave"
-          @node-drop="onTreeDrop"
-          @section-dragstart="onSectionDragStart"
-          @section-dragover="onSectionDragOver"
-          @section-drop="onSectionDrop"
-          @section-dragend="onSectionDragEnd"
         />
 
         <button
@@ -795,6 +837,14 @@ onBeforeUnmount(() => {
       @confirm="onConfirmDelete"
       @cancel="dismissDialog"
     />
+
+    <Teleport to="body">
+      <div
+        v-if="dragGhost"
+        class="ws-drag-ghost"
+        :style="{ left: `${dragGhost.x + 14}px`, top: `${dragGhost.y + 14}px` }"
+      >{{ dragGhost.label }}</div>
+    </Teleport>
   </aside>
 </template>
 
@@ -1044,6 +1094,24 @@ onBeforeUnmount(() => {
   border-style: solid;
   border-color: var(--primary);
   color: var(--primary);
+}
+
+/* Cursor-following label for an in-flight tree / section drag. */
+.ws-drag-ghost {
+  position: fixed;
+  z-index: 99999;
+  max-width: 260px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-dropdown);
+  pointer-events: none;
 }
 
 /* Resize handle */
