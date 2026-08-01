@@ -24,8 +24,10 @@ const props = defineProps<{
   isActiveContext: boolean;
   /** Drop-target highlight for the in-tree drag&drop (move file to folder). */
   dragOverPath: string | null;
-  /** Index in the parent list — used as the dataTransfer payload for reorder. */
+  /** Index in the parent list — the reorder drag identifies sections by it. */
   index: number;
+  /** Highlighted as the landing slot of an in-flight section reorder. */
+  isReorderTarget?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -33,15 +35,6 @@ const emit = defineEmits<{
   (e: 'view-changes', path: string): void;
   (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
-  (e: 'node-dragstart', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
-  (e: 'node-dragover', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
-  (e: 'node-dragleave', payload: { path: string; kind: 'file' | 'folder' }): void;
-  (e: 'node-drop', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
-  /** Section header dragged — used for section reorder in the parent. */
-  (e: 'section-dragstart', payload: { index: number; ev: DragEvent }): void;
-  (e: 'section-dragover', payload: { index: number; ev: DragEvent }): void;
-  (e: 'section-drop', payload: { index: number; ev: DragEvent }): void;
-  (e: 'section-dragend'): void;
   /** New file/folder inside this workspace's root — bubbles up to the
    *  sidebar so the same pending-action dialog flow handles it. */
   (e: 'new-file-at', parent: string): void;
@@ -86,19 +79,6 @@ async function reveal() {
   try { await ws.revealInOs(props.workspace.rootPath); } catch (e) { console.error('reveal:', e); }
 }
 
-function onHeaderDragStart(ev: DragEvent) {
-  emit('section-dragstart', { index: props.index, ev });
-}
-function onHeaderDragOver(ev: DragEvent) {
-  emit('section-dragover', { index: props.index, ev });
-}
-function onHeaderDrop(ev: DragEvent) {
-  emit('section-drop', { index: props.index, ev });
-}
-function onHeaderDragEnd() {
-  emit('section-dragend');
-}
-
 function onHeaderContextMenu(ev: MouseEvent) {
   ev.preventDefault();
   ev.stopPropagation();
@@ -124,17 +104,13 @@ function newFolderHere(ev: MouseEvent) {
 </script>
 
 <template>
-  <section class="ws-section" :class="{ active: isActiveContext, collapsed }">
+  <section class="ws-section" :class="{ active: isActiveContext, collapsed }" :data-ws-id="workspace.id">
     <header
       class="ws-section-header"
-      :class="{ active: isActiveContext }"
-      draggable="true"
+      :class="{ active: isActiveContext, 'reorder-target': isReorderTarget }"
+      :data-section-index="index"
       @click="toggleCollapsed"
       @contextmenu="onHeaderContextMenu"
-      @dragstart="onHeaderDragStart"
-      @dragover="onHeaderDragOver"
-      @drop="onHeaderDrop"
-      @dragend="onHeaderDragEnd"
     >
       <span class="ws-section-chevron" :class="{ expanded: !collapsed }">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -233,10 +209,6 @@ function newFolderHere(ev: MouseEvent) {
         @view-changes="(p) => emit('view-changes', p)"
         @sort-folder="(payload) => emit('sort-folder', payload)"
         @context="(payload) => emit('context', payload)"
-        @node-dragstart="(payload) => emit('node-dragstart', payload)"
-        @node-dragover="(payload) => emit('node-dragover', payload)"
-        @node-dragleave="(payload) => emit('node-dragleave', payload)"
-        @node-drop="(payload) => emit('node-drop', payload)"
       />
     </div>
 
@@ -286,6 +258,10 @@ function newFolderHere(ev: MouseEvent) {
 
 .ws-section-header.active {
   color: var(--primary);
+}
+
+.ws-section-header.reorder-target {
+  box-shadow: inset 0 2px 0 var(--primary);
 }
 
 .ws-section-chevron {

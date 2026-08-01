@@ -553,6 +553,34 @@ fn rename_path(from: String, to: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Serialize)]
+struct ClassifiedPath {
+    path: String,
+    /// "file", "folder" or "missing"
+    kind: &'static str,
+}
+
+fn path_kind(path: &Path) -> &'static str {
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.is_dir() => "folder",
+        Ok(meta) if meta.is_file() => "file",
+        _ => "missing",
+    }
+}
+
+/// Classify dropped OS paths so the frontend can tell a folder drop (add a
+/// workspace) from a file drop (open a tab / insert an image).
+#[tauri::command]
+fn classify_paths(paths: Vec<String>) -> Vec<ClassifiedPath> {
+    paths
+        .into_iter()
+        .map(|p| {
+            let kind = path_kind(Path::new(&p));
+            ClassifiedPath { path: p, kind }
+        })
+        .collect()
+}
+
 #[tauri::command]
 fn delete_path(path: String) -> Result<(), String> {
     let target = Path::new(&path);
@@ -701,8 +729,49 @@ fn read_file_capped(path: &Path, max_bytes: usize) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
+/// `Some(open target)` when `path` is a filesystem root — a drive (`C:`) or a UNC
+/// share (`\\server\share`). A root cannot be selected inside a parent, and
+/// `/select,` on one drops explorer at "This PC", so roots get opened directly.
+#[cfg(any(test, target_os = "windows"))]
+fn windows_reveal_root(path: &str) -> Option<String> {
+    if let Some(rest) = path.strip_prefix(r"\\") {
+        let mut parts = rest.split('\\').filter(|s| !s.is_empty());
+        let server = parts.next()?;
+        let share = parts.next();
+        if parts.next().is_some() {
+            return None;
+        }
+        return Some(match share {
+            Some(share) => format!(r"\\{}\{}", server, share),
+            None => format!(r"\\{}", server),
+        });
+    }
+
+    let bytes = path.as_bytes();
+    if bytes.len() == 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return Some(format!("{}\\", path));
+    }
+    None
+}
+
+/// Build the raw `explorer.exe` command line for revealing `path` (#125).
+///
+/// This has to bypass `Command::arg`: std wraps any argument containing a space
+/// in quotes, and explorer parses the resulting `"/select,C:\a b\c.md"` as a path
+/// rather than a switch, then silently falls back to the user's Documents folder.
+/// Explorer also only understands backslashes — a `C:/…` path lands it on "This PC".
+#[cfg(any(test, target_os = "windows"))]
+fn windows_reveal_arg(path: &str) -> String {
+    let normalized = path.replace('/', "\\");
+    let target = normalized.trim_end_matches('\\');
+    match windows_reveal_root(target) {
+        Some(root) => format!("\"{}\"", root),
+        None => format!("/select,\"{}\"", target),
+    }
+}
+
 /// Reveal a file or folder in the host OS file manager.
-/// On Windows uses `explorer /select,<path>`; on macOS uses `open -R <path>`;
+/// On Windows uses `explorer /select,"<path>"`; on macOS uses `open -R <path>`;
 /// on Linux falls back to opening the parent folder via xdg-open.
 #[tauri::command]
 fn reveal_in_os(path: String) -> Result<(), String> {
@@ -713,8 +782,9 @@ fn reveal_in_os(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         std::process::Command::new("explorer.exe")
-            .arg(format!("/select,{}", path))
+            .raw_arg(windows_reveal_arg(&path))
             .spawn()
             .map_err(|e| format!("explorer: {}", e))?;
         return Ok(());
@@ -836,10 +906,54 @@ fn apply_linux_webkit_overrides() {
     }
 }
 
+// The AppImage AppRun hook shipped by linuxdeploy-plugin-gtk used to pin
+// `GDK_BACKEND=x11`, so a GNOME/Wayland session got XWayland and its resize bugs
+// (#126). release.yml now strips that line, and the preference is pinned here so
+// it no longer depends on the compiled-in backend order of whichever GTK build a
+// distro package links against. `wayland,x11` keeps the X11 fallback for
+// sessions where the Wayland backend cannot connect.
+#[cfg(any(test, target_os = "linux"))]
+const LINUX_WAYLAND_GDK_BACKEND: &str = "wayland,x11";
+
+#[cfg(any(test, target_os = "linux"))]
+fn wayland_gdk_backend(
+    gdk_backend: Option<&std::ffi::OsStr>,
+    wayland_display: Option<&std::ffi::OsStr>,
+    session_type: Option<&std::ffi::OsStr>,
+) -> Option<&'static str> {
+    let user_pinned_backend = gdk_backend
+        .map(|v| !v.to_string_lossy().trim().is_empty())
+        .unwrap_or(false);
+    if user_pinned_backend {
+        return None;
+    }
+    let has_wayland_socket = wayland_display
+        .map(|v| !v.to_string_lossy().trim().is_empty())
+        .unwrap_or(false);
+    let is_wayland_session = session_type
+        .map(|v| v.to_string_lossy().trim().eq_ignore_ascii_case("wayland"))
+        .unwrap_or(false);
+
+    (has_wayland_socket || is_wayland_session).then_some(LINUX_WAYLAND_GDK_BACKEND)
+}
+
+#[cfg(any(test, target_os = "linux"))]
+fn apply_linux_gdk_backend() {
+    if let Some(backend) = wayland_gdk_backend(
+        std::env::var_os("GDK_BACKEND").as_deref(),
+        std::env::var_os("WAYLAND_DISPLAY").as_deref(),
+        std::env::var_os("XDG_SESSION_TYPE").as_deref(),
+    ) {
+        std::env::set_var("GDK_BACKEND", backend);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
     apply_linux_webkit_overrides();
+    #[cfg(target_os = "linux")]
+    apply_linux_gdk_backend();
 
     tauri::Builder::default()
         .register_uri_scheme_protocol(PRINT_SCHEME, |ctx, _request| {
@@ -905,6 +1019,7 @@ pub fn run() {
             create_folder,
             rename_path,
             delete_path,
+            classify_paths,
             reveal_in_os,
             search_workspace_content,
             ai_health_check,
@@ -1039,6 +1154,34 @@ mod tests {
     }
 
     #[test]
+    fn classify_paths_separates_folders_files_and_missing() {
+        let dir = std::env::temp_dir().join(format!("mermark-classify-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("note.md");
+        std::fs::write(&file, "x").unwrap();
+        let missing = dir.join("gone.md");
+
+        let out = classify_paths(vec![
+            dir.to_string_lossy().into_owned(),
+            file.to_string_lossy().into_owned(),
+            missing.to_string_lossy().into_owned(),
+        ]);
+
+        let kinds: Vec<&str> = out.iter().map(|e| e.kind).collect();
+        assert_eq!(kinds, ["folder", "file", "missing"]);
+        assert_eq!(out[1].path, file.to_string_lossy());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn classify_paths_preserves_input_order_and_length() {
+        let out = classify_paths(vec!["/definitely/not/here".into(), "/nor/here".into()]);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].path, "/definitely/not/here");
+        assert!(out.iter().all(|e| e.kind == "missing"));
+    }
+
+    #[test]
     fn linux_webkit_overrides_target_known_egl_workaround_vars() {
         let keys: Vec<&str> = LINUX_WEBKIT_RENDER_OVERRIDES.iter().map(|o| o.key).collect();
         assert_eq!(
@@ -1048,5 +1191,125 @@ mod tests {
         assert!(LINUX_WEBKIT_RENDER_OVERRIDES.iter().all(|o| o.value == "1"));
         // Symbol must build on every platform so the Linux applier is type-checked in CI.
         let _f: fn() = apply_linux_webkit_overrides;
+    }
+
+    #[test]
+    fn reveal_arg_quotes_the_path_not_the_whole_switch() {
+        assert_eq!(
+            windows_reveal_arg(r"C:\Users\edy\My Notes\a.md"),
+            "/select,\"C:\\Users\\edy\\My Notes\\a.md\""
+        );
+        assert_eq!(
+            windows_reveal_arg(r"C:\notes\a.md"),
+            "/select,\"C:\\notes\\a.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_normalizes_forward_slashes() {
+        assert_eq!(
+            windows_reveal_arg("C:/Users/edy/My Notes/a.md"),
+            "/select,\"C:\\Users\\edy\\My Notes\\a.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_keeps_unc_paths_intact() {
+        assert_eq!(
+            windows_reveal_arg(r"\\server\share\notes\a.md"),
+            "/select,\"\\\\server\\share\\notes\\a.md\""
+        );
+        assert_eq!(
+            windows_reveal_arg("//server/share/notes/a.md"),
+            "/select,\"\\\\server\\share\\notes\\a.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_opens_roots_instead_of_selecting_them() {
+        assert_eq!(windows_reveal_arg(r"C:\"), "\"C:\\\"");
+        assert_eq!(windows_reveal_arg("C:"), "\"C:\\\"");
+        assert_eq!(windows_reveal_arg("d:/"), "\"d:\\\"");
+        assert_eq!(windows_reveal_arg(r"\\server\share"), "\"\\\\server\\share\"");
+        assert_eq!(windows_reveal_arg("//server/share/"), "\"\\\\server\\share\"");
+    }
+
+    #[test]
+    fn reveal_arg_drops_trailing_separator_on_folders() {
+        // A trailing `\` before the closing quote would read as an escaped quote.
+        assert_eq!(
+            windows_reveal_arg(r"C:\Users\edy\My Notes\"),
+            "/select,\"C:\\Users\\edy\\My Notes\""
+        );
+    }
+
+    #[test]
+    fn reveal_arg_preserves_non_ascii_names() {
+        assert_eq!(
+            windows_reveal_arg(r"C:\Notatki\zażółć gęślą jaźń.md"),
+            "/select,\"C:\\Notatki\\zażółć gęślą jaźń.md\""
+        );
+    }
+
+    #[test]
+    fn reveal_root_rejects_paths_below_a_share() {
+        assert_eq!(windows_reveal_root(r"\\server\share\notes"), None);
+        assert_eq!(windows_reveal_root(r"C:\notes"), None);
+    }
+
+    #[test]
+    fn gdk_backend_prefers_wayland_when_socket_is_present() {
+        assert_eq!(
+            wayland_gdk_backend(None, Some(OsStr::new("wayland-0")), None),
+            Some("wayland,x11")
+        );
+    }
+
+    #[test]
+    fn gdk_backend_prefers_wayland_for_wayland_session_type() {
+        assert_eq!(
+            wayland_gdk_backend(None, None, Some(OsStr::new("Wayland"))),
+            Some("wayland,x11")
+        );
+    }
+
+    #[test]
+    fn gdk_backend_untouched_without_wayland_session() {
+        assert_eq!(wayland_gdk_backend(None, None, None), None);
+        assert_eq!(
+            wayland_gdk_backend(None, Some(OsStr::new("  ")), Some(OsStr::new("x11"))),
+            None
+        );
+    }
+
+    #[test]
+    fn gdk_backend_respects_explicit_user_value() {
+        assert_eq!(
+            wayland_gdk_backend(
+                Some(OsStr::new("x11")),
+                Some(OsStr::new("wayland-0")),
+                Some(OsStr::new("wayland"))
+            ),
+            None
+        );
+        assert_eq!(
+            wayland_gdk_backend(
+                Some(OsStr::new("broadway")),
+                Some(OsStr::new("wayland-0")),
+                None
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn gdk_backend_applies_over_blank_value_and_keeps_x11_fallback() {
+        assert_eq!(
+            wayland_gdk_backend(Some(OsStr::new("   ")), Some(OsStr::new("wayland-0")), None),
+            Some("wayland,x11")
+        );
+        assert!(LINUX_WAYLAND_GDK_BACKEND.ends_with(",x11"));
+        // Symbol must build on every platform so the Linux applier is type-checked in CI.
+        let _f: fn() = apply_linux_gdk_backend;
     }
 }

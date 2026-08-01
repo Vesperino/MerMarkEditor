@@ -57,6 +57,7 @@ import { useWorkspace } from './composables/useWorkspace';
 import { useAiMermaidTarget } from './composables/useAiMermaidTarget';
 import { useDocumentSearch, type DocumentSearchMatch, type VisualSearchMatch } from './composables/useDocumentSearch';
 import { useImageDrop } from './composables/useImageDrop';
+import { useFolderDrop } from './composables/useFolderDrop';
 import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
 import PdfExportDialog from './components/PdfExportDialog.vue';
@@ -1312,27 +1313,6 @@ const handleWorkspaceOpenFile = (path: string) => {
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
 
-/**
- * OS files dropped onto the editor that aren't images (md/txt/markdown).
- * With Tauri's dragDropEnabled=false we receive the browser File objects but
- * no absolute path, so we read the text and open each as a fresh unsaved tab
- * in the active pane. The user gives it a real path on first Save.
- */
-const handleOpenDroppedFiles = async (files: File[]) => {
-  for (const file of files) {
-    const name = file.name.toLowerCase();
-    const isText = /\.(md|markdown|txt|mermark)$/.test(name) || file.type.startsWith('text/');
-    if (!isText) continue;
-    try {
-      const text = await file.text();
-      const html = markdownToHtml(text);
-      createNewTab(null, html, file.name);
-    } catch (e) {
-      console.error('[App] open dropped file:', file.name, e);
-    }
-  }
-};
-
 const handleWorkspaceDropFile = (paneId: string, path: string) => {
   splitState.value.activePaneId = paneId;
   if (isImageFile(path)) {
@@ -1342,6 +1322,10 @@ const handleWorkspaceDropFile = (paneId: string, path: string) => {
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] drop file in pane:', e));
 };
+const handleWorkspaceDropInPane = (payload: { paneId: string; paths: string[] }) => {
+  for (const path of payload.paths) handleWorkspaceDropFile(payload.paneId, path);
+};
+
 const handleOpenWorkspaceFromToolbar = () => {
   workspace.openWorkspaceDialog().catch((e) => console.error('[App] open workspace dialog:', e));
 };
@@ -1675,6 +1659,28 @@ let currentWindowLabel = '';
 
 // ============ File Drag & Drop ============
 const isDragOver = ref(false);
+const DROPPABLE_DOC_RE = /\.(md|markdown|txt|mermark)$/i;
+
+// ============ Folder Drag & Drop (adds a workspace, #124) ============
+const workspaceSidebarRef = ref<InstanceType<typeof WorkspaceSidebar> | null>(null);
+
+const folderDrop = useFolderDrop({
+  sidebarRect: () => {
+    if (!workspace.sidebarVisible.value) return null;
+    const el = workspaceSidebarRef.value?.$el as HTMLElement | undefined;
+    return el?.getBoundingClientRect() ?? null;
+  },
+  openWorkspace: workspace.openWorkspace,
+  revealWorkspace: workspace.revealWorkspace,
+});
+
+// While a directory is being dragged the sidebar is the drop target, so the
+// full-window overlay would only hide it. With the sidebar closed there is
+// nothing to aim at and the overlay carries the folder hint instead.
+const sidebarFolderDropActive = computed(
+  () => isDragOver.value && folderDrop.dragHasFolder.value && workspace.sidebarVisible.value,
+);
+const showDragOverlay = computed(() => isDragOver.value && !sidebarFolderDropActive.value);
 
 // Wrapper that checks if file is open locally or in another window first
 const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => {
@@ -1857,11 +1863,13 @@ onMounted(async () => {
 
   // Listen for file drag & drop onto the window
   try {
-    unlistenDragEnter = await listen('tauri://drag-enter', () => {
+    unlistenDragEnter = await listen<{ paths: string[] }>('tauri://drag-enter', (event) => {
       isDragOver.value = true;
+      void folderDrop.beginDrag(event.payload?.paths ?? []);
     });
     unlistenDragLeave = await listen('tauri://drag-leave', () => {
       isDragOver.value = false;
+      folderDrop.endDrag();
     });
     unlistenDragDrop = await listen<{ paths: string[]; position: { x: number; y: number } }>(
       'tauri://drag-drop',
@@ -1869,13 +1877,26 @@ onMounted(async () => {
         isDragOver.value = false;
         const { paths, position } = event.payload;
 
-        const mdPaths = paths.filter(p => p.toLowerCase().endsWith('.md'));
-        for (const filePath of mdPaths) {
+        // Route the drop to the pane it landed on before opening anything —
+        // both the tab and the image insert target the active pane.
+        if (position) {
+          const dpr = window.devicePixelRatio || 1;
+          const paneId = splitContainerRef.value?.findPaneIdAt?.(position.x / dpr, position.y / dpr);
+          if (paneId) splitState.value.activePaneId = paneId;
+        }
+
+        const docPaths = paths.filter((p) => DROPPABLE_DOC_RE.test(p));
+        for (const filePath of docPaths) {
           await openFileWithCrossWindowCheck(filePath);
         }
 
         if (position) {
           await handleImageDrop(paths, position);
+        }
+
+        const addedRoots = await folderDrop.handleDrop(paths, position);
+        if (addedRoots.length > 0 && !workspace.sidebarVisible.value) {
+          workspace.setSidebarVisible(true);
         }
       },
     );
@@ -1986,9 +2007,12 @@ onUnmounted(async () => {
            empty-state CTA when no workspace is open yet. -->
       <WorkspaceSidebar
         v-if="workspace.sidebarVisible.value"
+        ref="workspaceSidebarRef"
+        :folder-drop-active="sidebarFolderDropActive"
         @open-file="handleWorkspaceOpenFile"
         @open-quick-switcher="showWorkspaceQuickSwitcher = true"
         @view-changes="handleWorkspaceViewChanges"
+        @drop-in-pane="handleWorkspaceDropInPane"
       />
 
       <!-- Left Bar (configurable) -->
@@ -2072,8 +2096,6 @@ onUnmounted(async () => {
           @close-all="handleTabCloseAll"
           @close-all-but-pinned="handleTabCloseAllButPinned"
           @close-saved="handleTabCloseSaved"
-          @drop-file="handleWorkspaceDropFile"
-          @open-dropped-files="handleOpenDroppedFiles"
         />
 
         <!-- Live Marp slide preview (scroll-synced with the editor) -->
@@ -2326,15 +2348,20 @@ onUnmounted(async () => {
     />
 
     <!-- File Drag & Drop Overlay -->
-    <div v-if="isDragOver" class="drag-drop-overlay">
+    <div v-if="showDragOverlay" class="drag-drop-overlay">
       <div class="drag-drop-box">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg v-if="folderDrop.dragHasFolder.value" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          <line x1="12" y1="11" x2="12" y2="17"/>
+          <line x1="9" y1="14" x2="15" y2="14"/>
+        </svg>
+        <svg v-else width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <polyline points="14,2 14,8 20,8"/>
           <line x1="12" y1="12" x2="12" y2="18"/>
           <line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        <span>{{ t.dropFilesHere }}</span>
+        <span>{{ folderDrop.dragHasFolder.value ? t.dropFolderHere : t.dropFilesHere }}</span>
       </div>
     </div>
   </div>

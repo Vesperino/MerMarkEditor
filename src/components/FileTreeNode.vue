@@ -26,10 +26,6 @@ const emit = defineEmits<{
   (e: 'view-changes', path: string): void;
   (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
-  (e: 'node-dragstart', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
-  (e: 'node-dragover', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
-  (e: 'node-dragleave', payload: { path: string; kind: 'file' | 'folder' }): void;
-  (e: 'node-drop', payload: { path: string; kind: 'file' | 'folder'; ev: DragEvent }): void;
 }>();
 
 const ws = useWorkspace();
@@ -108,22 +104,6 @@ function onSortFolder(e: MouseEvent) {
   emit('sort-folder', { path: props.node.path, x: r.left, y: r.bottom + 4 });
 }
 
-function onDragStart(e: DragEvent) {
-  emit('node-dragstart', { path: props.node.path, kind: props.node.kind, ev: e });
-}
-function onDragEnd() {
-  ws.endNodeDrag();
-}
-function onDragOver(e: DragEvent) {
-  emit('node-dragover', { path: props.node.path, kind: props.node.kind, ev: e });
-}
-function onDragLeave() {
-  emit('node-dragleave', { path: props.node.path, kind: props.node.kind });
-}
-function onDrop(e: DragEvent) {
-  emit('node-drop', { path: props.node.path, kind: props.node.kind, ev: e });
-}
-
 /**
  * Auto-scroll the highlighted row into view when it becomes active, so
  * opening a file (click, dbl-click, workspace drag, recent, or switching
@@ -181,15 +161,11 @@ watch(
         selected: isSelectedRow,
       }"
       :style="{ paddingLeft: indentPx }"
-      draggable="true"
+      :data-tree-path="node.path"
+      :data-tree-kind="node.kind"
       @click="onRowClick"
       @dblclick="onRowDblClick"
       @contextmenu.prevent.stop="onContextMenu"
-      @dragstart="onDragStart"
-      @dragend="onDragEnd"
-      @dragover="onDragOver"
-      @dragleave="onDragLeave"
-      @drop="onDrop"
     >
       <span class="tree-chevron" :class="{ expanded, hidden: !isFolder }" @click="onChevronClick">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -249,10 +225,6 @@ watch(
         @view-changes="(p) => emit('view-changes', p)"
         @sort-folder="(payload) => emit('sort-folder', payload)"
         @context="(payload) => emit('context', payload)"
-        @node-dragstart="(payload) => emit('node-dragstart', payload)"
-        @node-dragover="(payload) => emit('node-dragover', payload)"
-        @node-dragleave="(payload) => emit('node-dragleave', payload)"
-        @node-drop="(payload) => emit('node-drop', payload)"
       />
     </div>
   </div>
