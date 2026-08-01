@@ -1,5 +1,6 @@
 # Builds the Linux AppImage on PRs that touch packaging and asserts it does not
-# bundle libwayland-client.so.0 (stale copies break EGL on Mesa >= 24.2 hosts, #106).
+# bundle libwayland-client.so.0 (stale copies break EGL on Mesa >= 24.2 hosts, #106)
+# and that no AppRun hook pins GDK_BACKEND (forces XWayland on Wayland, #126).
 name: AppImage smoke
 
 on:
@@ -28,6 +29,19 @@ jobs:
           curl -fsSL --retry 3 -o ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage
           chmod +x ~/.cache/tauri/linuxdeploy-x86_64.AppImage
+
+      # Same pre-seed as release.yml — see the comment there (#126).
+      - name: Pre-seed linuxdeploy GTK plugin without a pinned GDK_BACKEND (#126)
+        run: |
+          mkdir -p ~/.cache/tauri
+          curl -fsSL --retry 3 -o ~/.cache/tauri/linuxdeploy-plugin-gtk.sh \
+            https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/b5eb8d05b4c0ed40107fe2158c5d8527f94568ef/linuxdeploy-plugin-gtk.sh
+          sed -i '/^export GDK_BACKEND=/d' ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
+          if grep -q 'GDK_BACKEND' ~/.cache/tauri/linuxdeploy-plugin-gtk.sh; then
+            echo "::error::linuxdeploy-plugin-gtk still assigns GDK_BACKEND after patching (#126)"
+            exit 1
+          fi
+          chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -59,5 +73,14 @@ jobs:
           find squashfs-root/usr/lib -name 'libwebkit2gtk-4.1.so*' | grep -q . # sanity: extraction worked
           if find squashfs-root/usr/lib -name 'libwayland-client.so*' | grep -q .; then
             echo "::error::AppImage bundles libwayland-client.so.0 — breaks EGL on Mesa >= 24.2 hosts (#106)"
+            exit 1
+          fi
+
+      - name: Assert AppRun hooks pin no GDK_BACKEND (#126)
+        run: |
+          echo "=== apprun-hooks ==="
+          cat squashfs-root/apprun-hooks/*.sh
+          if grep -rn 'GDK_BACKEND' squashfs-root/apprun-hooks; then
+            echo "::error::AppRun hook pins GDK_BACKEND — forces XWayland on Wayland sessions (#126)"
             exit 1
           fi
