@@ -185,6 +185,7 @@ export interface Translations {
   autoSaveOff: string;
   wordWrap: string;
   dropFilesHere: string;
+  dropFolderHere: string;
   editorFont: string;
   codeFont: string;
   codeTheme: string;

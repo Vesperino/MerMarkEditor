@@ -17,6 +17,13 @@ export interface WorkspaceNode {
   modified?: number;
 }
 
+export type PathKind = 'file' | 'folder' | 'missing';
+
+export interface ClassifiedPath {
+  path: string;
+  kind: PathKind;
+}
+
 export interface ContentSearchHit {
   /** Absolute path of the file containing the hit. */
   path: string;
@@ -46,6 +53,10 @@ export const workspaceFs = {
   /** Delete a file or recursively a folder. */
   remove: (path: string): Promise<void> =>
     invoke<void>('delete_path', { path }),
+
+  /** Tell whether each path is a file, a folder, or gone. Order matches the input. */
+  classifyPaths: (paths: string[]): Promise<ClassifiedPath[]> =>
+    invoke<ClassifiedPath[]>('classify_paths', { paths }),
 
   /** Reveal a file/folder in the host OS file manager. */
   reveal: (path: string): Promise<void> =>

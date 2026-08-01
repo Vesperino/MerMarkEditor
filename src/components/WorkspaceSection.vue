@@ -124,7 +124,7 @@ function newFolderHere(ev: MouseEvent) {
 </script>
 
 <template>
-  <section class="ws-section" :class="{ active: isActiveContext, collapsed }">
+  <section class="ws-section" :class="{ active: isActiveContext, collapsed }" :data-ws-id="workspace.id">
     <header
       class="ws-section-header"
       :class="{ active: isActiveContext }"

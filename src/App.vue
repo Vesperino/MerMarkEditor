@@ -57,6 +57,7 @@ import { useWorkspace } from './composables/useWorkspace';
 import { useAiMermaidTarget } from './composables/useAiMermaidTarget';
 import { useDocumentSearch, type DocumentSearchMatch, type VisualSearchMatch } from './composables/useDocumentSearch';
 import { useImageDrop } from './composables/useImageDrop';
+import { useFolderDrop } from './composables/useFolderDrop';
 import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
 import PdfExportDialog from './components/PdfExportDialog.vue';
@@ -1676,6 +1677,27 @@ let currentWindowLabel = '';
 // ============ File Drag & Drop ============
 const isDragOver = ref(false);
 
+// ============ Folder Drag & Drop (adds a workspace, #124) ============
+const workspaceSidebarRef = ref<InstanceType<typeof WorkspaceSidebar> | null>(null);
+
+const folderDrop = useFolderDrop({
+  sidebarRect: () => {
+    if (!workspace.sidebarVisible.value) return null;
+    const el = workspaceSidebarRef.value?.$el as HTMLElement | undefined;
+    return el?.getBoundingClientRect() ?? null;
+  },
+  openWorkspace: workspace.openWorkspace,
+  revealWorkspace: workspace.revealWorkspace,
+});
+
+// While a directory is being dragged the sidebar is the drop target, so the
+// full-window overlay would only hide it. With the sidebar closed there is
+// nothing to aim at and the overlay carries the folder hint instead.
+const sidebarFolderDropActive = computed(
+  () => isDragOver.value && folderDrop.dragHasFolder.value && workspace.sidebarVisible.value,
+);
+const showDragOverlay = computed(() => isDragOver.value && !sidebarFolderDropActive.value);
+
 // Wrapper that checks if file is open locally or in another window first
 const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => {
   try {
@@ -1857,11 +1879,13 @@ onMounted(async () => {
 
   // Listen for file drag & drop onto the window
   try {
-    unlistenDragEnter = await listen('tauri://drag-enter', () => {
+    unlistenDragEnter = await listen<{ paths: string[] }>('tauri://drag-enter', (event) => {
       isDragOver.value = true;
+      void folderDrop.beginDrag(event.payload?.paths ?? []);
     });
     unlistenDragLeave = await listen('tauri://drag-leave', () => {
       isDragOver.value = false;
+      folderDrop.endDrag();
     });
     unlistenDragDrop = await listen<{ paths: string[]; position: { x: number; y: number } }>(
       'tauri://drag-drop',
@@ -1876,6 +1900,11 @@ onMounted(async () => {
 
         if (position) {
           await handleImageDrop(paths, position);
+        }
+
+        const addedRoots = await folderDrop.handleDrop(paths, position);
+        if (addedRoots.length > 0 && !workspace.sidebarVisible.value) {
+          workspace.setSidebarVisible(true);
         }
       },
     );
@@ -1986,6 +2015,8 @@ onUnmounted(async () => {
            empty-state CTA when no workspace is open yet. -->
       <WorkspaceSidebar
         v-if="workspace.sidebarVisible.value"
+        ref="workspaceSidebarRef"
+        :folder-drop-active="sidebarFolderDropActive"
         @open-file="handleWorkspaceOpenFile"
         @open-quick-switcher="showWorkspaceQuickSwitcher = true"
         @view-changes="handleWorkspaceViewChanges"
@@ -2326,15 +2357,20 @@ onUnmounted(async () => {
     />
 
     <!-- File Drag & Drop Overlay -->
-    <div v-if="isDragOver" class="drag-drop-overlay">
+    <div v-if="showDragOverlay" class="drag-drop-overlay">
       <div class="drag-drop-box">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg v-if="folderDrop.dragHasFolder.value" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          <line x1="12" y1="11" x2="12" y2="17"/>
+          <line x1="9" y1="14" x2="15" y2="14"/>
+        </svg>
+        <svg v-else width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <polyline points="14,2 14,8 20,8"/>
           <line x1="12" y1="12" x2="12" y2="18"/>
           <line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        <span>{{ t.dropFilesHere }}</span>
+        <span>{{ folderDrop.dragHasFolder.value ? t.dropFolderHere : t.dropFilesHere }}</span>
       </div>
     </div>
   </div>

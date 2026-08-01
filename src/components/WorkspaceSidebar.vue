@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useI18n } from '../i18n';
 import { useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
 import { SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '../composables/useSettings';
@@ -9,6 +9,7 @@ import WorkspaceSortMenu from './WorkspaceSortMenu.vue';
 import WorkspaceInputDialog from './WorkspaceInputDialog.vue';
 import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
 import type { WorkspaceSortMode } from '../utils/workspace-sort';
+import { carriesOsFiles, hasDirectoryEntry } from '../utils/folder-drop';
 
 /**
  * Multi-root workspace sidebar (VS Code / Obsidian inspired).
@@ -27,6 +28,11 @@ import type { WorkspaceSortMode } from '../utils/workspace-sort';
 
 const { t } = useI18n();
 const ws = useWorkspace();
+
+const props = defineProps<{
+  /** True while an OS drag carrying a directory hovers the window (#124). */
+  folderDropActive?: boolean;
+}>();
 
 const emit = defineEmits<{
   (e: 'open-file', path: string): void;
@@ -407,6 +413,37 @@ async function onTreeDrop(payload: { path: string; kind: 'file' | 'folder'; ev: 
   }
 }
 
+// ===== OS folder drop (#124) =====
+// The app runs with dragDropEnabled=false — required so WebView2 lets the
+// tree's own HTML5 drag reach the editor pane — which means an Explorer drop
+// arrives here as a plain HTML5 event that never exposes an absolute path.
+// The gesture is therefore completed through the folder picker; when a build
+// does deliver the OS-level `tauri://drag-drop` event, App.vue resolves the
+// dropped paths directly and this handler never sees the drop.
+const osDragOver = ref(false);
+const dropTargetActive = computed(() => props.folderDropActive || osDragOver.value);
+
+function onOsDragOver(ev: DragEvent) {
+  if (!carriesOsFiles(ev.dataTransfer?.types)) return;
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+  osDragOver.value = true;
+}
+
+function onOsDragLeave(ev: DragEvent) {
+  const next = ev.relatedTarget as Node | null;
+  if (next && sidebarRootEl.value?.contains(next)) return;
+  osDragOver.value = false;
+}
+
+function onOsDrop(ev: DragEvent) {
+  if (!carriesOsFiles(ev.dataTransfer?.types)) return;
+  ev.preventDefault();
+  osDragOver.value = false;
+  if (!hasDirectoryEntry(Array.from(ev.dataTransfer?.items ?? []))) return;
+  void pickFolder();
+}
+
 // ===== Section reorder (drag the section header) =====
 const SECTION_DRAG_TYPE = 'application/x-mermark-ws-section';
 const sectionDragFromIndex = ref<number | null>(null);
@@ -460,6 +497,7 @@ const widthPx = computed(() => `${ws.sidebarWidth.value}px`);
 const hasOpen = computed(() => ws.openWorkspaces.value.length > 0);
 
 const sidebarEl = ref<HTMLElement | null>(null);
+const sidebarRootEl = ref<HTMLElement | null>(null);
 const headerMenuRoot = ref<HTMLElement | null>(null);
 
 // Close the header (3-dots) menu when clicking anywhere outside it.
@@ -494,6 +532,16 @@ function onKeyDown(e: KeyboardEvent) {
   pendingAction.value = { kind: 'delete-many', paths, name: label };
 }
 
+watch(
+  () => ws.revealSignal.value,
+  async (signal) => {
+    if (!signal) return;
+    await nextTick();
+    const el = sidebarEl.value?.querySelector<HTMLElement>(`[data-ws-id="${signal.id}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  },
+);
+
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
   document.addEventListener('mousedown', onDocMouseDown);
@@ -506,10 +554,23 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
+    ref="sidebarRootEl"
     class="workspace-sidebar"
-    :class="{ resizing }"
+    :class="{ resizing, 'folder-drop-active': dropTargetActive }"
     :style="{ width: widthPx }"
+    @dragover="onOsDragOver"
+    @dragleave="onOsDragLeave"
+    @drop="onOsDrop"
   >
+    <div v-if="dropTargetActive" class="ws-folder-drop-hint">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <line x1="12" y1="11" x2="12" y2="17"/>
+        <line x1="9" y1="14" x2="15" y2="14"/>
+      </svg>
+      <span>{{ t.dropFolderHere }}</span>
+    </div>
+
     <header class="ws-header">
       <span class="ws-title">{{ t.workspaces }}</span>
       <span v-if="hasOpen" class="ws-count">{{ ws.openWorkspaces.value.length }}</span>
@@ -750,6 +811,36 @@ onBeforeUnmount(() => {
 
 .workspace-sidebar.resizing {
   user-select: none;
+}
+
+/* Directory drag hovering the window — the sidebar is the drop target (#124). */
+.workspace-sidebar.folder-drop-active::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 2px dashed var(--primary, #3b82f6);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.ws-folder-drop-hint {
+  position: absolute;
+  inset: 2px;
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  background: var(--bg-secondary);
+  color: var(--primary, #3b82f6);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  pointer-events: none;
 }
 
 /* ===== Top header ===== */
