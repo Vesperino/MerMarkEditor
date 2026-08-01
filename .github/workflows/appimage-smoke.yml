@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir -p ~/.cache/tauri
           curl -fsSL --retry 3 -o ~/.cache/tauri/linuxdeploy-plugin-gtk.sh \
-            https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+            https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/b5eb8d05b4c0ed40107fe2158c5d8527f94568ef/linuxdeploy-plugin-gtk.sh
           sed -i '/^export GDK_BACKEND=/d' ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
           if grep -q 'GDK_BACKEND' ~/.cache/tauri/linuxdeploy-plugin-gtk.sh; then
             echo "::error::linuxdeploy-plugin-gtk still assigns GDK_BACKEND after patching (#126)"
