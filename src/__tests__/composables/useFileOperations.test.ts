@@ -51,10 +51,11 @@ vi.mock('../../constants', () => ({
   DEFAULT_FILE_NAME: 'dokument.md',
   DOM_SELECTORS: { EDITOR_CONTAINER: '.editor-container' },
   TIMING: { MAXIMIZE_ANIMATION_DELAY: 0 },
+  LARGE_FILE_CHAR_THRESHOLD: 1_000_000,
 }));
 
 import { useFileOperations } from '../../composables/useFileOperations';
-import { htmlToMarkdown } from '../../utils/markdown-converter';
+import { htmlToMarkdown, markdownToHtml } from '../../utils/markdown-converter';
 
 // ============================================================
 // Helpers
@@ -432,6 +433,88 @@ describe('useFileOperations', () => {
 
       expect(mockReadTextFile).toHaveBeenCalledWith('/other/file.md');
       expect(onFileOpened).toHaveBeenCalledWith('/other/file.md', '# new file content');
+    });
+  });
+
+  // ----------------------------------------------------------
+  // Large files — markdown-first open (issue #129)
+  // ----------------------------------------------------------
+
+  describe('large file open', () => {
+    it('opens a file above the threshold as markdown-first without converting', async () => {
+      const bigContent = 'x'.repeat(1_000_001);
+      mockReadTextFile.mockResolvedValue(bigContent);
+      const onLargeFileOpened = vi.fn();
+
+      const { options, tabs, setEditorContent } = makeOptions(
+        { filePath: null, hasChanges: false, content: '<p></p>' },
+      );
+      const { openFileFromPath } = useFileOperations({ ...options, onLargeFileOpened });
+
+      await openFileFromPath('/big/big.md');
+
+      const tab = tabs.value[0];
+      expect(tab.largeFile).toBe(true);
+      expect(tab.pendingMarkdown).toBe(bigContent);
+      expect(tab.content).toBe('');
+      expect(tab.originalMarkdown).toBe(bigContent);
+      expect(markdownToHtml).not.toHaveBeenCalled();
+      expect(setEditorContent).not.toHaveBeenCalled();
+      expect(onLargeFileOpened).toHaveBeenCalledWith('/big/big.md', bigContent);
+    });
+
+    it('opens a large file into a new tab as markdown-first when active tab is not empty', async () => {
+      const bigContent = 'y'.repeat(1_000_001);
+      mockReadTextFile.mockResolvedValue(bigContent);
+      const onLargeFileOpened = vi.fn();
+
+      const { options, createNewTab, tabs } = makeOptions();
+      tabs.value.push(makeTab({ id: 'new-tab-id', filePath: null, content: '', originalMarkdown: null }));
+      const { openFileFromPath } = useFileOperations({ ...options, onLargeFileOpened });
+
+      await openFileFromPath('/big/big.md');
+
+      expect(createNewTab).toHaveBeenCalledWith('/big/big.md', '', 'big.md');
+      const newTab = tabs.value.find(t => t.id === 'new-tab-id')!;
+      expect(newTab.largeFile).toBe(true);
+      expect(newTab.pendingMarkdown).toBe(bigContent);
+      expect(markdownToHtml).not.toHaveBeenCalled();
+      expect(onLargeFileOpened).toHaveBeenCalledWith('/big/big.md', bigContent);
+    });
+
+    it('opens a file below the threshold exactly as before', async () => {
+      mockReadTextFile.mockResolvedValue('# small');
+      const onLargeFileOpened = vi.fn();
+
+      const { options, tabs } = makeOptions({ filePath: null, hasChanges: false, content: '<p></p>' });
+      const { openFileFromPath } = useFileOperations({ ...options, onLargeFileOpened });
+
+      await openFileFromPath('/small/small.md');
+
+      const tab = tabs.value[0];
+      expect(tab.largeFile).toBeUndefined();
+      expect(tab.pendingMarkdown).toBeUndefined();
+      expect(tab.content).toBe('<p># small</p>');
+      expect(onLargeFileOpened).not.toHaveBeenCalled();
+    });
+
+    it('opens a large file via openFileInNewTab (relative link) as markdown-first', async () => {
+      const bigContent = 'z'.repeat(1_000_001);
+      mockReadTextFile.mockResolvedValue(bigContent);
+      const onLargeFileOpened = vi.fn();
+
+      const { options, createNewTab, tabs } = makeOptions();
+      tabs.value.push(makeTab({ id: 'new-tab-id', filePath: null, content: '', originalMarkdown: null }));
+      const { openFileInNewTab } = useFileOperations({ ...options, onLargeFileOpened });
+
+      await openFileInNewTab('big.md');
+
+      expect(createNewTab).toHaveBeenCalledWith('test/big.md', '', 'big.md');
+      const newTab = tabs.value.find(t => t.id === 'new-tab-id')!;
+      expect(newTab.largeFile).toBe(true);
+      expect(newTab.pendingMarkdown).toBe(bigContent);
+      expect(markdownToHtml).not.toHaveBeenCalled();
+      expect(onLargeFileOpened).toHaveBeenCalledWith('test/big.md', bigContent);
     });
   });
 });

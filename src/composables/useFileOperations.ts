@@ -5,7 +5,7 @@ import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding } from '../utils/markdown-converter';
 import { aiCommands } from '../services/aiCommands';
 import type { Tab } from './useTabs';
-import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS } from '../constants';
+import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS, LARGE_FILE_CHAR_THRESHOLD } from '../constants';
 
 export interface UseFileOperationsOptions {
   tabs: Ref<Tab[]>;
@@ -22,6 +22,10 @@ export interface UseFileOperationsOptions {
   markSaveStart?: (filePath: string) => void;
   markSaveEnd?: (filePath: string, content: string) => void;
   onFileOpened?: (filePath: string, content: string) => void;
+  /** Fired when a file above LARGE_FILE_CHAR_THRESHOLD was opened markdown-first
+   *  (tab.pendingMarkdown set, no HTML generated) — the host must present it in
+   *  code view because the visual editor has nothing to show. */
+  onLargeFileOpened?: (filePath: string, markdown: string) => void;
   /** Called after a successful save / save-as so the host can register a
    *  file watcher for new paths. Safe to call repeatedly — the watcher
    *  layer ignores already-watched files. */
@@ -61,6 +65,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     markSaveEnd,
     onAfterSave,
     onFileOpened,
+    onLargeFileOpened,
     onPreSaveConflict,
   } = options;
 
@@ -95,7 +100,8 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
 
     const fileContent = await readTextFile(filePath);
-    const htmlContent = markdownToHtml(fileContent);
+    const isLarge = fileContent.length > LARGE_FILE_CHAR_THRESHOLD;
+    const htmlContent = isLarge ? '' : markdownToHtml(fileContent);
     const fileName = extractFileName(filePath);
 
     const activeIdx = findActiveTabIndex();
@@ -105,15 +111,22 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       tabs.value[activeIdx].content = htmlContent;
       tabs.value[activeIdx].hasChanges = false;
       tabs.value[activeIdx].originalMarkdown = fileContent;
-      setEditorContent(htmlContent);
+      tabs.value[activeIdx].largeFile = isLarge || undefined;
+      tabs.value[activeIdx].pendingMarkdown = isLarge ? fileContent : undefined;
+      if (!isLarge) setEditorContent(htmlContent);
     } else {
       const newTabId = createNewTab(filePath, htmlContent, fileName);
       if (!newTabId) return;
       const newTab = tabs.value.find(t => t.id === newTabId);
-      if (newTab) newTab.originalMarkdown = fileContent;
+      if (newTab) {
+        newTab.originalMarkdown = fileContent;
+        newTab.largeFile = isLarge || undefined;
+        newTab.pendingMarkdown = isLarge ? fileContent : undefined;
+      }
       await switchToTab(newTabId);
     }
 
+    if (isLarge) onLargeFileOpened?.(filePath, fileContent);
     onFileOpened?.(filePath, fileContent);
   };
 
@@ -324,7 +337,8 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
 
       // Read the file
       const fileContent = await readTextFile(fullPath);
-      const htmlContent = markdownToHtml(fileContent);
+      const isLarge = fileContent.length > LARGE_FILE_CHAR_THRESHOLD;
+      const htmlContent = isLarge ? '' : markdownToHtml(fileContent);
       const fileName = extractFileName(fullPath);
 
       // Create new tab and switch to it
@@ -332,8 +346,11 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       const newTab = tabs.value.find(t => t.id === newTabId);
       if (newTab) {
         newTab.originalMarkdown = fileContent;
+        newTab.largeFile = isLarge || undefined;
+        newTab.pendingMarkdown = isLarge ? fileContent : undefined;
       }
       await switchToTab(newTabId);
+      if (isLarge) onLargeFileOpened?.(fullPath, fileContent);
       onFileOpened?.(fullPath, fileContent);
       isLoadingFile.value = false;
     } catch (error) {
