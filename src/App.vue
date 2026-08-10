@@ -213,7 +213,13 @@ const newFile = () => {
 const createDocument = async (kind: 'plain' | 'marp') => {
   showNewFileModal.value = false;
   if (codeView.value) {
-    await toggleCodeView();
+    if (isMarkdownFirst(activeTab.value)) {
+      // Exit without the toggle's conversion — commit raw markdown instead.
+      activeTab.value.pendingMarkdown = codeContent.value;
+      codeView.value = false;
+    } else {
+      await toggleCodeView();
+    }
   }
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   if (splitEditorActive.value && activeTab.value) {
