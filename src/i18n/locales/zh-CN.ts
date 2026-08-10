@@ -136,6 +136,7 @@ const zhCN: Translations = {
   newDocument: '文档',
   closeTab: '关闭标签页',
   closeTabTooltip: '关闭标签页 (Ctrl+W)',
+  largeFileCodeViewNotice: '大文件 — 已在代码视图中打开。切换到可视化编辑可能需要一些时间。',
 
   // Mermaid Node
   editDiagram: '编辑',

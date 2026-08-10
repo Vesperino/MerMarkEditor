@@ -136,6 +136,7 @@ const pl: Translations = {
   newDocument: 'dokument',
   closeTab: 'Zamknij kartę',
   closeTabTooltip: 'Zamknij kartę (Ctrl+W)',
+  largeFileCodeViewNotice: 'Duży plik — otwarto w widoku kodu. Przejście do edycji wizualnej może chwilę potrwać.',
 
   // Mermaid Node
   editDiagram: 'Edytuj',

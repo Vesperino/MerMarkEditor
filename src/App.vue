@@ -491,6 +491,17 @@ const {
       enterSplitEditor(activeTab.value?.content || '<p></p>');
     }
   },
+  onLargeFileOpened: (_filePath: string, markdown: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    if (splitEditorActive.value) {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      scrollSync.detach();
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      splitEditorActive.value = false;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    void enterCodeViewWithMarkdown(markdown);
+  },
   onAfterSave: (filePath: string, content: string) => {
     // New file just got a path (Save / Save As on a fresh tab) — ensure
     // the file watcher is registered so external edits (e.g., AI) are
@@ -744,17 +755,26 @@ watch([marpPreviewVisible, activePaneId], async () => {
 // ============ Code View ============
 const codeEditorComponentRef = ref<InstanceType<typeof CodeEditor> | null>(null);
 
+// Markdown-first: large files (issue #129) carry raw markdown in
+// tab.pendingMarkdown and no HTML until the user explicitly enters a visual
+// view — every implicit path must keep them in code view.
+const isMarkdownFirst = (tab: { largeFile?: boolean; pendingMarkdown?: string | null } | null | undefined): boolean =>
+  !!tab && tab.largeFile === true && tab.pendingMarkdown != null;
+
 const {
   codeView,
   codeContent,
   codeEditorRef,
   toggleCodeView: toggleCodeViewBase,
   onCodeContentUpdate,
+  enterCodeViewWithMarkdown,
+  seedCodeContent,
 } = useCodeView({
   getActiveContent: () => activeTab.value?.content || '<p></p>',
   setActiveContent: (content: string) => {
     if (activeTab.value) {
       activeTab.value.content = content;
+      activeTab.value.pendingMarkdown = null;
     }
   },
   markAsChanged: () => {
@@ -762,6 +782,7 @@ const {
       activeTab.value.hasChanges = true;
     }
   },
+  forceConvertOnExit: () => isMarkdownFirst(activeTab.value),
 });
 
 // Sync code editor ref with component's textarea
@@ -835,6 +856,32 @@ watch(activeTabId, (_newId, oldId) => {
     }
   }
   enterSplitEditor(activeTab.value?.content || '<p></p>');
+});
+
+// Markdown-first activation rule (issue #129): whenever the active tab holds
+// unconverted markdown the app must be in code view seeded from it — for every
+// activation path (tab bar, workspace tree, cross-window, session restore).
+// Leaving such a tab while in code view commits the live codeContent back to
+// pendingMarkdown so nothing forces a multi-MB conversion implicitly.
+watch(activeTabId, (_newId, oldId) => {
+  const oldTab = tabs.value.find(t => t.id === oldId);
+  if (codeView.value && isMarkdownFirst(oldTab)) {
+    oldTab!.pendingMarkdown = codeContent.value;
+  }
+
+  const tab = activeTab.value;
+  if (isMarkdownFirst(tab)) {
+    if (splitEditorActive.value) {
+      scrollSync.detach();
+      splitEditorActive.value = false;
+    }
+    void enterCodeViewWithMarkdown(tab.pendingMarkdown!);
+    return;
+  }
+
+  if (codeView.value) {
+    seedCodeContent(htmlToMarkdown(tab?.content || '<p></p>'));
+  }
 });
 
 const toggleSplitEditor = async () => {
@@ -999,7 +1046,9 @@ watch(
 
 // Switch tab while in code view: exit code view first to commit edits, then switch
 const switchToTabFromCodeView = async (tabId: string) => {
-  if (codeView.value) {
+  // Markdown-first tabs stay in code view — the activeTabId watcher commits the
+  // leaving tab and reseeds codeContent for the target without any conversion.
+  if (codeView.value && !isMarkdownFirst(activeTab.value)) {
     await toggleCodeView();
   }
   await switchToTab(tabId);
@@ -1007,7 +1056,10 @@ const switchToTabFromCodeView = async (tabId: string) => {
 
 // Close tab while in code view: exit code view first to commit edits if closing the active tab
 const closeTabFromCodeView = async (tabId: string) => {
-  if (codeView.value && tabId === activeTabId.value) {
+  // Markdown-first: no exit-toggle (it would force a multi-MB conversion);
+  // hasChanges is already set by onCodeContentUpdate and save flows through
+  // getMarkdownOverride, so the unsaved-changes dialog keeps working.
+  if (codeView.value && tabId === activeTabId.value && !isMarkdownFirst(activeTab.value)) {
     await toggleCodeView();
   }
   handleCloseTabRequest(activePaneId.value, tabId);
@@ -2117,6 +2169,9 @@ onUnmounted(async () => {
             @switch-tab="switchToTabFromCodeView"
             @close-tab="closeTabFromCodeView"
           />
+          <div v-if="isMarkdownFirst(activeTab)" class="large-file-banner">
+            {{ t.largeFileCodeViewNotice }}
+          </div>
           <CodeEditor
             ref="codeEditorComponentRef"
             v-model="codeContent"
@@ -2407,6 +2462,14 @@ onUnmounted(async () => {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+}
+
+.large-file-banner {
+  padding: 6px 16px;
+  font-size: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .split-editor-area {
