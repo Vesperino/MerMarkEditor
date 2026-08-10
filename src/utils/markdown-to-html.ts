@@ -364,20 +364,23 @@ function isListItemLine(line: string): boolean {
   return /^\s*(?:[-*+]|\d+[.)])\s/.test(line);
 }
 
-function isInsideListContext(lines: string[], startIdx: number): boolean {
-  for (let k = startIdx - 1; k >= 0; k--) {
-    const line = lines[k];
+export function computeListContexts(lines: string[]): boolean[] {
+  const contexts = new Array<boolean>(lines.length);
+  let inList = false;
+  for (let i = 0; i < lines.length; i++) {
+    contexts[i] = inList;
+    const line = lines[i];
     if (line.trim() === '') continue;
-    if (isListItemLine(line)) return true;
-    // Continuation-shaped line — the list (if any) starts further up.
+    if (isListItemLine(line)) { inList = true; continue; }
     if (hasListContinuationIndent(line)) continue;
-    return false;
+    inList = false;
   }
-  return false;
+  return contexts;
 }
 
 function extractIndentedCodeBlocks(text: string, codeBlocks: string[]): string {
   const lines = text.split('\n');
+  const listContexts = computeListContexts(lines);
   const out: string[] = [];
   let i = 0;
 
@@ -388,7 +391,7 @@ function extractIndentedCodeBlocks(text: string, codeBlocks: string[]): string {
       && !BLOCK_PLACEHOLDER.test(line.trim());
     const prevBlankOrStart = out.length === 0 || out[out.length - 1].trim() === '';
 
-    if (isCandidate && prevBlankOrStart && !isInsideListContext(lines, i)) {
+    if (isCandidate && prevBlankOrStart && !listContexts[i]) {
       let j = i;
       let lastContent = i;
       while (j < lines.length) {
