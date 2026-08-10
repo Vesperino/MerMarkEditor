@@ -423,10 +423,8 @@ function extractIndentedCodeBlocks(text: string, codeBlocks: string[]): string {
 }
 
 export function restoreCodeBlocks(html: string, codeBlocks: string[]): string {
-  let result = html;
-  codeBlocks.forEach((block, index) => {
-    result = result.replace(`__MERMAID_BLOCK_${index}__`, block);
-    result = result.replace(`__CODE_BLOCK_${index}__`, block);
-  });
-  return result;
+  return html.replace(
+    /__(?:CODE_BLOCK|MERMAID_BLOCK)_(\d+)__/g,
+    (match, index) => codeBlocks[Number(index)] ?? match,
+  );
 }
