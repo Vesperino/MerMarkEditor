@@ -4,6 +4,7 @@ import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
 import { useTextareaLineMove } from '../composables/useTextareaLineMove';
 import { useTextareaTabIndent } from '../composables/useTextareaTabIndent';
+import { GUTTER_MAX_LINES } from '../constants';
 
 const { zoomScale } = useEditorZoom();
 const { settings } = useSettings();
@@ -52,6 +53,8 @@ const lineCount = computed(() => {
   const value = props.modelValue ?? '';
   return Math.max(1, value.split('\n').length);
 });
+
+const gutterVisible = computed(() => showLineNumbers.value && lineCount.value <= GUTTER_MAX_LINES);
 
 const resolveTextareaMetrics = (textarea: HTMLTextAreaElement): CodeGutterMetrics => {
   const computedStyle = window.getComputedStyle(textarea);
@@ -156,9 +159,9 @@ const handleScroll = (event: Event) => {
 </script>
 
 <template>
-  <div class="code-editor-container" :class="{ 'has-line-numbers': showLineNumbers }">
+  <div class="code-editor-container" :class="{ 'has-line-numbers': gutterVisible }">
     <div
-      v-if="showLineNumbers"
+      v-if="gutterVisible"
       ref="gutterRef"
       class="code-editor-gutter"
       :style="codeZoomStyle"
