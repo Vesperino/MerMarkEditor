@@ -592,12 +592,12 @@ describe('Toolbar Component', () => {
       expect(mockEditor.value.on).toHaveBeenCalledWith('update', expect.any(Function));
     });
 
-    it('should call getHTML when editor emits update (for token counting)', async () => {
+    it('should count tokens from getText on update, never converting the document (issue #129)', async () => {
       const mockEditor = createMockEditor();
       let updateCallback: (() => void) | undefined;
 
-      // Make getHTML a spy
       mockEditor.value.getHTML = vi.fn().mockReturnValue('<p>mock html content</p>');
+      mockEditor.value.getText = vi.fn().mockReturnValue('mock text content');
 
       // Capture the update callback when it's registered
       mockEditor.value.on = vi.fn((event: string, callback: () => void) => {
@@ -619,7 +619,8 @@ describe('Toolbar Component', () => {
         updateCallback();
       }
 
-      expect(mockEditor.value.getHTML).toHaveBeenCalled();
+      expect(mockEditor.value.getText).toHaveBeenCalled();
+      expect(mockEditor.value.getHTML).not.toHaveBeenCalled();
     });
   });
 
