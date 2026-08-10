@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useCodeView, type UseCodeViewOptions } from '../../composables/useCodeView';
 
 // Cursor marker - same as in useCodeView.ts
 const CURSOR_MARKER = '\u200B__CURSOR__\u200B';
@@ -466,5 +467,75 @@ describe('useCodeView', () => {
       // Right before closing ```
       expect(isInsideCodeBlock(markdown, 8)).toBe(true);
     });
+  });
+});
+
+describe('useCodeView markdown-first API (issue #129)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  function make(overrides: Partial<UseCodeViewOptions> = {}) {
+    const setActiveContent = vi.fn();
+    const markAsChanged = vi.fn();
+    const cv = useCodeView({
+      getActiveContent: () => '',
+      setActiveContent,
+      markAsChanged,
+      ...overrides,
+    });
+    return { cv, setActiveContent, markAsChanged };
+  }
+
+  it('enterCodeViewWithMarkdown seeds content and enables code view without converting', async () => {
+    const { cv, setActiveContent } = make();
+    await cv.enterCodeViewWithMarkdown('# raw');
+    expect(cv.codeView.value).toBe(true);
+    expect(cv.codeContent.value).toBe('# raw');
+    expect(setActiveContent).not.toHaveBeenCalled();
+  });
+
+  it('seedCodeContent replaces content and snapshot without toggling', async () => {
+    const { cv, setActiveContent } = make();
+    await cv.enterCodeViewWithMarkdown('# a');
+    cv.seedCodeContent('# b');
+    expect(cv.codeView.value).toBe(true);
+    expect(cv.codeContent.value).toBe('# b');
+    await cv.toggleCodeView(null);
+    expect(cv.codeView.value).toBe(false);
+    expect(setActiveContent).not.toHaveBeenCalled();
+  });
+
+  it('exit without edits and without force does not convert', async () => {
+    const { cv, setActiveContent, markAsChanged } = make();
+    await cv.enterCodeViewWithMarkdown('# raw');
+    await cv.toggleCodeView(null);
+    expect(setActiveContent).not.toHaveBeenCalled();
+    expect(markAsChanged).not.toHaveBeenCalled();
+  });
+
+  it('exit with forceConvertOnExit converts but does not mark changed', async () => {
+    const { cv, setActiveContent, markAsChanged } = make({ forceConvertOnExit: () => true });
+    await cv.enterCodeViewWithMarkdown('# raw');
+    await cv.toggleCodeView(null);
+    expect(setActiveContent).toHaveBeenCalledTimes(1);
+    expect(setActiveContent.mock.calls[0][0]).toContain('HTML from: # raw');
+    expect(markAsChanged).not.toHaveBeenCalled();
+  });
+
+  it('exit with real edits converts and marks changed', async () => {
+    const { cv, setActiveContent, markAsChanged } = make();
+    await cv.enterCodeViewWithMarkdown('# raw');
+    cv.onCodeContentUpdate('# edited');
+    markAsChanged.mockClear();
+    await cv.toggleCodeView(null);
+    expect(setActiveContent).toHaveBeenCalledTimes(1);
+    expect(setActiveContent.mock.calls[0][0]).toContain('HTML from: # edited');
+    expect(markAsChanged).toHaveBeenCalled();
   });
 });

@@ -15,6 +15,9 @@ export interface UseCodeViewOptions {
   getActiveContent: () => string;
   setActiveContent: (content: string) => void;
   markAsChanged: () => void;
+  /** When true at CODE→VISUAL time, convert even if the snapshot is unchanged —
+   *  used for markdown-first tabs whose HTML was never generated (issue #129). */
+  forceConvertOnExit?: () => boolean;
 }
 
 export interface UseCodeViewReturn {
@@ -23,6 +26,8 @@ export interface UseCodeViewReturn {
   codeEditorRef: Ref<HTMLTextAreaElement | null>;
   toggleCodeView: (editor: Editor | null | undefined) => Promise<void>;
   onCodeContentUpdate: (value: string) => void;
+  enterCodeViewWithMarkdown: (markdown: string) => Promise<void>;
+  seedCodeContent: (markdown: string) => void;
 }
 
 let activeHighlightElement: HTMLElement | null = null;
@@ -592,7 +597,20 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   // Inject styles on module load
   injectHighlightStyles();
 
-  const { getActiveContent, setActiveContent, markAsChanged } = options;
+  const { getActiveContent, setActiveContent, markAsChanged, forceConvertOnExit } = options;
+
+  const enterCodeViewWithMarkdown = async (markdown: string): Promise<void> => {
+    codeContent.value = markdown;
+    codeContentSnapshot = markdown;
+    codeView.value = true;
+    await nextTick();
+    codeEditorRef.value?.focus();
+  };
+
+  const seedCodeContent = (markdown: string): void => {
+    codeContent.value = markdown;
+    codeContentSnapshot = markdown;
+  };
 
   const toggleCodeView = async (editor: Editor | null | undefined): Promise<void> => {
     if (isToggling) return;
@@ -725,12 +743,13 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
       savedCursorLine.value = cursorLine;
 
-      const contentChanged = codeContent.value !== codeContentSnapshot;
+      const editedInCode = codeContent.value !== codeContentSnapshot;
+      const contentChanged = editedInCode || (forceConvertOnExit?.() ?? false);
 
       if (contentChanged) {
         const html = markdownToHtml(codeContent.value);
         setActiveContent(html);
-        markAsChanged();
+        if (editedInCode) markAsChanged();
       }
 
       codeView.value = false;
@@ -871,5 +890,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
     codeEditorRef,
     toggleCodeView,
     onCodeContentUpdate,
+    enterCodeViewWithMarkdown,
+    seedCodeContent,
   };
 }
