@@ -86,13 +86,14 @@ describe('useFileReload', () => {
     }) as unknown as UseFileReloadOptions['findTabByFilePathSplit'];
   });
 
-  const createReload = () =>
+  const createReload = (extra: Partial<UseFileReloadOptions> = {}) =>
     useFileReload({
       activePaneId: mockActivePaneId,
       currentFile: computed(() => mockCurrentFile.value),
       hasChanges: computed(() => mockHasChanges.value),
       findTabByFilePathSplit: mockFindTabByFilePathSplit,
       setEditorContent: mockSetEditorContent,
+      ...extra,
     });
 
   describe('initial state', () => {
@@ -261,6 +262,52 @@ describe('useFileReload', () => {
     it('should expose markSaveEnd function', () => {
       const { markSaveEnd } = createReload();
       expect(typeof markSaveEnd).toBe('function');
+    });
+  });
+
+  describe('markdown-first tabs (issue #129)', () => {
+    it('reloads a markdown-first tab without HTML conversion', () => {
+      mockTab.largeFile = true;
+      mockTab.pendingMarkdown = '# old';
+      mockTab.content = '';
+      mockTab.originalMarkdown = '# old';
+      const setCodeMarkdown = vi.fn();
+
+      const { reloadTabContent } = createReload({ setCodeMarkdown });
+      reloadTabContent('/test/file.md', '# new from disk');
+
+      expect(mockTab.pendingMarkdown).toBe('# new from disk');
+      expect(mockTab.originalMarkdown).toBe('# new from disk');
+      expect(mockTab.content).toBe('');
+      expect(mockTab.hasChanges).toBe(false);
+      expect(markdownToHtml).not.toHaveBeenCalled();
+      expect(mockSetEditorContent).not.toHaveBeenCalled();
+      expect(setCodeMarkdown).toHaveBeenCalledWith('# new from disk');
+    });
+
+    it('does not notify code view when the markdown-first tab is inactive', () => {
+      mockTab.largeFile = true;
+      mockTab.pendingMarkdown = '# old';
+      mockTab.content = '';
+      mockPane.activeTabId = 'other-tab';
+      const setCodeMarkdown = vi.fn();
+
+      const { reloadTabContent } = createReload({ setCodeMarkdown });
+      reloadTabContent('/test/file.md', '# new');
+
+      expect(mockTab.pendingMarkdown).toBe('# new');
+      expect(setCodeMarkdown).not.toHaveBeenCalled();
+    });
+
+    it('converts normally for tabs that are not markdown-first', () => {
+      const setCodeMarkdown = vi.fn();
+      vi.mocked(markdownToHtml).mockReturnValueOnce('<p>converted</p>');
+
+      const { reloadTabContent } = createReload({ setCodeMarkdown });
+      reloadTabContent('/test/file.md', 'converted');
+
+      expect(mockTab.content).toBe('<p>converted</p>');
+      expect(setCodeMarkdown).not.toHaveBeenCalled();
     });
   });
 

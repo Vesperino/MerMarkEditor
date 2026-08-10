@@ -253,6 +253,10 @@ const {
   hasChanges,
   findTabByFilePathSplit,
   setEditorContent,
+  setCodeMarkdown: (markdown: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    if (codeView.value) seedCodeContent(markdown);
+  },
 });
 
 // ============ Pre-Save Conflict Modal ============
