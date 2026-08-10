@@ -4,6 +4,15 @@ export const EMPTY_TAB_CONTENT = '<p></p>';
 /** Default fallback filename when file name cannot be determined */
 export const DEFAULT_FILE_NAME = 'Dokument';
 
+/** Files above this many characters open markdown-first (code view, deferred
+ *  HTML conversion) — converting multi-MB markdown and rendering it in
+ *  ProseMirror synchronously froze the app (issue #129). */
+export const LARGE_FILE_CHAR_THRESHOLD = 1_000_000;
+
+/** The code-view gutter renders one positioned span per line; above this many
+ *  lines the DOM cost froze scrolling, so the gutter is suppressed. */
+export const GUTTER_MAX_LINES = 10_000;
+
 /** DOM selectors used across the application */
 export const DOM_SELECTORS = {
   EDITOR_CONTAINER: '.editor-container',
