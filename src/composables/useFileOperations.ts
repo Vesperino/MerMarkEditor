@@ -347,11 +347,14 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
   };
 
   /**
-   * The pane the user is actually looking at. Split view and code+preview both
-   * put several `.editor-container` elements in the document, and taking the
-   * first one in DOM order used to search the wrong pane. The fallback is
-   * required, not defensive: in code+preview mode the whole SplitContainer is
-   * replaced and no `.editor-pane` ancestor exists at all. Same order as
+   * The pane the user is actually looking at. Split view puts several
+   * `.editor-container` elements in the document and taking the first in DOM
+   * order searched the wrong pane.
+   *
+   * The fallback covers layouts with no `.editor-pane` ancestor — code+preview
+   * replaces the whole SplitContainer. Note that mode's preview pane does not
+   * currently bind `@link-click` at all, so clicks there never reach this
+   * function; the fallback is for robustness, not for that mode. Same order as
    * usePdfExport and App.vue's scroll helpers.
    */
   const findEditorContainer = (): Element | null =>
@@ -363,12 +366,25 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     value.toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '');
 
   /**
-   * Exact id first, then a tolerant match. The fallback matters because ids are
-   * recomputed from heading text on every open, while `[](#anchor)` links are
-   * stored verbatim in the file — so anchors written against another renderer,
-   * or against MerMark's own older slug rules, would otherwise be dead forever.
-   * Matching heading text too covers headings edited in WYSIWYG, whose id is
-   * stale until the next save/reopen.
+   * Exact id first, then a tolerant match against heading TEXT.
+   *
+   * The fallback matters because ids are recomputed from heading text on every
+   * open while `[](#anchor)` links are stored verbatim in the file, so anchors
+   * written against another renderer — or against MerMark's own older slug
+   * rules — would otherwise be dead forever. It also covers headings renamed in
+   * WYSIWYG, whose id stays stale until the next save.
+   *
+   * Two deliberate restrictions keep it from guessing:
+   *
+   * Heading *ids* are not compared loosely. Doing so let an unrelated heading
+   * that merely happens to carry a stale double-hyphen id win on DOM order over
+   * the heading the link actually names, silently scrolling to the wrong
+   * section. Text is the thing the author wrote the anchor against, so text is
+   * what gets matched.
+   *
+   * An ambiguous match resolves to nothing. If two headings both normalise to
+   * the target, picking the first is a coin flip; reporting it as unresolved is
+   * honest and the user sees a toast rather than a plausible wrong jump.
    */
   const findAnchorTarget = (container: Element, targetId: string): HTMLElement | null => {
     const exact = Array.from(container.querySelectorAll<HTMLElement>('[id]'))
@@ -378,17 +394,25 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     const wanted = looseAnchorKey(targetId);
     if (!wanted) return null;
 
-    return Array.from(container.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'))
-      .find((heading) =>
-        looseAnchorKey(heading.id) === wanted ||
-        looseAnchorKey(generateSlug(heading.textContent ?? '')) === wanted
-      ) ?? null;
+    const matches = Array.from(container.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'))
+      .filter((heading) => looseAnchorKey(generateSlug(heading.textContent ?? '')) === wanted);
+
+    return matches.length === 1 ? matches[0] : null;
   };
 
   const handleLinkClick = (href: string): void => {
     // Anchor link (internal navigation)
     if (href.startsWith('#')) {
-      const targetId = decodeURIComponent(href.slice(1));
+      // decodeURIComponent throws on a lone '%' — '#100%-coverage' is a real
+      // anchor, and an uncaught throw here would skip the not-found toast and
+      // restore exactly the silent no-op this whole change removes.
+      const raw = href.slice(1);
+      let targetId = raw;
+      try {
+        targetId = decodeURIComponent(raw);
+      } catch {
+        targetId = raw;
+      }
       const editorContainer = findEditorContainer();
       const targetElement = editorContainer ? findAnchorTarget(editorContainer, targetId) : null;
       if (targetElement && editorContainer) {

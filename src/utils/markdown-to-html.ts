@@ -250,14 +250,38 @@ export function convertMarkdownTables(html: string): string {
  * CommonMark forbids intraword `_` emphasis anyway.
  */
 export function headingDisplayText(escapedContent: string): string {
-  return decodeHtmlEntities(escapedContent)
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')  // images -> alt text
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')   // links  -> link text
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/~~([^~]+)~~/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .trim();
+  let text = escapedContent.includes('&') ? decodeHtmlEntities(escapedContent) : escapedContent;
+
+  // Code spans are opaque in CommonMark — their contents are literal and must
+  // never be reinterpreted as other inline syntax. Mask them before anything
+  // else runs, or `` `1 * 2 * 3` `` loses its asterisks to the emphasis rule
+  // and `` `[not a link](x)` `` loses its target to the link rule.
+  // NUL-delimited: a bare-digit marker would be clobbered on restore by a
+  // heading that contains its own numbers, e.g. "Step 1 of 3".
+  const codeSpans: string[] = [];
+  if (text.includes('`')) {
+    text = text.replace(/`([^`]+)`/g, (_, code: string) => `\u0000${codeSpans.push(code) - 1}\u0000`);
+  }
+
+  if (text.includes('[')) {
+    text = text
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')                    // images -> alt text
+      // One level of nested brackets is allowed: `[a [b] c](url)` is valid
+      // CommonMark, and a `[^\]]+` link text would fail to match it and leak
+      // the whole raw link — URL included — into the slug.
+      .replace(/\[((?:[^[\]]|\[[^\]]*\])*)\]\([^)]*\)/g, '$1');    // links  -> link text
+  }
+  if (text.includes('*')) {
+    text = text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+  }
+  if (text.includes('~~')) {
+    text = text.replace(/~~([^~]+)~~/g, '$1');
+  }
+
+  return (codeSpans.length
+    ? text.replace(/\u0000(\d+)\u0000/g, (_, i: string) => codeSpans[Number(i)])
+    : text
+  ).trim();
 }
 
 /**

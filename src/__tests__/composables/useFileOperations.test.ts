@@ -563,4 +563,59 @@ describe('handleLinkClick — anchors', () => {
 
     expect(createNewTab).not.toHaveBeenCalled();
   });
+
+  it('does not jump to an unrelated heading that carries a stale look-alike id', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      {
+        active: true,
+        html:
+          '<h2 id="foo--bar">Deprecated Notice</h2>' +
+          '<h2 id="foo-bar-2024">Foo Bar</h2>',
+      },
+    ]);
+
+    // jsdom gives every element a zero rect, so stub distinct offsets to make
+    // WHICH heading was chosen observable in the resulting scroll position.
+    const wrong = document.getElementById('foo--bar')!;
+    const right = document.getElementById('foo-bar-2024')!;
+    const container = document.querySelector('.editor-container')!;
+    container.getBoundingClientRect = (() => ({ top: 0 })) as never;
+    wrong.getBoundingClientRect = (() => ({ top: 100 })) as never;
+    right.getBoundingClientRect = (() => ({ top: 500 })) as never;
+
+    handleLinkClick('#foo-bar');
+
+    // Must land on the heading actually titled "Foo Bar" (500 - 20), never on
+    // the one that merely holds a stale double-hyphen id (which would be 80).
+    expect(calls).toEqual([{ top: 480, behavior: 'smooth' }]);
+    expect(onAnchorNotFound).not.toHaveBeenCalled();
+  });
+
+  it('reports ambiguity instead of guessing between two equally good headings', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      { active: true, html: '<h2 id="a">Foo Bar</h2><h2 id="b">Foo  Bar</h2>' },
+    ]);
+
+    handleLinkClick('#foo-bar');
+
+    expect(calls).toHaveLength(0);
+    expect(onAnchorNotFound).toHaveBeenCalledWith('foo-bar');
+  });
+
+  it('does not throw on a malformed percent escape, and still reports it', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    buildPanes([{ active: true, html: '<h2 id="coverage">Coverage</h2>' }]);
+
+    expect(() => handleLinkClick('#100%-coverage')).not.toThrow();
+    expect(() => handleLinkClick('#a%zz')).not.toThrow();
+    expect(onAnchorNotFound).toHaveBeenCalledTimes(2);
+  });
 });

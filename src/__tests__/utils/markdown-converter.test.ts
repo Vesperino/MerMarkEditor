@@ -91,6 +91,37 @@ describe('generateSlug', () => {
   });
 });
 
+describe('heading slugs from inline markdown', () => {
+  const idOf = (md: string) => markdownToHtml(md, []).match(/<h\d id="([^"]*)"/)![1];
+
+  it('uses link text, not the URL, for a plain link heading', () => {
+    expect(idOf('## [Getting Started](./setup.md) notes')).toBe('getting-started-notes');
+  });
+
+  it('handles nested brackets in link text', () => {
+    // A `[^\]]+` link text fails to match this and leaks the whole raw link.
+    expect(idOf('## [a [b] c](url)')).toBe('a-b-c');
+  });
+
+  it('treats a code span as literal, not as emphasis', () => {
+    // GitHub keeps both spaces left by the stripped '*', so each becomes a hyphen.
+    expect(idOf('## `1 * 2 * 3`')).toBe('1--2--3');
+  });
+
+  it('treats a code span as literal, not as a link', () => {
+    expect(idOf('## `[not a link](file.txt)`')).toBe('not-a-linkfiletxt');
+  });
+
+  it('does not corrupt a heading whose own text contains digits', () => {
+    // Regression: a digit-delimited code-span placeholder clobbered "1".
+    expect(idOf('## Step 1 of 3 uses `npm run build`')).toBe('step-1-of-3-uses-npm-run-build');
+  });
+
+  it('strips bold and strikethrough', () => {
+    expect(idOf('## **Bold** and ~~gone~~ text')).toBe('bold-and-gone-text');
+  });
+});
+
 describe('createHeadingSlugger', () => {
   it('numbers duplicates the way GitHub does', () => {
     const slugger = createHeadingSlugger();
