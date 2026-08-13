@@ -45,7 +45,6 @@ vi.mock('../../utils/markdown-converter', () => ({
     }
     return `<p>HTML from: ${md}</p>`;
   },
-  generateSlug: (text: string) => text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'),
 }));
 
 describe('useCodeView', () => {

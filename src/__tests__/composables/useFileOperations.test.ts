@@ -39,7 +39,11 @@ vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => mockGetCurrentWindow(),
 }));
 
-vi.mock('../../utils/markdown-converter', () => ({
+// Spread the real module so `generateSlug` stays the genuine implementation —
+// the anchor fallback compares against it, and a hand-copied stub would keep
+// passing after the real slug rules change.
+vi.mock('../../utils/markdown-converter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/markdown-converter')>()),
   htmlToMarkdown: vi.fn((html: string) => `md:${html}`),
   markdownToHtml: vi.fn((md: string) => `<p>${md}</p>`),
   detectLineEnding: vi.fn(() => '\n'),
@@ -49,7 +53,10 @@ vi.mock('../../utils/markdown-converter', () => ({
 vi.mock('../../constants', () => ({
   EMPTY_TAB_CONTENT: '<p></p>',
   DEFAULT_FILE_NAME: 'dokument.md',
-  DOM_SELECTORS: { EDITOR_CONTAINER: '.editor-container' },
+  DOM_SELECTORS: {
+    EDITOR_CONTAINER: '.editor-container',
+    ACTIVE_EDITOR_CONTAINER: '.editor-pane.active .editor-container',
+  },
   TIMING: { MAXIMIZE_ANIMATION_DELAY: 0 },
 }));
 
@@ -433,5 +440,127 @@ describe('useFileOperations', () => {
       expect(mockReadTextFile).toHaveBeenCalledWith('/other/file.md');
       expect(onFileOpened).toHaveBeenCalledWith('/other/file.md', '# new file content');
     });
+  });
+});
+
+// ============================================================
+// handleLinkClick — in-document anchors
+// ============================================================
+
+describe('handleLinkClick — anchors', () => {
+  // Returns the scrollTo calls recorded for each container, in DOM order.
+  const buildPanes = (panes: Array<{ active?: boolean; html: string }>) => {
+    document.body.innerHTML = panes
+      .map(
+        (p) =>
+          `<div class="editor-pane${p.active ? ' active' : ''}">` +
+          `<div class="editor-container">${p.html}</div></div>`
+      )
+      .join('');
+    return Array.from(document.querySelectorAll<HTMLElement>('.editor-container')).map((c) => {
+      const calls: unknown[] = [];
+      c.scrollTo = ((arg: unknown) => calls.push(arg)) as typeof c.scrollTo;
+      return calls;
+    });
+  };
+
+  // Code+preview replaces the whole SplitContainer, so no .editor-pane exists.
+  const buildBareContainer = (html: string) => {
+    document.body.innerHTML = `<div class="split-editor-preview"><div class="editor-container">${html}</div></div>`;
+    const c = document.querySelector<HTMLElement>('.editor-container')!;
+    const calls: unknown[] = [];
+    c.scrollTo = ((arg: unknown) => calls.push(arg)) as typeof c.scrollTo;
+    return calls;
+  };
+
+  it('scrolls to an exactly matching heading id', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([{ active: true, html: '<h2 id="overview">Overview</h2>' }]);
+
+    handleLinkClick('#overview');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('searches the active pane, not the first one in the DOM', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [inactive, active] = buildPanes([
+      { html: '<p>other document</p>' },
+      { active: true, html: '<h2 id="overview">Overview</h2>' },
+    ]);
+
+    handleLinkClick('#overview');
+
+    expect(inactive).toHaveLength(0);
+    expect(active).toHaveLength(1);
+  });
+
+  it('falls back to the plain container when no pane is marked active', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const calls = buildBareContainer('<h2 id="overview">Overview</h2>');
+
+    handleLinkClick('#overview');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('resolves an anchor written against the old collapsed-hyphen slug rules', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      { active: true, html: '<h2 id="tier-0--write-path-correctness">Tier 0 — write-path correctness</h2>' },
+    ]);
+
+    // What MerMark used to generate, and what users hand-patched their docs to.
+    handleLinkClick('#tier-0-write-path-correctness');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('resolves against heading text when the id is stale after a WYSIWYG edit', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      { active: true, html: '<h2 id="old-title">Renamed Section</h2>' },
+    ]);
+
+    handleLinkClick('#renamed-section');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('decodes percent-encoded anchors', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([{ active: true, html: '<h2 id="概要">概要</h2>' }]);
+
+    handleLinkClick('#' + encodeURIComponent('概要'));
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('reports a genuinely missing anchor instead of failing silently', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([{ active: true, html: '<h2 id="overview">Overview</h2>' }]);
+
+    handleLinkClick('#nothing-like-this');
+
+    expect(calls).toHaveLength(0);
+    expect(onAnchorNotFound).toHaveBeenCalledWith('nothing-like-this');
+  });
+
+  it('does not treat an anchor as a file to open', () => {
+    const { options, createNewTab } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    buildPanes([{ active: true, html: '<p>no headings</p>' }]);
+
+    handleLinkClick('#missing');
+
+    expect(createNewTab).not.toHaveBeenCalled();
   });
 });

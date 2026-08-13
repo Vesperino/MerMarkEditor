@@ -271,6 +271,7 @@ export interface Translations {
   preSaveConflictMessage: string;
   saveAnyway: string;
   fileDeletedExternally: (fileName: string) => string;
+  anchorNotFound: (anchor: string) => string;
 
   // Table of Contents
   tableOfContents: string;

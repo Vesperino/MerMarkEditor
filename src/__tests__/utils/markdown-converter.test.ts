@@ -3,6 +3,7 @@ import {
   decodeHtmlEntities,
   escapeHtml,
   generateSlug,
+  createHeadingSlugger,
   htmlToMarkdown,
   markdownToHtml,
   detectLineEnding,
@@ -62,12 +63,48 @@ describe('generateSlug', () => {
     expect(generateSlug('Hello! World?')).toBe('hello-world');
   });
 
-  it('replaces spaces with hyphens', () => {
-    expect(generateSlug('multiple   spaces')).toBe('multiple-spaces');
+  // Each space becomes its own hyphen — runs are NOT collapsed. This is what
+  // GitHub does, and collapsing them is what broke em-dash headings: the dash
+  // is dropped but the spaces on either side of it are not.
+  it('gives every space its own hyphen', () => {
+    expect(generateSlug('multiple   spaces')).toBe('multiple---spaces');
   });
 
-  it('handles Polish characters', () => {
-    expect(generateSlug('Architecture Decision')).toBe('architecture-decision');
+  it('matches GitHub for an em-dash heading', () => {
+    expect(generateSlug('Tier 0 — write-path correctness')).toBe('tier-0--write-path-correctness');
+  });
+
+  it('matches GitHub for an ampersand heading', () => {
+    expect(generateSlug('FAQ & Notes')).toBe('faq--notes');
+  });
+
+  it('preserves Polish diacritics', () => {
+    expect(generateSlug('Architektura Decyzji Ważnej')).toBe('architektura-decyzji-ważnej');
+  });
+
+  it('preserves CJK headings instead of producing an empty id', () => {
+    expect(generateSlug('概要')).toBe('概要');
+  });
+
+  it('preserves underscores', () => {
+    expect(generateSlug('api_key_rotation')).toBe('api_key_rotation');
+  });
+});
+
+describe('createHeadingSlugger', () => {
+  it('numbers duplicates the way GitHub does', () => {
+    const slugger = createHeadingSlugger();
+    expect(slugger.slug('Foo')).toBe('foo');
+    expect(slugger.slug('Foo')).toBe('foo-1');
+    expect(slugger.slug('Foo')).toBe('foo-2');
+  });
+
+  it('never hands a generated id to a heading that already claimed it', () => {
+    const slugger = createHeadingSlugger();
+    expect(slugger.slug('Foo')).toBe('foo');
+    expect(slugger.slug('Foo 1')).toBe('foo-1');
+    // Naive per-root numbering would emit 'foo-1' here and collide above.
+    expect(slugger.slug('Foo')).toBe('foo-2');
   });
 });
 

@@ -1,4 +1,4 @@
-import { escapeHtml, generateSlug } from './html-entities';
+import { escapeHtml, decodeHtmlEntities, createHeadingSlugger } from './html-entities';
 import {
   findAllMermaidMatches,
   getCurrentMermaidReadFormats,
@@ -235,15 +235,46 @@ export function convertMarkdownTables(html: string): string {
   });
 }
 
-export function convertMarkdownHeaders(html: string): string {
-  let result = html;
-  result = result.replace(/^###### (.*$)/gim, (_, content) => `<h6 id="${generateSlug(content)}">${content}</h6>`);
-  result = result.replace(/^##### (.*$)/gim, (_, content) => `<h5 id="${generateSlug(content)}">${content}</h5>`);
-  result = result.replace(/^#### (.*$)/gim, (_, content) => `<h4 id="${generateSlug(content)}">${content}</h4>`);
-  result = result.replace(/^### (.*$)/gim, (_, content) => `<h3 id="${generateSlug(content)}">${content}</h3>`);
-  result = result.replace(/^## (.*$)/gim, (_, content) => `<h2 id="${generateSlug(content)}">${content}</h2>`);
-  result = result.replace(/^# (.*$)/gim, (_, content) => `<h1 id="${generateSlug(content)}">${content}</h1>`);
-  return result;
+/**
+ * Visible text of a heading, as a reader sees it — the basis for its slug.
+ *
+ * Two reasons this can't just be the raw ATX line body. The line arrives here
+ * already HTML-escaped (`escapeHtml` runs earlier in the pipeline), so "Q&A" is
+ * "Q&amp;A" and would slug to `qampa`. And headers are converted *before*
+ * inline formatting, so `## [Getting Started](./setup.md) notes` would otherwise
+ * slug the URL into the id.
+ *
+ * Only the inline syntax `convertMarkdownFormatting` actually handles is
+ * stripped. Underscores are deliberately left alone: they're legal in slugs
+ * (`api_key_rotation`), this converter has never treated `_` as emphasis, and
+ * CommonMark forbids intraword `_` emphasis anyway.
+ */
+export function headingDisplayText(escapedContent: string): string {
+  return decodeHtmlEntities(escapedContent)
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')  // images -> alt text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')   // links  -> link text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
+}
+
+/**
+ * One top-to-bottom pass over every heading level. It has to be a single pass:
+ * duplicate-id numbering must follow document order, and the previous
+ * level-by-level passes (h6 first, h1 last) numbered them in level order, so
+ * `# Foo` above `## Foo` got the suffix rather than the heading below it.
+ *
+ * `slugger` defaults to a fresh instance per call, which is the correct scope —
+ * one document conversion.
+ */
+export function convertMarkdownHeaders(html: string, slugger = createHeadingSlugger()): string {
+  return html.replace(/^(#{1,6}) (.*)$/gm, (_, hashes: string, content: string) => {
+    const level = hashes.length;
+    const id = slugger.slug(headingDisplayText(content));
+    return `<h${level} id="${id}">${content}</h${level}>`;
+  });
 }
 
 export function convertMarkdownFormatting(html: string): string {
