@@ -37,6 +37,19 @@ describe('decodeHtmlEntities', () => {
   it('handles mixed content', () => {
     expect(decodeHtmlEntities('Hello &amp; goodbye &rarr; see you!')).toBe('Hello & goodbye → see you!');
   });
+
+  // An out-of-range code point used to throw RangeError out of the whole
+  // markdown conversion, so one bad entity blanked the document.
+  it('leaves an out-of-range code point as written instead of throwing', () => {
+    expect(decodeHtmlEntities('&#x110000;')).toBe('&#x110000;');
+    expect(decodeHtmlEntities('&#1114112;')).toBe('&#1114112;');
+    expect(decodeHtmlEntities('&#x7FFFFFFFFFFFFFFF;')).toBe('&#x7FFFFFFFFFFFFFFF;');
+    expect(decodeHtmlEntities('ok &#x110000; still &#x2192;')).toBe('ok &#x110000; still →');
+  });
+
+  it('still decodes the highest valid code point', () => {
+    expect(decodeHtmlEntities('&#x10FFFF;')).toBe(String.fromCodePoint(0x10ffff));
+  });
 });
 
 describe('escapeHtml', () => {

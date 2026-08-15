@@ -22,6 +22,16 @@ const HTML_ENTITIES: Record<string, string> = {
   '&trade;': '™',
 };
 
+const MAX_CODE_POINT = 0x10ffff;
+
+// String.fromCodePoint throws RangeError above U+10FFFF, and `&#x110000;` is
+// something a document can legitimately contain. An uncaught throw here takes
+// down the whole conversion, so an out-of-range entity is left as written.
+const codePointToChar = (raw: string, radix: number, match: string): string => {
+  const code = parseInt(raw, radix);
+  return code > MAX_CODE_POINT ? match : String.fromCodePoint(code);
+};
+
 export function decodeHtmlEntities(text: string): string {
   let result = text;
 
@@ -30,13 +40,13 @@ export function decodeHtmlEntities(text: string): string {
   }
 
   // Hex entities: &#x1F600;
-  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
-    String.fromCodePoint(parseInt(hex, 16))
+  result = result.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) =>
+    codePointToChar(hex, 16, match)
   );
 
   // Decimal entities: &#128512;
-  result = result.replace(/&#(\d+);/g, (_, dec) =>
-    String.fromCodePoint(parseInt(dec, 10))
+  result = result.replace(/&#(\d+);/g, (match, dec) =>
+    codePointToChar(dec, 10, match)
   );
 
   return result;
