@@ -2,7 +2,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile, rename, remove } from '@tauri-apps/plugin-fs';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
-import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding } from '../utils/markdown-converter';
+import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding, generateSlug } from '../utils/markdown-converter';
 import { aiCommands } from '../services/aiCommands';
 import type { Tab } from './useTabs';
 import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS } from '../constants';
@@ -29,6 +29,9 @@ export interface UseFileOperationsOptions {
   /** Returns 'save' | 'cancel' | mergedMarkdownString (to save the merged version).
    *  localMarkdown is the current editor content (used to compute a local→disk diff). */
   onPreSaveConflict?: (filePath: string, diskContent: string, localMarkdown: string) => Promise<'save' | 'cancel' | string>;
+  /** Called when a `#anchor` link matches no heading, so the host can tell the
+   *  user instead of leaving the click looking like a no-op. */
+  onAnchorNotFound?: (anchor: string) => void;
 }
 
 export interface UseFileOperationsReturn {
@@ -62,6 +65,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     onAfterSave,
     onFileOpened,
     onPreSaveConflict,
+    onAnchorNotFound,
   } = options;
 
   const currentFile = computed(() => activeTab.value?.filePath || null);
@@ -342,17 +346,83 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
+  /**
+   * The pane the user is actually looking at. Split view puts several
+   * `.editor-container` elements in the document and taking the first in DOM
+   * order searched the wrong pane.
+   *
+   * The fallback covers layouts with no `.editor-pane` ancestor — code+preview
+   * replaces the whole SplitContainer. Note that mode's preview pane does not
+   * currently bind `@link-click` at all, so clicks there never reach this
+   * function; the fallback is for robustness, not for that mode. Same order as
+   * usePdfExport and App.vue's scroll helpers.
+   */
+  const findEditorContainer = (): Element | null =>
+    document.querySelector(DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER) ??
+    document.querySelector(DOM_SELECTORS.EDITOR_CONTAINER);
+
+  /** Ignore differences that only come from a slugger disagreeing about separators. */
+  const looseAnchorKey = (value: string): string =>
+    value.toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+  /**
+   * Exact id first, then a tolerant match against heading TEXT.
+   *
+   * The fallback matters because ids are recomputed from heading text on every
+   * open while `[](#anchor)` links are stored verbatim in the file, so anchors
+   * written against another renderer — or against MerMark's own older slug
+   * rules — would otherwise be dead forever. It also covers headings renamed in
+   * WYSIWYG, whose id stays stale until the next save.
+   *
+   * Two deliberate restrictions keep it from guessing:
+   *
+   * Heading *ids* are not compared loosely. Doing so let an unrelated heading
+   * that merely happens to carry a stale double-hyphen id win on DOM order over
+   * the heading the link actually names, silently scrolling to the wrong
+   * section. Text is the thing the author wrote the anchor against, so text is
+   * what gets matched.
+   *
+   * An ambiguous match resolves to nothing. If two headings both normalise to
+   * the target, picking the first is a coin flip; reporting it as unresolved is
+   * honest and the user sees a toast rather than a plausible wrong jump.
+   */
+  const findAnchorTarget = (container: Element, targetId: string): HTMLElement | null => {
+    const exact = Array.from(container.querySelectorAll<HTMLElement>('[id]'))
+      .find((el) => el.id === targetId);
+    if (exact) return exact;
+
+    const wanted = looseAnchorKey(targetId);
+    if (!wanted) return null;
+
+    const matches = Array.from(container.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'))
+      .filter((heading) => looseAnchorKey(generateSlug(heading.textContent ?? '')) === wanted);
+
+    return matches.length === 1 ? matches[0] : null;
+  };
+
   const handleLinkClick = (href: string): void => {
     // Anchor link (internal navigation)
     if (href.startsWith('#')) {
-      const targetId = href.slice(1);
-      const editorContainer = document.querySelector(DOM_SELECTORS.EDITOR_CONTAINER);
-      const targetElement = editorContainer?.querySelector(`[id="${targetId}"]`) as HTMLElement | null;
+      // decodeURIComponent throws on a lone '%' — '#100%-coverage' is a real
+      // anchor, and an uncaught throw here would skip the not-found toast and
+      // restore exactly the silent no-op this whole change removes.
+      const raw = href.slice(1);
+      let targetId = raw;
+      try {
+        targetId = decodeURIComponent(raw);
+      } catch {
+        targetId = raw;
+      }
+      const editorContainer = findEditorContainer();
+      const targetElement = editorContainer ? findAnchorTarget(editorContainer, targetId) : null;
       if (targetElement && editorContainer) {
         const containerRect = editorContainer.getBoundingClientRect();
         const elementRect = targetElement.getBoundingClientRect();
         const scrollOffset = elementRect.top - containerRect.top + editorContainer.scrollTop - 20;
         editorContainer.scrollTo({ top: scrollOffset, behavior: 'smooth' });
+      } else {
+        // Used to return silently, which is indistinguishable from a dead app.
+        onAnchorNotFound?.(targetId);
       }
       return;
     }

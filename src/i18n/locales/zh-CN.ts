@@ -265,6 +265,7 @@ const zhCN: Translations = {
   preSaveConflictMessage: '自上次加载或保存以来，文件已被外部修改。',
   saveAnyway: '仍然保存',
   fileDeletedExternally: (fileName: string) => `"${fileName}" 已被外部删除。`,
+  anchorNotFound: (anchor: string) => `没有标题与 "#${anchor}" 匹配。`,
 
   // Table of Contents
   tableOfContents: '目录',

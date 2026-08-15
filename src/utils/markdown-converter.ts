@@ -2,7 +2,7 @@
  * Markdown converter - main entry point.
  * Re-exports from focused sub-modules for backward compatibility.
  */
-export { decodeHtmlEntities, escapeHtml, generateSlug } from './html-entities';
+export { decodeHtmlEntities, escapeHtml, generateSlug, createHeadingSlugger } from './html-entities';
 export { convertInlineToMarkdown, extractMermaidCode, parseHtmlList, processHtmlLists } from './html-to-markdown';
 export {
   parseMarkdownLists,

@@ -265,6 +265,7 @@ const en: Translations = {
   preSaveConflictMessage: 'The file has been modified externally since you last loaded or saved it.',
   saveAnyway: 'Save Anyway',
   fileDeletedExternally: (fileName: string) => `"${fileName}" was deleted externally.`,
+  anchorNotFound: (anchor: string) => `No heading matches "#${anchor}".`,
 
   // Table of Contents
   tableOfContents: 'Table of Contents',

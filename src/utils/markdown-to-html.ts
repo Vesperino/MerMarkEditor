@@ -1,4 +1,4 @@
-import { escapeHtml, generateSlug } from './html-entities';
+import { escapeHtml, decodeHtmlEntities, createHeadingSlugger } from './html-entities';
 import {
   findAllMermaidMatches,
   getCurrentMermaidReadFormats,
@@ -235,15 +235,70 @@ export function convertMarkdownTables(html: string): string {
   });
 }
 
-export function convertMarkdownHeaders(html: string): string {
-  let result = html;
-  result = result.replace(/^###### (.*$)/gim, (_, content) => `<h6 id="${generateSlug(content)}">${content}</h6>`);
-  result = result.replace(/^##### (.*$)/gim, (_, content) => `<h5 id="${generateSlug(content)}">${content}</h5>`);
-  result = result.replace(/^#### (.*$)/gim, (_, content) => `<h4 id="${generateSlug(content)}">${content}</h4>`);
-  result = result.replace(/^### (.*$)/gim, (_, content) => `<h3 id="${generateSlug(content)}">${content}</h3>`);
-  result = result.replace(/^## (.*$)/gim, (_, content) => `<h2 id="${generateSlug(content)}">${content}</h2>`);
-  result = result.replace(/^# (.*$)/gim, (_, content) => `<h1 id="${generateSlug(content)}">${content}</h1>`);
-  return result;
+/**
+ * Visible text of a heading, as a reader sees it — the basis for its slug.
+ *
+ * Two reasons this can't just be the raw ATX line body. The line arrives here
+ * already HTML-escaped (`escapeHtml` runs earlier in the pipeline), so "Q&A" is
+ * "Q&amp;A" and would slug to `qampa`. And headers are converted *before*
+ * inline formatting, so `## [Getting Started](./setup.md) notes` would otherwise
+ * slug the URL into the id.
+ *
+ * Only the inline syntax `convertMarkdownFormatting` actually handles is
+ * stripped. Underscores are deliberately left alone: they're legal in slugs
+ * (`api_key_rotation`), this converter has never treated `_` as emphasis, and
+ * CommonMark forbids intraword `_` emphasis anyway.
+ */
+export function headingDisplayText(escapedContent: string): string {
+  let text = escapedContent.includes('&') ? decodeHtmlEntities(escapedContent) : escapedContent;
+
+  // Code spans are opaque in CommonMark — their contents are literal and must
+  // never be reinterpreted as other inline syntax. Mask them before anything
+  // else runs, or `` `1 * 2 * 3` `` loses its asterisks to the emphasis rule
+  // and `` `[not a link](x)` `` loses its target to the link rule.
+  // NUL-delimited: a bare-digit marker would be clobbered on restore by a
+  // heading that contains its own numbers, e.g. "Step 1 of 3".
+  const codeSpans: string[] = [];
+  if (text.includes('`')) {
+    text = text.replace(/`([^`]+)`/g, (_, code: string) => `\u0000${codeSpans.push(code) - 1}\u0000`);
+  }
+
+  if (text.includes('[')) {
+    text = text
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')                    // images -> alt text
+      // One level of nested brackets is allowed: `[a [b] c](url)` is valid
+      // CommonMark, and a `[^\]]+` link text would fail to match it and leak
+      // the whole raw link — URL included — into the slug.
+      .replace(/\[((?:[^[\]]|\[[^\]]*\])*)\]\([^)]*\)/g, '$1');    // links  -> link text
+  }
+  if (text.includes('*')) {
+    text = text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+  }
+  if (text.includes('~~')) {
+    text = text.replace(/~~([^~]+)~~/g, '$1');
+  }
+
+  return (codeSpans.length
+    ? text.replace(/\u0000(\d+)\u0000/g, (_, i: string) => codeSpans[Number(i)])
+    : text
+  ).trim();
+}
+
+/**
+ * One top-to-bottom pass over every heading level. It has to be a single pass:
+ * duplicate-id numbering must follow document order, and the previous
+ * level-by-level passes (h6 first, h1 last) numbered them in level order, so
+ * `# Foo` above `## Foo` got the suffix rather than the heading below it.
+ *
+ * `slugger` defaults to a fresh instance per call, which is the correct scope —
+ * one document conversion.
+ */
+export function convertMarkdownHeaders(html: string, slugger = createHeadingSlugger()): string {
+  return html.replace(/^(#{1,6}) (.*)$/gm, (_, hashes: string, content: string) => {
+    const level = hashes.length;
+    const id = slugger.slug(headingDisplayText(content));
+    return `<h${level} id="${id}">${content}</h${level}>`;
+  });
 }
 
 export function convertMarkdownFormatting(html: string): string {
