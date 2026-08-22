@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::collections::{HashMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use tauri::{Manager, Emitter, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
+use tauri_plugin_fs::FsExt;
 use serde::{Deserialize, Serialize};
 use font_kit::source::SystemSource;
 
@@ -474,19 +475,32 @@ fn read_workspace_subtree(path: &Path, depth: usize) -> Result<WorkspaceNode, St
 }
 
 #[tauri::command]
-async fn read_workspace_tree(root: String) -> Result<WorkspaceNode, String> {
+async fn read_workspace_tree(app: tauri::AppHandle, root: String) -> Result<WorkspaceNode, String> {
+    let requested_path = PathBuf::from(&root);
+    if !requested_path.exists() {
+        return Err(format!("workspace path does not exist: {}", root));
+    }
+    if !requested_path.is_dir() {
+        return Err(format!("workspace path is not a directory: {}", root));
+    }
+
+    // The dialog plugin grants a selected folder to the fs plugin only for the
+    // current process. Restored workspaces do not pass through the dialog, and
+    // on Unix the generic `**` capability deliberately excludes dot-prefixed
+    // path segments. Re-grant the persisted workspace root on every tree load.
+    // Canonicalization matters for visible symlinks pointing into hidden dirs:
+    // plugin-fs canonicalizes a file before checking its runtime scope too.
+    let scoped_path = std::fs::canonicalize(&requested_path)
+        .map_err(|e| format!("canonicalize workspace {}: {}", root, e))?;
+    app.fs_scope()
+        .allow_directory(&scoped_path, true)
+        .map_err(|e| format!("allow workspace {}: {}", root, e))?;
+
     // Walking a large folder is CPU/IO bound and can take seconds. Run it on
     // tokio's blocking pool so the Tauri command thread (and the renderer
     // IPC) stays responsive — the UI shows its loading state in the meantime.
     tokio::task::spawn_blocking(move || {
-        let path = Path::new(&root);
-        if !path.exists() {
-            return Err(format!("workspace path does not exist: {}", root));
-        }
-        if !path.is_dir() {
-            return Err(format!("workspace path is not a directory: {}", root));
-        }
-        read_workspace_subtree(path, 0)
+        read_workspace_subtree(&requested_path, 0)
     })
     .await
     .map_err(|e| format!("worker join: {}", e))?
