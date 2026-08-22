@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { markdownToHtml } from '../utils/markdown-converter';
 import { useI18n } from '../i18n';
+import '../styles/release-notes.css';
 
 const { t } = useI18n();
 
@@ -50,7 +51,7 @@ const emit = defineEmits<{
             </svg>
             <span>{{ t.whatsNew || "What's new" }}</span>
           </button>
-          <div v-show="notesExpanded" class="update-notes whats-new-content" v-html="notesHtml"></div>
+          <div v-show="notesExpanded" class="update-notes release-notes-content" v-html="notesHtml"></div>
         </div>
         <div v-if="isUpdating" class="update-progress">
           <p>{{ t.downloadingUpdate }}</p>

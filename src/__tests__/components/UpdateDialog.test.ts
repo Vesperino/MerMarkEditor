@@ -25,6 +25,22 @@ describe('UpdateDialog', () => {
     expect(wrapper.html()).toContain('New features');
   });
 
+  it('renders release-note Markdown images instead of showing image syntax as text', () => {
+    const imageUrl = 'https://raw.githubusercontent.com/Vesperino/MerMarkEditor/master/assets/screenshots/example.png';
+    const wrapper = mount(UpdateDialog, {
+      props: {
+        version: '0.7.1',
+        notes: `![Code View screenshot](${imageUrl})`,
+      },
+    });
+
+    const image = wrapper.find<HTMLImageElement>('.update-notes img');
+    expect(image.exists()).toBe(true);
+    expect(image.attributes('src')).toBe(imageUrl);
+    expect(image.attributes('alt')).toBe('Code View screenshot');
+    expect(wrapper.find('.update-notes').text()).not.toContain('![');
+  });
+
   it('hides notes section when notes are empty', () => {
     const wrapper = mount(UpdateDialog, {
       props: { version: '0.1.72', notes: '' },
