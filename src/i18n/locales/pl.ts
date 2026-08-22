@@ -265,6 +265,7 @@ const pl: Translations = {
   preSaveConflictMessage: 'Plik został zmodyfikowany zewnętrznie od ostatniego wczytania lub zapisania.',
   saveAnyway: 'Zapisz mimo to',
   fileDeletedExternally: (fileName: string) => `"${fileName}" został usunięty zewnętrznie.`,
+  anchorNotFound: (anchor: string) => `Żaden nagłówek nie pasuje do "#${anchor}".`,
 
   // Table of Contents
   tableOfContents: 'Spis treści',

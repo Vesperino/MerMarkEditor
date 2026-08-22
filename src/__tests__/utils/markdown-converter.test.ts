@@ -3,6 +3,7 @@ import {
   decodeHtmlEntities,
   escapeHtml,
   generateSlug,
+  createHeadingSlugger,
   htmlToMarkdown,
   markdownToHtml,
   detectLineEnding,
@@ -36,6 +37,19 @@ describe('decodeHtmlEntities', () => {
   it('handles mixed content', () => {
     expect(decodeHtmlEntities('Hello &amp; goodbye &rarr; see you!')).toBe('Hello & goodbye → see you!');
   });
+
+  // An out-of-range code point used to throw RangeError out of the whole
+  // markdown conversion, so one bad entity blanked the document.
+  it('leaves an out-of-range code point as written instead of throwing', () => {
+    expect(decodeHtmlEntities('&#x110000;')).toBe('&#x110000;');
+    expect(decodeHtmlEntities('&#1114112;')).toBe('&#1114112;');
+    expect(decodeHtmlEntities('&#x7FFFFFFFFFFFFFFF;')).toBe('&#x7FFFFFFFFFFFFFFF;');
+    expect(decodeHtmlEntities('ok &#x110000; still &#x2192;')).toBe('ok &#x110000; still →');
+  });
+
+  it('still decodes the highest valid code point', () => {
+    expect(decodeHtmlEntities('&#x10FFFF;')).toBe(String.fromCodePoint(0x10ffff));
+  });
 });
 
 describe('escapeHtml', () => {
@@ -62,12 +76,79 @@ describe('generateSlug', () => {
     expect(generateSlug('Hello! World?')).toBe('hello-world');
   });
 
-  it('replaces spaces with hyphens', () => {
-    expect(generateSlug('multiple   spaces')).toBe('multiple-spaces');
+  // Each space becomes its own hyphen — runs are NOT collapsed. This is what
+  // GitHub does, and collapsing them is what broke em-dash headings: the dash
+  // is dropped but the spaces on either side of it are not.
+  it('gives every space its own hyphen', () => {
+    expect(generateSlug('multiple   spaces')).toBe('multiple---spaces');
   });
 
-  it('handles Polish characters', () => {
-    expect(generateSlug('Architecture Decision')).toBe('architecture-decision');
+  it('matches GitHub for an em-dash heading', () => {
+    expect(generateSlug('Tier 0 — write-path correctness')).toBe('tier-0--write-path-correctness');
+  });
+
+  it('matches GitHub for an ampersand heading', () => {
+    expect(generateSlug('FAQ & Notes')).toBe('faq--notes');
+  });
+
+  it('preserves Polish diacritics', () => {
+    expect(generateSlug('Architektura Decyzji Ważnej')).toBe('architektura-decyzji-ważnej');
+  });
+
+  it('preserves CJK headings instead of producing an empty id', () => {
+    expect(generateSlug('概要')).toBe('概要');
+  });
+
+  it('preserves underscores', () => {
+    expect(generateSlug('api_key_rotation')).toBe('api_key_rotation');
+  });
+});
+
+describe('heading slugs from inline markdown', () => {
+  const idOf = (md: string) => markdownToHtml(md, []).match(/<h\d id="([^"]*)"/)![1];
+
+  it('uses link text, not the URL, for a plain link heading', () => {
+    expect(idOf('## [Getting Started](./setup.md) notes')).toBe('getting-started-notes');
+  });
+
+  it('handles nested brackets in link text', () => {
+    // A `[^\]]+` link text fails to match this and leaks the whole raw link.
+    expect(idOf('## [a [b] c](url)')).toBe('a-b-c');
+  });
+
+  it('treats a code span as literal, not as emphasis', () => {
+    // GitHub keeps both spaces left by the stripped '*', so each becomes a hyphen.
+    expect(idOf('## `1 * 2 * 3`')).toBe('1--2--3');
+  });
+
+  it('treats a code span as literal, not as a link', () => {
+    expect(idOf('## `[not a link](file.txt)`')).toBe('not-a-linkfiletxt');
+  });
+
+  it('does not corrupt a heading whose own text contains digits', () => {
+    // Regression: a digit-delimited code-span placeholder clobbered "1".
+    expect(idOf('## Step 1 of 3 uses `npm run build`')).toBe('step-1-of-3-uses-npm-run-build');
+  });
+
+  it('strips bold and strikethrough', () => {
+    expect(idOf('## **Bold** and ~~gone~~ text')).toBe('bold-and-gone-text');
+  });
+});
+
+describe('createHeadingSlugger', () => {
+  it('numbers duplicates the way GitHub does', () => {
+    const slugger = createHeadingSlugger();
+    expect(slugger.slug('Foo')).toBe('foo');
+    expect(slugger.slug('Foo')).toBe('foo-1');
+    expect(slugger.slug('Foo')).toBe('foo-2');
+  });
+
+  it('never hands a generated id to a heading that already claimed it', () => {
+    const slugger = createHeadingSlugger();
+    expect(slugger.slug('Foo')).toBe('foo');
+    expect(slugger.slug('Foo 1')).toBe('foo-1');
+    // Naive per-root numbering would emit 'foo-1' here and collide above.
+    expect(slugger.slug('Foo')).toBe('foo-2');
   });
 });
 

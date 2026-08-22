@@ -193,6 +193,7 @@ export function useFileReload(options: UseFileReloadOptions) {
 
   return {
     // Toast
+    showToastNotification,
     showToast: computed(() => showToast.value),
     toastMessage: computed(() => toastMessage.value),
     toastType: computed(() => toastType.value),

@@ -250,7 +250,7 @@ const findTabByFilePath = (filePath: string) => {
 
 // ============ File Watcher & Reload ============
 const {
-  showToast, toastMessage, toastType, dismissToast,
+  showToast, toastMessage, toastType, dismissToast, showToastNotification,
   showConflictModal, conflictFileName, conflictFilePath, conflictDiffLines, conflictDiffStats,
   handleConflictKeepLocal, handleConflictLoadExternal, handleConflictMerge,
   manualReload,
@@ -529,6 +529,9 @@ const {
     // the file watcher is registered so external edits (e.g., AI) are
     // detected and trigger an editor reload.
     watchFile(filePath, content);
+  },
+  onAnchorNotFound: (anchor: string) => {
+    showToastNotification(t.value.anchorNotFound(anchor), 'warning');
   },
   onPreSaveConflict: (filePath: string, diskContent: string, localMarkdown: string) => {
     const tab = findTabByFilePath(filePath);

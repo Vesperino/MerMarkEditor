@@ -39,7 +39,11 @@ vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => mockGetCurrentWindow(),
 }));
 
-vi.mock('../../utils/markdown-converter', () => ({
+// Spread the real module so `generateSlug` stays the genuine implementation —
+// the anchor fallback compares against it, and a hand-copied stub would keep
+// passing after the real slug rules change.
+vi.mock('../../utils/markdown-converter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/markdown-converter')>()),
   htmlToMarkdown: vi.fn((html: string) => `md:${html}`),
   markdownToHtml: vi.fn((md: string) => `<p>${md}</p>`),
   detectLineEnding: vi.fn(() => '\n'),
@@ -49,7 +53,10 @@ vi.mock('../../utils/markdown-converter', () => ({
 vi.mock('../../constants', () => ({
   EMPTY_TAB_CONTENT: '<p></p>',
   DEFAULT_FILE_NAME: 'dokument.md',
-  DOM_SELECTORS: { EDITOR_CONTAINER: '.editor-container' },
+  DOM_SELECTORS: {
+    EDITOR_CONTAINER: '.editor-container',
+    ACTIVE_EDITOR_CONTAINER: '.editor-pane.active .editor-container',
+  },
   TIMING: { MAXIMIZE_ANIMATION_DELAY: 0 },
   LARGE_FILE_CHAR_THRESHOLD: 1_000_000,
 }));
@@ -516,5 +523,182 @@ describe('useFileOperations', () => {
       expect(markdownToHtml).not.toHaveBeenCalled();
       expect(onLargeFileOpened).toHaveBeenCalledWith('test/big.md', bigContent);
     });
+  });
+});
+
+// ============================================================
+// handleLinkClick — in-document anchors
+// ============================================================
+
+describe('handleLinkClick — anchors', () => {
+  // Returns the scrollTo calls recorded for each container, in DOM order.
+  const buildPanes = (panes: Array<{ active?: boolean; html: string }>) => {
+    document.body.innerHTML = panes
+      .map(
+        (p) =>
+          `<div class="editor-pane${p.active ? ' active' : ''}">` +
+          `<div class="editor-container">${p.html}</div></div>`
+      )
+      .join('');
+    return Array.from(document.querySelectorAll<HTMLElement>('.editor-container')).map((c) => {
+      const calls: unknown[] = [];
+      c.scrollTo = ((arg: unknown) => calls.push(arg)) as typeof c.scrollTo;
+      return calls;
+    });
+  };
+
+  // Code+preview replaces the whole SplitContainer, so no .editor-pane exists.
+  const buildBareContainer = (html: string) => {
+    document.body.innerHTML = `<div class="split-editor-preview"><div class="editor-container">${html}</div></div>`;
+    const c = document.querySelector<HTMLElement>('.editor-container')!;
+    const calls: unknown[] = [];
+    c.scrollTo = ((arg: unknown) => calls.push(arg)) as typeof c.scrollTo;
+    return calls;
+  };
+
+  it('scrolls to an exactly matching heading id', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([{ active: true, html: '<h2 id="overview">Overview</h2>' }]);
+
+    handleLinkClick('#overview');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('searches the active pane, not the first one in the DOM', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [inactive, active] = buildPanes([
+      { html: '<p>other document</p>' },
+      { active: true, html: '<h2 id="overview">Overview</h2>' },
+    ]);
+
+    handleLinkClick('#overview');
+
+    expect(inactive).toHaveLength(0);
+    expect(active).toHaveLength(1);
+  });
+
+  it('falls back to the plain container when no pane is marked active', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const calls = buildBareContainer('<h2 id="overview">Overview</h2>');
+
+    handleLinkClick('#overview');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('resolves an anchor written against the old collapsed-hyphen slug rules', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      { active: true, html: '<h2 id="tier-0--write-path-correctness">Tier 0 — write-path correctness</h2>' },
+    ]);
+
+    // What MerMark used to generate, and what users hand-patched their docs to.
+    handleLinkClick('#tier-0-write-path-correctness');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('resolves against heading text when the id is stale after a WYSIWYG edit', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      { active: true, html: '<h2 id="old-title">Renamed Section</h2>' },
+    ]);
+
+    handleLinkClick('#renamed-section');
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('decodes percent-encoded anchors', () => {
+    const { options } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([{ active: true, html: '<h2 id="概要">概要</h2>' }]);
+
+    handleLinkClick('#' + encodeURIComponent('概要'));
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('reports a genuinely missing anchor instead of failing silently', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([{ active: true, html: '<h2 id="overview">Overview</h2>' }]);
+
+    handleLinkClick('#nothing-like-this');
+
+    expect(calls).toHaveLength(0);
+    expect(onAnchorNotFound).toHaveBeenCalledWith('nothing-like-this');
+  });
+
+  it('does not treat an anchor as a file to open', () => {
+    const { options, createNewTab } = makeOptions();
+    const { handleLinkClick } = useFileOperations(options as never);
+    buildPanes([{ active: true, html: '<p>no headings</p>' }]);
+
+    handleLinkClick('#missing');
+
+    expect(createNewTab).not.toHaveBeenCalled();
+  });
+
+  it('does not jump to an unrelated heading that carries a stale look-alike id', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      {
+        active: true,
+        html:
+          '<h2 id="foo--bar">Deprecated Notice</h2>' +
+          '<h2 id="foo-bar-2024">Foo Bar</h2>',
+      },
+    ]);
+
+    // jsdom gives every element a zero rect, so stub distinct offsets to make
+    // WHICH heading was chosen observable in the resulting scroll position.
+    const wrong = document.getElementById('foo--bar')!;
+    const right = document.getElementById('foo-bar-2024')!;
+    const container = document.querySelector('.editor-container')!;
+    container.getBoundingClientRect = (() => ({ top: 0 })) as never;
+    wrong.getBoundingClientRect = (() => ({ top: 100 })) as never;
+    right.getBoundingClientRect = (() => ({ top: 500 })) as never;
+
+    handleLinkClick('#foo-bar');
+
+    // Must land on the heading actually titled "Foo Bar" (500 - 20), never on
+    // the one that merely holds a stale double-hyphen id (which would be 80).
+    expect(calls).toEqual([{ top: 480, behavior: 'smooth' }]);
+    expect(onAnchorNotFound).not.toHaveBeenCalled();
+  });
+
+  it('reports ambiguity instead of guessing between two equally good headings', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    const [calls] = buildPanes([
+      { active: true, html: '<h2 id="a">Foo Bar</h2><h2 id="b">Foo  Bar</h2>' },
+    ]);
+
+    handleLinkClick('#foo-bar');
+
+    expect(calls).toHaveLength(0);
+    expect(onAnchorNotFound).toHaveBeenCalledWith('foo-bar');
+  });
+
+  it('does not throw on a malformed percent escape, and still reports it', () => {
+    const onAnchorNotFound = vi.fn();
+    const { options } = makeOptions({}, { onAnchorNotFound });
+    const { handleLinkClick } = useFileOperations(options as never);
+    buildPanes([{ active: true, html: '<h2 id="coverage">Coverage</h2>' }]);
+
+    expect(() => handleLinkClick('#100%-coverage')).not.toThrow();
+    expect(() => handleLinkClick('#a%zz')).not.toThrow();
+    expect(onAnchorNotFound).toHaveBeenCalledTimes(2);
   });
 });

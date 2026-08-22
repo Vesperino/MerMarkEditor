@@ -1,7 +1,7 @@
 {
   "name": "mermark-editor",
   "private": false,
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "Modern Markdown editor with Mermaid diagram support",
   "author": "Vesperino",
   "license": "MIT",
@@ -73,6 +73,7 @@
     "@tiptap/vue-3": "^3.15.3",
     "diff": "^8.0.3",
     "docx": "^9.6.1",
+    "github-slugger": "^2.0.0",
     "lowlight": "^3.3.0",
     "mermaid": "^11.15.0",
     "vue": "^3.5.13"
