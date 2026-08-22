@@ -21,6 +21,17 @@ const gutterConfig = new Compartment();
 let view: EditorView | null = null;
 let applyingExternalValue = false;
 let lastSyncedValue = props.modelValue;
+let highlightedLine: HTMLElement | null = null;
+let highlightTimer: number | null = null;
+
+const clearSelectionHighlight = () => {
+  highlightedLine?.classList.remove('cursor-highlight-line');
+  highlightedLine = null;
+  if (highlightTimer !== null) {
+    window.clearTimeout(highlightTimer);
+    highlightTimer = null;
+  }
+};
 
 const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: 'var(--code-md-heading)', fontWeight: '600' },
@@ -74,6 +85,20 @@ const editor: CodeEditorHandle = {
     if (!view) return;
     const pos = Math.max(0, Math.min(position, view.state.doc.length));
     view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+  },
+  highlightSelectionLine: (durationMs = 1000) => {
+    if (!view) return;
+    clearSelectionHighlight();
+    const domAtCursor = view.domAtPos(view.state.selection.main.head).node;
+    const cursorElement = domAtCursor instanceof Element ? domAtCursor : domAtCursor.parentElement;
+    const line = cursorElement?.closest<HTMLElement>('.cm-line') ?? null;
+    if (!line) return;
+
+    // Force a fresh animation when the same line is highlighted repeatedly.
+    line.classList.add('cursor-highlight-line');
+    void line.offsetWidth;
+    highlightedLine = line;
+    highlightTimer = window.setTimeout(clearSelectionHighlight, durationMs);
   },
 };
 
@@ -143,6 +168,7 @@ watch(() => settings.value.showLineNumbers, (enabled) => {
 });
 
 onBeforeUnmount(() => {
+  clearSelectionHighlight();
   view?.destroy();
   view = null;
 });

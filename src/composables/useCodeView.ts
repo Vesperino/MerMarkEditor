@@ -726,6 +726,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         }
 
         window.setTimeout(() => {
+          codeEditorRef.value?.highlightSelectionLine(TIMING.HIGHLIGHT_DURATION);
           isToggling = false;
         }, TIMING.HIGHLIGHT_DELAY);
       } else {

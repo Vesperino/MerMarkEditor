@@ -12,4 +12,5 @@ export interface CodeEditorHandle {
   getScrollRatio: () => number;
   scrollToRatio: (ratio: number) => void;
   scrollToPosition: (position: number) => void;
+  highlightSelectionLine: (durationMs?: number) => void;
 }
