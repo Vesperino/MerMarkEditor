@@ -195,6 +195,22 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+@keyframes code-cursor-pulse {
+  0% {
+    background-color: rgba(56, 189, 248, 0.55);
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+  }
+  55% {
+    background-color: rgba(56, 189, 248, 0.35);
+    box-shadow: 0 0 18px 6px rgba(56, 189, 248, 0.75),
+      0 0 36px 12px rgba(14, 165, 233, 0.45);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 .code-editor-container {
   flex: 1;
   min-height: 0;
@@ -213,6 +229,11 @@ onBeforeUnmount(() => {
 
 .code-editor :deep(.cm-editor) { border-radius: 8px; }
 .code-editor :deep(.cm-scroller) { tab-size: var(--code-tab-size, 2); }
+.code-editor :deep(.code-cursor-highlight-line) {
+  animation: code-cursor-pulse var(--code-cursor-highlight-duration, 1400ms) ease-out forwards !important;
+  border-radius: 3px;
+  position: relative;
+}
 
 @media print {
   .code-editor-container { display: none !important; }

@@ -82,7 +82,9 @@ test.describe('safe HTML external links', () => {
     const matchingLines = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
     expect(Math.abs(selectedTop - (await matchingLines.nth(1).boundingBox())!.y)).toBeLessThan(3);
     await expect(matchingLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
-    await expect(matchingLines.nth(1)).toHaveCSS('animation-name', 'code-cursor-pulse');
+    await expect.poll(() => matchingLines.nth(1).evaluate(element => (
+      window.getComputedStyle(element).animationName
+    ))).toContain('code-cursor-pulse');
     await expect(matchingLines.nth(0)).not.toHaveClass(/code-cursor-highlight-line/);
     await page.waitForTimeout(1000);
     await expect(matchingLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
