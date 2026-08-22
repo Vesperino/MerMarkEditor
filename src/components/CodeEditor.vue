@@ -25,7 +25,8 @@ let highlightedLine: HTMLElement | null = null;
 let highlightTimer: number | null = null;
 
 const clearSelectionHighlight = () => {
-  highlightedLine?.classList.remove('cursor-highlight-line');
+  highlightedLine?.classList.remove('code-cursor-highlight-line');
+  highlightedLine?.style.removeProperty('--code-cursor-highlight-duration');
   highlightedLine = null;
   if (highlightTimer !== null) {
     window.clearTimeout(highlightTimer);
@@ -89,16 +90,24 @@ const editor: CodeEditorHandle = {
   highlightSelectionLine: (durationMs = 1000) => {
     if (!view) return;
     clearSelectionHighlight();
-    const domAtCursor = view.domAtPos(view.state.selection.main.head).node;
-    const cursorElement = domAtCursor instanceof Element ? domAtCursor : domAtCursor.parentElement;
-    const line = cursorElement?.closest<HTMLElement>('.cm-line') ?? null;
-    if (!line) return;
-
-    // Force a fresh animation when the same line is highlighted repeatedly.
-    line.classList.add('cursor-highlight-line');
-    void line.offsetWidth;
-    highlightedLine = line;
-    highlightTimer = window.setTimeout(clearSelectionHighlight, durationMs);
+    // CodeMirror may still be completing its scroll/layout measure after a
+    // maximized window or viewport resize. Start the animation in its next
+    // synchronized write phase so none of it is consumed off-screen.
+    view.requestMeasure<HTMLElement | null>({
+      read: (measuredView) => {
+        const domAtCursor = measuredView.domAtPos(measuredView.state.selection.main.head).node;
+        const cursorElement = domAtCursor instanceof Element ? domAtCursor : domAtCursor.parentElement;
+        return cursorElement?.closest<HTMLElement>('.cm-line') ?? null;
+      },
+      write: (line) => {
+        if (!line || !line.isConnected) return;
+        line.style.setProperty('--code-cursor-highlight-duration', `${durationMs}ms`);
+        line.classList.add('code-cursor-highlight-line');
+        highlightedLine = line;
+        highlightTimer = window.setTimeout(clearSelectionHighlight, durationMs);
+      },
+      key: 'cursor-line-highlight',
+    });
   },
 };
 

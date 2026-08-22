@@ -31,6 +31,8 @@ export const TIMING = {
   DOM_RETRY_INTERVAL: 60,
   /** Duration of cursor highlight animation */
   HIGHLIGHT_DURATION: 1000,
+  /** CodeMirror highlight stays visible after fullscreen/layout changes */
+  CODE_HIGHLIGHT_DURATION: 1400,
   /** Delay before highlighting cursor after code view switch */
   HIGHLIGHT_DELAY: 100,
   /** Debounce delay for file watcher events (AI editors write in multiple steps) */

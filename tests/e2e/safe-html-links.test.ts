@@ -81,9 +81,13 @@ test.describe('safe HTML external links', () => {
     });
     const matchingLines = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
     expect(Math.abs(selectedTop - (await matchingLines.nth(1).boundingBox())!.y)).toBeLessThan(3);
-    await expect(matchingLines.nth(1)).toHaveClass(/cursor-highlight-line/);
-    await expect(matchingLines.nth(1)).toHaveCSS('animation-name', 'cursor-pulse');
-    await expect(matchingLines.nth(0)).not.toHaveClass(/cursor-highlight-line/);
+    await expect(matchingLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
+    await expect(matchingLines.nth(1)).toHaveCSS('animation-name', 'code-cursor-pulse');
+    await expect(matchingLines.nth(0)).not.toHaveClass(/code-cursor-highlight-line/);
+    await page.waitForTimeout(1000);
+    await expect(matchingLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
+    await page.waitForTimeout(500);
+    await expect(matchingLines.nth(1)).not.toHaveClass(/code-cursor-highlight-line/);
   });
 
   test('a repeated HTML block keeps its exact line and highlight through a full view cycle', async ({ page }) => {
@@ -113,6 +117,6 @@ test.describe('safe HTML external links', () => {
     });
     const repeatedLines = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
     expect(Math.abs(selectedTop - (await repeatedLines.nth(1).boundingBox())!.y)).toBeLessThan(3);
-    await expect(repeatedLines.nth(1)).toHaveClass(/cursor-highlight-line/);
+    await expect(repeatedLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
   });
 });

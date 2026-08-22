@@ -122,6 +122,21 @@ const injectHighlightStyles = () => {
         box-shadow: 0 0 0 0 transparent;
       }
     }
+    @keyframes code-cursor-pulse {
+      0% {
+        background-color: rgba(56, 189, 248, 0.55);
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.0);
+      }
+      55% {
+        background-color: rgba(56, 189, 248, 0.35);
+        box-shadow: 0 0 18px 6px rgba(56, 189, 248, 0.75),
+          0 0 36px 12px rgba(14, 165, 233, 0.45);
+      }
+      100% {
+        background-color: transparent;
+        box-shadow: 0 0 0 0 transparent;
+      }
+    }
     .cursor-highlight {
       animation: cursor-pulse 1s ease-out forwards;
       border-radius: 3px;
@@ -133,6 +148,11 @@ const injectHighlightStyles = () => {
       animation: cursor-pulse 1s ease-out forwards !important;
       position: relative;
       border-radius: 3px;
+    }
+    .code-cursor-highlight-line {
+      animation: code-cursor-pulse var(--code-cursor-highlight-duration, 1400ms) ease-out forwards !important;
+      border-radius: 3px;
+      position: relative;
     }
     .ProseMirror .cursor-highlight-line {
       background-color: rgba(56, 189, 248, 0.55) !important;
@@ -726,7 +746,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         }
 
         window.setTimeout(() => {
-          codeEditorRef.value?.highlightSelectionLine(TIMING.HIGHLIGHT_DURATION);
+          codeEditorRef.value?.highlightSelectionLine(TIMING.CODE_HIGHLIGHT_DURATION);
           isToggling = false;
         }, TIMING.HIGHLIGHT_DELAY);
       } else {
