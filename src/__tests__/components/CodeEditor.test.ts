@@ -52,6 +52,7 @@ describe('CodeEditor syntax overlay (#128)', () => {
     const wrapper = mount(CodeEditor, { props: { modelValue: '# old' } });
     await wrapper.get('textarea').setValue('# new');
 
-    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['# new']);
+    const updates = wrapper.emitted('update:modelValue') ?? [];
+    expect(updates[updates.length - 1]).toEqual(['# new']);
   });
 });
