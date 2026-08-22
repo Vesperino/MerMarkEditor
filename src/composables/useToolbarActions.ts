@@ -3,7 +3,6 @@ import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from '../i18n';
 import { useTokenCounter } from './useTokenCounter';
 import { useEditorZoom } from './useEditorZoom';
-import { htmlToMarkdown } from '../utils/markdown-converter';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 
 // Singleton state for dropdowns and editor update counter
@@ -36,18 +35,23 @@ function attachToEditor(ed: Editor | null | undefined) {
   activeEditor = ed ?? null;
   activeHandler = null;
   if (!ed) return;
+  // Token counting reads the editor's plain text, NOT htmlToMarkdown(getHTML()):
+  // the full HTML serialization + markdown conversion is O(document) regex work
+  // that froze the app for ~10s per keystroke on multi-MB documents (issue #129).
+  // Token counts are estimates; plain text is close enough.
   const handler = () => {
     editorUpdateCounter.value++;
-    if (typeof ed.getHTML === 'function') {
-      const markdown = htmlToMarkdown(ed.getHTML());
-      sharedTokens.updateText(markdown);
+    if (typeof ed.getText === 'function') {
+      sharedTokens.updateText(ed.getText());
     }
   };
   activeHandler = handler;
   ed.on('update', handler);
   // Prime the counters with the current document.
   editorUpdateCounter.value++;
-  sharedTokens.updateText(htmlToMarkdown(ed.getHTML()));
+  if (typeof ed.getText === 'function') {
+    sharedTokens.updateText(ed.getText());
+  }
 }
 
 export function useToolbarActions() {

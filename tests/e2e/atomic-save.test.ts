@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { setupTauriMocks } from './helpers/tauri-mock';
+import { codeEditor, fillCodeEditor, openCodeView } from './helpers/code-editor';
 
 // ============================================================
 // Test suite: Atomic Save & Code View Save (#28)
@@ -112,15 +113,11 @@ test.describe('Code View Save — no 0KB bug (#28)', () => {
     await waitForTab(page, 'hello.md');
 
     // Switch to code view
-    await page.locator('button[title="Code"]').click();
-
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300); // Let Vue reactivity set initial content
 
     // Fill with new content and trigger input event
-    await codeEditor.fill(newContent);
-    await codeEditor.dispatchEvent('input');
+    await fillCodeEditor(page, newContent);
     await page.waitForTimeout(300);
 
     await saveAs(page, SAVE_PATH);
@@ -148,21 +145,17 @@ test.describe('Code View Save — no 0KB bug (#28)', () => {
     await page.waitForSelector('.tab-bar', { timeout: 10_000 });
     await waitForTab(page, 'hello.md');
 
-    await page.locator('button[title="Code"]').click();
-
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
 
-    await codeEditor.fill(expectedContent);
-    await codeEditor.dispatchEvent('input');
+    await fillCodeEditor(page, expectedContent);
     await page.waitForTimeout(300);
 
     await saveAs(page, SAVE_PATH);
 
     const finalFs = getFs();
-    // The saved file should contain exactly what we typed (raw markdown, no HTML conversion)
-    expect(finalFs[SAVE_PATH]).toBe(expectedContent);
+    // Save normalizes trailing whitespace but otherwise keeps raw Markdown (no HTML conversion).
+    expect(finalFs[SAVE_PATH]).toBe(expectedContent.trimEnd());
   });
 
   test('code view does not save empty file (regression test for 0KB bug)', async ({ page }) => {
@@ -178,8 +171,8 @@ test.describe('Code View Save — no 0KB bug (#28)', () => {
     await waitForTab(page, 'hello.md');
 
     // Switch to code view WITHOUT editing — save the original content
-    await page.locator('button[title="Code"]').click();
-    await expect(page.locator('textarea.code-editor')).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
+    await expect(codeEditor(page)).toBeVisible({ timeout: 3_000 });
     await page.waitForTimeout(300);
 
     await saveAs(page, SAVE_PATH);

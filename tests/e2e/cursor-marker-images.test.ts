@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { setupTauriMocks } from './helpers/tauri-mock';
+import {
+  fillCodeEditor,
+  getCodeEditorValue,
+  openCodeView,
+  openVisualView,
+  setCodeCursor,
+} from './helpers/code-editor';
 
 // ============================================================
 // Test suite: Cursor marker not injected into image/link tags (#37)
@@ -33,25 +40,20 @@ test.describe('Cursor marker not injected into content (#37)', () => {
     await waitForTab(page, 'doc-with-image.md');
 
     // Switch to code view
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
 
     // Place cursor inside the image URL
-    const content = await codeEditor.inputValue();
+    const content = await getCodeEditorValue(page);
     const imageUrlStart = content.indexOf('https://example.com');
     expect(imageUrlStart).toBeGreaterThan(-1);
 
     // Click into the textarea and set cursor position inside image URL
-    await codeEditor.focus();
-    await codeEditor.evaluate((el: HTMLTextAreaElement, pos: number) => {
-      el.setSelectionRange(pos, pos);
-    }, imageUrlStart + 5);
+    await setCodeCursor(page, imageUrlStart + 5);
     await page.waitForTimeout(100);
 
     // Switch back to visual view
-    await page.locator('button[title="Visual"]').click();
+    await openVisualView(page);
     await page.waitForTimeout(500);
 
     // The visual editor should be visible
@@ -59,11 +61,10 @@ test.describe('Cursor marker not injected into content (#37)', () => {
     await expect(editorContent).toBeVisible({ timeout: 3_000 });
 
     // Switch to code view again to verify content integrity
-    await page.locator('button[title="Code"]').click();
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
 
-    const contentAfter = await codeEditor.inputValue();
+    const contentAfter = await getCodeEditorValue(page);
 
     // Content should NOT contain __CURSOR__ marker or zero-width spaces
     expect(contentAfter).not.toContain('__CURSOR__');
@@ -87,32 +88,26 @@ test.describe('Cursor marker not injected into content (#37)', () => {
     await waitForTab(page, 'doc-with-link.md');
 
     // Switch to code view
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
 
     // Place cursor inside the link URL
-    const content = await codeEditor.inputValue();
+    const content = await getCodeEditorValue(page);
     const linkUrlStart = content.indexOf('https://example.com/page');
     expect(linkUrlStart).toBeGreaterThan(-1);
 
-    await codeEditor.focus();
-    await codeEditor.evaluate((el: HTMLTextAreaElement, pos: number) => {
-      el.setSelectionRange(pos, pos);
-    }, linkUrlStart + 10);
+    await setCodeCursor(page, linkUrlStart + 10);
     await page.waitForTimeout(100);
 
     // Switch back to visual view
-    await page.locator('button[title="Visual"]').click();
+    await openVisualView(page);
     await page.waitForTimeout(500);
 
     // Switch to code again and verify
-    await page.locator('button[title="Code"]').click();
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
 
-    const contentAfter = await codeEditor.inputValue();
+    const contentAfter = await getCodeEditorValue(page);
 
     expect(contentAfter).not.toContain('__CURSOR__');
     expect(contentAfter).not.toContain('\u200B');
@@ -130,31 +125,25 @@ test.describe('Cursor marker not injected into content (#37)', () => {
     await waitForTab(page, 'doc-with-image.md');
 
     // Switch to code view
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
 
     // Replace the image URL
-    const content = await codeEditor.inputValue();
+    const content = await getCodeEditorValue(page);
     const newContent = content.replace(
       'https://example.com/image.png',
       'https://example.com/new-image.jpg'
     );
-    await codeEditor.fill(newContent);
-    await codeEditor.dispatchEvent('input');
+    await fillCodeEditor(page, newContent);
     await page.waitForTimeout(200);
 
     // Place cursor inside the new URL
     const newUrlStart = newContent.indexOf('https://example.com/new-image');
-    await codeEditor.focus();
-    await codeEditor.evaluate((el: HTMLTextAreaElement, pos: number) => {
-      el.setSelectionRange(pos, pos);
-    }, newUrlStart + 10);
+    await setCodeCursor(page, newUrlStart + 10);
     await page.waitForTimeout(100);
 
     // Switch to visual view (this was the buggy path - content changed + cursor in image)
-    await page.locator('button[title="Visual"]').click();
+    await openVisualView(page);
     await page.waitForTimeout(500);
 
     // Verify visual editor is shown
@@ -162,11 +151,10 @@ test.describe('Cursor marker not injected into content (#37)', () => {
     await expect(editorContent).toBeVisible({ timeout: 3_000 });
 
     // Switch back to code to verify content
-    await page.locator('button[title="Code"]').click();
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
 
-    const contentAfter = await codeEditor.inputValue();
+    const contentAfter = await getCodeEditorValue(page);
 
     // No marker corruption
     expect(contentAfter).not.toContain('__CURSOR__');

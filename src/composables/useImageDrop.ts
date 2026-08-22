@@ -1,4 +1,5 @@
 import type { Ref } from 'vue';
+import type { CodeEditorHandle } from '../types/code-editor';
 import { isImageFile, escapeMarkdownAlt } from '../utils/image-file-utils';
 import { importImage, type ImportedImage } from '../services/imageImport';
 
@@ -18,7 +19,7 @@ function toInsertable(item: ImportedImage): InsertableImage {
 
 export interface UseImageDropOptions {
   codeView: Ref<boolean>;
-  codeEditorTextarea: () => HTMLTextAreaElement | null;
+  codeEditor: () => CodeEditorHandle | null;
   activeFilePath: () => string | null;
   findVisualTargetAt: (x: number, y: number) => ImageDropTarget | null;
   onImagesImported?: () => void;
@@ -35,7 +36,7 @@ export function useImageDrop(options: UseImageDropOptions): UseImageDropReturn {
     if (imagePaths.length === 0) return;
 
     if (options.codeView.value) {
-      await insertIntoTextarea(imagePaths, options);
+      await insertIntoCodeEditor(imagePaths, options);
     } else {
       await insertIntoVisualPane(imagePaths, position, options);
     }
@@ -59,16 +60,16 @@ async function insertIntoVisualPane(
   if (items.length > 0) target.insertImages(items.map(toInsertable));
 }
 
-async function insertIntoTextarea(paths: string[], options: UseImageDropOptions): Promise<void> {
-  const textarea = options.codeEditorTextarea();
-  if (!textarea) return;
+async function insertIntoCodeEditor(paths: string[], options: UseImageDropOptions): Promise<void> {
+  const editor = options.codeEditor();
+  if (!editor) return;
 
   const filePath = options.activeFilePath();
   const items = await importAll(paths, filePath, options.onError);
   if (items.length === 0) return;
 
   const markdown = buildMarkdownBlock(items);
-  insertAtCursor(textarea, markdown);
+  insertAtCursor(editor, markdown);
 }
 
 async function importAll(
@@ -94,11 +95,11 @@ function buildMarkdownBlock(items: ImportedImage[]): string {
     .join('\n\n');
 }
 
-function insertAtCursor(textarea: HTMLTextAreaElement, text: string): void {
-  const start = textarea.selectionStart ?? textarea.value.length;
-  const end = textarea.selectionEnd ?? start;
-  const before = textarea.value.slice(0, start);
-  const after = textarea.value.slice(end);
+function insertAtCursor(editor: CodeEditorHandle, text: string): void {
+  const value = editor.getValue();
+  const { start, end } = editor.getSelection();
+  const before = value.slice(0, start);
+  const after = value.slice(end);
 
   const needsLeadingNewline = before.length > 0 && !before.endsWith('\n');
   const needsTrailingNewline = after.length > 0 && !after.startsWith('\n');
@@ -107,10 +108,6 @@ function insertAtCursor(textarea: HTMLTextAreaElement, text: string): void {
   const suffix = needsTrailingNewline ? '\n' : '';
   const payload = `${prefix}${text}${suffix}`;
 
-  textarea.value = `${before}${payload}${after}`;
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-  const caret = start + payload.length;
-  textarea.setSelectionRange(caret, caret);
-  textarea.focus();
+  editor.replaceSelection(payload);
+  editor.focus();
 }

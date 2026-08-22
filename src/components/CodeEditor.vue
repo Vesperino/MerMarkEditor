@@ -1,285 +1,251 @@
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Compartment, EditorState } from '@codemirror/state';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { markdown } from '@codemirror/lang-markdown';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { EditorView, keymap, lineNumbers } from '@codemirror/view';
+import { tags } from '@lezer/highlight';
 import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
-import { useTextareaLineMove } from '../composables/useTextareaLineMove';
-import { useTextareaTabIndent } from '../composables/useTextareaTabIndent';
+import type { CodeEditorHandle } from '../types/code-editor';
+
+const props = defineProps<{ modelValue: string }>();
+const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
 const { zoomScale } = useEditorZoom();
 const { settings } = useSettings();
+const hostRef = ref<HTMLDivElement | null>(null);
+const wrapConfig = new Compartment();
+const gutterConfig = new Compartment();
+let view: EditorView | null = null;
+let applyingExternalValue = false;
+let lastSyncedValue = props.modelValue;
+let highlightedLine: HTMLElement | null = null;
+let highlightTimer: number | null = null;
+let highlightAnimation: Animation | null = null;
+
+const clearSelectionHighlight = () => {
+  highlightAnimation?.cancel();
+  highlightAnimation = null;
+  highlightedLine?.classList.remove('code-cursor-highlight-line');
+  highlightedLine = null;
+  if (highlightTimer !== null) {
+    window.clearTimeout(highlightTimer);
+    highlightTimer = null;
+  }
+};
+
+const markdownHighlightStyle = HighlightStyle.define([
+  { tag: tags.heading, color: 'var(--code-md-heading)', fontWeight: '600' },
+  { tag: tags.list, color: 'var(--code-md-bullet)' },
+  { tag: tags.strong, color: 'var(--code-md-strong)', fontWeight: '700' },
+  { tag: tags.emphasis, color: 'var(--code-md-emphasis)', fontStyle: 'italic' },
+  { tag: [tags.link, tags.url, tags.string], color: 'var(--code-md-link)' },
+  { tag: [tags.monospace, tags.quote], color: 'var(--code-md-code)' },
+  { tag: [tags.meta, tags.processingInstruction, tags.contentSeparator], color: 'var(--code-md-meta)' },
+]);
 
 const codeZoomStyle = computed(() => ({ zoom: zoomScale.value }));
-const wordWrap = computed(() => settings.value.codeWordWrap);
-const showLineNumbers = computed(() => settings.value.showLineNumbers);
 
-const props = defineProps<{
-  modelValue: string;
-}>();
-
-const emit = defineEmits<{
-  'update:modelValue': [value: string];
-}>();
-
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
-const gutterRef = ref<HTMLDivElement | null>(null);
-
-interface CodeGutterMetrics {
-  lineHeight: number;
-  paddingTop: number;
-  paddingBottom: number;
-}
-
-interface CodeGutterLine {
-  num: number;
-  top: number;
-  height: number;
-}
-
-const DEFAULT_GUTTER_METRICS: CodeGutterMetrics = {
-  lineHeight: 22.4,
-  paddingTop: 24,
-  paddingBottom: 24,
+const editor: CodeEditorHandle = {
+  focus: () => view?.focus(),
+  getValue: () => view?.state.doc.toString() ?? props.modelValue,
+  getSelection: () => {
+    const range = view?.state.selection.main;
+    return range ? { start: range.from, end: range.to } : { start: 0, end: 0 };
+  },
+  setSelection: (start, end = start) => {
+    if (!view) return;
+    const length = view.state.doc.length;
+    const anchor = Math.max(0, Math.min(start, length));
+    const head = Math.max(0, Math.min(end, length));
+    view.dispatch({
+      selection: { anchor, head },
+      effects: EditorView.scrollIntoView(head, { y: 'center' }),
+    });
+  },
+  replaceSelection: (text) => {
+    if (!view) return;
+    const { from, to } = view.state.selection.main;
+    view.dispatch({
+      changes: { from, to, insert: text },
+      selection: { anchor: from + text.length },
+      scrollIntoView: true,
+    });
+  },
+  getScrollRatio: () => {
+    if (!view) return 0;
+    const maxScroll = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
+    return maxScroll > 0 ? view.scrollDOM.scrollTop / maxScroll : 0;
+  },
+  scrollToRatio: (ratio) => {
+    if (!view) return;
+    const maxScroll = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
+    view.scrollDOM.scrollTop = Math.max(0, Math.min(1, ratio)) * Math.max(0, maxScroll);
+  },
+  scrollToPosition: (position) => {
+    if (!view) return;
+    const pos = Math.max(0, Math.min(position, view.state.doc.length));
+    view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+  },
+  highlightSelectionLine: (durationMs = 1000) => {
+    if (!view) return;
+    clearSelectionHighlight();
+    // CodeMirror may still be completing its scroll/layout measure after a
+    // maximized window or viewport resize. Start the animation in its next
+    // synchronized write phase so none of it is consumed off-screen.
+    view.requestMeasure<HTMLElement | null>({
+      read: (measuredView) => {
+        const domAtCursor = measuredView.domAtPos(measuredView.state.selection.main.head).node;
+        const cursorElement = domAtCursor instanceof Element ? domAtCursor : domAtCursor.parentElement;
+        return cursorElement?.closest<HTMLElement>('.cm-line') ?? null;
+      },
+      write: (line) => {
+        if (!line || !line.isConnected) return;
+        line.classList.add('code-cursor-highlight-line');
+        highlightedLine = line;
+        // A fresh Animation object avoids Chromium reusing a CSS animation's
+        // timeline after CodeMirror is mounted/unmounted several times.
+        highlightAnimation = line.animate([
+          {
+            backgroundColor: 'rgba(56, 189, 248, 0.55)',
+            boxShadow: '0 0 18px 6px rgba(56, 189, 248, 0.65), 0 0 30px 10px rgba(14, 165, 233, 0.35)',
+          },
+          {
+            offset: 0.25,
+            backgroundColor: 'rgba(56, 189, 248, 0.42)',
+            boxShadow: '0 0 14px 4px rgba(56, 189, 248, 0.48), 0 0 24px 8px rgba(14, 165, 233, 0.26)',
+          },
+          {
+            offset: 0.5,
+            backgroundColor: 'rgba(56, 189, 248, 0.28)',
+            boxShadow: '0 0 10px 3px rgba(56, 189, 248, 0.32), 0 0 18px 6px rgba(14, 165, 233, 0.18)',
+          },
+          {
+            offset: 0.75,
+            backgroundColor: 'rgba(56, 189, 248, 0.14)',
+            boxShadow: '0 0 5px 1px rgba(56, 189, 248, 0.16), 0 0 9px 3px rgba(14, 165, 233, 0.09)',
+          },
+          { backgroundColor: 'transparent', boxShadow: '0 0 0 0 transparent' },
+        ], { duration: durationMs, easing: 'linear', fill: 'forwards' });
+        highlightAnimation.addEventListener('finish', clearSelectionHighlight, { once: true });
+        // Fallback for environments that suppress animation events.
+        highlightTimer = window.setTimeout(clearSelectionHighlight, durationMs + 250);
+      },
+      key: 'cursor-line-highlight',
+    });
+  },
 };
 
-const gutterMetrics = ref<CodeGutterMetrics>({ ...DEFAULT_GUTTER_METRICS });
-let resizeObserver: ResizeObserver | null = null;
+defineExpose({ editor });
 
-defineExpose({
-  textarea: textareaRef,
+onMounted(() => {
+  if (!hostRef.value) return;
+  view = new EditorView({
+    parent: hostRef.value,
+    state: EditorState.create({
+      doc: props.modelValue,
+      extensions: [
+        history(),
+        markdown(),
+        syntaxHighlighting(markdownHighlightStyle),
+        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+        wrapConfig.of(settings.value.codeWordWrap ? EditorView.lineWrapping : []),
+        gutterConfig.of(settings.value.showLineNumbers ? lineNumbers() : []),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged && !applyingExternalValue) {
+            lastSyncedValue = update.state.doc.toString();
+            emit('update:modelValue', lastSyncedValue);
+          }
+        }),
+        EditorView.theme({
+          '&': { height: '100%', backgroundColor: 'var(--code-editor-bg)', color: 'var(--code-editor-text)' },
+          '.cm-scroller': {
+            overflow: 'auto',
+            fontFamily: 'var(--code-font-family, "Fira Code", "Consolas", "Monaco", monospace)',
+            fontSize: 'var(--code-font-size, 14px)',
+            lineHeight: '1.6',
+          },
+          '.cm-content': { minHeight: '100%', padding: '24px 0', caretColor: 'var(--code-editor-text)' },
+          '.cm-line': { padding: '0 24px' },
+          '.cm-gutters': {
+            backgroundColor: 'var(--code-editor-bg)',
+            color: 'var(--code-editor-gutter-text, var(--text-secondary, #888))',
+            border: 'none',
+            borderRadius: '8px 0 0 8px',
+            minWidth: '3em',
+            opacity: '0.6',
+            fontFamily: 'var(--code-font-family, "Fira Code", "Consolas", "Monaco", monospace)',
+            fontSize: 'var(--code-font-size, 14px)',
+          },
+          '.cm-lineNumbers .cm-gutterElement': { padding: '0 0.5em 0 0.75em', minWidth: '3em' },
+          '&.cm-focused': { outline: 'none', boxShadow: '0 0 0 2px var(--focus-ring-alpha)' },
+        }),
+      ],
+    }),
+  });
 });
 
-const lineCount = computed(() => {
-  const value = props.modelValue ?? '';
-  return Math.max(1, value.split('\n').length);
+watch(() => props.modelValue, (value) => {
+  if (!view || value === lastSyncedValue) return;
+  applyingExternalValue = true;
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+  lastSyncedValue = value;
+  applyingExternalValue = false;
 });
 
-const resolveTextareaMetrics = (textarea: HTMLTextAreaElement): CodeGutterMetrics => {
-  const computedStyle = window.getComputedStyle(textarea);
-  const fontSize = parseFloat(computedStyle.fontSize) || 14;
-  const parsedLineHeight = parseFloat(computedStyle.lineHeight);
-
-  return {
-    lineHeight: computedStyle.lineHeight === 'normal' || Number.isNaN(parsedLineHeight)
-      ? fontSize * 1.2
-      : parsedLineHeight,
-    paddingTop: parseFloat(computedStyle.paddingTop) || 0,
-    paddingBottom: parseFloat(computedStyle.paddingBottom) || 0,
-  };
-};
-
-const syncGutterMetrics = () => {
-  const textarea = textareaRef.value;
-  if (!textarea) {
-    gutterMetrics.value = { ...DEFAULT_GUTTER_METRICS };
-    return;
-  }
-
-  gutterMetrics.value = resolveTextareaMetrics(textarea);
-
-  if (gutterRef.value) {
-    gutterRef.value.scrollTop = textarea.scrollTop;
-  }
-};
-
-const scheduleGutterSync = () => {
-  requestAnimationFrame(syncGutterMetrics);
-};
-
-const gutterLines = computed<CodeGutterLine[]>(() => {
-  const { lineHeight, paddingTop } = gutterMetrics.value;
-  return Array.from({ length: lineCount.value }, (_, index) => ({
-    num: index + 1,
-    top: paddingTop + index * lineHeight,
-    height: lineHeight,
-  }));
+watch(() => settings.value.codeWordWrap, (enabled) => {
+  view?.dispatch({ effects: wrapConfig.reconfigure(enabled ? EditorView.lineWrapping : []) });
 });
 
-const gutterContentHeight = computed(() => {
-  const { lineHeight, paddingTop, paddingBottom } = gutterMetrics.value;
-  return paddingTop + paddingBottom + lineCount.value * lineHeight;
+watch(() => settings.value.showLineNumbers, (enabled) => {
+  view?.dispatch({ effects: gutterConfig.reconfigure(enabled ? lineNumbers() : []) });
 });
-
-watch(textareaRef, (textarea, previous) => {
-  if (resizeObserver && previous) {
-    resizeObserver.unobserve(previous);
-  }
-
-  if (!textarea) return;
-
-  if (!resizeObserver) {
-    resizeObserver = new ResizeObserver(syncGutterMetrics);
-  }
-
-  resizeObserver.observe(textarea);
-  scheduleGutterSync();
-}, { immediate: true });
-
-watch([
-  () => props.modelValue,
-  wordWrap,
-  showLineNumbers,
-  zoomScale,
-  () => settings.value.codeFontFamily,
-], scheduleGutterSync);
 
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
+  clearSelectionHighlight();
+  view?.destroy();
+  view = null;
 });
-
-const handleInput = (event: Event) => {
-  const target = event.target as HTMLTextAreaElement;
-  emit('update:modelValue', target.value);
-};
-
-const { handleKeydown: handleLineMoveKeydown } = useTextareaLineMove({
-  textareaRef,
-  onChange: (value) => emit('update:modelValue', value),
-});
-
-const { handleKeydown: handleTabIndentKeydown } = useTextareaTabIndent({
-  textareaRef,
-  onChange: (value) => emit('update:modelValue', value),
-});
-
-const handleKeydown = (event: KeyboardEvent) => {
-  handleLineMoveKeydown(event);
-  handleTabIndentKeydown(event);
-};
-
-const handleScroll = (event: Event) => {
-  const target = event.target as HTMLTextAreaElement;
-  if (gutterRef.value) {
-    gutterRef.value.scrollTop = target.scrollTop;
-  }
-};
 </script>
 
 <template>
-  <div class="code-editor-container" :class="{ 'has-line-numbers': showLineNumbers }">
+  <div class="code-editor-container">
     <div
-      v-if="showLineNumbers"
-      ref="gutterRef"
-      class="code-editor-gutter"
-      :style="codeZoomStyle"
-      aria-hidden="true"
-    >
-      <div class="code-editor-gutter-content" :style="{ height: `${gutterContentHeight}px` }">
-        <span
-          v-for="line in gutterLines"
-          :key="line.num"
-          class="code-editor-gutter-line"
-          :style="{
-            top: `${line.top}px`,
-            height: `${line.height}px`,
-          }"
-        >{{ line.num }}</span>
-      </div>
-    </div>
-    <textarea
-      id="code-editor-textarea"
-      ref="textareaRef"
+      ref="hostRef"
       class="code-editor"
-      :class="{ 'word-wrap': wordWrap }"
       :style="codeZoomStyle"
-      :value="modelValue"
-      @input="handleInput"
-      @keydown="handleKeydown"
-      @scroll="handleScroll"
-      spellcheck="false"
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="off"
-    ></textarea>
+      :data-document-length="modelValue.length"
+    ></div>
   </div>
 </template>
 
 <style scoped>
 .code-editor-container {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   background: var(--code-editor-container-bg);
   padding: 20px;
 }
 
-.code-editor-container.has-line-numbers {
-  flex-direction: row;
-  gap: 0;
-}
-
-.code-editor-gutter {
-  flex: 0 0 auto;
-  min-width: 3em;
-  box-sizing: border-box;
-  padding: 0 0.5em 0 0.75em;
-  background: var(--code-editor-bg);
-  color: var(--code-editor-gutter-text, var(--text-secondary, #888));
-  opacity: 0.6;
-  font-family: var(--code-font-family, "Fira Code", "Consolas", "Monaco", monospace);
-  font-size: var(--code-font-size, 14px);
-  line-height: 1;
-  text-align: right;
-  user-select: none;
-  overflow: hidden;
-  border-radius: 8px 0 0 8px;
-  position: relative;
-}
-
-.code-editor-gutter-content {
-  position: relative;
-  min-height: 100%;
-}
-
-.code-editor-gutter-line {
-  position: absolute;
-  right: 0.5em;
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  line-height: 1;
-}
-
-.code-editor-container.has-line-numbers .code-editor {
-  border-radius: 0 8px 8px 0;
-}
-
 .code-editor {
-  flex: 1;
   width: 100%;
-  min-height: 0;
-  background: var(--code-editor-bg);
-  color: var(--code-editor-text);
-  border: none;
+  height: 100%;
+  overflow: hidden;
   border-radius: 8px;
-  padding: 24px;
-  font-family: var(--code-font-family, "Fira Code", "Consolas", "Monaco", monospace);
   font-size: var(--code-font-size, 14px);
-  line-height: 1.6;
-  resize: none;
-  outline: none;
-  tab-size: var(--code-tab-size, 2);
-  white-space: pre;
-  overflow-x: auto;
-  overflow-y: auto;
 }
 
-.code-editor.word-wrap {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  overflow-x: hidden;
-}
-
-.code-editor:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--focus-ring-alpha);
+.code-editor :deep(.cm-editor) { border-radius: 8px; }
+.code-editor :deep(.cm-scroller) { tab-size: var(--code-tab-size, 2); }
+.code-editor :deep(.code-cursor-highlight-line) {
+  border-radius: 3px;
+  position: relative;
 }
 
 @media print {
-  .code-editor-container {
-    display: none !important;
-  }
+  .code-editor-container { display: none !important; }
 }
 </style>

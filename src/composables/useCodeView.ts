@@ -1,8 +1,11 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
+import { NodeSelection } from '@tiptap/pm/state';
+import type { CodeEditorHandle } from '../types/code-editor';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import { targetScrollTop } from '../utils/scroll';
+import { isStandaloneSafeHtmlBlock, safeHtmlSourceKey, safeHtmlTagTokens } from '../utils/safe-html';
 import {
   DOM_SELECTORS,
   TIMING,
@@ -15,14 +18,19 @@ export interface UseCodeViewOptions {
   getActiveContent: () => string;
   setActiveContent: (content: string) => void;
   markAsChanged: () => void;
+  /** When true at CODE→VISUAL time, convert even if the snapshot is unchanged —
+   *  used for markdown-first tabs whose HTML was never generated (issue #129). */
+  forceConvertOnExit?: () => boolean;
 }
 
 export interface UseCodeViewReturn {
   codeView: Ref<boolean>;
   codeContent: Ref<string>;
-  codeEditorRef: Ref<HTMLTextAreaElement | null>;
+  codeEditorRef: Ref<CodeEditorHandle | null>;
   toggleCodeView: (editor: Editor | null | undefined) => Promise<void>;
   onCodeContentUpdate: (value: string) => void;
+  enterCodeViewWithMarkdown: (markdown: string) => Promise<void>;
+  seedCodeContent: (markdown: string) => void;
 }
 
 let activeHighlightElement: HTMLElement | null = null;
@@ -215,7 +223,7 @@ const getProseMirrorRoot = (container: HTMLElement): HTMLElement | null => {
 interface MarkdownBlock {
   startLine: number;
   endLine: number; // exclusive
-  type: 'code' | 'mermaid' | 'table' | 'heading' | 'list' | 'taskList' | 'blockquote' | 'hr' | 'paragraph';
+  type: 'code' | 'mermaid' | 'html' | 'table' | 'heading' | 'list' | 'taskList' | 'blockquote' | 'hr' | 'paragraph';
 }
 
 // Parse markdown into blocks with exact source-line ranges.
@@ -231,6 +239,30 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
     const trimmed = line.trim();
 
     if (!trimmed) { i++; continue; }
+
+    // Supported README HTML is represented by one atomic visual node, so its
+    // complete source range must also be one block for cursor restoration.
+    const htmlBlockStart = trimmed.match(/^<(p|details)\b/i);
+    if (htmlBlockStart) {
+      const startLine = i;
+      const tag = htmlBlockStart[1];
+      let depth = 0;
+      do {
+        for (const token of safeHtmlTagTokens(lines[i])) {
+          if (token.name !== tag.toLowerCase()) continue;
+          if (token.closing) depth = Math.max(0, depth - 1);
+          else if (!token.selfClosing) depth++;
+        }
+        i++;
+      } while (i < lines.length && depth > 0);
+      blocks.push({ startLine, endLine: i, type: 'html' });
+      continue;
+    }
+    if (/^<(?:img|a)\b/i.test(trimmed) && isStandaloneSafeHtmlBlock(trimmed)) {
+      blocks.push({ startLine: i, endLine: i + 1, type: 'html' });
+      i++;
+      continue;
+    }
 
     // Mermaid blocks: any enabled format's open delimiter. The matching close
     // is taken from the format that opened the block so a `:::mermaid` block
@@ -360,11 +392,6 @@ const findElementByBlockMap = (
 
   if (blocks.length === 0 || children.length === 0) return null;
 
-  // If block count diverges too far from DOM children, mapping is unreliable
-  if (Math.abs(blocks.length - children.length) > Math.max(2, Math.ceil(blocks.length * 0.1))) {
-    return null;
-  }
-
   // Find the block containing the cursor line
   let blockIndex = -1;
   for (let bi = 0; bi < blocks.length; bi++) {
@@ -388,9 +415,32 @@ const findElementByBlockMap = (
 
   if (blockIndex < 0) return null;
 
+  const block = blocks[blockIndex];
+  if (block.type === 'html') {
+    const lines = markdown.split('\n');
+    const raw = lines.slice(block.startLine, block.endLine).join('\n').trim();
+    const key = safeHtmlSourceKey(raw);
+    const occurrence = blocks.slice(0, blockIndex).filter((candidate) => {
+      if (candidate.type !== 'html') return false;
+      return safeHtmlSourceKey(lines.slice(candidate.startLine, candidate.endLine).join('\n').trim()) === key;
+    }).length;
+    const matching = Array.from(root.querySelectorAll<HTMLElement>(':scope > .safe-html-block'))
+      .filter(element => element.dataset.safeHtmlSourceKey === key);
+    const element = matching[occurrence];
+    if (!element) return null;
+    const lineInBlock = Math.max(0, cursorLine - block.startLine);
+    element.dataset.safeHtmlCursorLine = String(lineInBlock);
+    return element.querySelector<HTMLElement>(`[data-safe-html-source-line="${lineInBlock}"]`) || element;
+  }
+
+  // If ordinary block count diverges too far from DOM children, mapping is unreliable.
+  // Raw HTML above bypasses this heuristic and matches its exact source identity.
+  if (Math.abs(blocks.length - children.length) > Math.max(2, Math.ceil(blocks.length * 0.1))) {
+    return null;
+  }
+
   const clampedIndex = Math.min(blockIndex, children.length - 1);
   const element = children[clampedIndex];
-  const block = blocks[blockIndex];
 
   // Drill into list items for more precision
   if (block.type === 'list' || block.type === 'taskList') {
@@ -405,6 +455,13 @@ const findElementByBlockMap = (
   return element;
 };
 
+const positionAtLine = (source: string, line: number): number => {
+  const lines = source.split('\n');
+  let position = 0;
+  for (let i = 0; i < line && i < lines.length; i++) position += lines[i].length + 1;
+  return Math.min(position, source.length);
+};
+
 // Try to find a DOM element by matching the text content of the cursor's
 // markdown line. This is more robust than line counting for large documents
 // where cumulative estimation drift causes misses.
@@ -415,6 +472,14 @@ const findElementByText = (root: HTMLElement, markdown: string, cursorLine: numb
 
   const trimmed = line.trim();
   if (!trimmed) return null;
+
+  // Raw HTML has its own source-identity and per-tag line map. A textual
+  // search can otherwise select an earlier rendered block containing the same
+  // words (common in README badges/header sections).
+  const sourceBlock = parseMarkdownBlocks(markdown).find(block => (
+    cursorLine >= block.startLine && cursorLine < block.endLine
+  ));
+  if (sourceBlock?.type === 'html') return null;
 
   // Heading: strip # prefix and search heading elements
   const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
@@ -514,76 +579,10 @@ const findCodeBlockElement = (root: HTMLElement, blockIndex: number): HTMLElemen
   return null;
 };
 
-// Compute CSS line height from a textarea's computed style.
-const getComputedLineHeight = (textarea: HTMLTextAreaElement): number => {
-  const cs = window.getComputedStyle(textarea);
-  const fontSize = parseFloat(cs.fontSize);
-  return cs.lineHeight === 'normal' ? fontSize * 1.2 : parseFloat(cs.lineHeight);
-};
-
-// Measure the exact top-offset of the caret inside a textarea using a mirror div.
-// This avoids lineNumber*lineHeight math which drifts due to sub-pixel rounding.
-const MIRROR_PROPS = [
-  'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
-  'letter-spacing', 'word-spacing', 'text-indent', 'text-transform',
-  'line-height', 'tab-size',
-  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-  'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
-  'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
-  'white-space', 'overflow-wrap', 'word-break',
-];
-
-const measureCaretTop = (textarea: HTMLTextAreaElement, position: number): number => {
-  const cs = window.getComputedStyle(textarea);
-  const div = document.createElement('div');
-  for (const prop of MIRROR_PROPS) div.style.setProperty(prop, cs.getPropertyValue(prop));
-  div.style.position = 'absolute';
-  div.style.visibility = 'hidden';
-  div.style.overflow = 'hidden';
-  div.style.height = 'auto';
-  div.style.width = textarea.clientWidth + 'px';
-  div.style.boxSizing = 'border-box';
-
-  div.appendChild(document.createTextNode(textarea.value.substring(0, position)));
-  const marker = document.createElement('span');
-  marker.textContent = '\u200b';
-  div.appendChild(marker);
-
-  document.body.appendChild(div);
-  const top = marker.offsetTop;
-  document.body.removeChild(div);
-  return top;
-};
-
-const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
-  const cursorPos = textarea.selectionStart;
-  const caretTop = measureCaretTop(textarea, cursorPos);
-  const lh = getComputedLineHeight(textarea);
-  const rect = textarea.getBoundingClientRect();
-  const scale = textarea.offsetHeight > 0 ? rect.height / textarea.offsetHeight : 1;
-
-  const visibleTop = caretTop - textarea.scrollTop;
-  const top = rect.top + visibleTop * scale;
-  const lineHVp = lh * scale;
-
-  if (top < rect.top || top + lineHVp > rect.bottom) return;
-
-  const highlight = document.createElement('div');
-  highlight.className = 'cursor-highlight';
-  highlight.style.position = 'fixed';
-  highlight.style.left = `${rect.left}px`;
-  highlight.style.top = `${top - HIGHLIGHT_PADDING}px`;
-  highlight.style.width = `${rect.width}px`;
-  highlight.style.height = `${lineHVp + HIGHLIGHT_PADDING * 2}px`;
-
-  document.body.appendChild(highlight);
-  window.setTimeout(() => highlight.remove(), TIMING.HIGHLIGHT_DURATION);
-};
-
 export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const codeView = ref(false);
   const codeContent = ref('');
-  const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
+  const codeEditorRef = ref<CodeEditorHandle | null>(null);
   const savedCursorLine = ref(0);
   const savedScrollRatio = ref(0);
   let codeContentSnapshot = '';
@@ -592,7 +591,20 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   // Inject styles on module load
   injectHighlightStyles();
 
-  const { getActiveContent, setActiveContent, markAsChanged } = options;
+  const { getActiveContent, setActiveContent, markAsChanged, forceConvertOnExit } = options;
+
+  const enterCodeViewWithMarkdown = async (markdown: string): Promise<void> => {
+    codeContent.value = markdown;
+    codeContentSnapshot = markdown;
+    codeView.value = true;
+    await nextTick();
+    codeEditorRef.value?.focus();
+  };
+
+  const seedCodeContent = (markdown: string): void => {
+    codeContent.value = markdown;
+    codeContentSnapshot = markdown;
+  };
 
   const toggleCodeView = async (editor: Editor | null | undefined): Promise<void> => {
     if (isToggling) return;
@@ -612,13 +624,49 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         try {
           const $pos = editor.state.doc.resolve(from);
           const topBlockIndex = $pos.index(0);
+          const selectedNode = editor.state.selection instanceof NodeSelection
+            ? editor.state.selection.node
+            : editor.state.doc.nodeAt(from);
+
+          if (selectedNode?.type.name === 'safeHtmlBlock') {
+            const raw = String(selectedNode.attrs.raw ?? '');
+            let occurrence = 0;
+            for (let i = 0; i < topBlockIndex; i++) {
+              const sibling = editor.state.doc.child(i);
+              if (sibling.type.name === 'safeHtmlBlock' && String(sibling.attrs.raw ?? '') === raw) occurrence++;
+            }
+            const rawLines = raw.split('\n');
+            const sourceLines = codeContent.value.split('\n');
+            const matchingBlocks = parseMarkdownBlocks(codeContent.value).filter((block) => {
+              if (block.type !== 'html') return false;
+              return sourceLines.slice(block.startLine, block.endLine).join('\n').trim() === raw;
+            });
+            const sourceBlock = matchingBlocks[occurrence];
+            // The exact parsed block boundary avoids matching this raw source
+            // as a substring of a different/larger HTML block.
+            const rawStart = sourceBlock ? positionAtLine(codeContent.value, sourceBlock.startLine) : -1;
+            const nodeDom = editor.view.nodeDOM(from) as HTMLElement | null;
+            const clickedLine = Math.max(0, Number(nodeDom?.dataset.safeHtmlCursorLine ?? 0) || 0);
+            let offset = 0;
+            for (let i = 0; i < clickedLine && i < rawLines.length; i++) offset += rawLines[i].length + 1;
+            if (rawStart >= 0) markerPosition = Math.min(rawStart + offset, codeContent.value.length);
+          }
+
           const blocks = parseMarkdownBlocks(codeContent.value);
 
-          if (topBlockIndex >= 0 && topBlockIndex < blocks.length) {
+          if (markerPosition < 0 && topBlockIndex >= 0 && topBlockIndex < blocks.length) {
             const block = blocks[topBlockIndex];
             const lines = codeContent.value.split('\n');
+            let sourceLine = block.startLine;
+            if (block.type === 'html') {
+              const nodeDom = editor.view.nodeDOM(from) as HTMLElement | null;
+              const offset = Number(nodeDom?.dataset.safeHtmlCursorLine ?? 0);
+              if (Number.isFinite(offset)) {
+                sourceLine = Math.min(block.endLine - 1, block.startLine + Math.max(0, offset));
+              }
+            }
             let charPos = 0;
-            for (let i = 0; i < block.startLine && i < lines.length; i++) {
+            for (let i = 0; i < sourceLine && i < lines.length; i++) {
               charPos += lines[i].length + 1;
             }
 
@@ -671,22 +719,14 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         codeEditorRef.value.focus();
 
         if (markerPosition >= 0) {
-          codeEditorRef.value.setSelectionRange(markerPosition, markerPosition);
-
-          const lineNumber = getLineFromPosition(codeContent.value, markerPosition);
-          const lh = getComputedLineHeight(codeEditorRef.value);
-          const scrollTarget = Math.max(0, (lineNumber - 5) * lh);
-          codeEditorRef.value.scrollTop = scrollTarget;
+          codeEditorRef.value.setSelection(markerPosition);
+          codeEditorRef.value.scrollToPosition(markerPosition);
         } else {
-          const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
-          const targetScroll = Math.round(savedScrollRatio.value * codeMaxScroll);
-          codeEditorRef.value.scrollTop = targetScroll;
+          codeEditorRef.value.scrollToRatio(savedScrollRatio.value);
         }
 
         window.setTimeout(() => {
-          if (codeEditorRef.value) {
-            highlightCodeCursor(codeEditorRef.value);
-          }
+          codeEditorRef.value?.highlightSelectionLine(TIMING.CODE_HIGHLIGHT_DURATION);
           isToggling = false;
         }, TIMING.HIGHLIGHT_DELAY);
       } else {
@@ -702,12 +742,11 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       let lineInCodeBlock = -1;
 
       if (codeEditorRef.value) {
-        const cursorPos = codeEditorRef.value.selectionStart;
+        const cursorPos = codeEditorRef.value.getSelection().start;
         cursorLine = getLineFromPosition(codeContent.value, cursorPos);
 
         // Save scroll ratio as fallback
-        const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
-        savedScrollRatio.value = codeMaxScroll > 0 ? codeEditorRef.value.scrollTop / codeMaxScroll : 0;
+        savedScrollRatio.value = codeEditorRef.value.getScrollRatio();
 
         // Check if cursor is inside a code block
         const codeBlockInfo = getCodeBlockInfo(codeContent.value, cursorPos);
@@ -725,12 +764,13 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
       savedCursorLine.value = cursorLine;
 
-      const contentChanged = codeContent.value !== codeContentSnapshot;
+      const editedInCode = codeContent.value !== codeContentSnapshot;
+      const contentChanged = editedInCode || (forceConvertOnExit?.() ?? false);
 
       if (contentChanged) {
         const html = markdownToHtml(codeContent.value);
         setActiveContent(html);
-        markAsChanged();
+        if (editedInCode) markAsChanged();
       }
 
       codeView.value = false;
@@ -782,7 +822,9 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             // preserves position when toggling back to code view.
             if (editor) {
               try {
-                let pos = editor.view.posAtDOM(targetElement, 0);
+                const safeHtmlBlock = targetElement.closest<HTMLElement>('.safe-html-block');
+                const selectionElement = safeHtmlBlock || targetElement;
+                let pos = editor.view.posAtDOM(selectionElement, 0);
                 // For code blocks with a line offset, advance into the code
                 if (codeBlockIndex >= 0 && lineInCodeBlock > 0) {
                   const codeEl = targetElement.querySelector('code');
@@ -797,7 +839,14 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
                     pos = Math.min(codePos + charOffset, editor.state.doc.content.size);
                   }
                 }
-                editor.commands.setTextSelection(pos);
+                if (safeHtmlBlock) {
+                  safeHtmlBlock.dataset.safeHtmlCursorLine = targetElement.dataset.safeHtmlSourceLine
+                    ?? safeHtmlBlock.dataset.safeHtmlCursorLine
+                    ?? '0';
+                  editor.commands.setNodeSelection(pos);
+                } else {
+                  editor.commands.setTextSelection(pos);
+                }
               } catch { /* posAtDOM can throw if DOM is not in sync */ }
             }
 
@@ -871,5 +920,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
     codeEditorRef,
     toggleCodeView,
     onCodeContentUpdate,
+    enterCodeViewWithMarkdown,
+    seedCodeContent,
   };
 }

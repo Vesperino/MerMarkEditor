@@ -16,6 +16,13 @@ export interface Tab {
    * with the session by useSessionRestore.
    */
   pinned?: boolean;
+  /** True when the file exceeded LARGE_FILE_CHAR_THRESHOLD at open. */
+  largeFile?: boolean;
+  /**
+   * Raw markdown source of truth while no HTML has been generated yet.
+   * Non-null only for large files that have never entered a visual view.
+   */
+  pendingMarkdown?: string | null;
 }
 
 export interface UseTabsOptions {

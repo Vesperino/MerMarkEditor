@@ -53,10 +53,13 @@ export interface UseFileReloadOptions {
   hasChanges: ComputedRef<boolean>;
   findTabByFilePathSplit: (filePath: string) => PaneTabResult | undefined;
   setEditorContent: (content: string) => void;
+  /** Reseed the code editor when a reloaded markdown-first tab is active —
+   *  those tabs have no HTML, so setEditorContent cannot carry the update. */
+  setCodeMarkdown?: (markdown: string) => void;
 }
 
 export function useFileReload(options: UseFileReloadOptions) {
-  const { activePaneId, currentFile, hasChanges, findTabByFilePathSplit, setEditorContent } = options;
+  const { activePaneId, currentFile, hasChanges, findTabByFilePathSplit, setEditorContent, setCodeMarkdown } = options;
 
   // Toast state
   const showToast = ref(false);
@@ -101,6 +104,17 @@ export function useFileReload(options: UseFileReloadOptions) {
     if (!result) return;
 
     const { pane, tab } = result;
+
+    if (tab.largeFile && tab.pendingMarkdown != null) {
+      tab.pendingMarkdown = newContent;
+      tab.originalMarkdown = newContent;
+      tab.hasChanges = false;
+      fileWatcher.updateKnownContent(filePath, newContent);
+      const isActiveTab = tab.id === pane.activeTabId && pane.id === activePaneId.value;
+      if (isActiveTab) setCodeMarkdown?.(newContent);
+      return;
+    }
+
     const htmlContent = markdownToHtml(newContent);
     const isActive = tab.id === pane.activeTabId && pane.id === activePaneId.value;
 
@@ -115,6 +129,7 @@ export function useFileReload(options: UseFileReloadOptions) {
     fileWatcher.updateKnownContent(filePath, newContent);
 
     if (isActive) {
+      setCodeMarkdown?.(newContent);
       setEditorContent(htmlContent);
       restoreScrollRatio(savedRatio);
     }
