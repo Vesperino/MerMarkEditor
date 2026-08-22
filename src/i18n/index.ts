@@ -142,7 +142,6 @@ export interface Translations {
   newDocument: string;
   closeTab: string;
   closeTabTooltip: string;
-  largeFileCodeViewNotice: string;
 
   // Mermaid Node
   editDiagram: string;

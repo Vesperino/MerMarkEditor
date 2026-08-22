@@ -1,5 +1,6 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
+import type { CodeEditorHandle } from '../types/code-editor';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import { targetScrollTop } from '../utils/scroll';
@@ -23,7 +24,7 @@ export interface UseCodeViewOptions {
 export interface UseCodeViewReturn {
   codeView: Ref<boolean>;
   codeContent: Ref<string>;
-  codeEditorRef: Ref<HTMLTextAreaElement | null>;
+  codeEditorRef: Ref<CodeEditorHandle | null>;
   toggleCodeView: (editor: Editor | null | undefined) => Promise<void>;
   onCodeContentUpdate: (value: string) => void;
   enterCodeViewWithMarkdown: (markdown: string) => Promise<void>;
@@ -519,76 +520,10 @@ const findCodeBlockElement = (root: HTMLElement, blockIndex: number): HTMLElemen
   return null;
 };
 
-// Compute CSS line height from a textarea's computed style.
-const getComputedLineHeight = (textarea: HTMLTextAreaElement): number => {
-  const cs = window.getComputedStyle(textarea);
-  const fontSize = parseFloat(cs.fontSize);
-  return cs.lineHeight === 'normal' ? fontSize * 1.2 : parseFloat(cs.lineHeight);
-};
-
-// Measure the exact top-offset of the caret inside a textarea using a mirror div.
-// This avoids lineNumber*lineHeight math which drifts due to sub-pixel rounding.
-const MIRROR_PROPS = [
-  'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
-  'letter-spacing', 'word-spacing', 'text-indent', 'text-transform',
-  'line-height', 'tab-size',
-  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-  'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
-  'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
-  'white-space', 'overflow-wrap', 'word-break',
-];
-
-const measureCaretTop = (textarea: HTMLTextAreaElement, position: number): number => {
-  const cs = window.getComputedStyle(textarea);
-  const div = document.createElement('div');
-  for (const prop of MIRROR_PROPS) div.style.setProperty(prop, cs.getPropertyValue(prop));
-  div.style.position = 'absolute';
-  div.style.visibility = 'hidden';
-  div.style.overflow = 'hidden';
-  div.style.height = 'auto';
-  div.style.width = textarea.clientWidth + 'px';
-  div.style.boxSizing = 'border-box';
-
-  div.appendChild(document.createTextNode(textarea.value.substring(0, position)));
-  const marker = document.createElement('span');
-  marker.textContent = '\u200b';
-  div.appendChild(marker);
-
-  document.body.appendChild(div);
-  const top = marker.offsetTop;
-  document.body.removeChild(div);
-  return top;
-};
-
-const highlightCodeCursor = (textarea: HTMLTextAreaElement) => {
-  const cursorPos = textarea.selectionStart;
-  const caretTop = measureCaretTop(textarea, cursorPos);
-  const lh = getComputedLineHeight(textarea);
-  const rect = textarea.getBoundingClientRect();
-  const scale = textarea.offsetHeight > 0 ? rect.height / textarea.offsetHeight : 1;
-
-  const visibleTop = caretTop - textarea.scrollTop;
-  const top = rect.top + visibleTop * scale;
-  const lineHVp = lh * scale;
-
-  if (top < rect.top || top + lineHVp > rect.bottom) return;
-
-  const highlight = document.createElement('div');
-  highlight.className = 'cursor-highlight';
-  highlight.style.position = 'fixed';
-  highlight.style.left = `${rect.left}px`;
-  highlight.style.top = `${top - HIGHLIGHT_PADDING}px`;
-  highlight.style.width = `${rect.width}px`;
-  highlight.style.height = `${lineHVp + HIGHLIGHT_PADDING * 2}px`;
-
-  document.body.appendChild(highlight);
-  window.setTimeout(() => highlight.remove(), TIMING.HIGHLIGHT_DURATION);
-};
-
 export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const codeView = ref(false);
   const codeContent = ref('');
-  const codeEditorRef = ref<HTMLTextAreaElement | null>(null);
+  const codeEditorRef = ref<CodeEditorHandle | null>(null);
   const savedCursorLine = ref(0);
   const savedScrollRatio = ref(0);
   let codeContentSnapshot = '';
@@ -689,22 +624,13 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         codeEditorRef.value.focus();
 
         if (markerPosition >= 0) {
-          codeEditorRef.value.setSelectionRange(markerPosition, markerPosition);
-
-          const lineNumber = getLineFromPosition(codeContent.value, markerPosition);
-          const lh = getComputedLineHeight(codeEditorRef.value);
-          const scrollTarget = Math.max(0, (lineNumber - 5) * lh);
-          codeEditorRef.value.scrollTop = scrollTarget;
+          codeEditorRef.value.setSelection(markerPosition);
+          codeEditorRef.value.scrollToPosition(markerPosition);
         } else {
-          const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
-          const targetScroll = Math.round(savedScrollRatio.value * codeMaxScroll);
-          codeEditorRef.value.scrollTop = targetScroll;
+          codeEditorRef.value.scrollToRatio(savedScrollRatio.value);
         }
 
         window.setTimeout(() => {
-          if (codeEditorRef.value) {
-            highlightCodeCursor(codeEditorRef.value);
-          }
           isToggling = false;
         }, TIMING.HIGHLIGHT_DELAY);
       } else {
@@ -720,12 +646,11 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       let lineInCodeBlock = -1;
 
       if (codeEditorRef.value) {
-        const cursorPos = codeEditorRef.value.selectionStart;
+        const cursorPos = codeEditorRef.value.getSelection().start;
         cursorLine = getLineFromPosition(codeContent.value, cursorPos);
 
         // Save scroll ratio as fallback
-        const codeMaxScroll = codeEditorRef.value.scrollHeight - codeEditorRef.value.clientHeight;
-        savedScrollRatio.value = codeMaxScroll > 0 ? codeEditorRef.value.scrollTop / codeMaxScroll : 0;
+        savedScrollRatio.value = codeEditorRef.value.getScrollRatio();
 
         // Check if cursor is inside a code block
         const codeBlockInfo = getCodeBlockInfo(codeContent.value, cursorPos);

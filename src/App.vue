@@ -18,6 +18,7 @@ import LoadingOverlay from './components/LoadingOverlay.vue';
 import ExternalLinkDialog from './components/ExternalLinkDialog.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
+import LazyMarkdownPreview from './components/LazyMarkdownPreview.vue';
 import Editor from './components/Editor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
 import SplitContainer from './components/SplitContainer.vue';
@@ -71,6 +72,7 @@ import { usePdfExport } from './composables/usePdfExport';
 import { useDocxExport } from './composables/useDocxExport';
 import { serializeEditorContent } from './utils/documentSerializer';
 import { DOM_SELECTORS } from './constants';
+import type { CodeEditorHandle } from './types/code-editor';
 
 // ============ Split View & Tab Management ============
 const {
@@ -484,7 +486,10 @@ const {
       return splitSourceTabId.value === activeTabId.value ? splitMarkdownSource.value : null;
     }
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    return codeView.value ? codeContent.value : null;
+    if (codeView.value) return codeContent.value;
+    return largeFileVisualMode.value
+      ? lazyMarkdownEditorRef.value?.getMarkdown() ?? activeTab.value?.pendingMarkdown ?? null
+      : null;
   },
   setEditorContent,
   markSaveStart: (filePath: string) => markSaveStart(filePath),
@@ -509,8 +514,14 @@ const {
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       splitEditorActive.value = false;
     }
+    // Large files open directly in the editable, section-virtualized visual
+    // mode. Keep the raw Markdown as the source of truth until code mode,
+    // save, or an explicit full-document operation needs it.
+    void markdown;
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    void enterCodeViewWithMarkdown(markdown);
+    codeView.value = false;
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    largeFileVisualMode.value = true;
   },
   onAfterSave: (filePath: string, content: string) => {
     // New file just got a path (Save / Save As on a fresh tab) — ensure
@@ -764,12 +775,14 @@ watch([marpPreviewVisible, activePaneId], async () => {
 
 // ============ Code View ============
 const codeEditorComponentRef = ref<InstanceType<typeof CodeEditor> | null>(null);
+const lazyMarkdownEditorRef = ref<InstanceType<typeof LazyMarkdownPreview> | null>(null);
 
 // Markdown-first: large files (issue #129) carry raw markdown in
 // tab.pendingMarkdown and no HTML until the user explicitly enters a visual
 // view — every implicit path must keep them in code view.
 const isMarkdownFirst = (tab: { largeFile?: boolean; pendingMarkdown?: string | null } | null | undefined): boolean =>
   !!tab && tab.largeFile === true && tab.pendingMarkdown != null;
+const largeFileVisualMode = ref(false);
 
 const {
   codeView,
@@ -795,12 +808,12 @@ const {
   forceConvertOnExit: () => isMarkdownFirst(activeTab.value),
 });
 
-// Sync code editor ref with component's textarea
+// Sync the composable with the virtualized code editor.
 watch(
-  () => codeEditorComponentRef.value?.textarea,
-  (textarea) => {
-    if (textarea) {
-      codeEditorRef.value = textarea;
+  () => codeEditorComponentRef.value?.editor,
+  (editor) => {
+    if (editor) {
+      codeEditorRef.value = editor;
     }
   },
   { immediate: true }
@@ -808,6 +821,27 @@ watch(
 
 const toggleCodeView = async () => {
   isLoadingContent.value = true;
+
+  if (largeFileVisualMode.value) {
+    if (activeTab.value) {
+      activeTab.value.pendingMarkdown = lazyMarkdownEditorRef.value?.getMarkdown()
+        ?? activeTab.value.pendingMarkdown
+        ?? '';
+    }
+    largeFileVisualMode.value = false;
+    await enterCodeViewWithMarkdown(activeTab.value?.pendingMarkdown ?? '');
+    isLoadingContent.value = false;
+    return;
+  }
+
+  if (codeView.value && isMarkdownFirst(activeTab.value)) {
+    activeTab.value.pendingMarkdown = codeContent.value;
+    codeView.value = false;
+    largeFileVisualMode.value = true;
+    await nextTick();
+    isLoadingContent.value = false;
+    return;
+  }
 
   if (!codeView.value) {
     splitContainerRef.value?.getActiveVisualSearchApi?.()?.clearSearchHighlights();
@@ -868,13 +902,14 @@ watch(activeTabId, (_newId, oldId) => {
   enterSplitEditor(activeTab.value?.content || '<p></p>');
 });
 
-// Markdown-first activation rule (issue #129): whenever the active tab holds
-// unconverted markdown the app must be in code view seeded from it — for every
-// activation path (tab bar, workspace tree, cross-window, session restore).
-// Leaving such a tab while in code view commits the live codeContent back to
-// pendingMarkdown so nothing forces a multi-MB conversion implicitly.
+// Markdown-first activation rule (issue #129): large tabs keep Markdown as
+// their source of truth and open in the section-virtualized visual editor.
 watch(activeTabId, (_newId, oldId) => {
   const oldTab = tabs.value.find(t => t.id === oldId);
+  if (largeFileVisualMode.value && oldTab) {
+    oldTab.pendingMarkdown = lazyMarkdownEditorRef.value?.getMarkdown() ?? oldTab.pendingMarkdown;
+  }
+  largeFileVisualMode.value = false;
   if (codeView.value && isMarkdownFirst(oldTab)) {
     oldTab!.pendingMarkdown = codeContent.value;
   }
@@ -885,7 +920,8 @@ watch(activeTabId, (_newId, oldId) => {
       scrollSync.detach();
       splitEditorActive.value = false;
     }
-    void enterCodeViewWithMarkdown(tab.pendingMarkdown!);
+    codeView.value = false;
+    largeFileVisualMode.value = true;
     return;
   }
 
@@ -949,44 +985,32 @@ const onSplitPreviewChanged = (changed: boolean) => {
 // ============ Current Document Search ============
 const documentSearchBarRef = ref<InstanceType<typeof DocumentSearchBar> | null>(null);
 
-const getCodeTextarea = (): HTMLTextAreaElement | null => {
-  return (codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | null | undefined) ?? null;
+const getCodeEditor = (): CodeEditorHandle | null => {
+  return (codeEditorComponentRef.value?.editor as CodeEditorHandle | null | undefined) ?? null;
 };
 
 // ============ Image Drag & Drop ============
 const { handleDrop: handleImageDrop } = useImageDrop({
   codeView,
-  codeEditorTextarea: getCodeTextarea,
+  codeEditor: getCodeEditor,
   activeFilePath: () => activeTab.value?.filePath ?? null,
   findVisualTargetAt: (x, y) => splitContainerRef.value?.findVisualTargetAt?.(x, y) ?? null,
   onImagesImported: () => { void workspace.refreshAll(); },
 });
 
-const scrollCodeMatchIntoView = (textarea: HTMLTextAreaElement, match: DocumentSearchMatch) => {
-  const computedStyle = window.getComputedStyle(textarea);
-  const fontSize = parseFloat(computedStyle.fontSize) || 14;
-  const parsedLineHeight = parseFloat(computedStyle.lineHeight);
-  const lineHeight = computedStyle.lineHeight === 'normal' || Number.isNaN(parsedLineHeight)
-    ? fontSize * 1.2
-    : parsedLineHeight;
-  const line = textarea.value.slice(0, match.start).split('\n').length - 1;
-  const targetTop = Math.max(0, (line - 4) * lineHeight);
-  textarea.scrollTop = targetTop;
-};
-
 const focusCodeMatch = (match: DocumentSearchMatch) => {
-  const textarea = getCodeTextarea();
-  if (!textarea) return;
-  textarea.focus();
-  textarea.setSelectionRange(match.start, match.end);
-  scrollCodeMatchIntoView(textarea, match);
+  const editor = getCodeEditor();
+  if (!editor) return;
+  editor.focus();
+  editor.setSelection(match.start, match.end);
 };
 
 const getSelectedTextForDocumentSearch = (): string => {
   if (codeView.value) {
-    const textarea = getCodeTextarea();
-    if (!textarea || textarea.selectionStart === textarea.selectionEnd) return '';
-    return textarea.value.slice(textarea.selectionStart, textarea.selectionEnd);
+    const editor = getCodeEditor();
+    if (!editor) return '';
+    const { start, end } = editor.getSelection();
+    return start === end ? '' : editor.getValue().slice(start, end);
   }
 
   const ed = editorInstance.value;
@@ -1026,7 +1050,7 @@ const documentSearch = useDocumentSearch({
   focusEditor: () => {
     nextTick(() => {
       if (codeView.value) {
-        getCodeTextarea()?.focus();
+        getCodeEditor()?.focus();
       } else {
         editorInstance.value?.commands.focus();
       }
@@ -1221,11 +1245,10 @@ if (typeof document !== 'undefined') {
 const aiSelectionRange = computed<{ start: number; end: number } | null>(() => {
   aiSelectionTick.value;
   if (codeView.value) {
-    const ta = codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | undefined;
-    if (!ta) return null;
-    const { selectionStart, selectionEnd } = ta;
-    if (selectionStart === selectionEnd) return null;
-    return { start: selectionStart, end: selectionEnd };
+    const editor = getCodeEditor();
+    if (!editor) return null;
+    const { start, end } = editor.getSelection();
+    return start === end ? null : { start, end };
   }
   const ed = editorInstance.value;
   if (!ed) return null;
@@ -1241,11 +1264,10 @@ const aiSelectionRange = computed<{ start: number; end: number } | null>(() => {
 const aiSelectionText = computed<string>(() => {
   aiSelectionTick.value;
   if (codeView.value) {
-    const ta = codeEditorComponentRef.value?.textarea as HTMLTextAreaElement | undefined;
-    if (!ta) return '';
-    const { selectionStart, selectionEnd, value } = ta;
-    if (selectionStart === selectionEnd) return '';
-    return value.slice(selectionStart, selectionEnd);
+    const editor = getCodeEditor();
+    if (!editor) return '';
+    const { start, end } = editor.getSelection();
+    return start === end ? '' : editor.getValue().slice(start, end);
   }
   const ed = editorInstance.value;
   if (!ed) return '';
@@ -2135,6 +2157,34 @@ onUnmounted(async () => {
         </div>
       </div>
 
+      <!-- Large files mount only the editable sections around the viewport. -->
+      <div v-else-if="largeFileVisualMode" class="code-view-area">
+        <TabBar
+          :tabs="tabs"
+          :active-tab-id="activeTabId"
+          :pane-id="activePaneId"
+          @switch-tab="switchToTab"
+          @close-tab="handleCloseTabRequest(activePaneId, $event)"
+        />
+        <div class="large-editor-body">
+          <TableOfContents
+            v-if="showTocPanel"
+            :markdown="activeTab?.pendingMarkdown ?? ''"
+            @markdown-heading-click="(offset: number) => lazyMarkdownEditorRef?.scrollToMarkdownOffset(offset)"
+            @close="showTocPanel = false"
+          />
+          <LazyMarkdownPreview
+            ref="lazyMarkdownEditorRef"
+            :markdown="activeTab?.pendingMarkdown ?? ''"
+            :file-path="activeTab?.filePath ?? null"
+            @update:markdown="(markdown: string) => { if (activeTab) activeTab.pendingMarkdown = markdown; }"
+            @update:has-changes="(changed: boolean) => { if (changed && activeTab) activeTab.hasChanges = true; }"
+            @editor-focus="(editor: TiptapEditor) => (editorInstance = editor)"
+            @link-click="handleLinkClick"
+          />
+        </div>
+      </div>
+
       <!-- Editor area with optional TOC sidebar -->
       <div
         v-else-if="!codeView"
@@ -2179,9 +2229,6 @@ onUnmounted(async () => {
             @switch-tab="switchToTabFromCodeView"
             @close-tab="closeTabFromCodeView"
           />
-          <div v-if="isMarkdownFirst(activeTab)" class="large-file-banner">
-            {{ t.largeFileCodeViewNotice }}
-          </div>
           <CodeEditor
             ref="codeEditorComponentRef"
             v-model="codeContent"
@@ -2474,12 +2521,11 @@ onUnmounted(async () => {
   min-height: 0;
 }
 
-.large-file-banner {
-  padding: 6px 16px;
-  font-size: 12px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-color);
+.large-editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .split-editor-area {

@@ -136,7 +136,6 @@ const en: Translations = {
   newDocument: 'document',
   closeTab: 'Close tab',
   closeTabTooltip: 'Close tab (Ctrl+W)',
-  largeFileCodeViewNotice: 'Large file — opened in code view. Switching to visual editing may take a while.',
 
   // Mermaid Node
   editDiagram: 'Edit',

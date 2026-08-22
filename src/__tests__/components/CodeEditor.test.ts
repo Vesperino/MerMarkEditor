@@ -1,11 +1,16 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 
 vi.stubGlobal('ResizeObserver', class {
   observe() {}
   unobserve() {}
   disconnect() {}
+});
+
+beforeAll(() => {
+  Range.prototype.getClientRects = vi.fn(() => [] as unknown as DOMRectList);
+  Range.prototype.getBoundingClientRect = vi.fn(() => new DOMRect());
 });
 
 import CodeEditor from '../../components/CodeEditor.vue';
@@ -24,17 +29,26 @@ vi.mock('../../composables/useEditorZoom', () => ({
   useEditorZoom: () => ({ zoomScale: ref(1) }),
 }));
 
-describe('CodeEditor gutter cap (issue #129)', () => {
-  it('renders the gutter for normal documents', () => {
+describe('CodeEditor virtualization (issue #129)', () => {
+  it('exposes the complete editable document through the editor handle', async () => {
     const wrapper = mount(CodeEditor, { props: { modelValue: 'a\nb\nc' } });
-    expect(wrapper.find('.code-editor-gutter').exists()).toBe(true);
-    expect(wrapper.classes()).toContain('has-line-numbers');
+    await nextTick();
+
+    const handle = (wrapper.vm as unknown as { editor: { getValue: () => string } }).editor;
+    expect(handle.getValue()).toBe('a\nb\nc');
+    expect(wrapper.find('.cm-gutters').exists()).toBe(true);
   });
 
-  it('suppresses the gutter above GUTTER_MAX_LINES', () => {
-    const big = Array.from({ length: 10_001 }, (_, i) => String(i)).join('\n');
+  it('does not create one DOM line per line of a 3 MB document', async () => {
+    const line = '# Large file line with enough text to exercise viewport rendering\n';
+    const big = line.repeat(Math.ceil((3 * 1024 * 1024) / line.length));
     const wrapper = mount(CodeEditor, { props: { modelValue: big } });
-    expect(wrapper.find('.code-editor-gutter').exists()).toBe(false);
-    expect(wrapper.classes()).not.toContain('has-line-numbers');
+    await nextTick();
+
+    const renderedLines = wrapper.findAll('.cm-line').length;
+    expect(renderedLines).toBeGreaterThan(0);
+    expect(renderedLines).toBeLessThan(100);
+    const handle = (wrapper.vm as unknown as { editor: { getValue: () => string } }).editor;
+    expect(handle.getValue().length).toBe(big.length);
   });
 });

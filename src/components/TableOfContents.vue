@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted, inject, nextTick, type Ref } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, inject, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from '../i18n';
 import { SCROLL_OFFSET } from '../constants';
 import { targetScrollTop } from '../utils/scroll';
 import { pickActiveHeading } from '../composables/useScrollSpy';
+import type { MarkdownTocItem } from '../utils/markdown-toc';
 
 const { t } = useI18n();
 const editor = inject<Ref<Editor | null>>('editor');
+
+const props = withDefaults(defineProps<{ markdown?: string | null }>(), { markdown: null });
 
 interface TocItem {
   level: number;
@@ -19,12 +22,63 @@ interface TocItem {
 
 const emit = defineEmits<{
   close: [];
+  'markdown-heading-click': [offset: number];
 }>();
 
 const headings = ref<TocItem[]>([]);
 const activeHeadingId = ref<string | null>(null);
+const tocContentRef = ref<HTMLElement | null>(null);
+const tocScrollTop = ref(0);
+const tocViewportHeight = ref(600);
+const MARKDOWN_TOC_ROW_HEIGHT = 32;
+const MARKDOWN_TOC_OVERSCAN = 8;
+let tocWorker: Worker | null = null;
+let workerRequestId = 0;
+let tocResizeObserver: ResizeObserver | null = null;
+
+const markdownVisibleRange = computed(() => {
+  if (props.markdown === null) return { start: 0, end: headings.value.length };
+  const start = Math.max(0, Math.floor(tocScrollTop.value / MARKDOWN_TOC_ROW_HEIGHT) - MARKDOWN_TOC_OVERSCAN);
+  const visibleRows = Math.ceil(tocViewportHeight.value / MARKDOWN_TOC_ROW_HEIGHT);
+  const end = Math.min(headings.value.length, start + visibleRows + MARKDOWN_TOC_OVERSCAN * 2);
+  return { start, end };
+});
+
+const displayedHeadings = computed(() => headings.value.slice(
+  markdownVisibleRange.value.start,
+  markdownVisibleRange.value.end,
+));
+const tocTopSpacer = computed(() => props.markdown === null
+  ? 0
+  : markdownVisibleRange.value.start * MARKDOWN_TOC_ROW_HEIGHT);
+const tocBottomSpacer = computed(() => props.markdown === null
+  ? 0
+  : Math.max(0, headings.value.length - markdownVisibleRange.value.end) * MARKDOWN_TOC_ROW_HEIGHT);
+
+const onTocScroll = () => {
+  tocScrollTop.value = tocContentRef.value?.scrollTop ?? 0;
+};
+
+const extractMarkdownHeadings = (markdown: string) => {
+  if (!tocWorker) {
+    tocWorker = new Worker(new URL('../workers/markdown-toc.worker.ts', import.meta.url), { type: 'module' });
+    tocWorker.onmessage = (event: MessageEvent<{ id: number; items: MarkdownTocItem[] }>) => {
+      if (event.data.id !== workerRequestId) return;
+      headings.value = event.data.items.map(item => ({
+        level: item.level,
+        text: item.text,
+        id: `toc-markdown-${item.offset}`,
+        pos: item.offset,
+        kind: 'heading',
+      }));
+    };
+  }
+  const id = ++workerRequestId;
+  tocWorker.postMessage({ id, markdown });
+};
 
 const extractHeadings = () => {
+  if (props.markdown !== null) return;
   if (!editor?.value) {
     headings.value = [];
     return;
@@ -75,6 +129,11 @@ const scrollContainerTo = (container: Element, target: Element) => {
 };
 
 const scrollToHeading = (item: TocItem) => {
+  if (props.markdown !== null) {
+    emit('markdown-heading-click', item.pos);
+    activeHeadingId.value = item.id;
+    return;
+  }
   if (!editor?.value) return;
 
   // Footnotes entry: direct DOM scroll to section wrapper (atom block, no inner content)
@@ -171,6 +230,7 @@ watch(
       oldEditor.off('update', onEditorUpdate);
       detachScrollSpy();
     }
+    if (props.markdown !== null) return;
     if (newEditor) {
       newEditor.on('update', onEditorUpdate);
       extractHeadings();
@@ -180,11 +240,33 @@ watch(
   { immediate: true }
 );
 
+watch(
+  () => props.markdown,
+  (markdown) => {
+    if (markdown !== null) extractMarkdownHeadings(markdown);
+  },
+  { immediate: true },
+);
+
+onMounted(() => {
+  const content = tocContentRef.value;
+  if (!content) return;
+  tocViewportHeight.value = content.clientHeight || 600;
+  tocResizeObserver = new ResizeObserver(([entry]) => {
+    tocViewportHeight.value = entry.contentRect.height;
+  });
+  tocResizeObserver.observe(content);
+});
+
 onUnmounted(() => {
   if (editor?.value) {
     editor.value.off('update', onEditorUpdate);
   }
   detachScrollSpy();
+  tocWorker?.terminate();
+  tocWorker = null;
+  tocResizeObserver?.disconnect();
+  tocResizeObserver = null;
 });
 </script>
 
@@ -200,13 +282,14 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div class="toc-content">
+    <div ref="tocContentRef" class="toc-content" @scroll.passive="onTocScroll">
       <div v-if="headings.length === 0" class="toc-empty">
         {{ t.tocEmpty }}
       </div>
-      <nav v-else class="toc-nav">
+      <nav v-else class="toc-nav" :class="{ virtualized: props.markdown !== null }">
+        <div v-if="tocTopSpacer" class="toc-spacer" :style="{ height: `${tocTopSpacer}px` }" />
         <button
-          v-for="item in headings"
+          v-for="item in displayedHeadings"
           :key="item.id"
           class="toc-item"
           :class="[
@@ -223,6 +306,7 @@ onUnmounted(() => {
           </span>
           <span class="toc-item-text">{{ item.text }}</span>
         </button>
+        <div v-if="tocBottomSpacer" class="toc-spacer" :style="{ height: `${tocBottomSpacer}px` }" />
       </nav>
     </div>
   </div>
@@ -299,6 +383,11 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+.toc-spacer {
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
 .toc-item {
   display: flex;
   align-items: center;
@@ -314,6 +403,11 @@ onUnmounted(() => {
   transition: all 0.12s;
   border-left: 2px solid transparent;
   min-height: 32px;
+}
+
+.toc-nav.virtualized .toc-item {
+  height: 32px;
+  flex: 0 0 32px;
 }
 
 .toc-item:hover {
