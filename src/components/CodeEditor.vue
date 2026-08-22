@@ -4,6 +4,7 @@ import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
 import { useTextareaLineMove } from '../composables/useTextareaLineMove';
 import { useTextareaTabIndent } from '../composables/useTextareaTabIndent';
+import { highlightMarkdown } from '../utils/markdown-highlight';
 
 const { zoomScale } = useEditorZoom();
 const { settings } = useSettings();
@@ -22,6 +23,13 @@ const emit = defineEmits<{
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const gutterRef = ref<HTMLDivElement | null>(null);
+const highlightRef = ref<HTMLPreElement | null>(null);
+
+const highlightedCode = computed(() => highlightMarkdown(props.modelValue ?? ''));
+const highlightedHtml = computed(() => {
+  const suffix = props.modelValue.endsWith('\n') ? ' ' : '';
+  return highlightedCode.value.html + suffix;
+});
 
 interface CodeGutterMetrics {
   lineHeight: number;
@@ -152,6 +160,10 @@ const handleScroll = (event: Event) => {
   if (gutterRef.value) {
     gutterRef.value.scrollTop = target.scrollTop;
   }
+  if (highlightRef.value) {
+    highlightRef.value.scrollTop = target.scrollTop;
+    highlightRef.value.scrollLeft = target.scrollLeft;
+  }
 };
 </script>
 
@@ -176,21 +188,30 @@ const handleScroll = (event: Event) => {
         >{{ line.num }}</span>
       </div>
     </div>
-    <textarea
-      id="code-editor-textarea"
-      ref="textareaRef"
-      class="code-editor"
-      :class="{ 'word-wrap': wordWrap }"
-      :style="codeZoomStyle"
-      :value="modelValue"
-      @input="handleInput"
-      @keydown="handleKeydown"
-      @scroll="handleScroll"
-      spellcheck="false"
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="off"
-    ></textarea>
+    <div class="code-editor-stack">
+      <pre
+        ref="highlightRef"
+        class="code-highlight"
+        :class="{ 'word-wrap': wordWrap }"
+        :style="codeZoomStyle"
+        aria-hidden="true"
+      ><code v-html="highlightedHtml"></code></pre>
+      <textarea
+        id="code-editor-textarea"
+        ref="textareaRef"
+        class="code-editor"
+        :class="{ 'word-wrap': wordWrap }"
+        :style="codeZoomStyle"
+        :value="modelValue"
+        @input="handleInput"
+        @keydown="handleKeydown"
+        @scroll="handleScroll"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+      ></textarea>
+    </div>
   </div>
 </template>
 
@@ -242,16 +263,25 @@ const handleScroll = (event: Event) => {
   line-height: 1;
 }
 
+.code-editor-stack {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.code-editor-container.has-line-numbers .code-highlight,
 .code-editor-container.has-line-numbers .code-editor {
   border-radius: 0 8px 8px 0;
 }
 
+.code-highlight,
 .code-editor {
-  flex: 1;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  min-height: 0;
-  background: var(--code-editor-bg);
-  color: var(--code-editor-text);
+  height: 100%;
+  box-sizing: border-box;
   border: none;
   border-radius: 8px;
   padding: 24px;
@@ -262,10 +292,34 @@ const handleScroll = (event: Event) => {
   outline: none;
   tab-size: var(--code-tab-size, 2);
   white-space: pre;
-  overflow-x: auto;
-  overflow-y: auto;
 }
 
+.code-highlight {
+  z-index: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--code-editor-bg);
+  color: var(--code-editor-text);
+}
+
+.code-highlight code {
+  font: inherit;
+}
+
+.code-editor {
+  z-index: 1;
+  resize: none;
+  outline: none;
+  overflow-x: auto;
+  overflow-y: auto;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--code-editor-text);
+  -webkit-text-fill-color: transparent;
+}
+
+.code-highlight.word-wrap,
 .code-editor.word-wrap {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -276,6 +330,17 @@ const handleScroll = (event: Event) => {
   outline: none;
   box-shadow: 0 0 0 2px var(--focus-ring-alpha);
 }
+
+.code-highlight :deep(.hljs-section) { color: #61afef; font-weight: 600; }
+.code-highlight :deep(.hljs-bullet) { color: #c678dd; }
+.code-highlight :deep(.hljs-strong) { color: #e5c07b; font-weight: 700; }
+.code-highlight :deep(.hljs-emphasis) { color: #d19a66; font-style: italic; }
+.code-highlight :deep(.hljs-link),
+.code-highlight :deep(.hljs-string) { color: #98c379; }
+.code-highlight :deep(.hljs-code),
+.code-highlight :deep(.hljs-quote) { color: #56b6c2; }
+.code-highlight :deep(.hljs-meta),
+.code-highlight :deep(.hljs-symbol) { color: #c678dd; }
 
 @media print {
   .code-editor-container {
