@@ -23,16 +23,13 @@ let applyingExternalValue = false;
 let lastSyncedValue = props.modelValue;
 let highlightedLine: HTMLElement | null = null;
 let highlightTimer: number | null = null;
-let highlightAnimationEnd: (() => void) | null = null;
+let highlightAnimation: Animation | null = null;
 
 const clearSelectionHighlight = () => {
-  if (highlightedLine && highlightAnimationEnd) {
-    highlightedLine.removeEventListener('animationend', highlightAnimationEnd);
-  }
+  highlightAnimation?.cancel();
+  highlightAnimation = null;
   highlightedLine?.classList.remove('code-cursor-highlight-line');
-  highlightedLine?.style.removeProperty('--code-cursor-highlight-duration');
   highlightedLine = null;
-  highlightAnimationEnd = null;
   if (highlightTimer !== null) {
     window.clearTimeout(highlightTimer);
     highlightTimer = null;
@@ -106,11 +103,33 @@ const editor: CodeEditorHandle = {
       },
       write: (line) => {
         if (!line || !line.isConnected) return;
-        line.style.setProperty('--code-cursor-highlight-duration', `${durationMs}ms`);
         line.classList.add('code-cursor-highlight-line');
         highlightedLine = line;
-        highlightAnimationEnd = clearSelectionHighlight;
-        line.addEventListener('animationend', highlightAnimationEnd, { once: true });
+        // A fresh Animation object avoids Chromium reusing a CSS animation's
+        // timeline after CodeMirror is mounted/unmounted several times.
+        highlightAnimation = line.animate([
+          {
+            backgroundColor: 'rgba(56, 189, 248, 0.55)',
+            boxShadow: '0 0 18px 6px rgba(56, 189, 248, 0.65), 0 0 30px 10px rgba(14, 165, 233, 0.35)',
+          },
+          {
+            offset: 0.25,
+            backgroundColor: 'rgba(56, 189, 248, 0.42)',
+            boxShadow: '0 0 14px 4px rgba(56, 189, 248, 0.48), 0 0 24px 8px rgba(14, 165, 233, 0.26)',
+          },
+          {
+            offset: 0.5,
+            backgroundColor: 'rgba(56, 189, 248, 0.28)',
+            boxShadow: '0 0 10px 3px rgba(56, 189, 248, 0.32), 0 0 18px 6px rgba(14, 165, 233, 0.18)',
+          },
+          {
+            offset: 0.75,
+            backgroundColor: 'rgba(56, 189, 248, 0.14)',
+            boxShadow: '0 0 5px 1px rgba(56, 189, 248, 0.16), 0 0 9px 3px rgba(14, 165, 233, 0.09)',
+          },
+          { backgroundColor: 'transparent', boxShadow: '0 0 0 0 transparent' },
+        ], { duration: durationMs, easing: 'linear', fill: 'forwards' });
+        highlightAnimation.addEventListener('finish', clearSelectionHighlight, { once: true });
         // Fallback for environments that suppress animation events.
         highlightTimer = window.setTimeout(clearSelectionHighlight, durationMs + 250);
       },
@@ -203,33 +222,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-@keyframes code-cursor-pulse {
-  0% {
-    background-color: rgba(56, 189, 248, 0.55);
-    box-shadow: 0 0 18px 6px rgba(56, 189, 248, 0.65),
-      0 0 30px 10px rgba(14, 165, 233, 0.35);
-  }
-  25% {
-    background-color: rgba(56, 189, 248, 0.42);
-    box-shadow: 0 0 14px 4px rgba(56, 189, 248, 0.48),
-      0 0 24px 8px rgba(14, 165, 233, 0.26);
-  }
-  50% {
-    background-color: rgba(56, 189, 248, 0.28);
-    box-shadow: 0 0 10px 3px rgba(56, 189, 248, 0.32),
-      0 0 18px 6px rgba(14, 165, 233, 0.18);
-  }
-  75% {
-    background-color: rgba(56, 189, 248, 0.14);
-    box-shadow: 0 0 5px 1px rgba(56, 189, 248, 0.16),
-      0 0 9px 3px rgba(14, 165, 233, 0.09);
-  }
-  100% {
-    background-color: transparent;
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
-
 .code-editor-container {
   flex: 1;
   min-height: 0;
@@ -249,7 +241,6 @@ onBeforeUnmount(() => {
 .code-editor :deep(.cm-editor) { border-radius: 8px; }
 .code-editor :deep(.cm-scroller) { tab-size: var(--code-tab-size, 2); }
 .code-editor :deep(.code-cursor-highlight-line) {
-  animation: code-cursor-pulse var(--code-cursor-highlight-duration, 1400ms) linear forwards !important;
   border-radius: 3px;
   position: relative;
 }

@@ -83,8 +83,8 @@ test.describe('safe HTML external links', () => {
     expect(Math.abs(selectedTop - (await matchingLines.nth(1).boundingBox())!.y)).toBeLessThan(3);
     await expect(matchingLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
     await expect.poll(() => matchingLines.nth(1).evaluate(element => (
-      window.getComputedStyle(element).animationName
-    ))).toContain('code-cursor-pulse');
+      element.getAnimations().filter(animation => animation.playState === 'running').length
+    ))).toBe(1);
     await expect(matchingLines.nth(0)).not.toHaveClass(/code-cursor-highlight-line/);
     const earlyAlpha = await matchingLines.nth(1).evaluate(element => {
       const color = window.getComputedStyle(element).backgroundColor;
@@ -130,5 +130,22 @@ test.describe('safe HTML external links', () => {
     const repeatedLines = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
     expect(Math.abs(selectedTop - (await repeatedLines.nth(1).boundingBox())!.y)).toBeLessThan(3);
     await expect(repeatedLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
+  });
+
+  test('code highlight restarts with a fresh fade after repeated view switches', async ({ page }) => {
+    for (let cycle = 0; cycle < 5; cycle++) {
+      await renderedDescription(page).last().click();
+      await openCodeView(page);
+      const line = page.locator('.code-editor .cm-line')
+        .filter({ hasText: '<strong>A modern, open-source Markdown editor' })
+        .nth(1);
+      await expect(line).toHaveClass(/code-cursor-highlight-line/);
+      await expect.poll(() => line.evaluate(element => (
+        element.getAnimations().filter(animation => animation.playState === 'running').length
+      ))).toBe(1);
+      await page.waitForTimeout(200);
+      await openVisualView(page);
+      await page.waitForTimeout(250);
+    }
   });
 });
