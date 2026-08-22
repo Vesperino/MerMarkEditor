@@ -47,6 +47,7 @@ import {
   convertHtmlFootnoteRefsToMd,
   extractHtmlFootnoteSection,
 } from './footnote-utils';
+import { decodeSafeHtmlSource, encodeSafeHtmlSource, sanitizeSafeInlineHtmlTag } from './safe-html';
 
 export function htmlToMarkdown(
   html: string,
@@ -72,6 +73,15 @@ export function htmlToMarkdown(
     try { raw = decodeURIComponent(enc); } catch { raw = enc; }
     const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
     protectedBlocks.push(`\n<!-- ${raw} -->\n`);
+    return placeholder;
+  });
+
+  // Safe raw HTML nodes keep their exact source while visual mode renders only
+  // an allowlisted representation. Restore them before generic div stripping.
+  md = md.replace(/<div[^>]*data-safe-html-block=(["'])(.*?)\1[^>]*>\s*<\/div>/gi, (_, _quote, encoded) => {
+    const raw = decodeSafeHtmlSource(encoded);
+    const placeholder = `__PROTECTED_BLOCK_${protectedBlocks.length}__`;
+    protectedBlocks.push(`\n${raw}\n`);
     return placeholder;
   });
 
@@ -351,6 +361,30 @@ export function markdownToHtmlWithMeta(
   const codeBlocks = extracted.codeBlocks;
   const detectedMermaidFormatIds = extracted.detectedMermaidFormatIds;
 
+  // Preserve common README HTML blocks as atomic visual nodes. Do this only
+  // after fenced/indented code has been extracted so examples stay code.
+  const safeHtmlBlocks: string[] = [];
+  html = html.replace(/^[ \t]*<(p|details)\b[^>]*>[\s\S]*?<\/\1>[ \t]*$/gim, (raw) => {
+    const placeholder = `__SAFE_HTML_BLOCK_${safeHtmlBlocks.length}__`;
+    safeHtmlBlocks.push(raw.trim());
+    return placeholder;
+  });
+  html = html.replace(/^[ \t]*(?:<img\b[^>]*\/?\s*>|<a\b[^>]*>\s*<img\b[^>]*\/?\s*>\s*<\/a>)[ \t]*$/gim, (raw) => {
+    const placeholder = `__SAFE_HTML_BLOCK_${safeHtmlBlocks.length}__`;
+    safeHtmlBlocks.push(raw.trim());
+    return placeholder;
+  });
+
+  // Inline README HTML uses native TipTap marks/nodes after allowlisting.
+  const safeInlineHtml: string[] = [];
+  html = html.replace(/<\/?(?:strong|em|br|a|img)\b[^>]*>/gi, (raw) => {
+    const safe = sanitizeSafeInlineHtmlTag(raw);
+    if (!safe) return raw;
+    const placeholder = `__SAFE_INLINE_HTML_${safeInlineHtml.length}__`;
+    safeInlineHtml.push(safe);
+    return placeholder;
+  });
+
   // Extract footnote definitions before HTML processing
   const footnotes = extractFootnoteDefinitions(html);
   html = footnotes.cleanedMd;
@@ -377,6 +411,10 @@ export function markdownToHtmlWithMeta(
   // Links and images
   html = convertMarkdownLinksAndImages(html);
 
+  safeInlineHtml.forEach((tag, index) => {
+    html = html.replace(`__SAFE_INLINE_HTML_${index}__`, tag);
+  });
+
   // Horizontal rule
   html = html.replace(/^---$/gim, '<hr />');
 
@@ -400,6 +438,14 @@ export function markdownToHtmlWithMeta(
   // Restore Marp directive chips
   directiveChips.forEach((chip, i) => {
     html = html.replace(`<p>__MARP_DIRECTIVE_${i}__</p>`, chip).replace(`__MARP_DIRECTIVE_${i}__`, chip);
+  });
+
+  safeHtmlBlocks.forEach((raw, index) => {
+    const encoded = encodeSafeHtmlSource(raw);
+    const node = `<div data-safe-html-block="${encoded}"></div>`;
+    html = html
+      .replace(`<p>__SAFE_HTML_BLOCK_${index}__</p>`, node)
+      .replace(`__SAFE_HTML_BLOCK_${index}__`, node);
   });
 
   // Append footnotes section

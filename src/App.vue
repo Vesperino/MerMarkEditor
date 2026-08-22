@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { writeTextFile, exists, readTextFile, remove } from '@tauri-apps/plugin-fs';
+import { copyFile, writeTextFile, exists, readTextFile, remove } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { htmlToMarkdown, detectLineEnding, applyLineEnding, markdownToHtml } from './utils/markdown-converter';
 import { inlineMarkdownImages, getDirectoryFromFilePath } from './utils/image-resolver';
@@ -59,6 +59,7 @@ import { useAiMermaidTarget } from './composables/useAiMermaidTarget';
 import { useDocumentSearch, type DocumentSearchMatch, type VisualSearchMatch } from './composables/useDocumentSearch';
 import { useImageDrop } from './composables/useImageDrop';
 import { useFolderDrop } from './composables/useFolderDrop';
+import { nextAvailableImportPath, workspaceImportDirectoryAt } from './utils/workspace-import';
 import { isImageFile } from './utils/image-file-utils';
 import { t } from './i18n';
 import PdfExportDialog from './components/PdfExportDialog.vue';
@@ -1766,6 +1767,24 @@ const sidebarFolderDropActive = computed(
 );
 const showDragOverlay = computed(() => isDragOver.value && !sidebarFolderDropActive.value);
 
+const workspaceImportTarget = (position: { x: number; y: number } | null | undefined): string | null => {
+  if (!position || !workspace.sidebarVisible.value) return null;
+  const dpr = window.devicePixelRatio || 1;
+  const sidebar = (workspaceSidebarRef.value?.$el as HTMLElement | undefined) ?? null;
+  return workspaceImportDirectoryAt(position.x / dpr, position.y / dpr, sidebar);
+};
+
+const importDocumentsIntoWorkspace = async (paths: string[], directory: string): Promise<string[]> => {
+  const imported: string[] = [];
+  for (const source of paths) {
+    const destination = await nextAvailableImportPath(directory, source, exists);
+    if (destination !== source) await copyFile(source, destination);
+    imported.push(destination);
+  }
+  await workspace.refreshAll();
+  return imported;
+};
+
 // Wrapper that checks if file is open locally or in another window first
 const openFileWithCrossWindowCheck = async (filePath: string): Promise<void> => {
   try {
@@ -1970,7 +1989,11 @@ onMounted(async () => {
         }
 
         const docPaths = paths.filter((p) => DROPPABLE_DOC_RE.test(p));
-        for (const filePath of docPaths) {
+        const importTarget = workspaceImportTarget(position);
+        const pathsToOpen = importTarget && docPaths.length > 0
+          ? await importDocumentsIntoWorkspace(docPaths, importTarget)
+          : docPaths;
+        for (const filePath of pathsToOpen) {
           await openFileWithCrossWindowCheck(filePath);
         }
 

@@ -95,6 +95,7 @@ import { MarpDirectiveExtension } from "../extensions/MarpDirectiveExtension";
 import { FootnoteRef, FootnoteSection } from "../extensions/FootnoteExtension";
 import { DocumentSearchExtension } from "../extensions/DocumentSearchExtension";
 import { MoveBlockExtension } from "../extensions/MoveBlockExtension";
+import { SafeHtmlBlockExtension } from "../extensions/SafeHtmlBlockExtension";
 import type { VisualSearchMatch, VisualTextMap } from "../composables/useDocumentSearch";
 import { useI18n } from "../i18n";
 
@@ -210,6 +211,7 @@ const imageOverlayRect = ref<{ top: number; right: number } | null>(null);
 let hideOverlayTimer: number | null = null;
 
 function showOverlayFor(img: HTMLImageElement) {
+  if (img.closest('.safe-html-block')) return;
   if (hideOverlayTimer !== null) {
     window.clearTimeout(hideOverlayTimer);
     hideOverlayTimer = null;
@@ -517,6 +519,7 @@ const editor = useEditor({
     FootnoteSection,
     DocumentSearchExtension,
     MoveBlockExtension,
+    SafeHtmlBlockExtension,
     CharacterCount.configure({
       limit: null,
     }),
@@ -651,6 +654,18 @@ const handleEditorClick = (event: MouseEvent) => {
 
   const target = event.target as HTMLElement;
 
+  // Resolve links before images: README badges are <a><img></a>. Handling the
+  // image first used to open the preview and leave WebView's default anchor
+  // navigation alive, which could replace the editor with the target website.
+  const link = target.closest('a');
+  if (link) {
+    event.preventDefault();
+    event.stopPropagation();
+    const href = link.getAttribute('href');
+    if (href) emit('linkClick', href);
+    return;
+  }
+
   // Image — open preview
   if (target.tagName === 'IMG' && target.classList.contains('editor-image')) {
     const img = target as HTMLImageElement;
@@ -662,14 +677,6 @@ const handleEditorClick = (event: MouseEvent) => {
     }
   }
 
-  // Link
-  const link = target.closest('a');
-  if (link) {
-    event.preventDefault();
-    event.stopPropagation();
-    const href = link.getAttribute('href');
-    if (href) emit('linkClick', href);
-  }
 };
 
 // Handle right-click context menu on tables
@@ -1044,6 +1051,35 @@ defineExpose({
 
 .editor-content .tiptap strong {
   font-weight: 700;
+}
+
+.editor-content .tiptap .safe-html-block {
+  margin: 0.75em 0;
+  white-space: normal;
+}
+
+.editor-content .tiptap .safe-html-block p[align="center"] {
+  text-align: center;
+}
+
+.editor-content .tiptap .safe-html-block p[align="right"] {
+  text-align: right;
+}
+
+.editor-content .tiptap .safe-html-block img {
+  max-width: 100%;
+  height: auto;
+}
+
+.editor-content .tiptap .safe-html-block details {
+  padding: 0.6em 0.8em;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+}
+
+.editor-content .tiptap .safe-html-block summary {
+  cursor: pointer;
+  font-weight: 600;
 }
 
 .editor-content .tiptap em {
