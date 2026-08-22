@@ -1,10 +1,11 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
+import { NodeSelection } from '@tiptap/pm/state';
 import type { CodeEditorHandle } from '../types/code-editor';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import { targetScrollTop } from '../utils/scroll';
-import { isStandaloneSafeHtmlBlock, safeHtmlTagTokens } from '../utils/safe-html';
+import { isStandaloneSafeHtmlBlock, safeHtmlSourceKey, safeHtmlTagTokens } from '../utils/safe-html';
 import {
   DOM_SELECTORS,
   TIMING,
@@ -391,11 +392,6 @@ const findElementByBlockMap = (
 
   if (blocks.length === 0 || children.length === 0) return null;
 
-  // If block count diverges too far from DOM children, mapping is unreliable
-  if (Math.abs(blocks.length - children.length) > Math.max(2, Math.ceil(blocks.length * 0.1))) {
-    return null;
-  }
-
   // Find the block containing the cursor line
   let blockIndex = -1;
   for (let bi = 0; bi < blocks.length; bi++) {
@@ -419,9 +415,32 @@ const findElementByBlockMap = (
 
   if (blockIndex < 0) return null;
 
+  const block = blocks[blockIndex];
+  if (block.type === 'html') {
+    const lines = markdown.split('\n');
+    const raw = lines.slice(block.startLine, block.endLine).join('\n').trim();
+    const key = safeHtmlSourceKey(raw);
+    const occurrence = blocks.slice(0, blockIndex).filter((candidate) => {
+      if (candidate.type !== 'html') return false;
+      return safeHtmlSourceKey(lines.slice(candidate.startLine, candidate.endLine).join('\n').trim()) === key;
+    }).length;
+    const matching = Array.from(root.querySelectorAll<HTMLElement>(':scope > .safe-html-block'))
+      .filter(element => element.dataset.safeHtmlSourceKey === key);
+    const element = matching[occurrence];
+    if (!element) return null;
+    const lineInBlock = Math.max(0, cursorLine - block.startLine);
+    element.dataset.safeHtmlCursorLine = String(lineInBlock);
+    return element.querySelector<HTMLElement>(`[data-safe-html-source-line="${lineInBlock}"]`) || element;
+  }
+
+  // If ordinary block count diverges too far from DOM children, mapping is unreliable.
+  // Raw HTML above bypasses this heuristic and matches its exact source identity.
+  if (Math.abs(blocks.length - children.length) > Math.max(2, Math.ceil(blocks.length * 0.1))) {
+    return null;
+  }
+
   const clampedIndex = Math.min(blockIndex, children.length - 1);
   const element = children[clampedIndex];
-  const block = blocks[blockIndex];
 
   // Drill into list items for more precision
   if (block.type === 'list' || block.type === 'taskList') {
@@ -433,13 +452,14 @@ const findElementByBlockMap = (
     }
   }
 
-  if (block.type === 'html') {
-    const lineInBlock = Math.max(0, cursorLine - block.startLine);
-    element.dataset.safeHtmlCursorLine = String(lineInBlock);
-    return element.querySelector<HTMLElement>(`[data-safe-html-source-line="${lineInBlock}"]`) || element;
-  }
-
   return element;
+};
+
+const positionAtLine = (source: string, line: number): number => {
+  const lines = source.split('\n');
+  let position = 0;
+  for (let i = 0; i < line && i < lines.length; i++) position += lines[i].length + 1;
+  return Math.min(position, source.length);
 };
 
 // Try to find a DOM element by matching the text content of the cursor's
@@ -452,6 +472,14 @@ const findElementByText = (root: HTMLElement, markdown: string, cursorLine: numb
 
   const trimmed = line.trim();
   if (!trimmed) return null;
+
+  // Raw HTML has its own source-identity and per-tag line map. A textual
+  // search can otherwise select an earlier rendered block containing the same
+  // words (common in README badges/header sections).
+  const sourceBlock = parseMarkdownBlocks(markdown).find(block => (
+    cursorLine >= block.startLine && cursorLine < block.endLine
+  ));
+  if (sourceBlock?.type === 'html') return null;
 
   // Heading: strip # prefix and search heading elements
   const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
@@ -596,9 +624,37 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         try {
           const $pos = editor.state.doc.resolve(from);
           const topBlockIndex = $pos.index(0);
+          const selectedNode = editor.state.selection instanceof NodeSelection
+            ? editor.state.selection.node
+            : editor.state.doc.nodeAt(from);
+
+          if (selectedNode?.type.name === 'safeHtmlBlock') {
+            const raw = String(selectedNode.attrs.raw ?? '');
+            let occurrence = 0;
+            for (let i = 0; i < topBlockIndex; i++) {
+              const sibling = editor.state.doc.child(i);
+              if (sibling.type.name === 'safeHtmlBlock' && String(sibling.attrs.raw ?? '') === raw) occurrence++;
+            }
+            const rawLines = raw.split('\n');
+            const sourceLines = codeContent.value.split('\n');
+            const matchingBlocks = parseMarkdownBlocks(codeContent.value).filter((block) => {
+              if (block.type !== 'html') return false;
+              return sourceLines.slice(block.startLine, block.endLine).join('\n').trim() === raw;
+            });
+            const sourceBlock = matchingBlocks[occurrence];
+            // The exact parsed block boundary avoids matching this raw source
+            // as a substring of a different/larger HTML block.
+            const rawStart = sourceBlock ? positionAtLine(codeContent.value, sourceBlock.startLine) : -1;
+            const nodeDom = editor.view.nodeDOM(from) as HTMLElement | null;
+            const clickedLine = Math.max(0, Number(nodeDom?.dataset.safeHtmlCursorLine ?? 0) || 0);
+            let offset = 0;
+            for (let i = 0; i < clickedLine && i < rawLines.length; i++) offset += rawLines[i].length + 1;
+            if (rawStart >= 0) markerPosition = Math.min(rawStart + offset, codeContent.value.length);
+          }
+
           const blocks = parseMarkdownBlocks(codeContent.value);
 
-          if (topBlockIndex >= 0 && topBlockIndex < blocks.length) {
+          if (markerPosition < 0 && topBlockIndex >= 0 && topBlockIndex < blocks.length) {
             const block = blocks[topBlockIndex];
             const lines = codeContent.value.split('\n');
             let sourceLine = block.startLine;

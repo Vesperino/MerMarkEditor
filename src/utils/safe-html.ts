@@ -117,6 +117,16 @@ export const decodeSafeHtmlSource = (value: string): string => {
   try { return decodeURIComponent(value); } catch { return value; }
 };
 
+/** Compact stable identity for matching a raw block to its NodeView. */
+export const safeHtmlSourceKey = (raw: string): string => {
+  let hash = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${raw.length}:${(hash >>> 0).toString(36)}`;
+};
+
 const copySafeAttributes = (source: Element, target: Element, tag: string) => {
   if (tag === 'p') {
     const align = source.getAttribute('align')?.toLowerCase();

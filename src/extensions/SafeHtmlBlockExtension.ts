@@ -4,6 +4,7 @@ import {
   decodeSafeHtmlSource,
   encodeSafeHtmlSource,
   safeHtmlRenderableTagSourceLines,
+  safeHtmlSourceKey,
   sanitizeSafeHtml,
 } from '../utils/safe-html';
 
@@ -40,6 +41,7 @@ export const SafeHtmlBlockExtension = Node.create({
       const raw = String(node.attrs.raw ?? '');
       dom.innerHTML = sanitizeSafeHtml(raw);
       dom.dataset.safeHtmlCursorLine = '0';
+      dom.dataset.safeHtmlSourceKey = safeHtmlSourceKey(raw);
 
       const sourceLines = safeHtmlRenderableTagSourceLines(raw);
       const rendered = dom.querySelectorAll('p, strong, em, br, a, img, details, summary');

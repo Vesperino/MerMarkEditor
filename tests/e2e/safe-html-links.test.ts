@@ -1,5 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { setupTauriMocks } from './helpers/tauri-mock';
+import { openCodeView, openVisualView } from './helpers/code-editor';
 
 const PATH = '/test/safe-links.md';
 const MARKDOWN = [
@@ -9,10 +10,36 @@ const MARKDOWN = [
   '',
   '<p><a href="https://example.com/text">Text link</a></p>',
   '',
+  '# Features',
+  '',
+  '- Fast visual editing',
+  '- Mermaid diagrams',
+  '',
   '<p align="center">',
   '  <strong>A modern, open-source Markdown editor with built-in Mermaid diagram support</strong>',
   '</p>',
+  '',
+  'Ordinary Markdown between repeated HTML blocks.',
+  '',
+  '<p align="center">',
+  '  <strong>A modern, open-source Markdown editor with built-in Mermaid diagram support</strong>',
+  '</p>',
+  '',
+  '## Installation',
+  '',
+  '```bash',
+  'pnpm install',
+  '```',
 ].join('\n');
+
+const renderedDescription = (page: Page) => page
+  .getByText('A modern, open-source Markdown editor', { exact: false });
+
+const selectedCodeLine = (page: Page) => page.evaluate(() => {
+  const anchor = window.getSelection()?.anchorNode;
+  const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+  return element?.closest('.cm-line')?.textContent ?? '';
+});
 
 test.describe('safe HTML external links', () => {
   test.beforeEach(async ({ page }) => {
@@ -41,26 +68,47 @@ test.describe('safe HTML external links', () => {
   });
 
   test('clicking rendered HTML restores the matching source line in code view', async ({ page }) => {
-    await page.getByText('A modern, open-source Markdown editor', { exact: false }).click();
+    await renderedDescription(page).last().click();
     await expect(page.locator('.safe-html-block').last()).toHaveAttribute('data-safe-html-cursor-line', '1');
-    await page.getByRole('button', { name: 'Code', exact: true }).click();
+    await openCodeView(page);
 
-    await expect.poll(() => page.evaluate(() => {
+    await expect.poll(() => selectedCodeLine(page)).toContain('<strong>A modern, open-source Markdown editor');
+
+    const selectedTop = await page.evaluate(() => {
       const anchor = window.getSelection()?.anchorNode;
       const element = anchor instanceof Element ? anchor : anchor?.parentElement;
-      return element?.closest('.cm-line')?.textContent ?? '';
-    })).toContain('<strong>A modern, open-source Markdown editor');
+      return element?.closest('.cm-line')?.getBoundingClientRect().top ?? -1;
+    });
+    const matchingLines = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
+    expect(Math.abs(selectedTop - (await matchingLines.nth(1).boundingBox())!.y)).toBeLessThan(3);
   });
 
-  test('the HTML source line maps back to its rendered element in visual view', async ({ page }) => {
-    await page.getByRole('button', { name: 'Code', exact: true }).click();
-    const strongLine = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
-    await strongLine.click();
+  test('a repeated HTML block keeps its exact line and highlight through a full view cycle', async ({ page }) => {
+    await openCodeView(page);
+    const strongLines = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
+    await expect(strongLines).toHaveCount(2);
+    await strongLines.nth(1).click();
     await page.waitForTimeout(400);
-    await page.getByRole('button', { name: 'Visual', exact: true }).click();
+    await openVisualView(page);
 
     await expect(page.locator('.safe-html-block').last()).toHaveAttribute('data-safe-html-cursor-line', '1');
-    const strong = page.getByText('A modern, open-source Markdown editor', { exact: false });
-    await expect(strong).toBeVisible();
+    await expect(page.locator('.safe-html-block').nth(2)).toHaveAttribute('data-safe-html-cursor-line', '0');
+    const secondStrong = renderedDescription(page).last();
+    await expect(secondStrong).toBeVisible();
+    const highlight = page.locator('.cursor-highlight');
+    await expect(highlight).toBeVisible();
+    const [highlightBox, targetBox] = await Promise.all([highlight.boundingBox(), secondStrong.boundingBox()]);
+    expect(Math.abs(highlightBox!.y - targetBox!.y)).toBeLessThan(10);
+
+    await page.waitForTimeout(400);
+    await openCodeView(page);
+    await expect.poll(() => selectedCodeLine(page)).toContain('<strong>A modern, open-source Markdown editor');
+    const selectedTop = await page.evaluate(() => {
+      const anchor = window.getSelection()?.anchorNode;
+      const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+      return element?.closest('.cm-line')?.getBoundingClientRect().top ?? -1;
+    });
+    const repeatedLines = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
+    expect(Math.abs(selectedTop - (await repeatedLines.nth(1).boundingBox())!.y)).toBeLessThan(3);
   });
 });
