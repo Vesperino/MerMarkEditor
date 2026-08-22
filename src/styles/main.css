@@ -150,6 +150,13 @@
   --code-editor-bg: #0f172a;
   --code-editor-text: #e2e8f0;
   --code-editor-gutter-text: #94a3b8;
+  --code-md-heading: #61afef;
+  --code-md-bullet: #c678dd;
+  --code-md-strong: #e5c07b;
+  --code-md-emphasis: #d19a66;
+  --code-md-link: #98c379;
+  --code-md-code: #56b6c2;
+  --code-md-meta: #c678dd;
   --code-preview-keyword: #c678dd;
   --code-preview-name: #e06c75;
   --code-preview-string: #98c379;

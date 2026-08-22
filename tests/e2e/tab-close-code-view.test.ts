@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { setupTauriMocks } from './helpers/tauri-mock';
+import { codeEditor, getCodeEditorValue, openCodeView } from './helpers/code-editor';
 
 // ============================================================
 // Test suite: Tab Close in Code View (#36)
@@ -25,6 +26,11 @@ async function openSecondFile(page: import('@playwright/test').Page, filePath: s
     const event = new CustomEvent('open-file', { detail: path });
     window.dispatchEvent(event);
   }, filePath);
+}
+
+async function createPlainTab(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.locator('.nf-card:not(.nf-card--marp)').click();
 }
 
 // ============================================================
@@ -59,7 +65,7 @@ test.describe('Tab Close in Code View (#36)', () => {
 
     // Alternative: use keyboard shortcut to create a new tab
     // Since opening via event might not work in mocks, create a new tab via New button
-    await page.locator('button[title="New"]').click();
+    await createPlainTab(page);
     await page.waitForTimeout(500);
 
     // Verify we have at least 2 tabs
@@ -67,9 +73,8 @@ test.describe('Tab Close in Code View (#36)', () => {
     expect(tabCount).toBeGreaterThanOrEqual(2);
 
     // Switch to code view
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
+    const codeEditorElement = codeEditor(page);
     await page.waitForTimeout(300);
 
     // Close the active tab via the close button on it
@@ -84,7 +89,7 @@ test.describe('Tab Close in Code View (#36)', () => {
       // OR we should see the content of the remaining tab
       // The fix exits code view, so the visual editor should be visible
       const visualEditorVisible = await page.locator('.editor-container').isVisible().catch(() => false);
-      const codeEditorStillVisible = await codeEditor.isVisible().catch(() => false);
+      const codeEditorStillVisible = await codeEditorElement.isVisible().catch(() => false);
 
       // At least one editor should show content
       expect(visualEditorVisible || codeEditorStillVisible).toBe(true);
@@ -108,7 +113,7 @@ test.describe('Tab Close in Code View (#36)', () => {
     await waitForTab(page, 'file-a.md');
 
     // Create a second tab
-    await page.locator('button[title="New"]').click();
+    await createPlainTab(page);
     await page.waitForTimeout(500);
 
     // Switch back to first tab
@@ -117,13 +122,12 @@ test.describe('Tab Close in Code View (#36)', () => {
     await page.waitForTimeout(300);
 
     // Switch to code view
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
+    const codeEditorElement = codeEditor(page);
     await page.waitForTimeout(300);
 
     // Get current code content
-    const contentBefore = await codeEditor.inputValue();
+    const contentBefore = await getCodeEditorValue(page);
 
     // Close the non-active tab (second tab)
     const tabs = page.locator('.tab-bar .tab');
@@ -136,8 +140,8 @@ test.describe('Tab Close in Code View (#36)', () => {
         await page.waitForTimeout(500);
 
         // Code editor should still be visible with same content
-        await expect(codeEditor).toBeVisible();
-        const contentAfter = await codeEditor.inputValue();
+        await expect(codeEditorElement).toBeVisible();
+        const contentAfter = await getCodeEditorValue(page);
         expect(contentAfter).toBe(contentBefore);
       }
     }

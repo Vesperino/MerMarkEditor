@@ -1,5 +1,11 @@
 import { Node, mergeAttributes } from '@tiptap/core';
-import { decodeSafeHtmlSource, encodeSafeHtmlSource, sanitizeSafeHtml } from '../utils/safe-html';
+import { NodeSelection } from '@tiptap/pm/state';
+import {
+  decodeSafeHtmlSource,
+  encodeSafeHtmlSource,
+  safeHtmlRenderableTagSourceLines,
+  sanitizeSafeHtml,
+} from '../utils/safe-html';
 
 export const SafeHtmlBlockExtension = Node.create({
   name: 'safeHtmlBlock',
@@ -27,12 +33,38 @@ export const SafeHtmlBlockExtension = Node.create({
   },
 
   addNodeView() {
-    return ({ node }) => {
+    return ({ node, editor, getPos }) => {
       const dom = document.createElement('div');
       dom.className = 'safe-html-block';
       dom.contentEditable = 'false';
-      dom.innerHTML = sanitizeSafeHtml(String(node.attrs.raw ?? ''));
-      return { dom };
+      const raw = String(node.attrs.raw ?? '');
+      dom.innerHTML = sanitizeSafeHtml(raw);
+      dom.dataset.safeHtmlCursorLine = '0';
+
+      const sourceLines = safeHtmlRenderableTagSourceLines(raw);
+      const rendered = dom.querySelectorAll('p, strong, em, br, a, img, details, summary');
+      rendered.forEach((element, index) => {
+        if (sourceLines[index] !== undefined) {
+          (element as HTMLElement).dataset.safeHtmlSourceLine = String(sourceLines[index]);
+        }
+      });
+
+      const rememberClickedLine = (event: PointerEvent) => {
+        const target = event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-safe-html-source-line]')
+          : null;
+        dom.dataset.safeHtmlCursorLine = target?.dataset.safeHtmlSourceLine ?? '0';
+        const pos = typeof getPos === 'function' ? getPos() : undefined;
+        if (typeof pos === 'number') {
+          editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
+        }
+      };
+      dom.addEventListener('pointerdown', rememberClickedLine);
+
+      return {
+        dom,
+        destroy: () => dom.removeEventListener('pointerdown', rememberClickedLine),
+      };
     };
   },
 });

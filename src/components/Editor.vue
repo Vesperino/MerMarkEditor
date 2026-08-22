@@ -1056,6 +1056,13 @@ defineExpose({
 .editor-content .tiptap .safe-html-block {
   margin: 0.75em 0;
   white-space: normal;
+  cursor: text;
+}
+
+.editor-content .tiptap .safe-html-block.ProseMirror-selectednode {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+  border-radius: 3px;
 }
 
 .editor-content .tiptap .safe-html-block p[align="center"] {

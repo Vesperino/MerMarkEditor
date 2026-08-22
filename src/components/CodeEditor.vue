@@ -2,7 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Compartment, EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { markdown } from '@codemirror/lang-markdown';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
+import { tags } from '@lezer/highlight';
 import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
 import type { CodeEditorHandle } from '../types/code-editor';
@@ -18,6 +21,16 @@ const gutterConfig = new Compartment();
 let view: EditorView | null = null;
 let applyingExternalValue = false;
 let lastSyncedValue = props.modelValue;
+
+const markdownHighlightStyle = HighlightStyle.define([
+  { tag: tags.heading, color: 'var(--code-md-heading)', fontWeight: '600' },
+  { tag: tags.list, color: 'var(--code-md-bullet)' },
+  { tag: tags.strong, color: 'var(--code-md-strong)', fontWeight: '700' },
+  { tag: tags.emphasis, color: 'var(--code-md-emphasis)', fontStyle: 'italic' },
+  { tag: [tags.link, tags.url, tags.string], color: 'var(--code-md-link)' },
+  { tag: [tags.monospace, tags.quote], color: 'var(--code-md-code)' },
+  { tag: [tags.meta, tags.processingInstruction, tags.contentSeparator], color: 'var(--code-md-meta)' },
+]);
 
 const codeZoomStyle = computed(() => ({ zoom: zoomScale.value }));
 
@@ -74,6 +87,8 @@ onMounted(() => {
       doc: props.modelValue,
       extensions: [
         history(),
+        markdown(),
+        syntaxHighlighting(markdownHighlightStyle),
         keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
         wrapConfig.of(settings.value.codeWordWrap ? EditorView.lineWrapping : []),
         gutterConfig.of(settings.value.showLineNumbers ? lineNumbers() : []),

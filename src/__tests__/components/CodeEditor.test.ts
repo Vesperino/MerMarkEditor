@@ -51,4 +51,14 @@ describe('CodeEditor virtualization (issue #129)', () => {
     const handle = (wrapper.vm as unknown as { editor: { getValue: () => string } }).editor;
     expect(handle.getValue().length).toBe(big.length);
   });
+
+  it('highlights Markdown syntax inside the virtualized viewport', async () => {
+    const wrapper = mount(CodeEditor, {
+      props: { modelValue: '# Heading\n\n- **Bold** and [link](https://example.com)\n\n`code`' },
+    });
+    await nextTick();
+
+    expect(wrapper.find('.cm-line span').exists()).toBe(true);
+    expect(wrapper.find('.cm-content').text()).toContain('Heading');
+  });
 });

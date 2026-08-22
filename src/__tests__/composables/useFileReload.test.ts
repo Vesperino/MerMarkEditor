@@ -299,7 +299,7 @@ describe('useFileReload', () => {
       expect(setCodeMarkdown).not.toHaveBeenCalled();
     });
 
-    it('converts normally for tabs that are not markdown-first', () => {
+    it('converts normally and refreshes code view for an active regular tab', () => {
       const setCodeMarkdown = vi.fn();
       vi.mocked(markdownToHtml).mockReturnValueOnce('<p>converted</p>');
 
@@ -307,6 +307,16 @@ describe('useFileReload', () => {
       reloadTabContent('/test/file.md', 'converted');
 
       expect(mockTab.content).toBe('<p>converted</p>');
+      expect(setCodeMarkdown).toHaveBeenCalledWith('converted');
+    });
+
+    it('does not refresh code view for an inactive regular tab', () => {
+      const setCodeMarkdown = vi.fn();
+      mockPane.activeTabId = 'other-tab';
+
+      const { reloadTabContent } = createReload({ setCodeMarkdown });
+      reloadTabContent('/test/file.md', 'converted');
+
       expect(setCodeMarkdown).not.toHaveBeenCalled();
     });
   });

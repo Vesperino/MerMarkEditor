@@ -1,3 +1,5 @@
+import { safeHtmlTagTokens } from './safe-html';
+
 export interface MarkdownChunk {
   markdown: string;
   lineCount: number;
@@ -7,8 +9,9 @@ const TARGET_CHUNK_CHARS = 24 * 1024;
 const MAX_CHUNK_CHARS = TARGET_CHUNK_CHARS * 2;
 
 /**
- * Split at block boundaries without cutting fenced code blocks. Each chunk can
- * be converted independently, keeping large-file preview work bounded.
+ * Split at block boundaries without cutting fenced code or supported raw HTML
+ * blocks. Each chunk can be converted independently, keeping large-file
+ * preview work bounded.
  */
 export function splitMarkdownForLazyPreview(markdown: string): MarkdownChunk[] {
   if (!markdown) return [{ markdown: '', lineCount: 1 }];
@@ -19,6 +22,7 @@ export function splitMarkdownForLazyPreview(markdown: string): MarkdownChunk[] {
   let chars = 0;
   let fenceChar = '';
   let fenceLength = 0;
+  let safeHtmlDepth = 0;
 
   const push = (endExclusive: number) => {
     const chunkLines = lines.slice(start, endExclusive);
@@ -43,7 +47,15 @@ export function splitMarkdownForLazyPreview(markdown: string): MarkdownChunk[] {
       }
     }
 
-    if (fenceChar || chars < TARGET_CHUNK_CHARS) continue;
+    if (!fenceChar) {
+      for (const tag of safeHtmlTagTokens(line)) {
+        if (tag.name !== 'p' && tag.name !== 'details') continue;
+        if (tag.closing) safeHtmlDepth = Math.max(0, safeHtmlDepth - 1);
+        else if (!tag.selfClosing) safeHtmlDepth++;
+      }
+    }
+
+    if (fenceChar || safeHtmlDepth || chars < TARGET_CHUNK_CHARS) continue;
     const atBlockBoundary = line.trim() === '';
     if (atBlockBoundary || chars >= MAX_CHUNK_CHARS) push(i + 1);
   }

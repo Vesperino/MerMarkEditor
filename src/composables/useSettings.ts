@@ -781,6 +781,13 @@ function applyCodeThemeVars(root: CSSStyleDeclaration, theme: CodeThemeMode) {
   root.setProperty('--code-preview-name', darkTheme ? '#e06c75' : '#dc2626');
   root.setProperty('--code-preview-string', darkTheme ? '#98c379' : '#15803d');
   root.setProperty('--code-preview-function', darkTheme ? '#61afef' : '#2563eb');
+  root.setProperty('--code-md-heading', darkTheme ? '#61afef' : '#2563eb');
+  root.setProperty('--code-md-bullet', darkTheme ? '#c678dd' : '#7c3aed');
+  root.setProperty('--code-md-strong', darkTheme ? '#e5c07b' : '#a16207');
+  root.setProperty('--code-md-emphasis', darkTheme ? '#d19a66' : '#c2410c');
+  root.setProperty('--code-md-link', darkTheme ? '#98c379' : '#15803d');
+  root.setProperty('--code-md-code', darkTheme ? '#56b6c2' : '#0e7490');
+  root.setProperty('--code-md-meta', darkTheme ? '#c678dd' : '#7c3aed');
 }
 
 // Apply all CSS custom properties to document root

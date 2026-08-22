@@ -129,6 +129,7 @@ export function useFileReload(options: UseFileReloadOptions) {
     fileWatcher.updateKnownContent(filePath, newContent);
 
     if (isActive) {
+      setCodeMarkdown?.(newContent);
       setEditorContent(htmlContent);
       restoreScrollRatio(savedRatio);
     }

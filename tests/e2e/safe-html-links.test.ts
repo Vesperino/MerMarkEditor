@@ -8,6 +8,10 @@ const MARKDOWN = [
   '</p>',
   '',
   '<p><a href="https://example.com/text">Text link</a></p>',
+  '',
+  '<p align="center">',
+  '  <strong>A modern, open-source Markdown editor with built-in Mermaid diagram support</strong>',
+  '</p>',
 ].join('\n');
 
 test.describe('safe HTML external links', () => {
@@ -34,5 +38,29 @@ test.describe('safe HTML external links', () => {
 
     await expect(page.locator('.dialog-url')).toHaveText('https://example.com/text');
     expect(page.url()).toBe(initialUrl);
+  });
+
+  test('clicking rendered HTML restores the matching source line in code view', async ({ page }) => {
+    await page.getByText('A modern, open-source Markdown editor', { exact: false }).click();
+    await expect(page.locator('.safe-html-block').last()).toHaveAttribute('data-safe-html-cursor-line', '1');
+    await page.getByRole('button', { name: 'Code', exact: true }).click();
+
+    await expect.poll(() => page.evaluate(() => {
+      const anchor = window.getSelection()?.anchorNode;
+      const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+      return element?.closest('.cm-line')?.textContent ?? '';
+    })).toContain('<strong>A modern, open-source Markdown editor');
+  });
+
+  test('the HTML source line maps back to its rendered element in visual view', async ({ page }) => {
+    await page.getByRole('button', { name: 'Code', exact: true }).click();
+    const strongLine = page.locator('.code-editor .cm-line').filter({ hasText: '<strong>A modern, open-source Markdown editor' });
+    await strongLine.click();
+    await page.waitForTimeout(400);
+    await page.getByRole('button', { name: 'Visual', exact: true }).click();
+
+    await expect(page.locator('.safe-html-block').last()).toHaveAttribute('data-safe-html-cursor-line', '1');
+    const strong = page.getByText('A modern, open-source Markdown editor', { exact: false });
+    await expect(strong).toBeVisible();
   });
 });

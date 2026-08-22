@@ -63,7 +63,7 @@ test('capture syntax highlighting and safe HTML rendering', async ({ page }) => 
   });
 
   await page.keyboard.press('Control+Shift+V');
-  await expect(page.locator('.code-highlight')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.code-editor .cm-editor')).toBeVisible({ timeout: 10_000 });
   await page.screenshot({
     path: 'assets/screenshots/markdown-syntax-highlighting.png',
     animations: 'disabled',

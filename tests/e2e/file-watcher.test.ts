@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { setupTauriMocks } from './helpers/tauri-mock';
+import { fillCodeEditor, getCodeEditorValue, openCodeView } from './helpers/code-editor';
 
 // ============================================================
 // Test suite: File Watcher — external change detection (#22)
@@ -44,10 +45,10 @@ test.describe('File Watcher — silent reload (no local changes)', () => {
     await triggerExternalChange(SAMPLE_PATH, UPDATED_MD);
 
     // App should show a toast notification (silent reload — no local changes)
-    await expect(page.locator('.toast-notification')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.toast-container')).toBeVisible({ timeout: 5_000 });
 
     // Conflict modal must NOT appear (no local changes)
-    await expect(page.locator('.file-conflict-modal')).not.toBeVisible();
+    await expect(page.locator('.conflict-panel')).not.toBeVisible();
   });
 
   test('after silent reload, editor shows the externally updated content', async ({ page }) => {
@@ -64,15 +65,13 @@ test.describe('File Watcher — silent reload (no local changes)', () => {
     await triggerExternalChange(SAMPLE_PATH, UPDATED_MD);
 
     // Wait for toast (confirms reload happened)
-    await expect(page.locator('.toast-notification')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.toast-container')).toBeVisible({ timeout: 5_000 });
     await page.waitForTimeout(300); // let Vue reactivity settle
 
     // Switch to code view to inspect raw markdown content
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
 
-    const content = await codeEditor.inputValue();
+    const content = await getCodeEditorValue(page);
     expect(content).toContain('Updated Externally');
   });
 });
@@ -92,21 +91,18 @@ test.describe('File Watcher — conflict modal (with local changes)', () => {
     await page.waitForTimeout(500);
 
     // Make a local edit (type something in code view)
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
-    await codeEditor.fill('# My Local Changes\n\nI typed this locally.\n');
-    await codeEditor.dispatchEvent('input');
+    await fillCodeEditor(page, '# My Local Changes\n\nI typed this locally.\n');
     await page.waitForTimeout(300);
 
     // External editor also changes the file
     await triggerExternalChange(SAMPLE_PATH, UPDATED_MD);
 
     // Conflict modal MUST appear
-    await expect(page.locator('.file-conflict-modal')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.conflict-panel')).toBeVisible({ timeout: 5_000 });
     // Toast must NOT appear (conflict modal takes priority)
-    await expect(page.locator('.toast-notification')).not.toBeVisible();
+    await expect(page.locator('.toast-container')).not.toBeVisible();
   });
 
   test('"Load External Version" replaces editor content with disk version', async ({ page }) => {
@@ -121,26 +117,23 @@ test.describe('File Watcher — conflict modal (with local changes)', () => {
     await page.waitForTimeout(500);
 
     // Local edit
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
-    await codeEditor.fill('# My Local Changes\n\nI typed this locally.\n');
-    await codeEditor.dispatchEvent('input');
+    await fillCodeEditor(page, '# My Local Changes\n\nI typed this locally.\n');
     await page.waitForTimeout(300);
 
     await triggerExternalChange(SAMPLE_PATH, UPDATED_MD);
-    await expect(page.locator('.file-conflict-modal')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.conflict-panel')).toBeVisible({ timeout: 5_000 });
 
     // Click "Load External Version"
-    await page.locator('.file-conflict-modal button').filter({ hasText: /load external/i }).click();
+    await page.locator('.conflict-panel button').filter({ hasText: /load external/i }).click();
     await page.waitForTimeout(300);
 
     // Modal should close
-    await expect(page.locator('.file-conflict-modal')).not.toBeVisible();
+    await expect(page.locator('.conflict-panel')).not.toBeVisible();
 
     // Editor should now show disk content
-    const content = await codeEditor.inputValue();
+    const content = await getCodeEditorValue(page);
     expect(content).toContain('Updated Externally');
   });
 
@@ -155,24 +148,21 @@ test.describe('File Watcher — conflict modal (with local changes)', () => {
     await waitForTab(page, 'watched.md');
     await page.waitForTimeout(500);
 
-    await page.locator('button[title="Code"]').click();
-    const codeEditor = page.locator('textarea.code-editor');
-    await expect(codeEditor).toBeVisible({ timeout: 3_000 });
+    await openCodeView(page);
     await page.waitForTimeout(300);
-    await codeEditor.fill('# My Local Changes\n\nI typed this locally.\n');
-    await codeEditor.dispatchEvent('input');
+    await fillCodeEditor(page, '# My Local Changes\n\nI typed this locally.\n');
     await page.waitForTimeout(300);
 
     await triggerExternalChange(SAMPLE_PATH, UPDATED_MD);
-    await expect(page.locator('.file-conflict-modal')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.conflict-panel')).toBeVisible({ timeout: 5_000 });
 
     // Click "Keep My Changes"
-    await page.locator('.file-conflict-modal button').filter({ hasText: /keep my changes/i }).click();
+    await page.locator('.conflict-panel button').filter({ hasText: /keep my changes/i }).click();
     await page.waitForTimeout(300);
 
-    await expect(page.locator('.file-conflict-modal')).not.toBeVisible();
+    await expect(page.locator('.conflict-panel')).not.toBeVisible();
 
-    const content = await codeEditor.inputValue();
+    const content = await getCodeEditorValue(page);
     expect(content).toContain('My Local Changes');
     expect(content).not.toContain('Updated Externally');
   });
@@ -203,16 +193,16 @@ test.describe('File Watcher — own-save grace period regression', () => {
     await waitForTab(page, 'watched.md');
     await page.waitForTimeout(500);
 
-    // 1. Save our own copy (triggers markSaveStart → markSaveEnd)
-    await saveAs(page, SAVE_PATH);
+    // 1. Save to the watched path (triggers markSaveStart → markSaveEnd)
+    await saveAs(page, SAMPLE_PATH);
 
     // 2. Immediately (well within old 2s grace period) simulate external change
-    //    to the ORIGINAL file from another editor with DIFFERENT content
+    //    to the same watched file from another editor with DIFFERENT content
     await triggerExternalChange(SAMPLE_PATH, UPDATED_MD);
 
-    // 3. The app has no local edits to SAMPLE_PATH (we saved to SAVE_PATH),
+    // 3. The app has no local edits after its own save,
     //    so it should silently reload and show a toast — NOT ignore the event.
-    await expect(page.locator('.toast-notification')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.toast-container')).toBeVisible({ timeout: 5_000 });
   });
 
   test('own save does not trigger a false external-change reload', async ({ page }) => {
@@ -234,9 +224,9 @@ test.describe('File Watcher — own-save grace period regression', () => {
     await page.waitForTimeout(1_500);
 
     // No toast, no conflict modal — own save should be transparent
-    await expect(page.locator('.file-conflict-modal')).not.toBeVisible();
+    await expect(page.locator('.conflict-panel')).not.toBeVisible();
     // Toast from own save is not expected (only external changes show toast)
-    await expect(page.locator('.toast-notification')).not.toBeVisible();
+    await expect(page.locator('.toast-container')).not.toBeVisible();
   });
 
   test('spurious post-save watcher event (same content) is silently ignored', async ({ page }) => {
@@ -255,7 +245,7 @@ test.describe('File Watcher — own-save grace period regression', () => {
 
     // Nothing should happen
     await page.waitForTimeout(500);
-    await expect(page.locator('.toast-notification')).not.toBeVisible();
-    await expect(page.locator('.file-conflict-modal')).not.toBeVisible();
+    await expect(page.locator('.toast-container')).not.toBeVisible();
+    await expect(page.locator('.conflict-panel')).not.toBeVisible();
   });
 });

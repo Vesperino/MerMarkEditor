@@ -47,7 +47,54 @@ import {
   convertHtmlFootnoteRefsToMd,
   extractHtmlFootnoteSection,
 } from './footnote-utils';
-import { decodeSafeHtmlSource, encodeSafeHtmlSource, sanitizeSafeInlineHtmlTag } from './safe-html';
+import {
+  decodeSafeHtmlSource,
+  encodeSafeHtmlSource,
+  isStandaloneSafeHtmlBlock,
+  safeHtmlInlineTagTokens,
+  safeHtmlTagTokens,
+  sanitizeSafeInlineHtmlTag,
+} from './safe-html';
+
+const protectSafeHtmlBlocks = (source: string, protect: (raw: string) => string): string => {
+  const lines = source.split('\n');
+  const output: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const first = safeHtmlTagTokens(lines[i])[0];
+    if (first && !first.closing && (first.name === 'p' || first.name === 'details')
+      && lines[i].slice(0, first.start).trim() === '') {
+      const rootName = first.name;
+      let depth = 0;
+      let closeLine = -1;
+      let closeEnd = -1;
+      for (let j = i; j < lines.length && closeLine < 0; j++) {
+        for (const token of safeHtmlTagTokens(lines[j])) {
+          if (token.name !== rootName) continue;
+          if (token.closing) depth = Math.max(0, depth - 1);
+          else if (!token.selfClosing) depth++;
+          if (depth === 0) {
+            closeLine = j;
+            closeEnd = token.end;
+            break;
+          }
+        }
+      }
+      if (closeLine >= i && lines[closeLine].slice(closeEnd).trim() === '') {
+        output.push(protect(lines.slice(i, closeLine + 1).join('\n').trim()));
+        i = closeLine;
+        continue;
+      }
+    }
+
+    const trimmed = lines[i].trim();
+    if (/^<(?:img|a)\b/i.test(trimmed) && isStandaloneSafeHtmlBlock(trimmed)) {
+      output.push(protect(trimmed));
+      continue;
+    }
+    output.push(lines[i]);
+  }
+  return output.join('\n');
+};
 
 export function htmlToMarkdown(
   html: string,
@@ -364,26 +411,26 @@ export function markdownToHtmlWithMeta(
   // Preserve common README HTML blocks as atomic visual nodes. Do this only
   // after fenced/indented code has been extracted so examples stay code.
   const safeHtmlBlocks: string[] = [];
-  html = html.replace(/^[ \t]*<(p|details)\b[^>]*>[\s\S]*?<\/\1>[ \t]*$/gim, (raw) => {
+  html = protectSafeHtmlBlocks(html, (raw) => {
     const placeholder = `__SAFE_HTML_BLOCK_${safeHtmlBlocks.length}__`;
-    safeHtmlBlocks.push(raw.trim());
-    return placeholder;
-  });
-  html = html.replace(/^[ \t]*(?:<img\b[^>]*\/?\s*>|<a\b[^>]*>\s*<img\b[^>]*\/?\s*>\s*<\/a>)[ \t]*$/gim, (raw) => {
-    const placeholder = `__SAFE_HTML_BLOCK_${safeHtmlBlocks.length}__`;
-    safeHtmlBlocks.push(raw.trim());
+    safeHtmlBlocks.push(raw);
     return placeholder;
   });
 
   // Inline README HTML uses native TipTap marks/nodes after allowlisting.
   const safeInlineHtml: string[] = [];
-  html = html.replace(/<\/?(?:strong|em|br|a|img)\b[^>]*>/gi, (raw) => {
+  let inlineCursor = 0;
+  let protectedInlineHtml = '';
+  for (const token of safeHtmlInlineTagTokens(html)) {
+    const raw = html.slice(token.start, token.end);
     const safe = sanitizeSafeInlineHtmlTag(raw);
-    if (!safe) return raw;
+    if (!safe) continue;
     const placeholder = `__SAFE_INLINE_HTML_${safeInlineHtml.length}__`;
     safeInlineHtml.push(safe);
-    return placeholder;
-  });
+    protectedInlineHtml += html.slice(inlineCursor, token.start) + placeholder;
+    inlineCursor = token.end;
+  }
+  html = protectedInlineHtml + html.slice(inlineCursor);
 
   // Extract footnote definitions before HTML processing
   const footnotes = extractFootnoteDefinitions(html);

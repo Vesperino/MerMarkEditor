@@ -4,6 +4,7 @@ import type { CodeEditorHandle } from '../types/code-editor';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import { targetScrollTop } from '../utils/scroll';
+import { isStandaloneSafeHtmlBlock, safeHtmlTagTokens } from '../utils/safe-html';
 import {
   DOM_SELECTORS,
   TIMING,
@@ -221,7 +222,7 @@ const getProseMirrorRoot = (container: HTMLElement): HTMLElement | null => {
 interface MarkdownBlock {
   startLine: number;
   endLine: number; // exclusive
-  type: 'code' | 'mermaid' | 'table' | 'heading' | 'list' | 'taskList' | 'blockquote' | 'hr' | 'paragraph';
+  type: 'code' | 'mermaid' | 'html' | 'table' | 'heading' | 'list' | 'taskList' | 'blockquote' | 'hr' | 'paragraph';
 }
 
 // Parse markdown into blocks with exact source-line ranges.
@@ -237,6 +238,30 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
     const trimmed = line.trim();
 
     if (!trimmed) { i++; continue; }
+
+    // Supported README HTML is represented by one atomic visual node, so its
+    // complete source range must also be one block for cursor restoration.
+    const htmlBlockStart = trimmed.match(/^<(p|details)\b/i);
+    if (htmlBlockStart) {
+      const startLine = i;
+      const tag = htmlBlockStart[1];
+      let depth = 0;
+      do {
+        for (const token of safeHtmlTagTokens(lines[i])) {
+          if (token.name !== tag.toLowerCase()) continue;
+          if (token.closing) depth = Math.max(0, depth - 1);
+          else if (!token.selfClosing) depth++;
+        }
+        i++;
+      } while (i < lines.length && depth > 0);
+      blocks.push({ startLine, endLine: i, type: 'html' });
+      continue;
+    }
+    if (/^<(?:img|a)\b/i.test(trimmed) && isStandaloneSafeHtmlBlock(trimmed)) {
+      blocks.push({ startLine: i, endLine: i + 1, type: 'html' });
+      i++;
+      continue;
+    }
 
     // Mermaid blocks: any enabled format's open delimiter. The matching close
     // is taken from the format that opened the block so a `:::mermaid` block
@@ -408,6 +433,12 @@ const findElementByBlockMap = (
     }
   }
 
+  if (block.type === 'html') {
+    const lineInBlock = Math.max(0, cursorLine - block.startLine);
+    element.dataset.safeHtmlCursorLine = String(lineInBlock);
+    return element.querySelector<HTMLElement>(`[data-safe-html-source-line="${lineInBlock}"]`) || element;
+  }
+
   return element;
 };
 
@@ -570,8 +601,16 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           if (topBlockIndex >= 0 && topBlockIndex < blocks.length) {
             const block = blocks[topBlockIndex];
             const lines = codeContent.value.split('\n');
+            let sourceLine = block.startLine;
+            if (block.type === 'html') {
+              const nodeDom = editor.view.nodeDOM(from) as HTMLElement | null;
+              const offset = Number(nodeDom?.dataset.safeHtmlCursorLine ?? 0);
+              if (Number.isFinite(offset)) {
+                sourceLine = Math.min(block.endLine - 1, block.startLine + Math.max(0, offset));
+              }
+            }
             let charPos = 0;
-            for (let i = 0; i < block.startLine && i < lines.length; i++) {
+            for (let i = 0; i < sourceLine && i < lines.length; i++) {
               charPos += lines[i].length + 1;
             }
 
@@ -726,7 +765,9 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             // preserves position when toggling back to code view.
             if (editor) {
               try {
-                let pos = editor.view.posAtDOM(targetElement, 0);
+                const safeHtmlBlock = targetElement.closest<HTMLElement>('.safe-html-block');
+                const selectionElement = safeHtmlBlock || targetElement;
+                let pos = editor.view.posAtDOM(selectionElement, 0);
                 // For code blocks with a line offset, advance into the code
                 if (codeBlockIndex >= 0 && lineInCodeBlock > 0) {
                   const codeEl = targetElement.querySelector('code');
@@ -741,7 +782,14 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
                     pos = Math.min(codePos + charOffset, editor.state.doc.content.size);
                   }
                 }
-                editor.commands.setTextSelection(pos);
+                if (safeHtmlBlock) {
+                  safeHtmlBlock.dataset.safeHtmlCursorLine = targetElement.dataset.safeHtmlSourceLine
+                    ?? safeHtmlBlock.dataset.safeHtmlCursorLine
+                    ?? '0';
+                  editor.commands.setNodeSelection(pos);
+                } else {
+                  editor.commands.setTextSelection(pos);
+                }
               } catch { /* posAtDOM can throw if DOM is not in sync */ }
             }
 

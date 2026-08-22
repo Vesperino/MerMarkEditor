@@ -83,6 +83,12 @@ export async function setupTauriMocks(
   // Inject mock __TAURI_INTERNALS__ before the app JS runs
   await page.addInitScript(
     ({ openFilePath, version }: { openFilePath: string | null; version: string }) => {
+      // Keep the first-run AI popover from covering toolbar controls in tests.
+      // Tests that provide their own settings before this mock keep them.
+      if (!localStorage.getItem('mermark-settings')) {
+        localStorage.setItem('mermark-settings', JSON.stringify({ ai: { hasSeenFirstRun: true } }));
+      }
+
       // Helper to resolve a promise from a window-exposed async Node function
       const call = (fn: string, ...args: unknown[]): Promise<unknown> =>
         (window as Record<string, unknown>)[fn]?.(...args) as Promise<unknown>;
@@ -94,18 +100,18 @@ export async function setupTauriMocks(
       // Watcher callback registry: path -> Tauri callback id
       // Filled when plugin:fs|watch is invoked (see invoke handler below).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).__watchCallbacks = {} as Record<string, number>;
+      (window as any).__watchCallbacks = {} as Record<string, { id: number; index: number }>;
 
       // Trigger a synthetic watcher event for a path (called from test via page.evaluate).
       // The Node side must have already updated the FS content before calling this.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__triggerWatchEvent = (path: string) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const id = (window as any).__watchCallbacks[path];
-        if (id !== undefined) {
+        const channel = (window as any).__watchCallbacks[path] as { id: number; index: number } | undefined;
+        if (channel) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const cb = (window as any)[`_cb_${id}`];
-          if (cb) cb({ type: 'modify' });
+          const cb = (window as any)[`_cb_${channel.id}`];
+          if (cb) cb({ index: channel.index++, message: { type: 'modify', paths: [path], attrs: null } });
         }
       };
 
@@ -152,13 +158,14 @@ export async function setupTauriMocks(
           }
           if (cmd === 'plugin:fs|watch') {
             // Capture the Tauri callback id so tests can fire synthetic events.
-            // plugin-fs sends: { id: number, paths: string[], options: {...} }
+            // plugin-fs v2 sends the callback through a Channel in `onEvent`.
             const watchArgs = args as Record<string, unknown>;
-            const cbId = watchArgs.id as number;
+            const cbId = (watchArgs.onEvent as { id?: number } | undefined)?.id ?? watchArgs.id as number;
             const paths = (watchArgs.paths as string[]) ?? [];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            for (const p of paths) (window as any).__watchCallbacks[p] = cbId;
-            return call('__mockFsWatch');
+            for (const p of paths) (window as any).__watchCallbacks[p] = { id: cbId, index: 0 };
+            await call('__mockFsWatch');
+            return 1;
           }
           if (cmd === 'plugin:fs|unwatch') {
             return call('__mockFsWatch');
