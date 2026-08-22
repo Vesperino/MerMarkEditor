@@ -86,9 +86,19 @@ test.describe('safe HTML external links', () => {
       window.getComputedStyle(element).animationName
     ))).toContain('code-cursor-pulse');
     await expect(matchingLines.nth(0)).not.toHaveClass(/code-cursor-highlight-line/);
-    await page.waitForTimeout(1000);
+    const earlyAlpha = await matchingLines.nth(1).evaluate(element => {
+      const color = window.getComputedStyle(element).backgroundColor;
+      return Number(color.match(/[\d.]+\)$/)?.[0].slice(0, -1) ?? 1);
+    });
+    await page.waitForTimeout(800);
     await expect(matchingLines.nth(1)).toHaveClass(/code-cursor-highlight-line/);
-    await page.waitForTimeout(500);
+    const lateAlpha = await matchingLines.nth(1).evaluate(element => {
+      const color = window.getComputedStyle(element).backgroundColor;
+      return Number(color.match(/[\d.]+\)$/)?.[0].slice(0, -1) ?? 1);
+    });
+    expect(lateAlpha).toBeLessThan(earlyAlpha);
+    expect(lateAlpha).toBeGreaterThan(0);
+    await page.waitForTimeout(700);
     await expect(matchingLines.nth(1)).not.toHaveClass(/code-cursor-highlight-line/);
   });
 

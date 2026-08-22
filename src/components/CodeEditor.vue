@@ -23,11 +23,16 @@ let applyingExternalValue = false;
 let lastSyncedValue = props.modelValue;
 let highlightedLine: HTMLElement | null = null;
 let highlightTimer: number | null = null;
+let highlightAnimationEnd: (() => void) | null = null;
 
 const clearSelectionHighlight = () => {
+  if (highlightedLine && highlightAnimationEnd) {
+    highlightedLine.removeEventListener('animationend', highlightAnimationEnd);
+  }
   highlightedLine?.classList.remove('code-cursor-highlight-line');
   highlightedLine?.style.removeProperty('--code-cursor-highlight-duration');
   highlightedLine = null;
+  highlightAnimationEnd = null;
   if (highlightTimer !== null) {
     window.clearTimeout(highlightTimer);
     highlightTimer = null;
@@ -104,7 +109,10 @@ const editor: CodeEditorHandle = {
         line.style.setProperty('--code-cursor-highlight-duration', `${durationMs}ms`);
         line.classList.add('code-cursor-highlight-line');
         highlightedLine = line;
-        highlightTimer = window.setTimeout(clearSelectionHighlight, durationMs);
+        highlightAnimationEnd = clearSelectionHighlight;
+        line.addEventListener('animationend', highlightAnimationEnd, { once: true });
+        // Fallback for environments that suppress animation events.
+        highlightTimer = window.setTimeout(clearSelectionHighlight, durationMs + 250);
       },
       key: 'cursor-line-highlight',
     });
@@ -198,12 +206,23 @@ onBeforeUnmount(() => {
 @keyframes code-cursor-pulse {
   0% {
     background-color: rgba(56, 189, 248, 0.55);
-    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+    box-shadow: 0 0 18px 6px rgba(56, 189, 248, 0.65),
+      0 0 30px 10px rgba(14, 165, 233, 0.35);
   }
-  55% {
-    background-color: rgba(56, 189, 248, 0.35);
-    box-shadow: 0 0 18px 6px rgba(56, 189, 248, 0.75),
-      0 0 36px 12px rgba(14, 165, 233, 0.45);
+  25% {
+    background-color: rgba(56, 189, 248, 0.42);
+    box-shadow: 0 0 14px 4px rgba(56, 189, 248, 0.48),
+      0 0 24px 8px rgba(14, 165, 233, 0.26);
+  }
+  50% {
+    background-color: rgba(56, 189, 248, 0.28);
+    box-shadow: 0 0 10px 3px rgba(56, 189, 248, 0.32),
+      0 0 18px 6px rgba(14, 165, 233, 0.18);
+  }
+  75% {
+    background-color: rgba(56, 189, 248, 0.14);
+    box-shadow: 0 0 5px 1px rgba(56, 189, 248, 0.16),
+      0 0 9px 3px rgba(14, 165, 233, 0.09);
   }
   100% {
     background-color: transparent;
@@ -230,7 +249,7 @@ onBeforeUnmount(() => {
 .code-editor :deep(.cm-editor) { border-radius: 8px; }
 .code-editor :deep(.cm-scroller) { tab-size: var(--code-tab-size, 2); }
 .code-editor :deep(.code-cursor-highlight-line) {
-  animation: code-cursor-pulse var(--code-cursor-highlight-duration, 1400ms) ease-out forwards !important;
+  animation: code-cursor-pulse var(--code-cursor-highlight-duration, 1400ms) linear forwards !important;
   border-radius: 3px;
   position: relative;
 }
