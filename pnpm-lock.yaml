@@ -40,8 +40,8 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
       '@mermaid-js/layout-elk':
-        specifier: ^0.2.3
-        version: 0.2.3(mermaid@11.15.0)
+        specifier: 0.2.2
+        version: 0.2.2(mermaid@11.15.0)
       '@tauri-apps/plugin-dialog':
         specifier: ^2.7.1
         version: 2.7.1
@@ -695,8 +695,8 @@ packages:
     resolution: {integrity: sha512-MflN1movsh8PXJbM9otjJOtlcB0vSrvw5PgXs2PDguVYVzKQmGpiy9QHHKq0rryrgaSp376TdJWBP7mXHHAG8w==}
     engines: {node: '>=18'}
 
-  '@mermaid-js/layout-elk@0.2.3':
-    resolution: {integrity: sha512-m46RVGfvKK1PSMdAFGDz2nksI4jusEkFxvf0lb48bYWmqLQxZpjtpruiw29MbOy9rlWJtuMf9EzG9fAF8CVZbg==}
+  '@mermaid-js/layout-elk@0.2.2':
+    resolution: {integrity: sha512-vnH3gtqfhyBiRVKNpT8iDENTw18q/OF0GF/SfYfHN43KZpu+6eZDEOMHTfNYAkpmUWJNgtRQFIS6BTc7vH/DYQ==}
     peerDependencies:
       mermaid: ^11.0.2
 
@@ -2968,7 +2968,7 @@ snapshots:
       postcss: 8.5.15
       postcss-nesting: 13.0.2(postcss@8.5.15)
 
-  '@mermaid-js/layout-elk@0.2.3(mermaid@11.15.0)':
+  '@mermaid-js/layout-elk@0.2.2(mermaid@11.15.0)':
     dependencies:
       d3: 7.9.0
       elkjs: 0.9.3

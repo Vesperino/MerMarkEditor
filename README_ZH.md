@@ -185,10 +185,11 @@
 
 ### Mermaid 图表
 - **流程图**、**时序图**、**类图**、**状态图**、**ER 图**、**甘特图**、**饼图** 以及许多其他图表类型
+- **ELK 布局** — 在流程图中加入 `layout: elk`，连线走向更整洁，密集的架构图上重叠更少
 - **可调整大小** - 拖动右侧边缘设置自定义宽度（持久化到 markdown）
 - **可调整分屏** - 全屏编辑中拖动代码与预览面板之间的分隔条
 - **AI 辅助** - 在任意图表上点击 AI，主 AI 面板将以图表为上下文接管
-- **快速模板** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap 一键插入
+- **快速模板** — flowchart / ELK flowchart / sequence / class / state / ER / Gantt / pie / mindmap 一键插入
 
 ### 演示文稿 (Marp)
 - **Marp 演示稿** - 新建文件时选择 *Marp 演示文稿*，或打开已有的演示稿

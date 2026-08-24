@@ -1,7 +1,7 @@
 {
   "name": "mermark-editor",
   "private": false,
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Modern Markdown editor with Mermaid diagram support",
   "author": "Vesperino",
   "license": "MIT",
@@ -42,7 +42,7 @@
     "@codemirror/view": "^6.43.9",
     "@lezer/highlight": "^1.2.3",
     "@marp-team/marp-core": "^4.3.0",
-    "@mermaid-js/layout-elk": "^0.2.3",
+    "@mermaid-js/layout-elk": "0.2.2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-process": "^2.3.1",

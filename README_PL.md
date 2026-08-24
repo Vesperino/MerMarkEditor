@@ -185,10 +185,11 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 
 ### Diagramy Mermaid
 - **Flowchart**, **sequence**, **class**, **state**, **ER**, **Gantt**, **pie** i wiele innych typów
+- **Układ ELK** — dodaj `layout: elk` do flowchartu, żeby uzyskać porządniejsze prowadzenie strzałek i mniej nakładania na gęstych diagramach architektury
 - **Skalowanie** w dokumencie — przeciągnij prawą krawędź żeby ustawić własną szerokość (zapisana w markdownie)
 - **Skalowanie split** w fullscreen edycji — przeciągnij divider między panelami kodu i podglądu
 - **AI assist** — klik AI na diagramie i główny panel AI przejmuje sterowanie z diagramem przypiętym jako kontekst
-- **Szybkie szablony** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap jednym klikiem
+- **Szybkie szablony** — flowchart / flowchart ELK / sequence / class / state / ER / Gantt / pie / mindmap jednym klikiem
 
 ### Prezentacje (Marp)
 - **Decki Marp** - wybierz *Prezentacja Marp* dla nowego pliku albo otwórz istniejący deck
