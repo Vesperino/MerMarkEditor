@@ -57,11 +57,12 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      # No signing key here: PRs from forks get no repository secrets, so the key
+      # would arrive empty and tauri would still try to decode it. The assertions
+      # below only read the AppImage itself, never the updater artifacts.
       - name: Build AppImage
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build --bundles appimage
+        run: |
+          pnpm tauri build --bundles appimage --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Assert AppImage bundles no libwayland-client (#106)
         run: |
