@@ -22,6 +22,10 @@ export const diagramCategories: DiagramCategory[] = [
         code: "graph LR\n  A[Input] --> B[Process]\n  B --> C[Output]\n  B --> D[Error]\n  D --> B"
       },
       {
+        name: "Flowchart ELK",
+        code: "---\nconfig:\n  layout: elk\n---\nflowchart TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Action 1]\n  B -->|No| D[Action 2]\n  C --> E[End]\n  D --> E"
+      },
+      {
         name: "Sequence",
         code: "sequenceDiagram\n  participant U as User\n  participant S as System\n  participant D as Database\n  U->>S: Request\n  S->>D: Query\n  D-->>S: Result\n  S-->>U: Response"
       },
@@ -129,6 +133,7 @@ export const diagramCategories: DiagramCategory[] = [
 // Flat list of popular templates for quick access buttons
 export const quickAccessTemplates: DiagramTemplate[] = [
   { name: "Flowchart", code: "graph TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Action 1]\n  B -->|No| D[Action 2]\n  C --> E[End]\n  D --> E" },
+  { name: "ELK", code: "---\nconfig:\n  layout: elk\n---\nflowchart TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Action 1]\n  B -->|No| D[Action 2]\n  C --> E[End]\n  D --> E" },
   { name: "Sequence", code: "sequenceDiagram\n  participant U as User\n  participant S as System\n  U->>S: Request\n  S-->>U: Response" },
   { name: "Class", code: "classDiagram\n  class Animal {\n    +String name\n    +makeSound()\n  }\n  class Dog\n  Animal <|-- Dog" },
   { name: "State", code: "stateDiagram-v2\n  [*] --> Active\n  Active --> Inactive\n  Inactive --> [*]" },
