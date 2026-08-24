@@ -205,10 +205,11 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 
 ### Mermaid Diagrams
 - **Flowcharts**, **sequence**, **class**, **state**, **ER**, **Gantt**, **pie** and many more diagram types
+- **ELK layout** — add `layout: elk` to a flowchart for tidier arrow routing and less overlap on dense architecture diagrams
 - **Resizable** in document — drag the right edge to set a custom width (persisted in markdown)
 - **Resizable split** in fullscreen edit — drag the divider between code and preview pane
 - **AI assist** — click AI on any diagram and the main AI panel takes over with the diagram pinned as context
-- **Quick templates** — flowchart / sequence / class / state / ER / Gantt / pie / mindmap one-click inserts
+- **Quick templates** — flowchart / ELK flowchart / sequence / class / state / ER / Gantt / pie / mindmap one-click inserts
 
 ### Presentations (Marp)
 - **Marp decks** — pick *Marp presentation* for a new file, or open any existing deck

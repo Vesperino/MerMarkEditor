@@ -2,12 +2,21 @@
 import { NodeViewWrapper } from "@tiptap/vue-3";
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import mermaid from "mermaid";
+import elkLayouts from "@mermaid-js/layout-elk";
 import { useI18n } from "../i18n";
 import { useZoomPan } from "../composables/useZoomPan";
 import { useFullscreen } from "../composables/useFullscreen";
 import { quickAccessTemplates } from "../data/diagramTemplates";
 import DiagramTemplateModal from "./DiagramTemplateModal.vue";
 import { useAiMermaidTarget } from "../composables/useAiMermaidTarget";
+
+let elkLayoutLoadersRegistered = false;
+
+function ensureElkLayoutLoaders(): void {
+  if (elkLayoutLoadersRegistered) return;
+  mermaid.registerLayoutLoaders(elkLayouts);
+  elkLayoutLoadersRegistered = true;
+}
 
 const { t } = useI18n();
 
@@ -257,6 +266,8 @@ const fixMermaidViewBox = async (containerEl: HTMLElement): Promise<void> => {
 const renderPreview = async () => {
   if (!previewContainerRef.value || !isEditing.value) return;
 
+  ensureElkLayoutLoaders();
+
   mermaid.initialize({
     startOnLoad: false,
     theme: "base",
@@ -427,6 +438,8 @@ let darkModeObserver: MutationObserver | null = null;
 
 const renderMermaid = async () => {
   if (!containerRef.value) return;
+
+  ensureElkLayoutLoaders();
 
   mermaid.initialize({
     startOnLoad: false,
