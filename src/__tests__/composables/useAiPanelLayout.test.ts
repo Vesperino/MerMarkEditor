@@ -91,6 +91,21 @@ describe('useAiPanelLayout', () => {
     wrapper.unmount();
   });
 
+  it('reserves its configured side only in normal panel mode', () => {
+    const { api, wrapper } = setup({ panelSide: 'left' });
+    expect(api.reservedSide.value).toBe('left');
+
+    api.minimized.value = true;
+    expect(api.reservedSide.value).toBeNull();
+
+    api.minimized.value = false;
+    api.fullscreen.value = true;
+    expect(api.reservedSide.value).toBeNull();
+
+    api.unmount();
+    wrapper.unmount();
+  });
+
   it('Escape exits fullscreen instead of closing', () => {
     const onClose = vi.fn();
     const { api, wrapper } = setup({ onClose });

@@ -1186,9 +1186,16 @@ const showSettingsModal = ref(false);
 
 // ============ AI Panel ============
 const aiPanelOpen = ref(false);
+const aiPanelReservedSide = ref<'left' | 'right' | null>(null);
 
 function toggleAiPanel() {
   aiPanelOpen.value = !aiPanelOpen.value;
+  if (!aiPanelOpen.value) aiPanelReservedSide.value = null;
+}
+
+function closeAiPanel() {
+  aiPanelOpen.value = false;
+  aiPanelReservedSide.value = null;
 }
 
 // Auto-open the panel whenever a Mermaid node registers an AI edit target.
@@ -2111,7 +2118,13 @@ onUnmounted(async () => {
     />
 
     <!-- Main content area with optional left bar -->
-    <div class="main-area">
+    <div
+      class="main-area"
+      :class="{
+        'main-area--reserve-ai-left': aiPanelReservedSide === 'left',
+        'main-area--reserve-ai-right': aiPanelReservedSide === 'right',
+      }"
+    >
       <!-- Workspace Sidebar (folder browser).
            Visible whenever the sidebar toggle is on — the sidebar renders an
            empty-state CTA when no workspace is open yet. -->
@@ -2406,7 +2419,8 @@ onUnmounted(async () => {
       @close="documentSearch.close"
     />
 
-    <!-- AI Assistant Panel (slide-in chat) -->
+    <!-- AI Assistant Panel (fixed overlay; reports whether main content should
+         reserve its width while the panel is neither minimized nor fullscreen) -->
     <AiPanel
       v-if="aiPanelOpen"
       :open="aiPanelOpen"
@@ -2417,7 +2431,8 @@ onUnmounted(async () => {
       :work-dir="aiWorkDir"
       :workspace-name="aiWorkspaceName"
       :workspace-root="aiWorkspaceRoot"
-      @close="aiPanelOpen = false"
+      @close="closeAiPanel"
+      @layout-change="aiPanelReservedSide = $event"
       @apply-content="onAiApplyContent"
       @show-diff="onAiShowDiff"
       @link-click="handleLinkClick"
@@ -2507,6 +2522,7 @@ onUnmounted(async () => {
 
 <style scoped>
 .app {
+  --ai-panel-width: 420px;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -2518,6 +2534,16 @@ onUnmounted(async () => {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+}
+
+/* Keep the fixed AI panel from covering editor content. AiPanel reports no
+   reserved side while minimized, fullscreen, disabled, or closed. */
+.main-area--reserve-ai-right {
+  padding-right: var(--ai-panel-width);
+}
+
+.main-area--reserve-ai-left {
+  padding-left: var(--ai-panel-width);
 }
 
 .editor-area {
