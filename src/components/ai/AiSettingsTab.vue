@@ -13,6 +13,7 @@ const { t } = useI18n();
 const {
   settings,
   setAiEnabled,
+  setAiCheckCliHealthOnStartup,
   setAiDefaultCli,
   setAiDefaultModelClaude,
   setAiDefaultModelCodex,
@@ -287,6 +288,17 @@ async function copyAudit() {
 
     <section class="ai-settings-section">
       <h4>{{ t.aiSettingsCliHeading }}</h4>
+      <label class="ai-toggle-label ai-cli-startup-toggle">
+        <input
+          type="checkbox"
+          :checked="settings.ai.checkCliHealthOnStartup"
+          @change="setAiCheckCliHealthOnStartup(($event.target as HTMLInputElement).checked)"
+        />
+        <span>
+          <strong>{{ t.aiCheckCliHealthOnStartup }}</strong>
+          <small class="ai-helper ai-helper--toggle">{{ t.aiCheckCliHealthOnStartupHelper }}</small>
+        </span>
+      </label>
       <div v-for="cli in BINARY_CLIS" :key="cli" class="ai-cli-block">
         <div class="ai-cli-row">
           <div class="ai-cli-name-col">
@@ -619,6 +631,8 @@ async function copyAudit() {
 }
 .ai-toggle-label input[type="checkbox"] { margin-top: 2px; flex-shrink: 0; }
 .ai-toggle-label strong { font-weight: 600; }
+.ai-cli-startup-toggle { margin-bottom: 12px; }
+.ai-helper--toggle { padding-left: 0; }
 
 /* Inline label = label text + control on the same row */
 .ai-inline-label {

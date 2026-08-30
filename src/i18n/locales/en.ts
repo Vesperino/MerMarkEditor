@@ -309,6 +309,8 @@ const en: Translations = {
   // AI
   aiTabLabel: 'AI',
   aiEnableLabel: 'Enable AI integration',
+  aiCheckCliHealthOnStartup: 'Check Claude and Codex at startup',
+  aiCheckCliHealthOnStartupHelper: 'When disabled, startup restores the last-known status. Opening the AI assistant or using Re-check refreshes it.',
   aiDefaultCli: 'Default CLI',
   aiPanelSide: 'Chat panel side',
   aiPanelSideLeft: 'Left',

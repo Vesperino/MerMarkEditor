@@ -213,10 +213,20 @@ describe('useSettings', () => {
       // Note: singleton may have been mutated by other tests; verify shape rather
       // than exact values for fields that other tests can flip.
       expect(typeof settings.value.ai.enabled).toBe('boolean');
+      expect(typeof settings.value.ai.checkCliHealthOnStartup).toBe('boolean');
       expect(['claude', 'codex']).toContain(settings.value.ai.defaultCli);
       expect(typeof settings.value.ai.snapshotsKeep).toBe('number');
       expect(typeof settings.value.ai.hasSeenFirstRun).toBe('boolean');
       expect(['left', 'right']).toContain(settings.value.ai.panelSide);
+    });
+
+    it('enables CLI startup checks by default and allows disabling them', () => {
+      const { settings, setAiCheckCliHealthOnStartup } = useSettings();
+      setAiCheckCliHealthOnStartup(true);
+      expect(settings.value.ai.checkCliHealthOnStartup).toBe(true);
+      setAiCheckCliHealthOnStartup(false);
+      expect(settings.value.ai.checkCliHealthOnStartup).toBe(false);
+      setAiCheckCliHealthOnStartup(true);
     });
 
     it('clamps snapshotsKeep to a minimum of 1 on save', () => {
