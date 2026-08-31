@@ -1,4 +1,5 @@
 import { Marp } from '@marp-team/marp-core';
+import { normalizeMathForMarp } from '../utils/math';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 
@@ -49,7 +50,7 @@ export function splitSlides(markdown: string): string[] {
 
 export function renderDeck(markdown: string, marp?: MarpRenderer): MarpRenderResult {
   const renderer = marp ?? new Marp({ html: true });
-  const { html, css } = renderer.render(markdown);
+  const { html, css } = renderer.render(normalizeMathForMarp(markdown));
   return { html, css };
 }
 

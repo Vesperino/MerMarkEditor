@@ -1,6 +1,12 @@
 import type { Translations } from '../index';
 
 const zhCN: Translations = {
+  mathInline: '行内公式',
+  mathBlock: '块公式',
+  mathEdit: '编辑公式',
+  mathDelete: '删除公式',
+  mathSource: 'LaTeX 源码',
+  aiCodexPathHint: '请选择 Codex CLI（.exe 或 .cmd），而不是桌面应用启动器。也会搜索 %LOCALAPPDATA%\\OpenAI\\Codex\\bin。可以粘贴完整路径。',
   appName: 'MerMark 编辑器',
 
   // Toolbar - File operations

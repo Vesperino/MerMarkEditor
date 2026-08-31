@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { serializeEditorContent } from '../utils/documentSerializer';
 import printCssRaw from '../styles/print.css?raw';
+import { mathPrintCss } from '../utils/math-print';
+import { renderMathNodes } from '../utils/math';
 import { DOM_SELECTORS } from '../constants';
 import { t } from '../i18n';
 
@@ -341,6 +343,11 @@ export function buildPrintDocument(
   meta: DocumentMeta = {},
 ): string {
   const m = resolveMargins(settings);
+  if (contentHtml.includes('data-type="katex-')) {
+    const root = new DOMParser().parseFromString(contentHtml, 'text/html').body;
+    renderMathNodes(root);
+    contentHtml = root.innerHTML;
+  }
   const bodyFont = getFontStack(settings.fontFamily);
   const headingFont = getFontStack(settings.headingFontFamily);
   const marginBoxes = buildPageMarginBoxes(settings, meta);
@@ -379,6 +386,7 @@ export function buildPrintDocument(
 }
 ${counterReset}
 ${printCss}
+${contentHtml.includes('katex') ? mathPrintCss : ''}
 ${watermarkCss}
 </style>
 </head>

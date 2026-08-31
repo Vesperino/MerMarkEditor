@@ -75,6 +75,7 @@
     "diff": "^8.0.3",
     "docx": "^9.6.1",
     "github-slugger": "^2.0.0",
+    "katex": "^0.18.4",
     "lowlight": "^3.3.0",
     "mermaid": "^11.15.0",
     "vue": "^3.5.13"
@@ -83,6 +84,7 @@
     "@playwright/test": "^1.58.2",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/cli": "^2.5.0",
+    "@types/katex": "^0.16.8",
     "@types/node": "^25.8.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/test-utils": "^2.4.6",

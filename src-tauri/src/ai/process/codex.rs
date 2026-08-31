@@ -37,7 +37,11 @@ const CMD: &str = "codex";
 /// arguments are invalid"); (b) stdin is the documented escape hatch for
 /// codex when "instructions are read from stdin".
 pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
-    let mut cmd = Command::new(cli::resolve_with_override(CMD, req.cli_path.as_deref()));
+    let binary = cli::resolve_with_override(CMD, req.cli_path.as_deref());
+    if cli::is_desktop_launcher(std::path::Path::new(&binary)) {
+        return Err("Choose Codex CLI, not the desktop app launcher.".into());
+    }
+    let mut cmd = Command::new(binary);
 
     // codex `exec resume` does not surface `-i <FILE>`. If the user attached
     // images to this turn, we MUST take the new-session path so the images

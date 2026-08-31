@@ -66,6 +66,10 @@ export const TOOLBAR_ITEMS: ToolbarItemDef[] = [
   { id: 'page-break', category: 'blocks', defaultZone: 'toolbar', defaultOrder: 530, needsEditor: true, labelKey: 'pageBreak' },
 
   // Links & Media
+  { id: 'math-inline', category: 'blocks', defaultZone: 'toolbar', defaultOrder: 540, needsEditor: true, labelKey: 'mathInline' },
+  { id: 'math-block', category: 'blocks', defaultZone: 'toolbar', defaultOrder: 550, needsEditor: true, labelKey: 'mathBlock' },
+
+  // Links & Media
   { id: 'link', category: 'links-media', defaultZone: 'toolbar', defaultOrder: 600, needsEditor: true, labelKey: 'link' },
   { id: 'image', category: 'links-media', defaultZone: 'toolbar', defaultOrder: 610, needsEditor: true, labelKey: 'image' },
 

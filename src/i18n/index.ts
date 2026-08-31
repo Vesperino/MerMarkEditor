@@ -8,6 +8,12 @@ export type Locale = 'en' | 'pl' | 'zh-CN';
 export interface Translations {
   // App
   appName: string;
+  mathInline: string;
+  mathBlock: string;
+  mathEdit: string;
+  mathDelete: string;
+  mathSource: string;
+  aiCodexPathHint: string;
 
   // Toolbar - File operations
   new: string;

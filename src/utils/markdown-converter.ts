@@ -23,6 +23,7 @@ export {
 } from './footnote-utils';
 
 import { decodeHtmlEntities, escapeHtml } from './html-entities';
+import { protectMath, protectMathHtml } from './math';
 import { convertInlineToMarkdown, extractMermaidCode, processHtmlLists } from './html-to-markdown';
 import {
   buildMermaidBlockFor,
@@ -103,6 +104,14 @@ export function htmlToMarkdown(
   let md = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   const protectedBlocks: string[] = [];
+  const mathSources: string[] = [];
+  let mathPrefix = 'MERMATHSAVE';
+  while (html.includes(mathPrefix)) mathPrefix += 'X';
+  md = protectMathHtml(md, source => {
+    const token = `${mathPrefix}${mathSources.length}TOKEN`;
+    mathSources.push(source);
+    return token;
+  });
 
   // Front matter badge -> restore raw `---\n…\n---` at the very top before the
   // generic <div> strip below would otherwise delete it.
@@ -333,7 +342,7 @@ export function htmlToMarkdown(
       const replaceEnd = lineEndPos === -1 ? md.length : lineEndPos;
       md = md.slice(0, lineStart) + indentedBlock + md.slice(replaceEnd);
     } else {
-      md = md.replace(placeholder, block);
+      md = md.replace(placeholder, () => block);
     }
   });
 
@@ -348,7 +357,7 @@ export function htmlToMarkdown(
     md += '\n\n' + footnoteSection.definitions;
   }
 
-  return md;
+  return md.replace(new RegExp(`${mathPrefix}(\\d+)TOKEN`, 'g'), (_, index) => mathSources[Number(index)] ?? '').replace(/^(?:[ \t]*\n)+/, '').trimEnd();
 }
 
 export function markdownToHtml(
@@ -400,6 +409,9 @@ export function markdownToHtmlWithMeta(
       return ph;
     });
   }
+
+  const math = protectMath(html);
+  html = math.text;
 
   // Extract page breaks and code blocks before escaping
   html = extractPageBreaks(html);
@@ -498,7 +510,7 @@ export function markdownToHtmlWithMeta(
   // Append footnotes section
   html += buildFootnoteSectionHtml(footnoteDefs);
 
-  return { html: (frontmatterHtml + html).trimEnd(), detectedMermaidFormatIds };
+  return { html: (frontmatterHtml + math.restore(html)).trimEnd(), detectedMermaidFormatIds };
 }
 
 function buildFrontmatterBadge(raw: string): string {

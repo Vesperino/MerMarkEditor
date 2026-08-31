@@ -1,4 +1,5 @@
 import { safeHtmlTagTokens } from './safe-html';
+import { findMath } from './math';
 
 export interface MarkdownChunk {
   markdown: string;
@@ -23,6 +24,9 @@ export function splitMarkdownForLazyPreview(markdown: string): MarkdownChunk[] {
   let fenceChar = '';
   let fenceLength = 0;
   let safeHtmlDepth = 0;
+  const math = findMath(markdown);
+  let mathIndex = 0;
+  let offset = 0;
 
   const push = (endExclusive: number) => {
     const chunkLines = lines.slice(start, endExclusive);
@@ -34,6 +38,9 @@ export function splitMarkdownForLazyPreview(markdown: string): MarkdownChunk[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     chars += line.length + 1;
+    offset += line.length + 1;
+    while (mathIndex < math.length && math[mathIndex].end < offset) mathIndex++;
+    const insideMath = mathIndex < math.length && math[mathIndex].start < offset && math[mathIndex].end >= offset;
 
     const fence = line.match(/^\s*(`{3,}|~{3,})/);
     if (fence) {
@@ -55,7 +62,7 @@ export function splitMarkdownForLazyPreview(markdown: string): MarkdownChunk[] {
       }
     }
 
-    if (fenceChar || safeHtmlDepth || chars < TARGET_CHUNK_CHARS) continue;
+    if (fenceChar || safeHtmlDepth || insideMath || chars < TARGET_CHUNK_CHARS) continue;
     const atBlockBoundary = line.trim() === '';
     if (atBlockBoundary || chars >= MAX_CHUNK_CHARS) push(i + 1);
   }
