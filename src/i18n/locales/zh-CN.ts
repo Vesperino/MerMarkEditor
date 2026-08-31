@@ -309,6 +309,8 @@ const zhCN: Translations = {
   // AI
   aiTabLabel: 'AI',
   aiEnableLabel: '启用 AI 集成',
+  aiCheckCliHealthOnStartup: '启动时检查 Claude 和 Codex',
+  aiCheckCliHealthOnStartupHelper: '关闭后，启动时会恢复上次已知状态。打开 AI 助手或使用“重新检查”会刷新状态。',
   aiDefaultCli: '默认 CLI',
   aiPanelSide: '聊天面板位置',
   aiPanelSideLeft: '左侧',

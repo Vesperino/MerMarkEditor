@@ -932,6 +932,8 @@ defineExpose({
 <style>
 .editor-container {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--editor-container-bg);
@@ -939,6 +941,8 @@ defineExpose({
 
 .editor-content-wrapper {
   position: relative;
+  flex: 1 0 auto;
+  width: 100%;
   max-width: 900px;
   margin: 20px auto;
 }
@@ -955,19 +959,22 @@ defineExpose({
 
 .editor-content {
   background: var(--editor-content-bg);
+  display: flex;
+  flex-direction: column;
   /* User-tunable paddings (Settings → Editor → Padding). Defaults defined
      in useSettings; the var fallbacks here only matter on first paint
      before applyCssVars runs. */
   padding: var(--editor-pad-top, 16px) var(--editor-pad-x, 24px) var(--editor-pad-bottom, 32px);
-  min-height: calc(100vh - 180px);
+  min-height: 100%;
   box-shadow: var(--shadow-sm);
   border-radius: 4px;
 }
 
 .editor-content .tiptap {
+  flex: 1;
   outline: none !important;
   border: none !important;
-  min-height: 600px;
+  min-height: 0;
   text-align: left;
   font-family: var(--editor-font-family, inherit);
 }

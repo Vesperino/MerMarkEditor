@@ -58,6 +58,11 @@ export function useAiPanelLayout(opts: AiPanelLayoutOptions) {
     return { ...base, top: `${topOffset.value}px` };
   });
 
+  const reservedSide = computed<'left' | 'right' | null>(() => {
+    if (fullscreen.value || minimized.value) return null;
+    return opts.panelSide();
+  });
+
   const minimizedStyle = computed<Record<string, string>>(() => {
     return opts.panelSide() === 'left'
       ? { left: '0', right: 'auto', top: `${topOffset.value + 12}px` }
@@ -89,6 +94,7 @@ export function useAiPanelLayout(opts: AiPanelLayoutOptions) {
     minimized,
     topOffset,
     sideStyle,
+    reservedSide,
     minimizedStyle,
     mount,
     unmount,

@@ -281,6 +281,8 @@ const handleBarMouseLeave = () => {
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-primary);
   overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
   min-height: 36px;
   padding: 0 8px;
 }

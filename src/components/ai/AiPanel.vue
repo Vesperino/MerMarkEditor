@@ -44,6 +44,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
+  layoutChange: [side: 'left' | 'right' | null];
   applyContent: [content: string];
   showDiff: [orig: string, candidate: string];
   linkClick: [url: string];
@@ -161,6 +162,13 @@ const layout = useAiPanelLayout({
     return false;
   },
 });
+
+const reservedSide = computed<'left' | 'right' | null>(() => {
+  if (!props.open || !settings.value.ai.enabled) return null;
+  return layout.reservedSide.value;
+});
+
+watch(reservedSide, (side) => emit('layoutChange', side), { immediate: true });
 
 const availableClis = computed<CliKind[]>(() => {
   const out: CliKind[] = [];
@@ -648,7 +656,7 @@ function onPreviewImage(img: PendingImage) {
   position: fixed;
   top: var(--toolbar-height, 44px);
   bottom: 0;
-  width: 420px;
+  width: var(--ai-panel-width, 420px);
   background: var(--bg-primary);
   color: var(--text-primary);
   border-left: 1px solid var(--border-primary);
