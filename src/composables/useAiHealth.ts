@@ -2,9 +2,67 @@ import { ref } from 'vue';
 import { aiCommands, type CliKind, type HealthStatus } from '../services/aiCommands';
 import { useSettings } from './useSettings';
 
-const cache = ref<Record<CliKind, HealthStatus | null>>({ claude: null, codex: null, ollama: null, openai: null });
-const lastCheckedAt = ref<Record<CliKind, number | null>>({ claude: null, codex: null, ollama: null, openai: null });
+const CLI_HEALTH_STORAGE_KEY = 'mermark-ai-cli-health';
+const CLI_KINDS = ['claude', 'codex'] as const;
+type BinaryCliKind = typeof CLI_KINDS[number];
+type PersistedCliHealth = Partial<Record<BinaryCliKind, { status: HealthStatus; checkedAt: number }>>;
+
+function isHealthStatus(value: unknown): value is HealthStatus {
+  if (!value || typeof value !== 'object') return false;
+  const status = value as Partial<HealthStatus>;
+  return typeof status.ok === 'boolean'
+    && (typeof status.version === 'string' || status.version === null)
+    && (typeof status.account === 'string' || status.account === null)
+    && (typeof status.error === 'string' || status.error === null)
+    && (typeof status.resolvedPath === 'string' || status.resolvedPath === null);
+}
+
+export function readPersistedCliHealth(): PersistedCliHealth {
+  try {
+    const raw = localStorage.getItem(CLI_HEALTH_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const result: PersistedCliHealth = {};
+    for (const cli of CLI_KINDS) {
+      const entry = parsed[cli] as { status?: unknown; checkedAt?: unknown } | undefined;
+      if (entry && isHealthStatus(entry.status) && typeof entry.checkedAt === 'number') {
+        result[cli] = { status: entry.status, checkedAt: entry.checkedAt };
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+const persisted = readPersistedCliHealth();
+const cache = ref<Record<CliKind, HealthStatus | null>>({
+  claude: persisted.claude?.status ?? null,
+  codex: persisted.codex?.status ?? null,
+  ollama: null,
+  openai: null,
+});
+const lastCheckedAt = ref<Record<CliKind, number | null>>({
+  claude: persisted.claude?.checkedAt ?? null,
+  codex: persisted.codex?.checkedAt ?? null,
+  ollama: null,
+  openai: null,
+});
 const loading = ref<Record<CliKind, boolean>>({ claude: false, codex: false, ollama: false, openai: false });
+
+function persistCliHealth() {
+  const stored: PersistedCliHealth = {};
+  for (const cli of CLI_KINDS) {
+    const status = cache.value[cli];
+    const checkedAt = lastCheckedAt.value[cli];
+    if (status && checkedAt !== null) stored[cli] = { status, checkedAt };
+  }
+  try {
+    localStorage.setItem(CLI_HEALTH_STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    // A health check should still succeed when browser storage is unavailable.
+  }
+}
 
 export function useAiHealth() {
   const {
@@ -65,6 +123,7 @@ export function useAiHealth() {
       const r = await aiCommands.healthCheck(cli, overrideFor(cli));
       cache.value[cli] = r;
       lastCheckedAt.value[cli] = Date.now();
+      if (cli === 'claude' || cli === 'codex') persistCliHealth();
       persistResolved(cli, r);
       return r;
     } catch (e) {
@@ -77,6 +136,7 @@ export function useAiHealth() {
       };
       cache.value[cli] = errStatus;
       lastCheckedAt.value[cli] = Date.now();
+      if (cli === 'claude' || cli === 'codex') persistCliHealth();
       return errStatus;
     } finally {
       loading.value[cli] = false;
@@ -92,10 +152,18 @@ export function useAiHealth() {
     ]);
   }
 
+  async function checkCliOnStartup() {
+    if (!settings.value.ai.checkCliHealthOnStartup) return;
+    await Promise.all([check('claude'), check('codex')]);
+  }
+
   function getCached(cli: CliKind) { return cache.value[cli]; }
-  function reset() {
+  function reset(clearPersisted = false) {
     cache.value = { claude: null, codex: null, ollama: null, openai: null };
     lastCheckedAt.value = { claude: null, codex: null, ollama: null, openai: null };
+    if (clearPersisted) {
+      try { localStorage.removeItem(CLI_HEALTH_STORAGE_KEY); } catch { /* ignore */ }
+    }
   }
 
   /**
@@ -109,7 +177,7 @@ export function useAiHealth() {
   }
 
   return {
-    check, checkAll, getCached, lastCheckedAt, reset, cache, loading,
+    check, checkAll, checkCliOnStartup, getCached, lastCheckedAt, reset, cache, loading,
     forgetResolvedCache,
   };
 }

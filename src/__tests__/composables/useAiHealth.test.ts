@@ -7,12 +7,14 @@ vi.mock('../../services/aiCommands', () => ({
 }));
 
 import { aiCommands } from '../../services/aiCommands';
-import { useAiHealth } from '../../composables/useAiHealth';
+import { readPersistedCliHealth, useAiHealth } from '../../composables/useAiHealth';
+import { useSettings } from '../../composables/useSettings';
 
 describe('useAiHealth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAiHealth().reset();
+    useAiHealth().reset(true);
+    useSettings().setAiCheckCliHealthOnStartup(true);
   });
 
   it('caches the first result and does not re-call without force', async () => {
@@ -45,5 +47,51 @@ describe('useAiHealth', () => {
     const { checkAll } = useAiHealth();
     await checkAll();
     expect(aiCommands.healthCheck).toHaveBeenCalledWith('ollama', expect.anything());
+  });
+
+  it('checks Claude and Codex automatically by default', async () => {
+    (aiCommands.healthCheck as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue({ ok: true, version: '1', account: null, error: null, resolvedPath: null });
+
+    await useAiHealth().checkCliOnStartup();
+
+    expect(aiCommands.healthCheck).toHaveBeenCalledWith('claude', null);
+    expect(aiCommands.healthCheck).toHaveBeenCalledWith('codex', null);
+  });
+
+  it('skips Claude and Codex startup probes when the preference is disabled', async () => {
+    useSettings().setAiCheckCliHealthOnStartup(false);
+    (aiCommands.healthCheck as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue({ ok: true, version: '1', account: null, error: null, resolvedPath: null });
+
+    await useAiHealth().checkCliOnStartup();
+
+    expect(aiCommands.healthCheck).not.toHaveBeenCalled();
+  });
+
+  it('persists the last-known CLI status locally', async () => {
+    (aiCommands.healthCheck as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue({ ok: true, version: '1.2.3', account: 'me', error: null, resolvedPath: '/bin/claude' });
+
+    await useAiHealth().check('claude', true);
+
+    const stored = JSON.parse(localStorage.getItem('mermark-ai-cli-health') ?? '{}');
+    expect(stored.claude.status).toMatchObject({ ok: true, version: '1.2.3', account: 'me' });
+    expect(typeof stored.claude.checkedAt).toBe('number');
+  });
+
+  it('restores valid cached status and ignores malformed entries', () => {
+    localStorage.setItem('mermark-ai-cli-health', JSON.stringify({
+      claude: {
+        status: { ok: true, version: '1.2.3', account: 'me', error: null, resolvedPath: '/bin/claude' },
+        checkedAt: 123,
+      },
+      codex: { status: { ok: 'yes' }, checkedAt: 'yesterday' },
+    }));
+
+    const restored = readPersistedCliHealth();
+    expect(restored.claude?.status.ok).toBe(true);
+    expect(restored.claude?.checkedAt).toBe(123);
+    expect(restored.codex).toBeUndefined();
   });
 });

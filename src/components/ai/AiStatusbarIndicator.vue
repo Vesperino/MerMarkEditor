@@ -5,13 +5,12 @@ import { useAiHealth } from '../../composables/useAiHealth';
 import { useSettings } from '../../composables/useSettings';
 
 const { settings } = useSettings();
-const { check, cache } = useAiHealth();
+const { checkCliOnStartup, cache } = useAiHealth();
 const { bypassEnabled } = useAi();
 
 onMounted(() => {
   if (settings.value.ai.enabled) {
-    check('claude').catch(() => {});
-    check('codex').catch(() => {});
+    checkCliOnStartup().catch(() => {});
   }
 });
 

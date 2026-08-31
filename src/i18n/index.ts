@@ -315,6 +315,8 @@ export interface Translations {
   // AI
   aiTabLabel: string;
   aiEnableLabel: string;
+  aiCheckCliHealthOnStartup: string;
+  aiCheckCliHealthOnStartupHelper: string;
   aiDefaultCli: string;
   aiPanelSide: string;
   aiPanelSideLeft: string;

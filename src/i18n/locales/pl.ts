@@ -309,6 +309,8 @@ const pl: Translations = {
   // AI
   aiTabLabel: 'AI',
   aiEnableLabel: 'Włącz integrację AI',
+  aiCheckCliHealthOnStartup: 'Sprawdzaj Claude i Codex przy uruchamianiu',
+  aiCheckCliHealthOnStartupHelper: 'Po wyłączeniu aplikacja przywraca ostatni znany stan. Otwarcie asystenta AI lub opcja Sprawdź ponownie odświeża go.',
   aiDefaultCli: 'Domyślne CLI',
   aiPanelSide: 'Strona panelu czatu',
   aiPanelSideLeft: 'Lewo',

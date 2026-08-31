@@ -65,6 +65,8 @@ export const SIDEBAR_WIDTH_DEFAULT = 240;
 
 export interface AiSettings {
   enabled: boolean;
+  /** Probe Claude and Codex automatically when the application starts. */
+  checkCliHealthOnStartup: boolean;
   defaultCli: CliKind;
   defaultModelClaude: string;
   defaultModelCodex: string;
@@ -386,6 +388,7 @@ function getDefaultSettings(): AppSettings {
     },
     ai: {
       enabled: true,
+      checkCliHealthOnStartup: true,
       defaultCli: 'claude',
       defaultModelClaude: 'claude-opus-4-7',
       defaultModelCodex: 'gpt-5.5',
@@ -650,6 +653,7 @@ export function useSettings() {
   };
 
   const setAiEnabled = (v: boolean) => { settings.value.ai.enabled = v; };
+  const setAiCheckCliHealthOnStartup = (v: boolean) => { settings.value.ai.checkCliHealthOnStartup = v; };
   const setAiDefaultCli = (v: CliKind) => { settings.value.ai.defaultCli = v; };
   const setAiDefaultModelClaude = (v: string) => { settings.value.ai.defaultModelClaude = v; };
   const setAiDefaultModelCodex = (v: string) => { settings.value.ai.defaultModelCodex = v; };
@@ -714,6 +718,7 @@ export function useSettings() {
     setWorkspaceSortOverride,
     setFolderSortOverride,
     setAiEnabled,
+    setAiCheckCliHealthOnStartup,
     setAiDefaultCli,
     setAiDefaultModelClaude,
     setAiDefaultModelCodex,
