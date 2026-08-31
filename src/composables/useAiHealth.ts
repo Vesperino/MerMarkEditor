@@ -78,12 +78,10 @@ export function useAiHealth() {
    *      (`cliResolvedPathClaude` / `cliResolvedPathCodex`).
    *   3. None — backend falls back to its full PATH + curated-dir scan.
    *
-   * The cached path is treated as if the user picked it manually: the backend
-   * returns it immediately when the file still exists, skipping the slow
-   * resolution path. If the cache is stale (binary moved), the override
-   * silently fails the file-exists check and we drop back to a full scan.
+   * Re-check bypasses automatic paths. If a cached installation disappears,
+   * check retries discovery without changing an explicit user selection.
    */
-  function overrideFor(cli: CliKind): string | null {
+  function overrideFor(cli: CliKind, force = false): string | null {
     // Ollama / OpenAI-compatible have no binary path — the "override" channel
     // carries their base URL instead.
     if (cli === 'ollama') return (settings.value.ai.ollamaBaseUrl ?? '').trim() || null;
@@ -91,6 +89,7 @@ export function useAiHealth() {
     const manualRaw = cli === 'claude' ? settings.value.ai.cliPathClaude : settings.value.ai.cliPathCodex;
     const manual = (manualRaw ?? '').trim();
     if (manual) return manual;
+    if (force) return null;
     const cachedRaw = cli === 'claude'
       ? settings.value.ai.cliResolvedPathClaude
       : settings.value.ai.cliResolvedPathCodex;
@@ -120,7 +119,15 @@ export function useAiHealth() {
     }
     loading.value[cli] = true;
     try {
-      const r = await aiCommands.healthCheck(cli, overrideFor(cli));
+      if (force && (cli === 'claude' || cli === 'codex')) forgetResolvedCache(cli);
+      let r = await aiCommands.healthCheck(cli, overrideFor(cli, force));
+      // A desktop update can remove the previously cached bundle. Only retry
+      // automatic paths; an explicit user selection must never be ignored.
+      const manual = cli === 'codex' ? settings.value.ai.cliPathCodex : settings.value.ai.cliPathClaude;
+      if (!force && (cli === 'claude' || cli === 'codex') && !manual?.trim() && !r.ok && !r.version && overrideFor(cli)) {
+        forgetResolvedCache(cli);
+        r = await aiCommands.healthCheck(cli, null);
+      }
       cache.value[cli] = r;
       lastCheckedAt.value[cli] = Date.now();
       if (cli === 'claude' || cli === 'codex') persistCliHealth();

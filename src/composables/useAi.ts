@@ -362,8 +362,8 @@ export function useAi() {
       : opts.cli === 'openai'
         ? (settings.value.ai.openaiBaseUrl ?? '')
         : opts.cli === 'claude'
-          ? settings.value.ai.cliPathClaude
-          : settings.value.ai.cliPathCodex
+          ? (settings.value.ai.cliPathClaude || settings.value.ai.cliResolvedPathClaude)
+          : (settings.value.ai.cliPathCodex || settings.value.ai.cliResolvedPathCodex)
     ).trim();
     const req: AiSendRequest = {
       cli: opts.cli,

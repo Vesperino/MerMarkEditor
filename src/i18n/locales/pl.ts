@@ -2,6 +2,12 @@ import type { Translations } from '../index';
 
 const pl: Translations = {
   appName: 'MerMark Editor',
+  mathInline: 'Wzór w tekście',
+  mathBlock: 'Wzór blokowy',
+  mathEdit: 'Edytuj wzór',
+  mathDelete: 'Usuń wzór',
+  mathSource: 'Źródło LaTeX',
+  aiCodexPathHint: 'Wybierz Codex CLI (.exe lub .cmd), a nie program uruchamiający aplikację desktopową. Szukamy też w %LOCALAPPDATA%\\OpenAI\\Codex\\bin. Możesz wkleić pełną ścieżkę.',
 
   // Toolbar - File operations
   new: 'Nowy',

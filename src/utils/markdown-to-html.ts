@@ -395,12 +395,24 @@ export function extractCodeBlocks(
   // Generic fenced code blocks (\`\`\`lang ... \`\`\`). These run after mermaid
   // extraction so a remaining standard fence that happens to also be enabled
   // as a read format never reaches this pass.
-  html = html.replace(/```(\w*)\n?([\s\S]*?)```/gi, (_, lang, code) => {
+  const fences = /^( {0,3})(`{3,}|~{3,})([^\n]*)\n/gm;
+  let fencedHtml = '';
+  let fenceCursor = 0;
+  let fence: RegExpExecArray | null;
+  while ((fence = fences.exec(html))) {
+    const close = new RegExp(`^ {0,3}${fence[2][0]}{${fence[2].length},}[ \\t]*(?=\\n|$)`, 'gm');
+    close.lastIndex = fences.lastIndex;
+    const end = close.exec(html);
+    const code = html.slice(fences.lastIndex, end?.index ?? html.length);
+    const lang = /^[\w-]+/.exec(fence[3].trim())?.[0] ?? 'plaintext';
     const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
     const escapedCode = escapeHtml(code);
-    codeBlocks.push(`<pre><code class="language-${lang || 'plaintext'}">${escapedCode}</code></pre>`);
-    return placeholder;
-  });
+    codeBlocks.push(`<pre><code class="language-${lang}">${escapedCode}</code></pre>`);
+    fencedHtml += html.slice(fenceCursor, fence.index) + fence[1] + placeholder;
+    fenceCursor = end ? end.index + end[0].length : html.length;
+    fences.lastIndex = fenceCursor;
+  }
+  html = fencedHtml + html.slice(fenceCursor);
 
   html = extractIndentedCodeBlocks(html, codeBlocks);
 

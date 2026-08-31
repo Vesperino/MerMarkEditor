@@ -2,6 +2,12 @@ import type { Translations } from '../index';
 
 const en: Translations = {
   appName: 'MerMark Editor',
+  mathInline: 'Inline formula',
+  mathBlock: 'Block formula',
+  mathEdit: 'Edit formula',
+  mathDelete: 'Delete formula',
+  mathSource: 'LaTeX source',
+  aiCodexPathHint: 'Select Codex CLI (.exe or .cmd), not the desktop app launcher. Desktop bundles are searched under %LOCALAPPDATA%\\OpenAI\\Codex\\bin. You can also paste a full path here.',
 
   // Toolbar - File operations
   new: 'New',

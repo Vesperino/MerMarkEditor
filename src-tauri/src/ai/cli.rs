@@ -19,12 +19,11 @@
 
 use std::ffi::OsString;
 use std::path::Path;
-#[cfg(unix)]
 use std::path::PathBuf;
 
 /// Resolve `name` with optional explicit override path. The override always
-/// wins when it points to an existing file — even on Unix where executable
-/// bit checks would normally apply, since the user explicitly picked it.
+/// wins, including when missing: a manual selection must fail explicitly
+/// rather than silently running a different installation.
 pub fn resolve_with_override(name: &str, override_path: Option<&str>) -> OsString {
     resolve_with_override_info(name, override_path).0
 }
@@ -37,36 +36,142 @@ pub fn resolve_with_override_info(
     override_path: Option<&str>,
 ) -> (OsString, Option<String>) {
     if let Some(p) = override_path {
-        let trimmed = p.trim();
+        let normalized = normalize_override(p);
+        let trimmed = normalized.as_str();
         if !trimmed.is_empty() {
             let candidate = Path::new(trimmed);
-            if candidate.is_file() {
-                let os = candidate.as_os_str().to_os_string();
-                let display = candidate.to_string_lossy().into_owned();
-                return (os, Some(display));
-            }
+            let os = candidate.as_os_str().to_os_string();
+            let display = candidate.to_string_lossy().into_owned();
+            return (os, Some(display));
         }
     }
     resolve_info(name)
 }
 
 pub fn resolve_info(name: &str) -> (OsString, Option<String>) {
-    if let Ok(p) = which::which(name) {
+    if let Some(p) = candidates(name).into_iter().next() {
         let display = p.to_string_lossy().into_owned();
         return (p.into_os_string(), Some(display));
     }
+    (OsString::from(name), None)
+}
+
+/// Explicit paths never silently fall back to another installation.
+pub fn normalize_override(raw: &str) -> String {
+    let value = raw.trim().trim_matches('"');
+    #[cfg(windows)]
+    {
+        let mut out = String::new();
+        let mut rest = value;
+        while let Some(start) = rest.find('%') {
+            out.push_str(&rest[..start]);
+            rest = &rest[start..];
+            if let Some(end) = rest[1..].find('%') {
+                let end = end + 1;
+                let key = &rest[1..end];
+                out.push_str(&std::env::var(key).unwrap_or_else(|_| rest[..=end].to_string()));
+                rest = &rest[end + 1..];
+            } else { break; }
+        }
+        out.push_str(rest);
+        return out;
+    }
+    #[cfg(not(windows))]
+    value.to_string()
+}
+
+pub fn is_desktop_launcher(path: &Path) -> bool {
+    let p = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    (p.contains("/windowsapps/openai.codex_") && p.ends_with("/app/codex.exe"))
+        || p.ends_with("/microsoft/windowsapps/codex.exe")
+}
+
+pub fn candidates(name: &str) -> Vec<PathBuf> {
+    let mut result = Vec::new();
+    if let Ok(paths) = which::which_all(name) {
+        result.extend(paths.filter(|p| name != "codex" || !is_desktop_launcher(p)));
+    }
+    #[cfg(windows)]
+    result.extend(windows_candidates(name,
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from).as_deref(),
+        std::env::var_os("APPDATA").map(PathBuf::from).as_deref(),
+        std::env::var_os("USERPROFILE").map(PathBuf::from).as_deref()));
     #[cfg(unix)]
     {
         if let Some(p) = resolve_unix_fallback(name) {
-            let display = p.to_string_lossy().into_owned();
-            return (p.into_os_string(), Some(display));
+            result.push(p);
         }
-        if let Some(p) = resolve_via_login_shell(name) {
-            let display = p.to_string_lossy().into_owned();
-            return (p.into_os_string(), Some(display));
+        if result.is_empty() {
+            if let Some(p) = resolve_via_login_shell(name) { result.push(p); }
         }
     }
-    (OsString::from(name), None)
+    let mut seen = std::collections::HashSet::new();
+    result.retain(|p| seen.insert(p.clone()));
+    result
+}
+
+#[cfg(any(windows, test))]
+fn windows_candidates(name: &str, local: Option<&Path>, roaming: Option<&Path>, user: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if name == "codex" {
+        if let Some(local) = local {
+            let bin = local.join("OpenAI/Codex/bin");
+            dirs.push(bin.clone());
+            // Bundle directory names are hashes, not sortable versions. Prefer
+            // recently updated installations, but health-check every candidate.
+            let mut versions: Vec<_> = std::fs::read_dir(&bin).into_iter().flatten()
+                .flatten().filter(|e| e.path().is_dir()).collect();
+            versions.sort_by_key(|e| std::cmp::Reverse(e.metadata().and_then(|m| m.modified()).ok()));
+            dirs.extend(versions.into_iter().map(|e| e.path()));
+        }
+    }
+    if let Some(roaming) = roaming { dirs.push(roaming.join("npm")); }
+    if let Some(user) = user {
+        dirs.extend([user.join(".local/bin"), user.join("scoop/shims"), user.join(".cargo/bin"), user.join(".volta/bin"), user.join(".bun/bin")]);
+    }
+    dirs.into_iter().flat_map(|dir| ["exe", "cmd", "bat"].map(|ext| dir.join(format!("{name}.{ext}"))))
+        .filter(|p| p.is_file()).collect()
+}
+
+#[cfg(test)]
+mod discovery_tests {
+    use super::*;
+
+    #[test]
+    fn detects_bundled_versions_and_npm_without_path() {
+        let root = std::env::temp_dir().join(format!("mermark-cli-test-{}", uuid::Uuid::new_v4()));
+        let local = root.join("Local");
+        let roaming = root.join("Roaming");
+        let version = local.join("OpenAI/Codex/bin/version-hash/codex.exe");
+        let npm = roaming.join("npm/codex.cmd");
+        for path in [&version, &npm] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "test fixture").unwrap();
+        }
+        let paths = windows_candidates("codex", Some(&local), Some(&roaming), None);
+        assert_eq!(paths, vec![version, npm]);
+        assert!(windows_candidates("claude", Some(&local), None, None).is_empty());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn identifies_desktop_launcher_but_allows_cli_bundle() {
+        assert!(is_desktop_launcher(Path::new(r"C:\Program Files\WindowsApps\OpenAI.Codex_26\app\Codex.exe")));
+        assert!(!is_desktop_launcher(Path::new(r"C:\Users\User\AppData\Local\OpenAI\Codex\bin\hash\codex.exe")));
+    }
+
+    #[test]
+    fn missing_manual_path_is_not_replaced_with_path_lookup() {
+        let (_, actual) = resolve_with_override_info("codex", Some("  \"missing/custom/codex.exe\"  "));
+        assert_eq!(actual.as_deref(), Some("missing/custom/codex.exe"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn expands_windows_environment_variables_without_shell() {
+        let expected = format!("{}\\OpenAI\\Codex", std::env::var("LOCALAPPDATA").unwrap());
+        assert_eq!(normalize_override(r"%LOCALAPPDATA%\OpenAI\Codex"), expected);
+    }
 }
 
 #[cfg(unix)]

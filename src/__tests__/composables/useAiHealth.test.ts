@@ -15,6 +15,9 @@ describe('useAiHealth', () => {
     vi.clearAllMocks();
     useAiHealth().reset(true);
     useSettings().setAiCheckCliHealthOnStartup(true);
+    useSettings().setAiCliPathCodex('');
+    useSettings().setAiCliPathClaude('');
+    useAiHealth().forgetResolvedCache();
   });
 
   it('caches the first result and does not re-call without force', async () => {
@@ -33,6 +36,27 @@ describe('useAiHealth', () => {
     await check('claude');
     await check('claude', true);
     expect(aiCommands.healthCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it('recheck discovers again but preserves an explicit manual path', async () => {
+    vi.mocked(aiCommands.healthCheck).mockResolvedValue({ ok: false, version: null, account: null, error: 'missing', resolvedPath: null });
+    useSettings().setAiCliResolvedPathCodex('old/bundle/codex.exe');
+    await useAiHealth().check('codex', true);
+    expect(aiCommands.healthCheck).toHaveBeenLastCalledWith('codex', null);
+    useSettings().setAiCliPathCodex('chosen/codex.exe');
+    await useAiHealth().check('codex', true);
+    expect(aiCommands.healthCheck).toHaveBeenLastCalledWith('codex', 'chosen/codex.exe');
+  });
+
+  it('rediscovers a removed cached bundle automatically', async () => {
+    useSettings().setAiCliResolvedPathCodex('old/bundle/codex.exe');
+    vi.mocked(aiCommands.healthCheck)
+      .mockResolvedValueOnce({ ok: false, version: null, account: null, error: 'missing', resolvedPath: 'old/bundle/codex.exe' })
+      .mockResolvedValueOnce({ ok: true, version: 'codex-cli 1', account: 'me', error: null, resolvedPath: 'new/bundle/codex.exe' });
+    await useAiHealth().check('codex');
+    expect(aiCommands.healthCheck).toHaveBeenNthCalledWith(1, 'codex', 'old/bundle/codex.exe');
+    expect(aiCommands.healthCheck).toHaveBeenNthCalledWith(2, 'codex', null);
+    expect(useSettings().settings.value.ai.cliResolvedPathCodex).toBe('new/bundle/codex.exe');
   });
 
   it('reset initializes an ollama cache slot', () => {

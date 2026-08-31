@@ -1,3 +1,5 @@
+import { renderMathNodes } from './math';
+
 const STRIP_ATTRS = [
   'contenteditable',
   'data-node-view-wrapper',
@@ -423,6 +425,7 @@ export function linkifyFootnotes(root: HTMLElement): void {
  */
 export function serializeEditorContent(editorEl: HTMLElement): string {
   const clone = editorEl.cloneNode(true) as HTMLElement;
+  renderMathNodes(clone);
   inlineMermaidSvgs(clone);
   inlineTaskCheckboxes(clone);
   normalizeFootnoteSection(clone);

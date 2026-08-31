@@ -47,6 +47,7 @@ const emit = defineEmits<{
 }>();
 
 const {
+  insertMath,
   isActive,
   runCommand,
   characterCount,
@@ -88,7 +89,7 @@ const needsEditor = (id: string) => {
   const editorItems = [
     'undo', 'redo', 'heading-select', 'bold', 'italic', 'strikethrough', 'inline-code',
     'bullet-list', 'ordered-list', 'task-list', 'blockquote', 'code-block', 'horizontal-rule',
-    'page-break', 'link', 'image', 'table', 'mermaid', 'footnote',
+    'page-break', 'link', 'image', 'table', 'mermaid', 'footnote', 'math-inline', 'math-block',
   ];
   return editorItems.includes(id);
 };
@@ -397,6 +398,11 @@ const showLabel = (id: string) => {
       <button @click="deleteTable" class="dropdown-item danger" :disabled="!isActive('table')">{{ t.deleteTable }}</button>
     </div>
   </div>
+
+  <!-- Mermaid -->
+  <button v-else-if="itemId === 'math-inline' || itemId === 'math-block'" @mousedown.prevent @click="insertMath(itemId === 'math-block')" class="toolbar-btn" :aria-label="itemId === 'math-block' ? t.mathBlock : t.mathInline" v-tooltip="itemId === 'math-block' ? t.mathBlock : t.mathInline" :disabled="isDisabled(itemId)">
+    <span aria-hidden="true">{{ itemId === 'math-block' ? '∑' : '𝑥²' }}</span>
+  </button>
 
   <!-- Mermaid -->
   <button v-else-if="itemId === 'mermaid'" @click="insertMermaid" class="toolbar-btn mermaid-btn" :class="{ 'icon-only': !showLabel(itemId) }" v-tooltip="t.insertMermaid" :disabled="isDisabled(itemId)">

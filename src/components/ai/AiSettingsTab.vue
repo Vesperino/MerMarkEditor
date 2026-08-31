@@ -136,7 +136,8 @@ function statusText(cli: CliKind): string {
   if (s.error?.toLowerCase().includes('binary') || s.error?.toLowerCase().includes('not found')) {
     return t.value.aiStatusBinaryMissing;
   }
-  return t.value.aiStatusAuthRequired;
+  if (s.error?.toLowerCase().includes('authentication')) return t.value.aiStatusAuthRequired;
+  return s.error || t.value.aiStatusUnknown;
 }
 
 function statusOk(cli: CliKind): boolean {
@@ -203,7 +204,7 @@ function placeholderFor(cli: CliKind): string {
     case 'mac':
       return `/opt/homebrew/bin/${cli}`;
     case 'win':
-      return `C:\\Users\\<you>\\AppData\\Roaming\\npm\\${cli}.cmd`;
+      return cli === 'codex' ? '%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\codex.exe' : `C:\\Users\\<you>\\AppData\\Roaming\\npm\\${cli}.cmd`;
     default:
       return `/usr/local/bin/${cli}`;
   }
@@ -221,7 +222,9 @@ function searchedPaths(): string[] {
     case 'win':
       return [
         'PATH with PATHEXT (.exe / .cmd / .bat)',
-        'no extra fallbacks — install via npm / scoop / winget keeps PATH set',
+        '%LOCALAPPDATA%\\OpenAI\\Codex\\bin (including version folders)',
+        '%APPDATA%\\npm; %USERPROFILE%\\.local\\bin; scoop\\shims',
+        '%USERPROFILE%\\.cargo\\bin; .volta\\bin; .bun\\bin',
       ];
     default:
       return [
@@ -324,7 +327,7 @@ async function copyAudit() {
             </button>
           </div>
         </div>
-        <details class="ai-cli-path">
+        <details class="ai-cli-path" :open="!statusOk(cli)">
           <summary>{{ t.aiSettingsCliPathHeading }}</summary>
           <div class="ai-cli-path-row">
             <input
@@ -345,6 +348,7 @@ async function copyAudit() {
             </button>
           </div>
           <small class="ai-helper ai-helper--inline">{{ t.aiSettingsCliPathHelper }}</small>
+          <small v-if="cli === 'codex'" class="ai-helper ai-helper--inline">{{ t.aiCodexPathHint }}</small>
           <ul class="ai-cli-path-searched">
             <li v-for="(p, i) in searchedPaths()" :key="i">{{ p }}</li>
           </ul>

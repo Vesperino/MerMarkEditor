@@ -15,6 +15,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { serializeEditorContent } from '../utils/documentSerializer';
 import { DOM_SELECTORS } from '../constants';
+import { decodeMath, mathMarkdown } from '../utils/math';
 
 type DocxItem = Paragraph | Table;
 
@@ -27,6 +28,9 @@ function buildTextRuns(node: Node): TextRun[] {
   if (node.nodeType !== Node.ELEMENT_NODE) return [];
 
   const el = node as Element;
+  if (el.matches('[data-type="katex-inline"], [data-type="katex-block"]')) {
+    return [new TextRun({ text: mathMarkdown(decodeMath(el.getAttribute('data-formula') ?? ''), decodeMath(el.getAttribute('data-math-source') ?? ''), el.getAttribute('data-type') === 'katex-block'), font: 'Cambria Math' })];
+  }
   const tag = el.tagName.toLowerCase();
   const childRuns: TextRun[] = [];
   for (const child of el.childNodes) {
@@ -153,6 +157,9 @@ const HEADING_LEVELS: Record<string, typeof HeadingLevel[keyof typeof HeadingLev
 };
 
 export function convertElementToDocxItems(el: Element): DocxItem[] {
+  if (el.matches('[data-type="katex-block"], [data-type="katex-inline"]')) {
+    return [new Paragraph({ children: buildTextRuns(el) })];
+  }
   const tag = el.tagName.toLowerCase();
 
   if (HEADING_LEVELS[tag]) {

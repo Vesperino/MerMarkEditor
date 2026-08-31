@@ -89,6 +89,8 @@ let imageResolutionInProgress = false;
 // HTML snapshot from last file open/save — used to detect real changes (e.g. after undo).
 let lastSavedHtml = '';
 import { MermaidExtension } from "../extensions/MermaidExtension";
+import { KatexBlockExtension, KatexInlineExtension } from "../extensions/KatexExtension";
+import 'katex/dist/katex.min.css';
 import { PageBreakExtension } from "../extensions/PageBreakExtension";
 import { MarpFrontmatterExtension } from "../extensions/MarpFrontmatterExtension";
 import { MarpDirectiveExtension } from "../extensions/MarpDirectiveExtension";
@@ -512,6 +514,8 @@ const editor = useEditor({
       placeholder: t.value.placeholder,
     }),
     MermaidExtension,
+    KatexBlockExtension,
+    KatexInlineExtension,
     PageBreakExtension,
     MarpFrontmatterExtension,
     MarpDirectiveExtension,
