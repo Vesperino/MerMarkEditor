@@ -107,6 +107,14 @@ describe('rendering and exports', () => {
     expect(html).not.toContain('katex-actions');
   });
 
+  it('lets long display equations wrap in print instead of clipping them', () => {
+    const html = buildPrintDocument(markdownToHtml('$$x^2$$'), PDF_SETTINGS_DEFAULTS, '');
+    const katexNowrap = html.indexOf('.katex-display>.katex{display:block;text-align:center;white-space:nowrap}');
+    const wrapOverride = html.indexOf('.math-print-block .katex-display>.katex, .math-print-block .katex-html { white-space:normal; }');
+    expect(katexNowrap).toBeGreaterThan(-1);
+    expect(wrapOverride).toBeGreaterThan(katexNowrap);
+  });
+
   it('normalizes alternative syntaxes for Marp without changing code samples', () => {
     const source = String.raw`\(x\)` + '\n\n```math\ny\n```\n\n`$z$`';
     expect(normalizeMathForMarp(source)).toContain('$x$');

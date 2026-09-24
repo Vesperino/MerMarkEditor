@@ -127,6 +127,8 @@ onMounted(render);
   margin: 6px 0;
   border-radius: 4px;
   overflow-x: auto;
+  /* A wrapped numbered equation's tag box extends below the last line; never scroll vertically. */
+  overflow-y: hidden;
   border: 1px solid transparent;
   transition: border-color 0.15s;
 }
@@ -161,21 +163,39 @@ onMounted(render);
   font-size: 1.1em;
 }
 
+.katex-block .katex-render {
+  width: 100%;
+}
+
+/* Long equations wrap at KaTeX's break points instead of scrolling. */
 .katex-block .katex-render :deep(.katex) {
   font-size: 1.3em;
   max-width: 100%;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .katex-block .katex-render :deep(.katex-display) {
   margin: 0;
   max-width: 100%;
-  overflow: auto;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .katex-block .katex-render :deep(.katex-html) {
+  white-space: normal;
+}
+
+/* Reserve room for the absolutely positioned equation number. */
+.katex-block .katex-render :deep(.katex-display > .katex > .katex-html:has(> .katex-tag)) {
+  padding: 0 3em;
+}
+
+/* Environments render as one unbreakable table: keep them on one line and let
+   the box grow so the number stays after the content (reachable by scrolling). */
+.katex-block .katex-render :deep(.katex-display > .katex > .katex-html:has(> .katex-base > .mtable)) {
   white-space: nowrap;
+  display: inline-block;
+  min-width: 100%;
+  box-sizing: border-box;
 }
 
 .katex-error {
@@ -191,7 +211,8 @@ onMounted(render);
 .katex-actions {
   position: absolute;
   top: -2px;
-  right: -2px;
+  /* A negative right offset overflows the scrollable block and shows a scrollbar. */
+  right: 0;
   display: inline-flex;
   gap: 2px;
   padding: 2px 3px;
