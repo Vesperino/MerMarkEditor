@@ -54,7 +54,7 @@ function attachToEditor(ed: Editor | null | undefined) {
   }
 }
 
-export function useToolbarActions() {
+export function useToolbarActions(editorOverride?: Ref<Editor | null>) {
   const { t } = useI18n();
   const { zoomPercent, zoomIn, zoomOut, resetZoom, setZoom } = useEditorZoom();
   const {
@@ -66,7 +66,7 @@ export function useToolbarActions() {
     changeModel,
   } = sharedTokens;
 
-  const editor = inject<Ref<Editor | null>>('editor');
+  const editor = editorOverride ?? inject<Ref<Editor | null>>('editor');
 
   // Editor helpers
   const isActive = (name: string | Record<string, unknown>, attrs?: Record<string, unknown>) => {

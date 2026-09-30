@@ -67,7 +67,7 @@ const needsSpacerBefore = (index: number) => {
 </script>
 
 <template>
-  <div class="toolbar" @click.self="closeDropdowns">
+  <div v-if="toolbarItems.length" class="toolbar" @click.self="closeDropdowns">
     <div class="toolbar-row">
       <template v-for="(item, index) in toolbarItems" :key="item.id">
         <!-- Spacer between editing tools and right-side items -->

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, provide, computed, watchEffect, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, shallowRef, provide, computed, watchEffect, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -11,6 +11,8 @@ import { inlineMarkdownImages, getDirectoryFromFilePath } from './utils/image-re
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 // Components
+import { useAppCommands, appCommandsKey } from './composables/useAppCommands';
+import { useNativeMenus } from './composables/useNativeMenus';
 import Toolbar from './components/Toolbar.vue';
 import StatusBar from './components/StatusBar.vue';
 import LeftBar from './components/LeftBar.vue';
@@ -97,6 +99,7 @@ const { addRecentFile } = useRecentFiles();
 
 const {
   closeCurrentWindow,
+  createNewWindow,
   registerOpenFile,
   unregisterOpenFile,
   unregisterWindowFiles,
@@ -120,7 +123,7 @@ const splitContainerRef = ref<InstanceType<typeof SplitContainer> | null>(null);
 // Start as true to prevent initial change detection from marking document as changed
 const isLoadingContent = ref(true);
 
-const editorInstance = ref<TiptapEditor | null>(null);
+const editorInstance = shallowRef<TiptapEditor | null>(null);
 
 // Provide editor to child components (get from active pane)
 // Use watchEffect to automatically re-run when any reactive dependency changes
@@ -1183,6 +1186,15 @@ const showShortcutsModal = ref(false);
 
 // ============ Settings Modal ============
 const showSettingsModal = ref(false);
+const settingsRequestId = ref(0);
+const settingsInitialTab = ref<'editor' | 'layout'>('editor');
+const restoreLayoutOnOpen = ref(false);
+function openSettings(layout = false, restore = false) {
+  settingsRequestId.value++;
+  settingsInitialTab.value = layout ? 'layout' : 'editor';
+  restoreLayoutOnOpen.value = restore;
+  showSettingsModal.value = true;
+}
 
 // ============ AI Panel ============
 const aiPanelOpen = ref(false);
@@ -1474,7 +1486,7 @@ const handleWorkspaceViewChanges = (path: string) => {
 const { hasStatusBarItems, hasLeftBarItems } = useLayoutConfig();
 
 // ============ Editor Zoom ============
-const { zoomIn, zoomOut, resetZoom } = useEditorZoom();
+const { zoomIn, zoomOut } = useEditorZoom();
 
 const handleWheel = (event: WheelEvent) => {
   if (event.ctrlKey || event.metaKey) {
@@ -1651,93 +1663,18 @@ const handleKeyboard = (event: KeyboardEvent) => {
       return;
     }
 
-    switch (key) {
-      case 'n':
-        event.preventDefault();
-        newFile();
-        break;
-      case 's':
-        event.preventDefault();
-        if (event.shiftKey) {
-          saveFileAs();
-        } else {
-          saveFile();
-        }
-        break;
-      case 'o':
-        event.preventDefault();
-        openFileWithCrossWindowDialog();
-        break;
-      case 'p':
-        event.preventDefault();
-        openPdfDialog();
-        break;
-      case 'd':
-        if (event.shiftKey && canShowDiff.value) {
-          event.preventDefault();
-          toggleDiffPreview();
-        }
-        break;
-      case 'c':
-        if (event.shiftKey && canCompareTabs.value) {
-          event.preventDefault();
-          compareTabs();
-        }
-        break;
-      case 't':
-        if (event.shiftKey) {
-          event.preventDefault();
-          toggleTocPanel();
-        }
-        break;
-      case 'r':
-        event.preventDefault();
-        manualReload();
-        break;
-      case 'e':
-        // Ctrl+Shift+E opens the workspace quick switcher (palette-style).
-        if (event.shiftKey) {
-          event.preventDefault();
-          showWorkspaceQuickSwitcher.value = true;
-        }
-        break;
-      case 'f':
-        event.preventDefault();
-        openDocumentSearch();
-        break;
-      case 'w':
-        if (activeTabId.value && activePaneId.value) {
-          event.preventDefault();
-          handleCloseTabRequest(activePaneId.value, activeTabId.value);
-        }
-        break;
-      case '=':
-      case '+':
-        event.preventDefault();
-        zoomIn();
-        break;
-      case '-':
-        event.preventDefault();
-        zoomOut();
-        break;
-      case '0':
-        event.preventDefault();
-        resetZoom();
-        break;
-      case ',':
-        event.preventDefault();
-        showSettingsModal.value = true;
-        break;
-      case 'v':
-        if (event.shiftKey && !splitEditorActive.value) {
-          event.preventDefault();
-          toggleCodeView();
-        }
-        break;
-      case '/':
-        event.preventDefault();
-        showShortcutsModal.value = !showShortcutsModal.value;
-        break;
+    const shortcut = `${event.shiftKey ? 'shift+' : ''}${key}`;
+    const commands: Record<string, string> = {
+      n: 'new-file', s: 'save-file', 'shift+s': 'save-file-as', o: 'open-file', p: 'export-pdf',
+      'shift+d': 'toggle-diff', 'shift+c': 'compare-tabs', 'shift+t': 'toggle-toc', r: 'reload-file',
+      'shift+e': 'workspace-switcher', f: 'find', w: 'close-tab', '=': 'zoom-in', '+': 'zoom-in',
+      'shift++': 'zoom-in', '-': 'zoom-out', '0': 'zoom-reset', ',': 'show-settings',
+      'shift+v': 'toggle-code-view', '/': 'show-shortcuts',
+    };
+    const id = commands[shortcut];
+    if (id) {
+      event.preventDefault();
+      void appCommands.execute(id).catch(console.error);
     }
   }
 };
@@ -2068,6 +2005,42 @@ onUnmounted(async () => {
     }
   }
 });
+// Menus use the same handlers as the toolbar and are independent of layout visibility.
+const appCommands = useAppCommands({
+  editor: editorInstance,
+  context: () => ({
+    codeView: codeView.value, splitEditor: splitEditorActive.value, splitView: isSplitActive.value,
+    hasDocument: !!activeTab.value, canDiff: canShowDiff.value, canCompare: canCompareTabs.value,
+    diff: showDiffPreview.value, toc: showTocPanel.value, ai: aiPanelOpen.value,
+    marp: isMarp.value, marpPreview: showMarpPreview.value,
+    modal: showWorkspaceQuickSwitcher.value || !!tmpRecovery.value || showSettingsModal.value || showShortcutsModal.value || showNewFileModal.value ||
+      showPdfDialog.value || showMarpDialog.value || showSaveConfirmDialog.value || showTabCloseDialog.value ||
+      showConflictModal.value || showPreSaveConflictModal.value || showExternalLinkDialog.value ||
+      showWhatsNewModal.value || showChangelogModal.value || !!showUpdateDialog.value,
+  }),
+  actions: {
+    'new-window': () => createNewWindow(), 'close-window': closeCurrentWindow,
+    'new-file': newFile, 'open-file': openFileWithCrossWindowDialog,
+    'open-workspace': handleOpenWorkspaceFromToolbar, 'open-recent': openFileWithCrossWindowCheck,
+    'open-recent-workspace': handleOpenRecentWorkspaceFromToolbar,
+    'save-file': saveFile, 'save-file-as': saveFileAs, 'reload-file': manualReload,
+    'export-pdf': openPdfDialog, 'export-docx': exportDocx, 'present-marp': openMarpDialog,
+    'close-tab': () => { if (activeTabId.value) return handleCloseTabRequest(activePaneId.value, activeTabId.value); },
+    'find': openDocumentSearch, 'show-settings': () => openSettings(),
+    'customize-layout': () => openSettings(true), 'restore-layout': () => openSettings(true, true),
+    'toggle-toc': toggleTocPanel, 'toggle-code-view': toggleCodeView, 'toggle-split-view': toggleSplit,
+    'toggle-split-editor': toggleSplitEditor, 'toggle-diff': toggleDiffPreview, 'compare-tabs': compareTabs,
+    'ai-toggle': toggleAiPanel, 'workspace-switcher': () => { showWorkspaceQuickSwitcher.value = true; },
+    'show-shortcuts': () => { showShortcutsModal.value = !showShortcutsModal.value; },
+    'whats-new': () => { showWhatsNewModal.value = true; },
+    'marp-new-slide': marpNewSlide, 'marp-theme': (v: string) => marpUpdateFrontmatter('theme', v),
+    'marp-layout': marpSetLayout, 'marp-bg': marpInsertBg, 'marp-paginate': marpTogglePaginate,
+    'marp-size': (v: string) => marpUpdateFrontmatter('size', v), 'marp-font': marpSetFont,
+    'marp-preview': toggleMarpPreview,
+  },
+});
+provide(appCommandsKey, appCommands);
+useNativeMenus(appCommands);
 </script>
 
 <template>
@@ -2395,6 +2368,9 @@ onUnmounted(async () => {
     <!-- Settings Modal -->
     <SettingsModal
       v-if="showSettingsModal"
+      :key="settingsRequestId"
+      :initial-tab="settingsInitialTab"
+      :restore-layout="restoreLayoutOnOpen"
       @close="showSettingsModal = false"
       @show-whats-new="showSettingsModal = false; showWhatsNewModal = true"
     />
