@@ -231,6 +231,8 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - Editor padding settings translate into PDF margins
 
 ### User Experience
+- **Native application menus** — file, editing, formatting, insertion, view, and presentation commands remain available even when their toolbar controls are hidden
+- **Layout presets** — choose Full or Minimal in *View → Customize Layout…*; manual changes become Custom, and existing layouts are preserved
 - **Tab support** with **pin / context menu** — Pin / Unpin / Close / Close others / Close all but pinned / Close saved
 - **Dark/Light themes** plus a **Minimal theme variant** (Mermaid-logo palette: teal + coral on slate)
 - **Word-style zoom slider** in the status bar — `±` buttons + percentage readout
@@ -372,7 +374,10 @@ This is standard behavior for open-source software distributed without a paid co
 1. **Open a file**: `Ctrl+O` (or `Cmd+O` on macOS)
 2. **Save**: `Ctrl+S` (saves as Markdown)
 3. **Save As**: `Ctrl+Shift+S`
-4. **Export to PDF**: Click the PDF button in toolbar
+4. **Export to PDF**: Use **File → PDF…** or the PDF toolbar button
+5. **Simplify the interface**: Open **View → Customize Layout…** and choose **Minimal**. Workspace, statistics, zoom, AI, and Code controls share the bottom bar, leaving the top toolbar empty. All commands remain in the native menus. Restore the original arrangement with **View → Restore Default Layout…**.
+
+Settings is always available in the application menu on macOS, or the Edit menu on Windows/Linux, and through `Cmd/Ctrl+,`. The Minimal layout is independent of the Minimal color theme.
 
 ### Keyboard Shortcuts
 

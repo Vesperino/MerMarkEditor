@@ -211,6 +211,8 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - Ustawienia paddingu edytora przekładają się na marginesy PDF
 
 ### Doświadczenie użytkownika
+- **Natywne menu aplikacji** — polecenia plików, edycji, formatowania, wstawiania, widoku i prezentacji są dostępne nawet wtedy, gdy ich przyciski są ukryte na pasku
+- **Presety układu** — wybierz Pełny lub Minimalny w *Widok → Dostosuj układ…*; ręczne zmiany stają się układem Własnym, a istniejące układy zostają zachowane
 - **Zakładki z pin / context menu** — Pin / Unpin / Close / Close others / Close all but pinned / Close saved
 - **Jasny/Ciemny motyw** plus wariant **Minimal** (paleta z logo Mermaid: teal + coral na slate)
 - **Suwak zoom w stylu Word** w status barze — przyciski `±` + odczyt procentów
@@ -343,7 +345,10 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 1. **Otwórz plik**: `Ctrl+O` (lub `Cmd+O` na macOS)
 2. **Zapisz**: `Ctrl+S` (zapisuje jako Markdown)
 3. **Zapisz jako**: `Ctrl+Shift+S`
-4. **Eksportuj do PDF**: Kliknij przycisk PDF w pasku narzędzi
+4. **Eksportuj do PDF**: Użyj **Plik → PDF…** lub przycisku PDF w pasku narzędzi
+5. **Uprość interfejs**: Otwórz **Widok → Dostosuj układ…** i wybierz **Minimalny**. Obszar roboczy, statystyki, zoom, AI i widok kodu trafiają na dolny pasek, a górny pasek narzędzi zostaje pusty. Wszystkie polecenia zostają w natywnych menu. Pierwotny układ przywrócisz przez **Widok → Przywróć domyślny układ…**.
+
+Ustawienia są zawsze dostępne w menu aplikacji na macOS lub w menu Edycja na Windows/Linux, a także przez `Cmd/Ctrl+,`. Układ Minimalny jest niezależny od motywu kolorystycznego Minimal.
 
 ### Skróty klawiszowe
 

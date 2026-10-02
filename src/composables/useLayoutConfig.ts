@@ -9,23 +9,32 @@ export interface LayoutItemPlacement {
   order: number;
 }
 
+export type LayoutPreset = 'full' | 'minimal' | 'custom';
+
 export interface LayoutConfig {
+  preset: LayoutPreset;
   version: number;
   placements: LayoutItemPlacement[];
 }
 
 const STORAGE_KEY = 'mermark-layout';
-const CONFIG_VERSION = 2;
+const CONFIG_VERSION = 3;
 
-function generateDefaults(): LayoutItemPlacement[] {
+const MINIMAL_STATUSBAR_ITEMS = [
+  'toggle-workspace-sidebar', 'stats', 'zoom-controls', 'ai-toggle', 'toggle-code-view',
+];
+
+function generateDefaults(preset: 'full' | 'minimal' = 'full'): LayoutItemPlacement[] {
   return TOOLBAR_ITEMS.map(item => ({
     id: item.id,
-    zone: item.defaultZone as LayoutZone,
-    order: item.defaultOrder,
+    zone: preset === 'full' ? item.defaultZone :
+      MINIMAL_STATUSBAR_ITEMS.includes(item.id) ? 'statusbar' : 'hidden',
+    order: preset === 'minimal' && MINIMAL_STATUSBAR_ITEMS.includes(item.id)
+      ? (MINIMAL_STATUSBAR_ITEMS.indexOf(item.id) + 1) * 10 : item.defaultOrder,
   }));
 }
 
-function loadConfig(): LayoutConfig {
+export function loadLayoutConfig(): LayoutConfig {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -33,10 +42,12 @@ function loadConfig(): LayoutConfig {
       if (parsed.version >= 1 && parsed.version <= CONFIG_VERSION && Array.isArray(parsed.placements)) {
         // Ensure all registry items exist in placements (handles new items added in updates)
         const existingIds = new Set(parsed.placements.map(p => p.id));
-        const defaults = generateDefaults();
+        parsed.preset = parsed.version < 3 || !['full', 'minimal', 'custom'].includes(parsed.preset)
+          ? 'custom' : parsed.preset;
+        const defaults = generateDefaults(parsed.preset === 'minimal' ? 'minimal' : 'full');
         for (const def of defaults) {
           if (!existingIds.has(def.id)) {
-            parsed.placements.push(def);
+            parsed.placements.push({ ...def, zone: parsed.preset === 'custom' ? 'hidden' : def.zone });
           }
         }
         // Remove placements for items no longer in registry
@@ -55,26 +66,15 @@ function loadConfig(): LayoutConfig {
             }
           }
         }
-        // Migration v1 -> v2: zoom-controls' defaultZone changed from 'toolbar'
-        // to 'statusbar'. Layouts saved under the old default keep zoom in the
-        // toolbar; move it to the status bar unless the user parked it elsewhere
-        // (hidden, leftbar, …) — those count as "set otherwise" and stay put.
-        if (parsed.version < 2) {
-          const zoom = parsed.placements.find(p => p.id === 'zoom-controls');
-          if (zoom && zoom.zone === 'toolbar') {
-            const def = getItemDef('zoom-controls');
-            zoom.zone = def?.defaultZone ?? 'statusbar';
-            zoom.order = def?.defaultOrder ?? 1000;
-          }
-          parsed.version = CONFIG_VERSION;
-        }
+        // Preserve every saved placement, including legacy zoom placement.
+        parsed.version = CONFIG_VERSION;
         return parsed;
       }
     }
   } catch (error) {
     console.error('Error loading layout config:', error);
   }
-  return { version: CONFIG_VERSION, placements: generateDefaults() };
+  return { version: CONFIG_VERSION, preset: 'full', placements: generateDefaults() };
 }
 
 function saveConfig(config: LayoutConfig): void {
@@ -86,7 +86,7 @@ function saveConfig(config: LayoutConfig): void {
 }
 
 // Singleton state
-const layoutConfig = ref<LayoutConfig>(loadConfig());
+const layoutConfig = ref<LayoutConfig>(loadLayoutConfig());
 
 // Auto-save on changes
 watch(layoutConfig, (newConfig) => {
@@ -115,6 +115,7 @@ export function useLayoutConfig() {
     if (!isZoneAllowedForItem(itemId, toZone)) return;
     const placement = layoutConfig.value.placements.find(p => p.id === itemId);
     if (placement) {
+      layoutConfig.value.preset = 'custom';
       // Get max order in target zone and add after it
       const zoneItems = layoutConfig.value.placements.filter(p => p.zone === toZone);
       const maxOrder = zoneItems.length > 0 ? Math.max(...zoneItems.map(p => p.order)) : 0;
@@ -130,6 +131,7 @@ export function useLayoutConfig() {
       if (!isZoneAllowedForItem(id, zone)) return;
       const placement = layoutConfig.value.placements.find(p => p.id === id);
       if (placement) {
+        layoutConfig.value.preset = 'custom';
         placement.zone = zone;
         placement.order = (index + 1) * 10;
       }
@@ -139,6 +141,7 @@ export function useLayoutConfig() {
   function toggleVisibility(itemId: string): void {
     const placement = layoutConfig.value.placements.find(p => p.id === itemId);
     if (!placement) return;
+    layoutConfig.value.preset = 'custom';
 
     if (placement.zone === 'hidden') {
       // Restore to default zone
@@ -154,9 +157,11 @@ export function useLayoutConfig() {
     }
   }
 
-  function resetToDefaults(): void {
-    layoutConfig.value = { version: CONFIG_VERSION, placements: generateDefaults() };
+  function applyPreset(preset: 'full' | 'minimal'): void {
+    layoutConfig.value = { version: CONFIG_VERSION, preset, placements: generateDefaults(preset) };
   }
+
+  function resetToDefaults(): void { applyPreset('full'); }
 
   const hasStatusBarItems = computed(() =>
     layoutConfig.value.placements.some(p => p.zone === 'statusbar')
@@ -173,6 +178,7 @@ export function useLayoutConfig() {
     reorderItems,
     toggleVisibility,
     resetToDefaults,
+    applyPreset,
     hasStatusBarItems,
     hasLeftBarItems,
     isZoneAllowedForItem,

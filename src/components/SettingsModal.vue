@@ -7,6 +7,8 @@ import { useSettings, EDITOR_FONTS, CODE_FONTS } from '../composables/useSetting
 import { BUILTIN_MERMAID_FORMATS, CUSTOM_FORMAT_ID, type MermaidFormat } from '../utils/mermaid-formats';
 import { useSystemFonts } from '../composables/useSystemFonts';
 import { useLayoutConfig, type LayoutZone } from '../composables/useLayoutConfig';
+import { useMenuLabels } from '../i18n/menus';
+import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
 import { getItemDef } from '../data/toolbarItems';
 import AiSettingsTab from './ai/AiSettingsTab.vue';
 import { useAutoUpdate } from '../composables/useAutoUpdate';
@@ -40,7 +42,8 @@ const {
   itemsForZone,
   moveItem,
   reorderItems,
-  resetToDefaults: resetLayoutDefaults,
+  layoutConfig,
+  applyPreset,
   isZoneAllowedForItem,
 } = useLayoutConfig();
 
@@ -51,7 +54,20 @@ const editorSystemFonts = computed(() =>
 const codeSystemFonts = computed(() => monoFonts.value);
 
 type SettingsTab = 'appearance' | 'editor' | 'code' | 'general' | 'layout' | 'ai' | 'updates';
-const activeTab = ref<SettingsTab>('editor');
+const props = defineProps<{ initialTab?: SettingsTab; restoreLayout?: boolean }>();
+const activeTab = ref<SettingsTab>(props.initialTab ?? 'editor');
+const menuLabels = useMenuLabels();
+const pendingPreset = ref<'full' | 'minimal' | null>(null);
+function choosePreset(preset: 'full' | 'minimal') {
+  if (layoutConfig.value.preset === 'custom') pendingPreset.value = preset;
+  else applyPreset(preset);
+}
+function confirmPreset() {
+  if (pendingPreset.value) applyPreset(pendingPreset.value);
+  pendingPreset.value = null;
+}
+watch(() => props.initialTab, tab => { if (tab) activeTab.value = tab; });
+onMounted(() => { if (props.restoreLayout) choosePreset('full'); });
 
 const mermaidFormatOptions = computed<MermaidFormat[]>(() => {
   const custom = settings.value.customMermaidFormat;
@@ -390,6 +406,7 @@ const emit = defineEmits<{
 const appVersion = ref('');
 
 const handleKeydown = (e: KeyboardEvent) => {
+  if (e.defaultPrevented) return;
   if (e.key === 'Escape') {
     emit('close');
   }
@@ -1051,6 +1068,16 @@ onUnmounted(() => {
           <!-- Layout Tab -->
           <div v-if="activeTab === 'layout'" class="settings-section layout-section">
             <p class="layout-description">{{ t.layoutDescription }}</p>
+            <fieldset class="layout-presets">
+              <legend>{{ menuLabels.presets }} <span v-if="layoutConfig.preset === 'custom'">— {{ menuLabels.custom }}</span></legend>
+              <button v-for="preset in (['full', 'minimal'] as const)" :key="preset"
+                type="button" :aria-pressed="layoutConfig.preset === preset"
+                :class="{ selected: layoutConfig.preset === preset }" @click="choosePreset(preset)">
+                <strong>{{ menuLabels[preset] }}</strong>
+                <span>{{ preset === 'full' ? menuLabels.fullDescription : menuLabels.minimalDescription }}</span>
+              </button>
+            </fieldset>
+            <p class="layout-description">{{ menuLabels.menuHint }}</p>
 
             <template v-for="zoneConfig in layoutZones" :key="zoneConfig.zone">
               <!-- Collapsible hidden section -->
@@ -1112,7 +1139,7 @@ onUnmounted(() => {
               </div>
             </template>
 
-            <button class="reset-layout-btn" @click="resetLayoutDefaults">
+            <button class="reset-layout-btn" @click="choosePreset('full')">
               {{ t.resetLayout }}
             </button>
           </div>
@@ -1137,9 +1164,20 @@ onUnmounted(() => {
       {{ activeHelpTip.text }}
     </div>
   </Teleport>
+  <WorkspaceConfirmDialog v-if="pendingPreset" :title="menuLabels.replaceTitle"
+    :message="menuLabels.replaceMessage" :confirm-label="menuLabels.apply" :cancel-label="t.cancel"
+    @confirm="confirmPreset" @cancel="pendingPreset = null" />
 </template>
 
 <style scoped>
+.layout-presets { border: 0; padding: 0; margin: 0 0 16px; display: flex; gap: 12px; }
+.layout-presets legend { margin-bottom: 10px; color: var(--text-primary); font-weight: 600; }
+.layout-presets button { flex: 1; padding: 14px; text-align: left; border-radius: 8px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; }
+.layout-presets button.selected { border-color: var(--focus-ring); background: var(--active-bg); }
+.layout-presets button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.layout-presets strong, .layout-presets span { display: block; }
+.layout-presets button span { margin-top: 6px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+
 .settings-overlay {
   position: fixed;
   top: 0;

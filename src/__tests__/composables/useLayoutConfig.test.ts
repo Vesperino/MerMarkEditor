@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { nextTick } from 'vue';
-import { useLayoutConfig } from '../../composables/useLayoutConfig';
+import { useLayoutConfig, loadLayoutConfig } from '../../composables/useLayoutConfig';
 import { TOOLBAR_ITEMS } from '../../data/toolbarItems';
 
 describe('useLayoutConfig', () => {
@@ -14,7 +14,7 @@ describe('useLayoutConfig', () => {
   describe('initialization', () => {
     it('creates default placements for all toolbar items', () => {
       const { layoutConfig } = useLayoutConfig();
-      expect(layoutConfig.value.version).toBe(2);
+      expect(layoutConfig.value.version).toBe(3);
       expect(layoutConfig.value.placements.length).toBe(TOOLBAR_ITEMS.length);
     });
 
@@ -141,5 +141,40 @@ describe('useLayoutConfig', () => {
       const parsed = JSON.parse(saved!);
       expect(parsed.placements.find((p: any) => p.id === 'stats').zone).toBe('statusbar');
     });
+  });
+});
+
+
+describe('layout presets and migration', () => {
+  it('keeps Full as the fresh-install default', () => {
+    localStorage.removeItem('mermark-layout');
+    expect(loadLayoutConfig().preset).toBe('full');
+  });
+
+  it.each([1, 2])('preserves all-hidden version %s layouts and legacy zoom placement', version => {
+    const placements = TOOLBAR_ITEMS.map(i => ({ id: i.id, zone: i.id === 'zoom-controls' ? 'toolbar' : 'hidden', order: i.defaultOrder }));
+    localStorage.setItem('mermark-layout', JSON.stringify({ version, placements }));
+    expect(loadLayoutConfig()).toEqual({ version: 3, preset: 'custom', placements });
+  });
+
+  it.each(['custom', 'minimal'])('does not expose newly registered controls in %s layouts', preset => {
+    localStorage.setItem('mermark-layout', JSON.stringify({ version: 3, preset, placements: [] }));
+    expect(loadLayoutConfig().placements.find(p => p.id === 'save-file')?.zone).toBe('hidden');
+  });
+
+  it('persists Minimal, marks manual edits Custom, and restores Full', async () => {
+    const layout = useLayoutConfig();
+    layout.applyPreset('minimal');
+    expect(layout.itemsForZone('toolbar').value).toHaveLength(0);
+    expect(layout.itemsForZone('statusbar').value.map(p => p.id)).toEqual([
+      'toggle-workspace-sidebar', 'stats', 'zoom-controls', 'ai-toggle', 'toggle-code-view',
+    ]);
+    await nextTick();
+    expect(loadLayoutConfig().preset).toBe('minimal');
+    layout.moveItem('bold', 'toolbar');
+    expect(layout.layoutConfig.value.preset).toBe('custom');
+    layout.resetToDefaults();
+    expect(layout.layoutConfig.value.preset).toBe('full');
+    expect(layout.itemsForZone('hidden').value).toHaveLength(0);
   });
 });
