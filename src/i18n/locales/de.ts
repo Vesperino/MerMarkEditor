@@ -1,6 +1,16 @@
 import type { Translations } from '../index';
 
 const de: Translations = {
+  documentStyle: "Dokumentstil",
+  styleOverrides: "Anpassungen",
+  styleOverridesHint: "Stilvorgaben verwenden oder Lesedarstellung anpassen. Änderungen werden für diesen Stil gespeichert.",
+  styleDefault: "Stilvorgabe",
+  baseFontSize: "Grundschriftgröße",
+  paragraphSpacing: "Absatzabstand",
+  contentWidth: "Inhaltsbreite",
+  resetStyleValue: "Zurücksetzen",
+  resetStyleOverrides: "Anpassungen zurücksetzen",
+  pdfPresetCurrentEditor: "Aktueller Editor",
   appName: 'MerMark Editor',
   mathInline: 'Formel im Text',
   mathBlock: 'Formelblock',
@@ -190,9 +200,6 @@ const de: Translations = {
   codeFont: 'Code-Schriftart',
   codeTheme: 'Code-Farbschema',
   lineHeight: 'Zeilenhöhe',
-  editorPaddingTop: 'Innenabstand oben',
-  editorPaddingBottom: 'Innenabstand unten',
-  editorPaddingX: 'Innenabstand seitlich',
   mermaidOpeningDelimiter: 'Mermaid-Anfangsmarkierung',
   mermaidClosingDelimiter: 'Mermaid-Endmarkierung',
   mermaidDelimiterHint: 'Aktivierte Formate werden beim Lesen erkannt; Dokumente werden im oben gewählten Format gespeichert. Von der Festplatte geöffnete Dateien behalten ihr ursprüngliches Format.',

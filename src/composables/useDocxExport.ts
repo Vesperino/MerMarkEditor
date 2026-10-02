@@ -1,3 +1,5 @@
+import { useDocumentStyle } from './useDocumentStyle';
+import { resolveDocumentStyle, type ResolvedDocumentStyle } from '../styles/document-themes';
 import {
   Document,
   Packer,
@@ -19,65 +21,36 @@ import { decodeMath, mathMarkdown } from '../utils/math';
 
 type DocxItem = Paragraph | Table;
 
-function buildTextRuns(node: Node): TextRun[] {
-  if (node.nodeType === Node.TEXT_NODE) {
-    const text = node.textContent ?? '';
-    if (!text) return [];
-    return [new TextRun({ text })];
-  }
+type OriginalRunOptions = Exclude<ConstructorParameters<typeof TextRun>[0], string>;
+type RunOptions = { -readonly [K in keyof OriginalRunOptions]: OriginalRunOptions[K] };
+const wordColor = (color: string) => color.replace('#', '').toUpperCase();
+function wordFont(stack: string): string {
+  const first = stack.split(',')[0].trim().replace(/['"]/g, '');
+  return first.startsWith('-') || first === 'BlinkMacSystemFont' ? 'Arial' : first;
+}
+function buildTextRuns(node: Node, style: ResolvedDocumentStyle, inherited: RunOptions = {}): TextRun[] {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ? [new TextRun({ ...inherited, text: node.textContent })] : [];
   if (node.nodeType !== Node.ELEMENT_NODE) return [];
-
   const el = node as Element;
   if (el.matches('[data-type="katex-inline"], [data-type="katex-block"]')) {
-    return [new TextRun({ text: mathMarkdown(decodeMath(el.getAttribute('data-formula') ?? ''), decodeMath(el.getAttribute('data-math-source') ?? ''), el.getAttribute('data-type') === 'katex-block'), font: 'Cambria Math' })];
+    return [new TextRun({ ...inherited, text: mathMarkdown(decodeMath(el.getAttribute('data-formula') ?? ''), decodeMath(el.getAttribute('data-math-source') ?? ''), el.getAttribute('data-type') === 'katex-block'), font: 'Cambria Math' })];
   }
-  const tag = el.tagName.toLowerCase();
-  const childRuns: TextRun[] = [];
-  for (const child of el.childNodes) {
-    childRuns.push(...buildTextRuns(child));
+  const props: RunOptions = { ...inherited };
+  switch (el.tagName.toLowerCase()) {
+    case 'strong': case 'b': props.bold = true; break;
+    case 'em': case 'i': props.italics = true; break;
+    case 'u': props.underline = { type: UnderlineType.SINGLE }; break;
+    case 's': case 'del': props.strike = true; break;
+    case 'code': props.font = wordFont(style.codeFontFamily); props.size = Math.round(style.fontSize * .875 * 1.5); break;
+    case 'sup': props.superScript = true; break;
+    case 'sub': props.subScript = true; break;
+    case 'a': props.color = wordColor(style.palette.link); props.underline = { type: UnderlineType.SINGLE }; break;
+    case 'br': return [new TextRun({ ...props, text: '', break: 1 })];
   }
-
-  const wrapRuns = (runs: TextRun[], props: Record<string, unknown>): TextRun[] =>
-    runs.length > 0
-      ? runs.map(r => {
-          const t = (r as unknown as { text?: string }).text ?? '';
-          return new TextRun({ text: t, ...props } as ConstructorParameters<typeof TextRun>[0]);
-        })
-      : [new TextRun({ text: el.textContent ?? '', ...props } as ConstructorParameters<typeof TextRun>[0])];
-
-  switch (tag) {
-    case 'strong':
-    case 'b':
-      return wrapRuns(childRuns, { bold: true });
-    case 'em':
-    case 'i':
-      return wrapRuns(childRuns, { italics: true });
-    case 'u':
-      return wrapRuns(childRuns, { underline: { type: UnderlineType.SINGLE } });
-    case 's':
-    case 'del':
-      return wrapRuns(childRuns, { strike: true });
-    case 'code':
-      return [new TextRun({
-        text: el.textContent ?? '',
-        font: 'Courier New',
-        size: 18,
-        color: 'E11D48',
-      })];
-    case 'sup':
-      return wrapRuns(childRuns, { superScript: true });
-    case 'sub':
-      return wrapRuns(childRuns, { subScript: true });
-    case 'a':
-      return wrapRuns(childRuns, { color: '0B56C4', underline: { type: UnderlineType.SINGLE } });
-    case 'br':
-      return [new TextRun({ text: '', break: 1 })];
-    default:
-      return childRuns;
-  }
+  return Array.from(el.childNodes).flatMap(child => buildTextRuns(child, style, props));
 }
 
-function buildTable(tableEl: Element): Table {
+function buildTable(tableEl: Element, style: ResolvedDocumentStyle): Table {
   const rows: TableRow[] = [];
   const trEls = Array.from(tableEl.querySelectorAll('tr'));
   for (const tr of trEls) {
@@ -89,15 +62,16 @@ function buildTable(tableEl: Element): Table {
         new TableCell({
           children: [
             new Paragraph({
-              children: Array.from(cell.childNodes).flatMap(n => buildTextRuns(n)),
+              children: Array.from(cell.childNodes).flatMap(n => buildTextRuns(n, style)),
               ...(isHeaderRow ? { style: 'Strong' } : {}),
             }),
           ],
+          shading: { fill: wordColor(isHeaderRow ? style.palette.table : style.palette.background) },
           borders: {
-            top:    { style: BorderStyle.SINGLE, size: 4, color: 'C0C8D0' },
-            bottom: { style: BorderStyle.SINGLE, size: 4, color: 'C0C8D0' },
-            left:   { style: BorderStyle.SINGLE, size: 4, color: 'C0C8D0' },
-            right:  { style: BorderStyle.SINGLE, size: 4, color: 'C0C8D0' },
+            top:    { style: BorderStyle.SINGLE, size: 4, color: wordColor(style.palette.border) },
+            bottom: { style: BorderStyle.SINGLE, size: 4, color: wordColor(style.palette.border) },
+            left:   { style: BorderStyle.SINGLE, size: 4, color: wordColor(style.palette.border) },
+            right:  { style: BorderStyle.SINGLE, size: 4, color: wordColor(style.palette.border) },
           },
         }),
       );
@@ -112,7 +86,7 @@ function buildTable(tableEl: Element): Table {
   });
 }
 
-function buildListItems(listEl: Element, ordered: boolean): Paragraph[] {
+function buildListItems(listEl: Element, ordered: boolean, style: ResolvedDocumentStyle): Paragraph[] {
   const items: Paragraph[] = [];
   let counter = 1;
   for (const li of listEl.querySelectorAll(':scope > li')) {
@@ -125,7 +99,7 @@ function buildListItems(listEl: Element, ordered: boolean): Paragraph[] {
         }
         return false;
       })
-      .flatMap(n => buildTextRuns(n));
+      .flatMap(n => buildTextRuns(n, style));
 
     if (ordered) {
       items.push(new Paragraph({
@@ -141,7 +115,7 @@ function buildListItems(listEl: Element, ordered: boolean): Paragraph[] {
 
     const nested = li.querySelector('ul, ol');
     if (nested) {
-      items.push(...buildListItems(nested, nested.tagName.toLowerCase() === 'ol'));
+      items.push(...buildListItems(nested, nested.tagName.toLowerCase() === 'ol', style));
     }
   }
   return items;
@@ -156,34 +130,35 @@ const HEADING_LEVELS: Record<string, typeof HeadingLevel[keyof typeof HeadingLev
   h6: HeadingLevel.HEADING_6,
 };
 
-export function convertElementToDocxItems(el: Element): DocxItem[] {
+export function convertElementToDocxItems(el: Element, style: ResolvedDocumentStyle = resolveDocumentStyle()): DocxItem[] {
   if (el.matches('[data-type="katex-block"], [data-type="katex-inline"]')) {
-    return [new Paragraph({ children: buildTextRuns(el) })];
+    return [new Paragraph({ children: buildTextRuns(el, style) })];
   }
   const tag = el.tagName.toLowerCase();
 
   if (HEADING_LEVELS[tag]) {
     return [new Paragraph({
       heading: HEADING_LEVELS[tag],
-      children: Array.from(el.childNodes).flatMap(n => buildTextRuns(n)),
+      children: Array.from(el.childNodes).flatMap(n => buildTextRuns(n, style)),
     })];
   }
 
   if (tag === 'p') {
     return [new Paragraph({
-      children: Array.from(el.childNodes).flatMap(n => buildTextRuns(n)),
+      children: Array.from(el.childNodes).flatMap(n => buildTextRuns(n, style)),
     })];
   }
 
-  if (tag === 'ul') return buildListItems(el, false);
-  if (tag === 'ol') return buildListItems(el, true);
-  if (tag === 'table') return [buildTable(el)];
+  if (tag === 'ul') return buildListItems(el, false, style);
+  if (tag === 'ol') return buildListItems(el, true, style);
+  if (tag === 'table') return [buildTable(el, style)];
 
   if (tag === 'blockquote') {
-    const runs = Array.from(el.childNodes).flatMap(n => buildTextRuns(n));
+    const runs = Array.from(el.childNodes).flatMap(n => buildTextRuns(n, style));
     return [new Paragraph({
       indent: { left: 720 },
-      border: { left: { style: BorderStyle.THICK, size: 12, color: '14B8A6' } },
+      style: 'DocumentQuote',
+      border: { left: { style: BorderStyle.THICK, size: 12, color: wordColor(style.palette.border) } },
       children: runs.length > 0 ? runs : [new TextRun({ text: el.textContent ?? '' })],
     })];
   }
@@ -193,7 +168,9 @@ export function convertElementToDocxItems(el: Element): DocxItem[] {
     const text = code?.textContent ?? el.textContent ?? '';
     return text.split('\n').map(line =>
       new Paragraph({
-        children: [new TextRun({ text: line, font: 'Courier New', size: 18 })],
+        spacing: { after: 0, line: 360 },
+        shading: { fill: style.codeDark ? '0F172A' : 'F8FAFC' },
+        children: [new TextRun({ text: line, font: wordFont(style.codeFontFamily), size: Math.round(style.fontSize * .875 * 1.5), color: style.codeDark ? 'E2E8F0' : '1E293B' })],
       }),
     );
   }
@@ -201,7 +178,7 @@ export function convertElementToDocxItems(el: Element): DocxItem[] {
   if (tag === 'hr') {
     return [new Paragraph({
       children: [],
-      border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D0D6DC' } },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: wordColor(style.palette.border) } },
     })];
   }
 
@@ -213,26 +190,40 @@ export function convertElementToDocxItems(el: Element): DocxItem[] {
 
   const items: DocxItem[] = [];
   for (const child of el.children) {
-    items.push(...convertElementToDocxItems(child));
+    items.push(...convertElementToDocxItems(child, style));
   }
   return items;
 }
 
-function buildDocxDocument(cleanHtml: string): Document {
+export function buildDocxDocument(cleanHtml: string, style: ResolvedDocumentStyle = resolveDocumentStyle()): Document {
   const parser = new DOMParser();
   const dom = parser.parseFromString(`<body>${cleanHtml}</body>`, 'text/html');
   const body = dom.body;
 
   const sections: DocxItem[] = [];
   for (const child of body.children) {
-    sections.push(...convertElementToDocxItems(child));
+    sections.push(...convertElementToDocxItems(child, style));
   }
 
   if (sections.length === 0) {
     sections.push(new Paragraph({ children: [] }));
   }
 
+  const headingStyles = Object.fromEntries(style.headings.map((heading, i) => [`heading${i + 1}`, {
+    run: { font: wordFont(style.fontFamily), size: Math.round(style.fontSize * heading.size * 1.5), bold: heading.weight >= 600, italics: heading.italic ?? false, smallCaps: heading.caps === 'small-caps' ? true : undefined, allCaps: heading.caps === 'uppercase' ? true : undefined, color: wordColor(heading.muted ? style.palette.muted : style.palette.text) },
+    paragraph: { spacing: { before: Math.round(style.fontSize * (heading.spaceBefore ?? style.headingSpaceBefore) * 15), after: Math.round(style.fontSize * (heading.spaceAfter ?? style.headingSpaceAfter) * 15), line: Math.round((heading.lineHeight ?? style.headingLineHeight) * 240) }, keepNext: true, ...(heading.divider ? { border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: wordColor(style.palette.border) } } } : {}) },
+  }]));
   return new Document({
+    background: { color: wordColor(style.palette.background) },
+    styles: {
+      default: {
+        document: { run: { font: wordFont(style.fontFamily), size: Math.round(style.fontSize * 1.5), color: wordColor(style.palette.text) }, paragraph: { spacing: { after: Math.round(style.fontSize * style.paragraphSpacing * 15), line: Math.round(style.lineHeight * 240) } } },
+        ...headingStyles,
+      },
+      paragraphStyles: [
+        { id: 'DocumentQuote', name: 'Document Quote', basedOn: 'Normal', run: { color: wordColor(style.palette.muted), italics: style.quoteItalic ?? false } },
+      ],
+    },
     sections: [{ children: sections }],
   });
 }
@@ -254,7 +245,7 @@ export function useDocxExport() {
     if (!filePath) return;
 
     const cleanHtml = serializeEditorContent(editorEl);
-    const doc = buildDocxDocument(cleanHtml);
+    const doc = buildDocxDocument(cleanHtml, useDocumentStyle().value);
     const blob = await Packer.toBlob(doc);
     const arrayBuffer = await blob.arrayBuffer();
     await writeFile(filePath, new Uint8Array(arrayBuffer));

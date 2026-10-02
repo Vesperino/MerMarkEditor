@@ -32,7 +32,9 @@
     "test:e2e:ui": "playwright test --ui",
     "generate-icons": "node scripts/generate-icons.mjs",
     "gen:changelog": "node scripts/gen-changelog.mjs",
-    "bump:version": "node scripts/bump-version.mjs"
+    "bump:version": "node scripts/bump-version.mjs",
+    "themes:preview": "vite --config tools/document-style-review/vite.config.ts",
+    "themes:render": "node tools/document-style-review/render.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",

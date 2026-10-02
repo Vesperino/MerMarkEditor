@@ -7,6 +7,17 @@ import de from './locales/de';
 export type Locale = 'en' | 'pl' | 'zh-CN' | 'de';
 
 export interface Translations {
+  documentStyle: string;
+  styleOverrides: string;
+  styleOverridesHint: string;
+  styleDefault: string;
+  baseFontSize: string;
+  paragraphSpacing: string;
+  contentWidth: string;
+  resetStyleValue: string;
+  resetStyleOverrides: string;
+  pdfPresetCurrentEditor: string;
+
   // App
   appName: string;
   mathInline: string;
@@ -197,9 +208,6 @@ export interface Translations {
   codeFont: string;
   codeTheme: string;
   lineHeight: string;
-  editorPaddingTop: string;
-  editorPaddingBottom: string;
-  editorPaddingX: string;
   mermaidOpeningDelimiter: string;
   mermaidClosingDelimiter: string;
   mermaidDelimiterHint: string;

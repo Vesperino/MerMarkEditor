@@ -1,0 +1,11 @@
+/**
+ * Typora GitHub
+ * GitHub: https://github.com/typora/typora-default-themes
+ * Reference: https://github.com/typora/typora-default-themes/blob/cf4f2cb7e81a73050456367cfdfdb80b5a14a7b2/themes/github.css
+ * Revision: cf4f2cb7e81a73050456367cfdfdb80b5a14a7b2
+ * License: No upstream redistribution license established; reference only. Independent MerMark implementation (MIT).
+ * Adaptation: normalized 16px body / 680px column; relative typography and spacing;
+ * MerMark dark/code palettes. Upstream CSS and application fonts are not copied.
+ */
+.document-root[data-document-style="typora-github"] a { text-decoration: none; }
+.document-root[data-document-style="typora-github"] a:hover { text-decoration: underline; }

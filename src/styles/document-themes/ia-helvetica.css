@@ -1,0 +1,12 @@
+/**
+ * iA Writer Helvetica
+ * GitHub: https://github.com/iainc/iA-Writer-Templates
+ * Reference: https://files.ia.net/writer/templates/Helvetica-1.1.zip
+ * Revision: Helvetica 1.1; repository 6b4c61703b377fe9970cdffdc68e505bea24d2ef
+ * License: No template redistribution license established; reference only. Independent MerMark implementation (MIT).
+ * Adaptation: normalized 16px body / 680px column; relative typography and spacing;
+ * MerMark dark/code palettes. Upstream CSS and application fonts are not copied.
+ */
+.document-root[data-document-style="ia-helvetica"] h6 { display: inline; margin-right: .45em; }
+.document-root[data-document-style="ia-helvetica"] h6 + p { display: inline; }
+.document-root[data-document-style="ia-helvetica"] h6 + p::after { content: ''; display: block; margin-bottom: calc(var(--doc-paragraph-space) * var(--doc-font-size)); }

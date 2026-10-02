@@ -1,3 +1,4 @@
+import { isDocumentStyleId, normalizeOverrides, type DocumentStyleId, type DocumentStyleOverrides } from '../styles/document-themes';
 import { ref, watch } from 'vue';
 import type { TokenModelId } from '../services/tokenCounter';
 import { TOKEN_MODELS } from '../services/tokenCounter';
@@ -142,21 +143,18 @@ export interface AppSettings {
   themeVariant: ThemeVariant;
   codeTheme: CodeThemeMode;
   codeWordWrap: boolean;
+  documentStyle: DocumentStyleId;
+  documentStyleOverrides: Partial<Record<DocumentStyleId, DocumentStyleOverrides>>;
+  /** @deprecated migrated into documentStyleOverrides */
   editorFontFamily: string;
   codeFontFamily: string;
+  /** @deprecated migration/compatibility field; active typography uses documentStyleOverrides. */
   editorLineHeight: number;
   spellcheck: boolean;
   expandTabs: boolean;
   showLineNumbers: boolean;
   /** When true, the vertical left toolbar widens to show text labels next to icons. */
   leftBarExpanded: boolean;
-  /** Top padding of the editor surface, in pixels (clamped 0–80). */
-  editorPaddingTop: number;
-  /** Bottom padding of the editor surface, in pixels (clamped 0–160). */
-  editorPaddingBottom: number;
-  /** Horizontal padding of the editor surface, in pixels per side (clamped 0–160).
-   *  Applied once, independently of the Appearance style. */
-  editorPaddingX: number;
   /** @deprecated kept for migration from older builds — use mermaidWriteFormatId. */
   mermaidFenceOpen?: string;
   /** @deprecated kept for migration from older builds — use mermaidWriteFormatId. */
@@ -174,12 +172,6 @@ export interface AppSettings {
   ai: AiSettings;
 }
 
-export const EDITOR_PAD_TOP_MIN = 0;
-export const EDITOR_PAD_TOP_MAX = 80;
-export const EDITOR_PAD_BOTTOM_MIN = 0;
-export const EDITOR_PAD_BOTTOM_MAX = 160;
-export const EDITOR_PAD_X_MIN = 0;
-export const EDITOR_PAD_X_MAX = 160;
 
 const STORAGE_KEY = 'mermark-settings';
 
@@ -247,6 +239,8 @@ function loadSettings(): AppSettings {
       if (parsed.ai && typeof parsed.ai.snapshotsKeep === 'number') {
         parsed.ai.snapshotsKeep = Math.max(1, Math.floor(parsed.ai.snapshotsKeep));
       }
+      // Retire configurable editor padding; the document surface uses fixed breathing room.
+      for (const key of ['editorPaddingTop', 'editorPaddingBottom', 'editorPaddingX']) Reflect.deleteProperty(parsed, key);
       const defaults = getDefaultSettings();
       // Deep-merge the ai field so new fields added in updates get their defaults
       // even when localStorage holds an older partial ai object.
@@ -320,6 +314,19 @@ function loadSettings(): AppSettings {
         ai: mergedAi,
       };
 
+      merged.documentStyle = isDocumentStyleId(parsed.documentStyle) ? parsed.documentStyle : 'github';
+      merged.documentStyleOverrides = {};
+      if (parsed.documentStyleOverrides && typeof parsed.documentStyleOverrides === 'object') {
+        for (const [id, overrides] of Object.entries(parsed.documentStyleOverrides)) {
+          if (isDocumentStyleId(id)) merged.documentStyleOverrides[id] = normalizeOverrides(overrides);
+        }
+      } else {
+        const legacy: DocumentStyleOverrides = {};
+        if (typeof parsed.editorFontFamily === 'string' && parsed.editorFontFamily !== 'system') legacy.fontFamily = parsed.editorFontFamily;
+        if (typeof parsed.editorLineHeight === 'number' && parsed.editorLineHeight !== 1.6) legacy.lineHeight = parsed.editorLineHeight;
+        if (Object.keys(legacy).length) merged.documentStyleOverrides.github = normalizeOverrides(legacy);
+      }
+
       // Migrate v1 single-pair mermaid delimiters to the new format registry.
       // Older builds stored `mermaidFenceOpen` / `mermaidFenceClose` directly;
       // map that pair to a builtin format id if possible, otherwise install it
@@ -362,6 +369,8 @@ function getDefaultSettings(): AppSettings {
     themeVariant: 'default',
     codeTheme: 'dark',
     codeWordWrap: true,
+    documentStyle: 'github',
+    documentStyleOverrides: {},
     editorFontFamily: 'system',
     codeFontFamily: 'fira-code',
     editorLineHeight: 1.6,
@@ -369,9 +378,6 @@ function getDefaultSettings(): AppSettings {
     expandTabs: false,
     showLineNumbers: false,
     leftBarExpanded: false,
-    editorPaddingTop: 16,
-    editorPaddingBottom: 32,
-    editorPaddingX: 24,
     mermaidFenceOpen: DEFAULT_MERMAID_DELIMITERS.open,
     mermaidFenceClose: DEFAULT_MERMAID_DELIMITERS.close,
     mermaidWriteFormatId: STANDARD_FORMAT_ID,
@@ -540,8 +546,22 @@ export function useSettings() {
     applyCssVars(settings.value);
   };
 
+  const setDocumentStyle = (id: DocumentStyleId) => {
+    settings.value.documentStyle = isDocumentStyleId(id) ? id : 'github';
+  };
+  const setDocumentStyleOverride = <K extends keyof DocumentStyleOverrides>(key: K, value: DocumentStyleOverrides[K]) => {
+    const id = settings.value.documentStyle;
+    const overrides = { ...settings.value.documentStyleOverrides[id] };
+    if (value === undefined) delete overrides[key];
+    else overrides[key] = value;
+    settings.value.documentStyleOverrides[id] = normalizeOverrides(overrides);
+  };
+  const resetDocumentStyleOverrides = () => {
+    delete settings.value.documentStyleOverrides[settings.value.documentStyle];
+  };
   const setEditorFontFamily = (fontId: string) => {
     settings.value.editorFontFamily = fontId;
+    setDocumentStyleOverride('fontFamily', fontId);
     applyCssVars(settings.value);
   };
 
@@ -552,6 +572,7 @@ export function useSettings() {
 
   const setEditorLineHeight = (lh: number) => {
     settings.value.editorLineHeight = Math.max(1.0, Math.min(2.5, lh));
+    setDocumentStyleOverride('lineHeight', settings.value.editorLineHeight);
     applyCssVars(settings.value);
   };
 
@@ -574,18 +595,6 @@ export function useSettings() {
   const setLeftBarExpanded = (v: boolean) => { settings.value.leftBarExpanded = v; };
   const toggleLeftBarExpanded = () => { settings.value.leftBarExpanded = !settings.value.leftBarExpanded; };
 
-  const setEditorPaddingTop = (v: number) => {
-    settings.value.editorPaddingTop = Math.max(EDITOR_PAD_TOP_MIN, Math.min(EDITOR_PAD_TOP_MAX, Math.round(v)));
-    applyCssVars(settings.value);
-  };
-  const setEditorPaddingBottom = (v: number) => {
-    settings.value.editorPaddingBottom = Math.max(EDITOR_PAD_BOTTOM_MIN, Math.min(EDITOR_PAD_BOTTOM_MAX, Math.round(v)));
-    applyCssVars(settings.value);
-  };
-  const setEditorPaddingX = (v: number) => {
-    settings.value.editorPaddingX = Math.max(EDITOR_PAD_X_MIN, Math.min(EDITOR_PAD_X_MAX, Math.round(v)));
-    applyCssVars(settings.value);
-  };
   const setMermaidWriteFormatId = (id: string) => {
     const all = listAllMermaidFormats(settings.value);
     if (all.some((f) => f.id === id)) {
@@ -692,6 +701,9 @@ export function useSettings() {
     setThemeVariant,
     toggleCodeWordWrap,
     setCodeTheme,
+    setDocumentStyle,
+    setDocumentStyleOverride,
+    resetDocumentStyleOverrides,
     setEditorFontFamily,
     setCodeFontFamily,
     setEditorLineHeight,
@@ -701,9 +713,6 @@ export function useSettings() {
     toggleShowLineNumbers,
     setLeftBarExpanded,
     toggleLeftBarExpanded,
-    setEditorPaddingTop,
-    setEditorPaddingBottom,
-    setEditorPaddingX,
     setMermaidFenceOpen,
     setMermaidFenceClose,
     setMermaidWriteFormatId,
@@ -811,9 +820,9 @@ function applyCssVars(s: AppSettings) {
   root.setProperty('--code-font-family', resolveCodeFont(s.codeFontFamily));
   root.setProperty('--editor-line-height', `${s.editorLineHeight}`);
   // Shared editor surface padding, independent of the appearance theme.
-  root.setProperty('--editor-pad-top', `${s.editorPaddingTop ?? 16}px`);
-  root.setProperty('--editor-pad-bottom', `${s.editorPaddingBottom ?? 32}px`);
-  root.setProperty('--editor-pad-x', `${s.editorPaddingX ?? 24}px`);
+  root.setProperty('--editor-pad-top', '16px');
+  root.setProperty('--editor-pad-bottom', '32px');
+  root.setProperty('--editor-pad-x', '24px');
   applyCodeThemeVars(root, s.codeTheme);
 }
 
