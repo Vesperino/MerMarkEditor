@@ -62,6 +62,12 @@ export const PIN_SCOPE_INSTRUCTIONS: Record<string, PinScopeStrings> = {
     reply: '请使用与用户最近一条消息相同的语言回复。',
     markers: '以下每个片段都由 <<< 和 >>> 标记行包围。这些标记不是文档内容的一部分——切勿将其包含在编辑或引用中。',
   },
+  de: {
+    header: (n) => `Der Benutzer hat unten ${n} Fragment(e) angehängt.`,
+    rule: 'Sofern der Benutzer nicht ausdrücklich etwas anderes sagt, bezieht sich seine Anfrage auf GENAU DIESE Fragmente, nicht auf das ganze Dokument. Nimm Änderungen nur vor, wenn der Benutzer ausdrücklich darum bittet, und nur in den angehängten Fragmenten; Fragen, Meinungen oder Diskussionen beantworte im Chat, ohne etwas zu bearbeiten.',
+    reply: 'Antworte in derselben Sprache wie die letzte Nachricht des Benutzers.',
+    markers: 'Jedes Fragment unten ist von Markierungszeilen <<< und >>> umschlossen. Die Markierungen sind NICHT Teil des Dokuments – übernimm sie niemals in Bearbeitungen oder Zitate.',
+  },
 };
 
 /**
