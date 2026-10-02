@@ -74,7 +74,7 @@ for (const theme of ['light', 'dark'] as const) {
 
       const before = await documentStyles(page);
       const savedBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('mermark-settings')!));
-      expect(before.content['padding-left']).toBe('48px');
+      expect(before.content['padding-left']).toBe('24px');
       expect(before.elements.find((element) => element.tag === 'P')!.styles['line-height']).toBe('32px');
 
       await page.locator('.settings-btn').click();
@@ -86,7 +86,11 @@ for (const theme of ['light', 'dark'] as const) {
       expect(await documentStyles(page)).toEqual(before);
       await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('mermark-settings')!).themeVariant)).toBe('minimal');
       const savedAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('mermark-settings')!));
-      expect(savedAfter).toMatchObject({ ...savedBefore, themeVariant: 'minimal' });
+      const { editorPaddingTop, editorPaddingBottom, editorPaddingX, ...preservedSettings } = savedBefore;
+      expect(savedAfter).toMatchObject({ ...preservedSettings, themeVariant: 'minimal' });
+      for (const retiredSetting of ['editorPaddingTop', 'editorPaddingBottom', 'editorPaddingX']) {
+        expect(savedAfter).not.toHaveProperty(retiredSetting);
+      }
 
       await page.reload();
       await expect(page.locator('html')).toHaveAttribute('data-variant', 'minimal');

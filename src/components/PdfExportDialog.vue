@@ -46,6 +46,7 @@
           <label class="pdf-label">
             {{ t.pdfFontSize }}
             <select v-model="settings.fontSize" class="pdf-select" data-testid="pdf-font-size">
+              <option v-if="![8,9,10,11,12].includes(parseFloat(settings.fontSize))" :value="settings.fontSize">{{ settings.fontSize }}</option>
               <option value="8pt">{{ t.pdfFontSizeXs }}</option>
               <option value="9pt">{{ t.pdfFontSizeS }}</option>
               <option value="10pt">{{ t.pdfFontSizeM }}</option>
@@ -131,6 +132,7 @@
               :style="{ fontFamily: currentBodyStack }"
               data-testid="pdf-font-family"
             >
+              <option v-if="settings.fontFamily === 'document-font' || settings.headingFontFamily === 'document-font'" value="document-font">{{ t.pdfPresetCurrentEditor }} · {{ documentFont.split(',')[0].replace(/"/g, '') }}</option>
               <optgroup :label="t.pdfFontGroupSerif">
                 <option v-for="f in serifFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
@@ -152,6 +154,7 @@
               class="pdf-select pdf-font-select"
               :style="{ fontFamily: currentHeadingStack }"
             >
+              <option v-if="settings.fontFamily === 'document-font' || settings.headingFontFamily === 'document-font'" value="document-font">{{ t.pdfPresetCurrentEditor }} · {{ documentFont.split(',')[0].replace(/"/g, '') }}</option>
               <optgroup :label="t.pdfFontGroupSerif">
                 <option v-for="f in serifFonts" :key="f.id" :value="f.id" :style="{ fontFamily: f.stack }">{{ f.label }}</option>
               </optgroup>
@@ -333,6 +336,7 @@ import {
   type PdfSettings,
   type DocumentMeta,
 } from '../composables/usePdfExport';
+import { useDocumentStyle } from '../composables/useDocumentStyle';
 import { usePdfPresets, isBuiltinPreset } from '../composables/usePdfPresets';
 import { t } from '../i18n';
 
@@ -354,13 +358,29 @@ type TabId = 'layout' | 'typography' | 'header' | 'toc' | 'watermark';
 const activeTab = ref<TabId>('layout');
 const previewFrame = ref<HTMLIFrameElement | null>(null);
 const settings = reactive<PdfSettings>(loadPdfSettings());
+const editorStyle = useDocumentStyle();
+let applyingStyle = false;
+function mirrorEditorTypography() {
+  applyingStyle = true;
+  settings.fontSize = `${Number((editorStyle.value.fontSize * .75).toFixed(3))}pt`;
+  settings.fontFamily = 'document-font';
+  settings.headingFontFamily = 'document-font';
+  settings.accentColor = editorStyle.value.palette.link;
+  settings.tableHeaderBg = editorStyle.value.palette.table;
+  delete settings.documentStyleSnapshot;
+  settings.typographySource = 'current-editor';
+  applyingStyle = false;
+}
+if (settings.typographySource === 'current-editor') mirrorEditorTypography();
+const documentFont = computed(() => settings.documentStyleSnapshot?.fontFamily ?? editorStyle.value.fontFamily);
+
 
 const serifFonts = computed(() => SYSTEM_FONTS.filter(f => f.category === 'serif'));
 const sansFonts = computed(() => SYSTEM_FONTS.filter(f => f.category === 'sans'));
 const monoFonts = computed(() => SYSTEM_FONTS.filter(f => f.category === 'mono'));
 
-const currentBodyStack = computed(() => getFontStack(settings.fontFamily));
-const currentHeadingStack = computed(() => getFontStack(settings.headingFontFamily));
+const currentBodyStack = computed(() => settings.fontFamily === 'document-font' ? documentFont.value : getFontStack(settings.fontFamily));
+const currentHeadingStack = computed(() => settings.headingFontFamily === 'document-font' ? documentFont.value : getFontStack(settings.headingFontFamily));
 
 const PRESET_MARGINS_FULL: Record<string, { top: number; right: number; bottom: number; left: number }> = {
   narrow: { top: 10, right: 10, bottom: 14, left: 10 },
@@ -397,7 +417,7 @@ function onMarginSide(side: 'top' | 'right' | 'bottom' | 'left', e: Event) {
 const { customPresets, allPresets, findPreset, savePreset, deletePreset } = usePdfPresets();
 const builtinPresets = computed(() => allPresets().filter(p => isBuiltinPreset(p.id)));
 const customPresetsList = computed(() => customPresets.value);
-const selectedPresetId = ref('');
+const selectedPresetId = ref(settings.typographySource === 'current-editor' ? 'builtin-current-editor' : '');
 const showSavePresetModal = ref(false);
 const newPresetName = ref('');
 
@@ -411,8 +431,24 @@ function applyPreset() {
   if (!selectedPresetId.value) return;
   const preset = findPreset(selectedPresetId.value);
   if (!preset) return;
-  Object.assign(settings, preset.settings);
+  if (preset.id === 'builtin-current-editor') { mirrorEditorTypography(); return; }
+  applyingStyle = true;
+  Object.assign(settings, JSON.parse(JSON.stringify(preset.settings)));
+  if (!preset.settings.documentStyleSnapshot) delete settings.documentStyleSnapshot;
+  applyingStyle = false;
 }
+
+watch(() => [settings.fontSize, settings.fontFamily, settings.headingFontFamily, settings.accentColor, settings.tableHeaderBg], () => {
+  if (applyingStyle) return;
+  if (settings.typographySource === 'current-editor') {
+    settings.documentStyleSnapshot = JSON.parse(JSON.stringify(editorStyle.value));
+    settings.typographySource = 'custom';
+  }
+  selectedPresetId.value = '';
+}, { flush: 'sync' });
+watch(editorStyle, () => {
+  if (settings.typographySource === 'current-editor') mirrorEditorTypography();
+}, { deep: true });
 
 function openSavePreset() {
   newPresetName.value = '';
@@ -422,7 +458,12 @@ function openSavePreset() {
 function confirmSavePreset() {
   const name = newPresetName.value.trim();
   if (!name) return;
-  const preset = savePreset(name, { ...settings });
+  const saved = JSON.parse(JSON.stringify(settings)) as PdfSettings;
+  if (saved.typographySource === 'current-editor') {
+    saved.typographySource = 'custom';
+    saved.documentStyleSnapshot = JSON.parse(JSON.stringify(editorStyle.value));
+  }
+  const preset = savePreset(name, saved);
   selectedPresetId.value = preset.id;
   showSavePresetModal.value = false;
 }
