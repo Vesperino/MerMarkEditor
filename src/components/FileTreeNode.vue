@@ -182,35 +182,37 @@ watch(
         </svg>
       </span>
       <span class="tree-label" v-tooltip="node.path">{{ node.name }}</span>
-      <!-- Sort button: visible on hover for folders; opens the per-folder sort menu. -->
-      <button
-        v-if="isFolder"
-        class="tree-sort-btn"
-        v-tooltip="wsSortFolderLabel"
-        @click="onSortFolder"
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="4" y1="6" x2="13" y2="6"/>
-          <line x1="4" y1="12" x2="11" y2="12"/>
-          <line x1="4" y1="18" x2="9" y2="18"/>
-          <polyline points="17 8 20 5 20 5"/>
-          <path d="M20 5v14l-3-3"/>
-        </svg>
-      </button>
-      <!-- Changes button: visible on hover for unsaved files; opens the diff. -->
-      <button
-        v-if="isDirtyRow"
-        class="tree-changes-btn"
-        v-tooltip=" wsViewChangesLabel"
-        @click="onViewChanges"
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-      </button>
-      <!-- Dirty star: clearly flags an edited/unsaved file (hidden on row
-           hover, where the changes button takes its place). -->
-      <span v-if="isDirtyRow" class="tree-dirty-star" v-tooltip="wsViewChangesLabel" aria-hidden="true">*</span>
+      <span v-if="isFolder || isDirtyRow" class="tree-actions">
+        <!-- Sort button: visible on hover for folders; opens the per-folder sort menu. -->
+        <button
+          v-if="isFolder"
+          class="tree-sort-btn"
+          v-tooltip="wsSortFolderLabel"
+          @click="onSortFolder"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="13" y2="6"/>
+            <line x1="4" y1="12" x2="11" y2="12"/>
+            <line x1="4" y1="18" x2="9" y2="18"/>
+            <polyline points="17 8 20 5 20 5"/>
+            <path d="M20 5v14l-3-3"/>
+          </svg>
+        </button>
+        <!-- Changes button: visible on hover for unsaved files; opens the diff. -->
+        <button
+          v-if="isDirtyRow"
+          class="tree-changes-btn"
+          v-tooltip=" wsViewChangesLabel"
+          @click="onViewChanges"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </button>
+        <!-- Dirty star: clearly flags an edited/unsaved file (hidden on row
+             hover, where the changes button takes its place). -->
+        <span v-if="isDirtyRow" class="tree-dirty-star" v-tooltip="wsViewChangesLabel" aria-hidden="true">*</span>
+      </span>
     </div>
 
     <div v-if="isFolder && expanded" class="tree-children">
@@ -315,10 +317,21 @@ watch(
   text-overflow: ellipsis;
 }
 
+/* Reserve the action slot so revealing controls never changes row geometry. */
+.tree-actions {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 /* Unsaved marker — bold accent star, hidden while the changes button shows. */
 .tree-dirty-star {
-  flex-shrink: 0;
-  margin-right: 2px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--primary);
   font-weight: 700;
   font-size: 16px;
@@ -327,12 +340,13 @@ watch(
 }
 
 .tree-row:hover .tree-dirty-star {
-  display: none;
+  visibility: hidden;
 }
 
 /* Changes button — only visible on row hover (and only rendered for dirty files). */
 .tree-changes-btn {
-  display: none;
+  display: flex;
+  visibility: hidden;
   align-items: center;
   justify-content: center;
   width: 18px;
@@ -347,7 +361,7 @@ watch(
 }
 
 .tree-row:hover .tree-changes-btn {
-  display: flex;
+  visibility: visible;
 }
 
 .tree-changes-btn:hover {
@@ -357,7 +371,8 @@ watch(
 
 /* Per-folder sort button — appears on folder-row hover. */
 .tree-sort-btn {
-  display: none;
+  display: flex;
+  visibility: hidden;
   align-items: center;
   justify-content: center;
   width: 18px;
@@ -372,7 +387,7 @@ watch(
 }
 
 .tree-row:hover .tree-sort-btn {
-  display: flex;
+  visibility: visible;
 }
 
 .tree-sort-btn:hover {
