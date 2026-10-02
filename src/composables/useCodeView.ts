@@ -372,8 +372,14 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
       continue;
     }
 
-    // Paragraph: each non-block line is its own paragraph in the converter
-    blocks.push({ startLine: i, endLine: i + 1, type: 'paragraph' });
+    // Soft/hard line breaks stay in one paragraph; blank lines create paragraph breaks.
+    // Keep the complete paragraph source range for cursor restoration.
+    const previous = blocks[blocks.length - 1];
+    if (previous?.type === 'paragraph' && previous.endLine === i) {
+      previous.endLine = i + 1;
+    } else {
+      blocks.push({ startLine: i, endLine: i + 1, type: 'paragraph' });
+    }
     i++;
   }
 

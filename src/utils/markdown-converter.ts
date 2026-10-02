@@ -483,9 +483,35 @@ export function markdownToHtmlWithMeta(
   // Lists
   html = parseMarkdownLists(html);
 
-  // Paragraphs - exclude only block-level elements and placeholders, not inline elements
-  html = html.replace(/^(?!<[huplodtb]|<\/|<hr|<img|__)(.+)$/gim, '<p>$1</p>');
-  html = html.replace(/<p>\s*<\/p>/g, '');
+  // CommonMark: soft line breaks continue a paragraph; blank lines are paragraph breaks.
+  // Hard line breaks (two trailing spaces or a backslash) render as <br />.
+  // https://spec.commonmark.org/0.31.2/#paragraphs (line breaks: sections 6.7–6.8).
+  const paragraphOutput: string[] = [];
+  let paragraphLines: string[] = [];
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return;
+    const content = paragraphLines.map((line, index) => {
+      const text = line.trim();
+      if (index === paragraphLines.length - 1) return text;
+      const trailingBackslashes = /\\+$/.exec(text)?.[0].length ?? 0;
+      if (trailingBackslashes % 2 === 1) return text.slice(0, -1) + '<br />';
+      if (/ {2,}$/.test(line)) return text + '<br />';
+      return text + ' ';
+    }).join('');
+    paragraphOutput.push(`<p>${content}</p>`);
+    paragraphLines = [];
+  };
+  for (const line of html.split('\n')) {
+    // Exclude block-level elements and protected blocks, but allow inline tags.
+    if (line.trim() && !/^(?:<[huplodtb]|<\/|<hr|<img|__)/i.test(line)) {
+      paragraphLines.push(line);
+    } else {
+      flushParagraph();
+      paragraphOutput.push(line);
+    }
+  }
+  flushParagraph();
+  html = paragraphOutput.join('\n').replace(/<p>\s*<\/p>/g, '');
 
   // Restore code blocks
   html = restoreCodeBlocks(html, codeBlocks);
