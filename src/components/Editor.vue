@@ -1021,8 +1021,10 @@ defineExpose({
   text-align: left;
 }
 
-.editor-content .tiptap p {
-  margin: 0.5em 0;
+/* Prose margins override legacy Appearance styles; nested blocks keep their spacing. */
+.editor-content .tiptap p,
+.editor-container .editor-content .tiptap > p {
+  margin: 0 0 1em;
   line-height: var(--editor-line-height, 1.6);
   font-size: var(--editor-font-size, 16px);
 }
@@ -1140,7 +1142,7 @@ defineExpose({
   text-align: left;
 }
 
-.editor-content .tiptap blockquote p {
+.editor-container .editor-content .tiptap blockquote p {
   margin: 0;
   text-align: left;
 }
@@ -1157,7 +1159,7 @@ defineExpose({
   text-align: left;
 }
 
-.editor-content .tiptap li p {
+.editor-container .editor-content .tiptap li p {
   margin: 0;
   text-align: left;
 }
@@ -1378,11 +1380,6 @@ defineExpose({
 /* Remove focus ring - clean look */
 .editor-content .tiptap:focus-visible {
   outline: none !important;
-}
-
-/* Better paragraph spacing */
-.editor-content .tiptap p + p {
-  margin-top: 0.75em;
 }
 
 /* Character counter styles */
