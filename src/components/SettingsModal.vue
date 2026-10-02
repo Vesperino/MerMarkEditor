@@ -573,7 +573,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Theme variant: Default vs Minimal (orthogonal to dark/light) -->
+            <!-- Application chrome only; document rendering belongs to Editor. -->
             <div class="setting-row">
               <label class="setting-label">{{ t.themeVariantLabel }}</label>
               <div class="setting-control">
@@ -595,6 +595,8 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
+
+            <p class="setting-help">{{ t.themeVariantHint }}</p>
 
             <!-- Workspace controls live exclusively in the left sidebar
                  now — no need to duplicate them under Settings. -->
@@ -744,7 +746,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Font preview -->
-            <div class="font-preview" :style="{ fontFamily: `var(--editor-font-family, inherit)`, lineHeight: settings.editorLineHeight }">
+            <div class="font-preview" :style="{ fontFamily: `var(--editor-font-family, var(--font-sans))`, lineHeight: settings.editorLineHeight }">
               The quick brown fox jumps over the lazy dog. 0123456789
             </div>
           </div>
@@ -767,7 +769,7 @@ onUnmounted(() => {
                     :class="{ active: settings.codeTheme === 'white' }"
                     @click="setCodeTheme('white')"
                   >
-                    {{ t.whiteMode }}
+                    {{ t.lightMode }}
                   </button>
                 </div>
               </div>

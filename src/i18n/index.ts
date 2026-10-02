@@ -262,7 +262,6 @@ export interface Translations {
   // Theme
   darkMode: string;
   lightMode: string;
-  whiteMode: string;
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => string;
@@ -472,6 +471,7 @@ export interface Translations {
 
   // Theme variant
   themeVariantLabel: string;
+  themeVariantHint: string;
   themeVariantDefault: string;
   themeVariantMinimal: string;
 

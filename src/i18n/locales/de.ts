@@ -255,7 +255,6 @@ const de: Translations = {
   // Theme
   darkMode: 'Dunkel',
   lightMode: 'Hell',
-  whiteMode: 'Weiß',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `„${fileName}“ wurde extern geändert und neu geladen.`,
@@ -465,6 +464,7 @@ const de: Translations = {
 
   // Theme variant
   themeVariantLabel: 'Design-Stil',
+  themeVariantHint: 'Gestaltet Bedienelemente und Bereiche der App. Die Dokumentformatierung wird unter Editor eingestellt.',
   themeVariantDefault: 'Standard',
   themeVariantMinimal: 'Minimal',
 

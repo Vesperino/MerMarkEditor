@@ -255,7 +255,6 @@ const pl: Translations = {
   // Theme
   darkMode: 'Ciemny',
   lightMode: 'Jasny',
-  whiteMode: 'Bialy',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `"${fileName}" został zaktualizowany zewnętrznie i ponownie wczytany.`,
@@ -465,6 +464,7 @@ const pl: Translations = {
 
   // Theme variant
   themeVariantLabel: 'Styl motywu',
+  themeVariantHint: 'Zmienia wygląd elementów sterujących i paneli aplikacji. Formatowanie dokumentu ustawisz na karcie Edytor.',
   themeVariantDefault: 'Domyślny',
   themeVariantMinimal: 'Minimalistyczny',
 
