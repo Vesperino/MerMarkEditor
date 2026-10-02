@@ -10,6 +10,9 @@
 
 /* ========== Theme Variables ========== */
 :root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+
   /* Layout */
   --toolbar-height: 44px;
 
@@ -95,6 +98,17 @@
   --token-model-color: #a1a1aa;
   --token-active-bg: #f0fdf4;
   --token-active-color: #16a34a;
+
+  /* Document palette: follows Light/Dark mode, independent of UI style.
+     Keep these literal values separate from Appearance's chrome tokens. */
+  --editor-text-primary: #1e293b;
+  --editor-text-secondary: #475569;
+  --editor-text-muted: #64748b;
+  --editor-text-faint: #94a3b8;
+  --editor-focus-ring: #3b82f6;
+  --editor-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --editor-scrollbar-thumb: #cbd5e1;
+  --editor-scrollbar-thumb-hover: #94a3b8;
 
   /* Editor */
   --editor-container-bg: #f8fafc;
@@ -283,6 +297,15 @@ html.dark {
   --token-active-bg: rgba(16, 185, 129, 0.15);
   --token-active-color: #34d399;
 
+  --editor-text-primary: #dcddde;
+  --editor-text-secondary: #a7a7a7;
+  --editor-text-muted: #888888;
+  --editor-text-faint: #666666;
+  --editor-focus-ring: #3b82f6;
+  --editor-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --editor-scrollbar-thumb: #444444;
+  --editor-scrollbar-thumb-hover: #555555;
+
   --editor-container-bg: #181818;
   --editor-content-bg: #1e1e1e;
   --heading-border: #383838;
@@ -399,8 +422,7 @@ html.dark {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans);
   color: var(--text-primary);
   background: var(--bg-primary);
   overflow: hidden;
@@ -535,4 +557,3 @@ button:disabled {
   text-transform: uppercase;
   color: var(--primary, #6b5bd2);
 }
-

@@ -935,6 +935,18 @@ defineExpose({
 
 <style>
 .editor-container {
+  /* Fence inherited document colors off from Appearance's chrome palette. */
+  --text-primary: var(--editor-text-primary);
+  --text-secondary: var(--editor-text-secondary);
+  --text-muted: var(--editor-text-muted);
+  --text-faint: var(--editor-text-faint);
+  --border-primary: var(--heading-border);
+  --focus-ring: var(--editor-focus-ring);
+  --shadow-sm: var(--editor-shadow);
+  --scrollbar-thumb: var(--editor-scrollbar-thumb);
+  --scrollbar-thumb-hover: var(--editor-scrollbar-thumb-hover);
+  color: var(--editor-text-primary);
+  font-family: var(--editor-font-family, var(--font-sans));
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -963,6 +975,10 @@ defineExpose({
 
 .editor-content {
   background: var(--editor-content-bg);
+  /* Document typography is independent of the theme's UI font. */
+  font-family: var(--editor-font-family, var(--font-sans));
+  font-size: var(--editor-font-size, 16px);
+  line-height: var(--editor-line-height, 1.6);
   display: flex;
   flex-direction: column;
   /* User-tunable paddings (Settings → Editor → Padding). Defaults defined
@@ -980,7 +996,6 @@ defineExpose({
   border: none !important;
   min-height: 0;
   text-align: left;
-  font-family: var(--editor-font-family, inherit);
 }
 
 .editor-content .tiptap:focus {
@@ -1025,6 +1040,11 @@ defineExpose({
   margin: 0.5em 0;
   line-height: var(--editor-line-height, 1.6);
   font-size: var(--editor-font-size, 16px);
+}
+
+.editor-content .tiptap :is(h1, h2, h3, h4, h5, h6) {
+  /* Preserve the Default heading metrics rather than introduce a new style. */
+  line-height: normal;
 }
 
 .editor-content .tiptap h1 {
@@ -1274,14 +1294,15 @@ defineExpose({
 }
 
 /* Syntax highlighting */
-.editor-content .tiptap pre .hljs-keyword { color: #c678dd; }
-.editor-content .tiptap pre .hljs-string { color: #98c379; }
-.editor-content .tiptap pre .hljs-number { color: #d19a66; }
-.editor-content .tiptap pre .hljs-function { color: #61afef; }
-.editor-content .tiptap pre .hljs-comment { color: #5c6370; font-style: italic; }
-.editor-content .tiptap pre .hljs-variable { color: #e06c75; }
-.editor-content .tiptap pre .hljs-attr { color: #d19a66; }
-.editor-content .tiptap pre .hljs-tag { color: #e06c75; }
+.editor-content .tiptap pre .hljs-keyword { color: var(--code-preview-keyword); }
+.editor-content .tiptap pre .hljs-string { color: var(--code-preview-string); }
+.editor-content .tiptap pre .hljs-number { color: var(--code-preview-number, #d19a66); }
+.editor-content .tiptap pre .hljs-function,
+.editor-content .tiptap pre .hljs-title { color: var(--code-preview-function); }
+.editor-content .tiptap pre .hljs-comment { color: var(--code-preview-comment, #94a3b8); font-style: italic; }
+.editor-content .tiptap pre .hljs-variable { color: var(--code-preview-name); }
+.editor-content .tiptap pre .hljs-attr { color: var(--code-preview-number, #d19a66); }
+.editor-content .tiptap pre .hljs-tag { color: var(--code-preview-name); }
 
 /* Mermaid blocks */
 .mermaid-wrapper {
