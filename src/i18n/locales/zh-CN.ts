@@ -7,6 +7,16 @@ const zhCN: Translations = {
   mathDelete: '删除公式',
   mathSource: 'LaTeX 源码',
   aiCodexPathHint: '请选择 Codex CLI（.exe 或 .cmd），而不是桌面应用启动器。也会搜索 %LOCALAPPDATA%\\OpenAI\\Codex\\bin。可以粘贴完整路径。',
+  documentStyle: "文档样式",
+  styleOverrides: "覆盖设置",
+  styleOverridesHint: "使用样式默认值或调整阅读偏好。更改将按样式保存。",
+  styleDefault: "样式默认值",
+  baseFontSize: "基本字号",
+  paragraphSpacing: "段落间距",
+  contentWidth: "内容宽度",
+  resetStyleValue: "重置",
+  resetStyleOverrides: "重置覆盖设置",
+  pdfPresetCurrentEditor: "当前编辑器",
   appName: 'MerMark 编辑器',
 
   // Toolbar - File operations
@@ -190,9 +200,6 @@ const zhCN: Translations = {
   codeFont: '代码字体',
   codeTheme: '代码主题',
   lineHeight: '行高',
-  editorPaddingTop: '编辑器上边距',
-  editorPaddingBottom: '编辑器下边距',
-  editorPaddingX: '编辑器两侧边距',
   mermaidOpeningDelimiter: 'Mermaid 起始分隔符',
   mermaidClosingDelimiter: 'Mermaid 结束分隔符',
   mermaidDelimiterHint: '读取时识别所有已启用的格式；保存时使用上方所选格式。文件保留打开时的原始格式。',
@@ -255,7 +262,6 @@ const zhCN: Translations = {
   // Theme
   darkMode: '深色',
   lightMode: '浅色',
-  whiteMode: '白色',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `"${fileName}" 已被外部更新并重新加载。`,
@@ -465,6 +471,7 @@ const zhCN: Translations = {
 
   // Theme variant
   themeVariantLabel: '主题风格',
+  themeVariantHint: '仅影响应用控件和面板的外观。文档格式请在“编辑器”中设置。',
   themeVariantDefault: '默认',
   themeVariantMinimal: '极简',
 

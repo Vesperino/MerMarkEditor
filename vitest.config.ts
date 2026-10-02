@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [vue()],
   test: {
     globals: true,
-    css: { include: /katex/ },
+    css: { include: /katex|document-themes/ },
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.{js,ts}'],
     setupFiles: ['./vitest.setup.ts'],

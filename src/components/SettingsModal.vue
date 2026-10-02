@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import DocumentPreview from './DocumentPreview.vue';
+import { documentPreviewSample } from './documentPreviewSample';
+import { useDocumentStyle } from '../composables/useDocumentStyle';
+import { DOCUMENT_STYLES, OVERRIDE_LIMITS, type DocumentStyleId, type DocumentStyleOverrides } from '../styles/document-themes';
 import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
@@ -20,12 +24,10 @@ const {
   setTheme,
   setThemeVariant,
   setCodeTheme,
-  setEditorFontFamily,
+  setDocumentStyle,
+  setDocumentStyleOverride,
+  resetDocumentStyleOverrides,
   setCodeFontFamily,
-  setEditorLineHeight,
-  setEditorPaddingTop,
-  setEditorPaddingBottom,
-  setEditorPaddingX,
   setMermaidWriteFormatId,
   setEnabledReadFormatIds,
   setCustomMermaidFormat,
@@ -36,6 +38,17 @@ const {
 } = useSettings();
 
 
+const activeDocumentStyle = useDocumentStyle();
+const activeOverrides = computed(() => settings.value.documentStyleOverrides[settings.value.documentStyle] ?? {});
+const numericOverrides = computed(() => [
+  { key: 'fontSize' as const, label: t.value.baseFontSize, unit: 'px' },
+  { key: 'lineHeight' as const, label: t.value.lineHeight, unit: '×' },
+  { key: 'paragraphSpacing' as const, label: t.value.paragraphSpacing, unit: 'em' },
+  { key: 'contentWidth' as const, label: t.value.contentWidth, unit: 'px' },
+]);
+function updateNumericOverride(key: keyof DocumentStyleOverrides, e: Event) {
+  setDocumentStyleOverride(key, Number((e.target as HTMLInputElement).value));
+}
 const { allFonts, monoFonts, isLoaded: fontsLoaded } = useSystemFonts();
 
 const {
@@ -573,7 +586,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Theme variant: Default vs Minimal (orthogonal to dark/light) -->
+            <!-- Application chrome only; document rendering belongs to Editor. -->
             <div class="setting-row">
               <label class="setting-label">{{ t.themeVariantLabel }}</label>
               <div class="setting-control">
@@ -596,6 +609,8 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <p class="setting-help">{{ t.themeVariantHint }}</p>
+
             <!-- Workspace controls live exclusively in the left sidebar
                  now — no need to duplicate them under Settings. -->
           </div>
@@ -603,101 +618,36 @@ onUnmounted(() => {
           <!-- Editor Tab -->
           <div v-if="activeTab === 'editor'" class="settings-section">
             <div class="setting-row">
-              <label class="setting-label">{{ t.editorFont }}</label>
-              <div class="setting-control">
-                <select
-                  class="setting-select"
-                  :value="settings.editorFontFamily"
-                  @change="(e: Event) => setEditorFontFamily((e.target as HTMLSelectElement).value)"
-                >
-                  <optgroup label="Presets">
-                    <option
-                      v-for="font in EDITOR_FONTS"
-                      :key="font.id"
-                      :value="font.id"
-                      :style="{ fontFamily: font.fontFamily }"
-                    >
-                      {{ font.label }}
-                    </option>
-                  </optgroup>
-                  <optgroup v-if="fontsLoaded && editorSystemFonts.length > 0" :label="t.systemFonts">
-                    <option
-                      v-for="font in editorSystemFonts"
-                      :key="'sys-' + font.family"
-                      :value="font.family"
-                      :style="{ fontFamily: font.family }"
-                    >
-                      {{ font.family }}
-                    </option>
-                  </optgroup>
-                </select>
-              </div>
+              <label class="setting-label" for="document-style">{{ t.documentStyle }}</label>
+              <select id="document-style" class="setting-select" data-testid="document-style-select" :value="settings.documentStyle" @change="e => setDocumentStyle((e.target as HTMLSelectElement).value as DocumentStyleId)">
+                <option v-for="style in DOCUMENT_STYLES" :key="style.id" :value="style.id">{{ style.label }}</option>
+              </select>
             </div>
-
-            <div class="setting-row">
-              <label class="setting-label">{{ t.lineHeight }}</label>
-              <div class="setting-control inline-control">
-                <input
-                  type="range"
-                  min="1.0"
-                  max="2.5"
-                  step="0.1"
-                  :value="settings.editorLineHeight"
-                  @input="(e: Event) => setEditorLineHeight(Number((e.target as HTMLInputElement).value))"
-                  class="setting-range"
-                />
-                <span class="range-value">{{ settings.editorLineHeight.toFixed(1) }}</span>
+            <details class="document-overrides" data-testid="document-overrides">
+              <summary>{{ t.styleOverrides }}</summary>
+              <p class="setting-hint">{{ t.styleOverridesHint }}</p>
+              <div class="setting-row">
+                <label class="setting-label" for="document-font">{{ t.editorFont }}</label>
+                <div class="setting-control override-control">
+                  <select id="document-font" class="setting-select" data-testid="override-fontFamily" :value="activeOverrides.fontFamily ?? ''" @change="e => setDocumentStyleOverride('fontFamily', (e.target as HTMLSelectElement).value || undefined)">
+                    <option value="">{{ t.styleDefault }}</option>
+                    <optgroup label="Presets"><option v-for="font in EDITOR_FONTS" :key="font.id" :value="font.id">{{ font.label }}</option></optgroup>
+                    <optgroup v-if="fontsLoaded && editorSystemFonts.length" :label="t.systemFonts"><option v-for="font in editorSystemFonts" :key="font.family" :value="font.family">{{ font.family }}</option></optgroup>
+                  </select>
+                  <button class="override-reset" :disabled="!activeOverrides.fontFamily" @click="setDocumentStyleOverride('fontFamily', undefined)">{{ t.resetStyleValue }}</button>
+                </div>
               </div>
-            </div>
-
-            <!-- Editor padding controls -->
-            <div class="setting-row">
-              <label class="setting-label">{{ t.editorPaddingTop }}</label>
-              <div class="setting-control inline-control">
-                <input
-                  type="range"
-                  min="0"
-                  max="80"
-                  step="2"
-                  :value="settings.editorPaddingTop"
-                  @input="(e: Event) => setEditorPaddingTop(Number((e.target as HTMLInputElement).value))"
-                  class="setting-range"
-                />
-                <span class="range-value">{{ settings.editorPaddingTop }}px</span>
+              <div v-for="control in numericOverrides" :key="control.key" class="setting-row">
+                <label class="setting-label" :for="'override-' + control.key">{{ control.label }} <small v-if="activeOverrides[control.key] === undefined">{{ t.styleDefault }}</small></label>
+                <div class="setting-control override-control">
+                  <input :id="'override-' + control.key" :data-testid="'override-' + control.key" class="setting-range" type="range" :min="OVERRIDE_LIMITS[control.key][0]" :max="OVERRIDE_LIMITS[control.key][1]" :step="OVERRIDE_LIMITS[control.key][2]" :value="activeDocumentStyle[control.key]" @input="e => updateNumericOverride(control.key, e)" />
+                  <output class="range-value">{{ Number(activeDocumentStyle[control.key].toFixed(2)) }}{{ control.unit }}</output>
+                  <button class="override-reset" :disabled="activeOverrides[control.key] === undefined" @click="setDocumentStyleOverride(control.key, undefined)">{{ t.resetStyleValue }}</button>
+                </div>
               </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">{{ t.editorPaddingX }}</label>
-              <div class="setting-control inline-control">
-                <input
-                  type="range"
-                  min="0"
-                  max="160"
-                  step="4"
-                  :value="settings.editorPaddingX"
-                  @input="(e: Event) => setEditorPaddingX(Number((e.target as HTMLInputElement).value))"
-                  class="setting-range"
-                />
-                <span class="range-value">{{ settings.editorPaddingX }}px</span>
-              </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">{{ t.editorPaddingBottom }}</label>
-              <div class="setting-control inline-control">
-                <input
-                  type="range"
-                  min="0"
-                  max="160"
-                  step="4"
-                  :value="settings.editorPaddingBottom"
-                  @input="(e: Event) => setEditorPaddingBottom(Number((e.target as HTMLInputElement).value))"
-                  class="setting-range"
-                />
-                <span class="range-value">{{ settings.editorPaddingBottom }}px</span>
-              </div>
-            </div>
+              <button class="override-reset reset-all" @click="resetDocumentStyleOverrides">{{ t.resetStyleOverrides }}</button>
+            </details>
+            <div class="style-preview-frame"><DocumentPreview :source="documentPreviewSample" :document-style="activeDocumentStyle" /></div>
 
             <div class="setting-row">
               <label class="setting-label">{{ t.spellcheck }}</label>
@@ -743,10 +693,6 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Font preview -->
-            <div class="font-preview" :style="{ fontFamily: `var(--editor-font-family, inherit)`, lineHeight: settings.editorLineHeight }">
-              The quick brown fox jumps over the lazy dog. 0123456789
-            </div>
           </div>
 
           <!-- Code Tab -->
@@ -767,7 +713,7 @@ onUnmounted(() => {
                     :class="{ active: settings.codeTheme === 'white' }"
                     @click="setCodeTheme('white')"
                   >
-                    {{ t.whiteMode }}
+                    {{ t.lightMode }}
                   </button>
                 </div>
               </div>
@@ -1170,6 +1116,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.document-overrides { border: 1px solid var(--border-primary); border-radius: 8px; padding: 12px; margin: 12px 0; }
+.document-overrides .setting-hint { margin: 8px 0 12px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.document-overrides summary { cursor: pointer; font-weight: 600; }
+.override-control { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.override-control .setting-select { min-width: 0; }
+.override-reset { border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); border-radius: 5px; padding: 4px 8px; cursor: pointer; }
+.override-reset:disabled { opacity: .4; cursor: default; }
+.reset-all { margin-top: 8px; }
+.setting-label small { display: block; color: var(--text-muted); font-weight: normal; }
+.style-preview-frame { border: 1px solid var(--border-primary); border-radius: 8px; overflow: auto; max-height: 360px; margin: 16px 0; }
+
 .layout-presets { border: 0; padding: 0; margin: 0 0 16px; display: flex; gap: 12px; }
 .layout-presets legend { margin-bottom: 10px; color: var(--text-primary); font-weight: 600; }
 .layout-presets button { flex: 1; padding: 14px; text-align: left; border-radius: 8px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; }

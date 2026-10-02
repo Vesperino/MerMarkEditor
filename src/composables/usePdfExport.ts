@@ -1,3 +1,6 @@
+import { useDocumentStyle } from './useDocumentStyle';
+import { documentPrintCss } from '../styles/document-themes/print';
+import type { ResolvedDocumentStyle } from '../styles/document-themes';
 import { invoke } from '@tauri-apps/api/core';
 import { serializeEditorContent } from '../utils/documentSerializer';
 import printCssRaw from '../styles/print.css?raw';
@@ -80,7 +83,9 @@ export interface CustomMargins {
 }
 
 export interface PdfSettings {
-  fontSize: '8pt' | '9pt' | '10pt' | '11pt' | '12pt';
+  fontSize: `${number}pt`;
+  typographySource: 'current-editor' | 'custom' | 'legacy';
+  documentStyleSnapshot?: ResolvedDocumentStyle;
   margins: MarginPreset;
   customMarginMm: number;
   customMargins: CustomMargins;
@@ -103,6 +108,7 @@ export interface PdfSettings {
 export const PDF_SETTINGS_STORAGE_KEY = 'mermark.pdfSettings';
 
 export const PDF_SETTINGS_DEFAULTS: PdfSettings = {
+  typographySource: 'current-editor',
   fontSize: '10pt',
   margins: 'normal',
   customMarginMm: 18,
@@ -343,13 +349,35 @@ export function buildPrintDocument(
   meta: DocumentMeta = {},
 ): string {
   const m = resolveMargins(settings);
+  const documentStyle = settings.typographySource === 'current-editor'
+    ? useDocumentStyle().value
+    : settings.typographySource === 'custom' ? settings.documentStyleSnapshot : undefined;
+  let documentCss = '';
+  let resolvedDocumentStyle: ResolvedDocumentStyle | undefined;
+  let resolvedHeadingFont: string | undefined;
+  if (documentStyle) {
+    const resolved = settings.typographySource === 'custom' ? {
+      ...documentStyle,
+      fontSize: parseFloat(settings.fontSize) * 4 / 3,
+      fontFamily: settings.fontFamily === 'document-font' ? documentStyle.fontFamily : getFontStack(settings.fontFamily),
+      palette: { ...documentStyle.palette, link: settings.accentColor, table: settings.tableHeaderBg },
+    } : documentStyle;
+    const headingFont = settings.typographySource === 'custom'
+      ? settings.headingFontFamily === 'document-font' ? documentStyle.fontFamily : getFontStack(settings.headingFontFamily)
+      : resolved.fontFamily;
+    resolvedDocumentStyle = resolved;
+    resolvedHeadingFont = headingFont;
+    documentCss = documentPrintCss(resolved, headingFont);
+    // Scope article styling away from page furniture and TOC controls.
+    contentHtml = `<article class="document-root" data-document-style="${resolved.id}">${contentHtml}</article>`;
+  }
   if (contentHtml.includes('data-type="katex-')) {
     const root = new DOMParser().parseFromString(contentHtml, 'text/html').body;
     renderMathNodes(root);
     contentHtml = root.innerHTML;
   }
-  const bodyFont = getFontStack(settings.fontFamily);
-  const headingFont = getFontStack(settings.headingFontFamily);
+  const bodyFont = resolvedDocumentStyle?.fontFamily ?? getFontStack(settings.fontFamily);
+  const headingFont = resolvedHeadingFont ?? getFontStack(settings.headingFontFamily);
   const marginBoxes = buildPageMarginBoxes(settings, meta);
   const watermarkCss = buildWatermarkCss(settings.watermark);
   const watermarkHtml = settings.watermark.enabled && settings.watermark.text
@@ -374,7 +402,7 @@ export function buildPrintDocument(
   ${marginBoxes}
 }
 :root {
-  --pf-size: ${settings.fontSize};
+  --pf-size: ${resolvedDocumentStyle ? `${resolvedDocumentStyle.fontSize * .75}pt` : settings.fontSize};
   --pf-font-body: ${bodyFont};
   --pf-font-heading: ${headingFont};
   --pf-accent: ${settings.accentColor};
@@ -386,6 +414,7 @@ export function buildPrintDocument(
 }
 ${counterReset}
 ${printCss}
+${documentCss}
 ${contentHtml.includes('katex') ? mathPrintCss : ''}
 ${watermarkCss}
 </style>
@@ -398,6 +427,7 @@ function migrateSettings(parsed: Partial<PdfSettings>): PdfSettings {
   const out: PdfSettings = {
     ...PDF_SETTINGS_DEFAULTS,
     ...parsed,
+    typographySource: parsed.typographySource ?? 'legacy',
     header: { ...PDF_SETTINGS_DEFAULTS.header, ...(parsed.header ?? {}) },
     footer: { ...PDF_SETTINGS_DEFAULTS.footer, ...(parsed.footer ?? {}) },
     watermark: { ...PDF_SETTINGS_DEFAULTS.watermark, ...(parsed.watermark ?? {}) },

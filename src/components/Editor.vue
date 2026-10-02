@@ -69,6 +69,8 @@ import { common, createLowlight } from "lowlight";
 import { watch, ref, nextTick, computed, watchEffect } from "vue";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { useEditorZoom } from "../composables/useEditorZoom";
+import { useDocumentStyle } from '../composables/useDocumentStyle';
+import { documentStyleVariables, type ResolvedDocumentStyle } from '../styles/document-themes';
 import { useSettings } from "../composables/useSettings";
 import { useFootnotes } from "../composables/useFootnotes";
 import { useLineNumbers } from "../composables/useLineNumbers";
@@ -192,7 +194,10 @@ const HeadingWithId = Node.create({
 const editorContainerRef = ref<HTMLDivElement | null>(null);
 const { zoomScale } = useEditorZoom();
 const { settings: appSettings } = useSettings();
-const editorZoomStyle = computed(() => ({ zoom: zoomScale.value }));
+const activeDocumentStyle = useDocumentStyle();
+const resolvedStyle = computed(() => props.documentStyle ?? activeDocumentStyle.value);
+const editorZoomStyle = computed(() => ({ ...documentStyleVariables(resolvedStyle.value), zoom: props.preview ? 1 : zoomScale.value }));
+const showGutter = computed(() => !props.preview && appSettings.value.showLineNumbers);
 
 // Table context menu state
 const showContextMenu = ref(false);
@@ -259,8 +264,6 @@ const handleEditorMouseOut = (event: MouseEvent) => {
     scheduleHideOverlay();
   }
 };
-
-
 
 // Custom extension for list keyboard shortcuts (Tab/Shift+Tab indentation)
 const ListKeymap = Extension.create({
@@ -406,6 +409,8 @@ const props = withDefaults(defineProps<{
   modelValue?: string;
   filePath?: string | null;
   editable?: boolean;
+  documentStyle?: ResolvedDocumentStyle;
+  preview?: boolean;
 }>(), {
   editable: true,
 });
@@ -726,7 +731,7 @@ watch(() => appSettings.value.spellcheck, (newVal) => {
 
 const proseMirrorRef = ref<HTMLElement | null>(null);
 const contentWrapperRef = ref<HTMLElement | null>(null);
-const showLineNumbersRef = computed(() => appSettings.value.showLineNumbers);
+const showLineNumbersRef = showGutter;
 const { lines: lineNumberEntries } = useLineNumbers({
   containerRef: proseMirrorRef,
   anchorRef: contentWrapperRef,
@@ -852,6 +857,7 @@ defineExpose({
 <template>
   <div
     class="editor-container"
+    :class="{ 'document-preview-editor': preview }"
     ref="editorContainerRef"
     @click="handleEditorClick"
     @contextmenu="handleContextMenu"
@@ -861,11 +867,11 @@ defineExpose({
     <div
       ref="contentWrapperRef"
       class="editor-content-wrapper"
-      :class="{ 'has-line-numbers': appSettings.showLineNumbers }"
+      :class="{ 'has-line-numbers': showGutter }"
       :style="editorZoomStyle"
     >
-      <EditorGutter v-if="appSettings.showLineNumbers" :lines="lineNumberEntries" />
-      <EditorContent :editor="editor" class="editor-content" />
+      <EditorGutter v-if="showGutter" :lines="lineNumberEntries" />
+      <EditorContent :editor="editor" class="editor-content document-root" :data-document-style="resolvedStyle.id" />
     </div>
     <TableContextMenu
       v-if="showContextMenu"
@@ -935,6 +941,18 @@ defineExpose({
 
 <style>
 .editor-container {
+  /* Fence inherited document colors off from Appearance's chrome palette. */
+  --text-primary: var(--editor-text-primary);
+  --text-secondary: var(--editor-text-secondary);
+  --text-muted: var(--editor-text-muted);
+  --text-faint: var(--editor-text-faint);
+  --border-primary: var(--heading-border);
+  --focus-ring: var(--editor-focus-ring);
+  --shadow-sm: var(--editor-shadow);
+  --scrollbar-thumb: var(--editor-scrollbar-thumb);
+  --scrollbar-thumb-hover: var(--editor-scrollbar-thumb-hover);
+  color: var(--editor-text-primary);
+  font-family: var(--editor-font-family, var(--font-sans));
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -945,45 +963,46 @@ defineExpose({
 
 .editor-content-wrapper {
   position: relative;
+  font-size: var(--doc-font-size, 16px);
   flex: 1 0 auto;
   width: 100%;
-  max-width: 900px;
+  max-width: calc(var(--doc-content-width, 680px) + 48px + var(--editor-gutter-width, 0px));
   margin: 20px auto;
 }
 
 .editor-content-wrapper.has-line-numbers {
-  --editor-gutter-width: 3.5em;
+  --editor-gutter-width: calc(var(--doc-font-size, 16px) * 3.5);
 }
 
 .editor-content-wrapper.has-line-numbers .editor-content {
-  /* Side padding still respects the line-number gutter; user's setting
-     is added on top of the fixed gutter width. */
-  padding-left: calc(var(--editor-pad-x, 24px) + var(--editor-gutter-width));
+  /* Keep fixed side padding outside the line-number gutter. */
+  padding-left: calc(24px + var(--editor-gutter-width));
 }
 
 .editor-content {
-  background: var(--editor-content-bg);
+  background: var(--doc-background, var(--editor-content-bg));
+  /* Document typography is independent of the theme's UI font. */
+  font-family: var(--doc-font-family, var(--font-sans));
+  font-size: var(--doc-font-size, 16px);
+  line-height: var(--doc-line-height, 1.5);
   display: flex;
   flex-direction: column;
-  /* User-tunable paddings (Settings → Editor → Padding). Defaults defined
-     in useSettings; the var fallbacks here only matter on first paint
-     before applyCssVars runs. */
-  padding: var(--editor-pad-top, 16px) var(--editor-pad-x, 24px) var(--editor-pad-bottom, 32px);
+  /* Fixed editor breathing room. Reading width controls the text column. */
+  padding: 16px 24px 32px;
   min-height: 100%;
   box-shadow: var(--shadow-sm);
   border-radius: 4px;
 }
 
-.editor-content .tiptap {
+:where(.editor-content .tiptap) {
   flex: 1;
   outline: none !important;
   border: none !important;
   min-height: 0;
   text-align: left;
-  font-family: var(--editor-font-family, inherit);
 }
 
-.editor-content .tiptap:focus {
+:where(.editor-content .tiptap):focus {
   outline: none !important;
   border: none !important;
 }
@@ -1017,157 +1036,52 @@ defineExpose({
 }
 
 /* Ensure all block elements are left-aligned by default */
-.editor-content .tiptap > * {
+:where(.editor-content .tiptap) > * {
   text-align: left;
 }
 
-.editor-content .tiptap p {
-  margin: 0.5em 0;
-  line-height: var(--editor-line-height, 1.6);
-  font-size: var(--editor-font-size, 16px);
-}
-
-.editor-content .tiptap h1 {
-  font-size: 2em;
-  font-weight: 700;
-  margin: 1em 0 0.5em;
-  border-bottom: 2px solid var(--heading-border);
-  padding-bottom: 0.3em;
-  text-align: left;
-}
-
-.editor-content .tiptap h2 {
-  font-size: 1.5em;
-  font-weight: 600;
-  margin: 0.8em 0 0.4em;
-  border-bottom: 1px solid var(--heading-border);
-  padding-bottom: 0.2em;
-  text-align: left;
-}
-
-.editor-content .tiptap h3 {
-  font-size: 1.25em;
-  font-weight: 600;
-  margin: 0.6em 0 0.3em;
-  text-align: left;
-}
-
-.editor-content .tiptap h4,
-.editor-content .tiptap h5,
-.editor-content .tiptap h6 {
-  font-weight: 600;
-  margin: 0.5em 0 0.25em;
-  text-align: left;
-}
-
-.editor-content .tiptap strong {
-  font-weight: 700;
-}
-
-.editor-content .tiptap .safe-html-block {
+:where(.editor-content .tiptap) .safe-html-block {
   margin: 0.75em 0;
   white-space: normal;
   cursor: text;
 }
 
-.editor-content .tiptap .safe-html-block.ProseMirror-selectednode {
+:where(.editor-content .tiptap) .safe-html-block.ProseMirror-selectednode {
   outline: 2px solid var(--focus-ring);
   outline-offset: 4px;
   border-radius: 3px;
 }
 
-.editor-content .tiptap .safe-html-block p[align="center"] {
+:where(.editor-content .tiptap) .safe-html-block p[align="center"] {
   text-align: center;
 }
 
-.editor-content .tiptap .safe-html-block p[align="right"] {
+:where(.editor-content .tiptap) .safe-html-block p[align="right"] {
   text-align: right;
 }
 
-.editor-content .tiptap .safe-html-block img {
+:where(.editor-content .tiptap) .safe-html-block img {
   max-width: 100%;
   height: auto;
 }
 
-.editor-content .tiptap .safe-html-block details {
+:where(.editor-content .tiptap) .safe-html-block details {
   padding: 0.6em 0.8em;
   border: 1px solid var(--border-primary);
   border-radius: 6px;
 }
 
-.editor-content .tiptap .safe-html-block summary {
+:where(.editor-content .tiptap) .safe-html-block summary {
   cursor: pointer;
   font-weight: 600;
 }
 
-.editor-content .tiptap em {
-  font-style: italic;
-}
-
-.editor-content .tiptap s {
-  text-decoration: line-through;
-}
-
-.editor-content .tiptap code {
-  background: var(--code-inline-bg);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  font-family: var(--code-font-family, "Fira Code", "Consolas", monospace);
-  font-size: 0.9em;
-}
-
-.editor-content .tiptap pre {
-  background: var(--code-block-bg);
-  color: var(--code-block-text);
-  padding: 16px 20px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 1em 0;
-}
-
-.editor-content .tiptap pre code {
-  background: none;
-  padding: 0;
-  color: inherit;
-}
-
-.editor-content .tiptap blockquote {
-  border-left: 4px solid var(--blockquote-border);
-  padding-left: 16px;
-  margin: 1em 0;
-  color: var(--blockquote-text);
-  font-style: italic;
-  text-align: left;
-}
-
-.editor-content .tiptap blockquote p {
-  margin: 0;
-  text-align: left;
-}
-
-.editor-content .tiptap ul,
-.editor-content .tiptap ol {
-  padding-left: 1.5em;
-  margin: 0.5em 0;
-  text-align: left;
-}
-
-.editor-content .tiptap li {
-  margin: 0.25em 0;
-  text-align: left;
-}
-
-.editor-content .tiptap li p {
-  margin: 0;
-  text-align: left;
-}
-
-.editor-content .tiptap ul[data-type="taskList"] {
+:where(.editor-content .tiptap) ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0;
 }
 
-.editor-content .tiptap ul[data-type="taskList"] li {
+:where(.editor-content .tiptap) ul[data-type="taskList"] li {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1177,15 +1091,15 @@ defineExpose({
    box is made exactly one line tall (line-height × font-size) and centres the
    checkbox inside it, so it lines up with the text regardless of font size
    and stays top-anchored for multi-line items. */
-.editor-content .tiptap ul[data-type="taskList"] li > label {
+:where(.editor-content .tiptap) ul[data-type="taskList"] li > label {
   margin: 0;
-  height: calc(var(--editor-line-height, 1.6) * var(--editor-font-size, 16px));
+  height: calc(var(--doc-line-height, 1.5) * var(--doc-font-size, 16px));
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-.editor-content .tiptap ul[data-type="taskList"] li > label input[type="checkbox"] {
+:where(.editor-content .tiptap) ul[data-type="taskList"] li > label input[type="checkbox"] {
   width: 16px;
   height: 16px;
   cursor: pointer;
@@ -1194,33 +1108,17 @@ defineExpose({
 /* The item's content wrapper carries the default paragraph margin, which
    pushed the text off the checkbox line — zero it so the first line sits at
    the row top. */
-.editor-content .tiptap ul[data-type="taskList"] li > div {
+:where(.editor-content .tiptap) ul[data-type="taskList"] li > div {
   margin: 0;
   flex: 1;
   min-width: 0;
 }
 
-.editor-content .tiptap ul[data-type="taskList"] li > div > p {
+:where(.editor-content .tiptap) ul[data-type="taskList"] li > div > p {
   margin: 0;
 }
 
-.editor-content .tiptap hr {
-  border: none;
-  border-top: 2px solid var(--hr-color);
-  margin: 2em 0;
-}
-
-.editor-content .tiptap a.editor-link {
-  color: var(--link-color);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.editor-content .tiptap a.editor-link:hover {
-  color: var(--link-hover);
-}
-
-.editor-content .tiptap img.editor-image {
+:where(.editor-content .tiptap) img.editor-image {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
@@ -1229,43 +1127,13 @@ defineExpose({
   transition: opacity 0.15s;
 }
 
-.editor-content .tiptap img.editor-image:hover {
+:where(.editor-content .tiptap) img.editor-image:hover {
   opacity: 0.85;
 }
 
 /* Table styles - apply to all tables */
-.editor-content .tiptap table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
-  table-layout: fixed;
-}
 
-.editor-content .tiptap table th,
-.editor-content .tiptap table td {
-  border: 1px solid var(--border-primary);
-  padding: 8px 12px;
-  text-align: left;
-  vertical-align: top;
-  min-width: 50px;
-}
-
-.editor-content .tiptap table th p,
-.editor-content .tiptap table td p {
-  margin: 0;
-  text-align: left;
-}
-
-.editor-content .tiptap table th {
-  background: var(--table-header-bg);
-  font-weight: 600;
-}
-
-.editor-content .tiptap table tr:hover td {
-  background: var(--table-hover-bg);
-}
-
-.editor-content .tiptap p.is-editor-empty:first-child::before {
+:where(.editor-content .tiptap) p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
   color: var(--placeholder-color);
@@ -1274,14 +1142,6 @@ defineExpose({
 }
 
 /* Syntax highlighting */
-.editor-content .tiptap pre .hljs-keyword { color: #c678dd; }
-.editor-content .tiptap pre .hljs-string { color: #98c379; }
-.editor-content .tiptap pre .hljs-number { color: #d19a66; }
-.editor-content .tiptap pre .hljs-function { color: #61afef; }
-.editor-content .tiptap pre .hljs-comment { color: #5c6370; font-style: italic; }
-.editor-content .tiptap pre .hljs-variable { color: #e06c75; }
-.editor-content .tiptap pre .hljs-attr { color: #d19a66; }
-.editor-content .tiptap pre .hljs-tag { color: #e06c75; }
 
 /* Mermaid blocks */
 .mermaid-wrapper {
@@ -1297,11 +1157,11 @@ defineExpose({
 }
 
 /* Table cell selection */
-.editor-content .tiptap table .selectedCell {
+:where(.editor-content .tiptap) table .selectedCell {
   background: var(--table-selection-bg);
 }
 
-.editor-content .tiptap table .column-resize-handle {
+:where(.editor-content .tiptap) table .column-resize-handle {
   position: absolute;
   right: -2px;
   top: 0;
@@ -1312,78 +1172,58 @@ defineExpose({
 }
 
 /* Ensure table cells are editable */
-.editor-content .tiptap table td,
-.editor-content .tiptap table th {
-  position: relative;
-}
+:where(.editor-content .tiptap) table td,
 
 /* Nested lists */
-.editor-content .tiptap ul ul,
-.editor-content .tiptap ul ol,
-.editor-content .tiptap ol ul,
-.editor-content .tiptap ol ol {
+:where(.editor-content .tiptap) ul ul,
+:where(.editor-content .tiptap) ul ol,
+:where(.editor-content .tiptap) ol ul,
+:where(.editor-content .tiptap) ol ol {
   margin: 0.25em 0;
 }
 
 /* GitHub-style bullet variations for nested unordered lists */
-.editor-content .tiptap ul {
+:where(.editor-content .tiptap) ul {
   list-style-type: disc;
 }
 
-.editor-content .tiptap ul ul {
+:where(.editor-content .tiptap) ul ul {
   list-style-type: circle;
 }
 
-.editor-content .tiptap ul ul ul {
+:where(.editor-content .tiptap) ul ul ul {
   list-style-type: square;
 }
 
 /* Proper indentation for nested lists */
-.editor-content .tiptap ul ul,
-.editor-content .tiptap ol ol,
-.editor-content .tiptap ul ol,
-.editor-content .tiptap ol ul {
+:where(.editor-content .tiptap) ul ul,
+:where(.editor-content .tiptap) ol ol,
+:where(.editor-content .tiptap) ul ol,
+:where(.editor-content .tiptap) ol ul {
   padding-left: 1.5em;
 }
 
 /* Definition list styles (dl, dt, dd) */
-.editor-content .tiptap dl {
+:where(.editor-content .tiptap) dl {
   margin: 1em 0;
 }
 
-.editor-content .tiptap dt {
+:where(.editor-content .tiptap) dt {
   font-weight: 600;
   margin-top: 0.5em;
 }
 
-.editor-content .tiptap dd {
+:where(.editor-content .tiptap) dd {
   margin-left: 1.5em;
   color: var(--text-muted);
 }
 
-/* Additional heading styles */
-.editor-content .tiptap h4 {
-  font-size: 1.1em;
-}
-
-.editor-content .tiptap h5 {
-  font-size: 1em;
-}
-
-.editor-content .tiptap h6 {
-  font-size: 0.9em;
-  color: var(--h6-color);
-}
 
 /* Remove focus ring - clean look */
-.editor-content .tiptap:focus-visible {
+:where(.editor-content .tiptap):focus-visible {
   outline: none !important;
 }
 
-/* Better paragraph spacing */
-.editor-content .tiptap p + p {
-  margin-top: 0.75em;
-}
 
 /* Character counter styles */
 .character-count {
@@ -1403,7 +1243,7 @@ defineExpose({
 }
 
 /* Footnote reference (superscript number in text) */
-.editor-content .tiptap sup.footnote-ref {
+:where(.editor-content .tiptap) sup.footnote-ref {
   font-size: 0.75em;
   line-height: 0;
   position: relative;
@@ -1413,7 +1253,7 @@ defineExpose({
   font-weight: 600;
 }
 
-.editor-content .tiptap sup.footnote-ref:hover {
+:where(.editor-content .tiptap) sup.footnote-ref:hover {
   color: var(--link-hover);
   text-decoration: underline;
 }
@@ -1529,29 +1369,29 @@ defineExpose({
 
 
 /* Footnotes section at document end */
-.editor-content .tiptap section.footnotes {
+:where(.editor-content .tiptap) section.footnotes {
   margin-top: 2em;
   padding-top: 0.5em;
   font-size: 0.9em;
   color: var(--text-muted);
 }
 
-.editor-content .tiptap section.footnotes hr {
+:where(.editor-content .tiptap) section.footnotes hr {
   border: none;
   border-top: 1px solid var(--border-primary);
   margin-bottom: 1em;
 }
 
-.editor-content .tiptap section.footnotes ol {
+:where(.editor-content .tiptap) section.footnotes ol {
   padding-left: 1.5em;
   margin: 0;
 }
 
-.editor-content .tiptap section.footnotes li {
+:where(.editor-content .tiptap) section.footnotes li {
   margin: 0.3em 0;
 }
 
-.editor-content .tiptap section.footnotes li p {
+:where(.editor-content .tiptap) section.footnotes li p {
   margin: 0;
   display: inline;
 }

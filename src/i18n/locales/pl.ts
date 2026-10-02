@@ -1,6 +1,16 @@
 import type { Translations } from '../index';
 
 const pl: Translations = {
+  documentStyle: "Styl dokumentu",
+  styleOverrides: "Nadpisania",
+  styleOverridesHint: "Użyj ustawień stylu lub dostosuj czytelność. Zmiany są zapamiętywane dla tego stylu.",
+  styleDefault: "Domyślne dla stylu",
+  baseFontSize: "Podstawowy rozmiar czcionki",
+  paragraphSpacing: "Odstępy między akapitami",
+  contentWidth: "Szerokość treści",
+  resetStyleValue: "Resetuj",
+  resetStyleOverrides: "Resetuj nadpisania",
+  pdfPresetCurrentEditor: "Bieżący edytor",
   appName: 'MerMark Editor',
   mathInline: 'Wzór w tekście',
   mathBlock: 'Wzór blokowy',
@@ -190,9 +200,6 @@ const pl: Translations = {
   codeFont: 'Czcionka kodu',
   codeTheme: 'Motyw kodu',
   lineHeight: 'Wysokość linii',
-  editorPaddingTop: 'Margines górny edytora',
-  editorPaddingBottom: 'Margines dolny edytora',
-  editorPaddingX: 'Margines boczny edytora',
   mermaidOpeningDelimiter: 'Otwierający delimiter Mermaid',
   mermaidClosingDelimiter: 'Zamykający delimiter Mermaid',
   mermaidDelimiterHint: 'Przy odczycie rozpoznawane są wszystkie zaznaczone formaty; przy zapisie używany jest format wybrany powyżej. Pliki zachowują format, z którym zostały otwarte.',
@@ -255,7 +262,6 @@ const pl: Translations = {
   // Theme
   darkMode: 'Ciemny',
   lightMode: 'Jasny',
-  whiteMode: 'Bialy',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `"${fileName}" został zaktualizowany zewnętrznie i ponownie wczytany.`,
@@ -465,6 +471,7 @@ const pl: Translations = {
 
   // Theme variant
   themeVariantLabel: 'Styl motywu',
+  themeVariantHint: 'Zmienia wygląd elementów sterujących i paneli aplikacji. Formatowanie dokumentu ustawisz na karcie Edytor.',
   themeVariantDefault: 'Domyślny',
   themeVariantMinimal: 'Minimalistyczny',
 

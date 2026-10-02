@@ -1,0 +1,11 @@
+/**
+ * GitHub
+ * GitHub: https://github.com/sindresorhus/github-markdown-css
+ * Reference: https://github.com/sindresorhus/github-markdown-css/blob/7f38dcb9054bc5d860fac65291f5c98fef47932c/github-markdown-light.css
+ * Revision: 7f38dcb9054bc5d860fac65291f5c98fef47932c
+ * License: MIT reference; independent MerMark implementation (MIT).
+ * Adaptation: normalized 16px body / 680px column; relative typography and spacing;
+ * MerMark dark/code palettes. Upstream CSS and application fonts are not copied.
+ */
+.document-root[data-document-style="github"] a { text-decoration: none; }
+.document-root[data-document-style="github"] a:hover { text-decoration: underline; }

@@ -1,0 +1,10 @@
+/**
+ * Obsidian Minimal
+ * GitHub: https://github.com/kepano/obsidian-minimal
+ * Reference: https://github.com/kepano/obsidian-minimal/blob/ccc832cff341a79b5ba7bca162e053312bafc293/Minimal.css
+ * Revision: ccc832cff341a79b5ba7bca162e053312bafc293
+ * License: MIT reference; independent MerMark implementation (MIT).
+ * Adaptation: normalized 16px body / 680px column; relative typography and spacing;
+ * MerMark dark/code palettes. Upstream CSS and application fonts are not copied.
+ */
+.document-root[data-document-style="obsidian-minimal"] :is(h1,h2,h3,h4,h5,h6) { letter-spacing: -.01em; }
