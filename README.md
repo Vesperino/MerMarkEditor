@@ -239,7 +239,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **Character / word / line / token counters** as a single movable unit
 - **Styled prompt / confirm dialogs** throughout (no native browser modals)
 - **Auto-save** — never lose your work
-- **Trilingual UI** - English, Polish and Chinese interface
+- **Multilingual UI** - English, Polish, Chinese and German interface
 - **Keyboard shortcuts modal** - Quick reference for all shortcuts (`Ctrl+/`)
 
 ### Advanced Features

@@ -229,9 +229,18 @@ describe('useAiPreamble.buildTurnContext', () => {
     const out = buildTurnContext({
       ...base(),
       pins: [{ id: '1', text: 'foo' }],
-      localeKey: 'de',
+      localeKey: 'fr',
     });
     expect(out).toContain('The user attached');
+  });
+
+  it('uses German instructions for de locale', () => {
+    const out = buildTurnContext({
+      ...base(),
+      pins: [{ id: '1', text: 'foo' }],
+      localeKey: 'de',
+    });
+    expect(out).toContain('Der Benutzer hat unten 1 Fragment(e) angehängt.');
   });
 
   it('includes unsaved doc warning when docNeedsSave', () => {

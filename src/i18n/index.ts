@@ -2,8 +2,9 @@ import { ref, computed } from 'vue';
 import en from './locales/en';
 import pl from './locales/pl';
 import zhCN from './locales/zh-CN';
+import de from './locales/de';
 
-export type Locale = 'en' | 'pl' | 'zh-CN';
+export type Locale = 'en' | 'pl' | 'zh-CN' | 'de';
 
 export interface Translations {
   // App
@@ -682,12 +683,14 @@ const translations: Record<Locale, Translations> = {
   en,
   pl,
   'zh-CN': zhCN,
+  de,
 };
 
 const localeLabels: Record<Locale, string> = {
   en: 'English',
   pl: 'Polski',
   'zh-CN': '简体中文',
+  de: 'Deutsch',
 };
 
 function getInitialLocale(): Locale {
@@ -719,7 +722,7 @@ export function useI18n() {
     locale.value = locales[(idx + 1) % locales.length];
   };
 
-  const availableLocales: Locale[] = ['en', 'pl', 'zh-CN'];
+  const availableLocales: Locale[] = ['en', 'pl', 'zh-CN', 'de'];
 
   return {
     locale,

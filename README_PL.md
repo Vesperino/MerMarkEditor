@@ -219,7 +219,7 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **Licznik znaków / słów / linii / tokenów** jako pojedyncza przesuwalna jednostka
 - **Stylizowane prompt / confirm dialogi** wszędzie (bez natywnych modali przeglądarki)
 - **Automatyczny zapis** — nigdy nie stracisz pracy
-- **Trójjęzyczny interfejs** - polski, angielski i chiński
+- **Wielojęzyczny interfejs** - polski, angielski, chiński i niemiecki
 - **Modal skrótów klawiszowych** - Szybki podgląd wszystkich skrótów (`Ctrl+/`)
 
 ### Zaawansowane funkcje

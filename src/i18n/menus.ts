@@ -58,6 +58,24 @@ const labels: Record<Locale, MenuLabels> = {
     cut: '剪切', copy: '复制', paste: '粘贴', selectAll: '全选',
     newWindow: '新建窗口', closeWindow: '关闭窗口', tokens: '显示 Token 数量',
   },
+  de: {
+    file: 'Datei', edit: 'Bearbeiten', format: 'Format', insert: 'Einfügen', view: 'Ansicht',
+    presentation: 'Präsentation', help: 'Hilfe', window: 'Fenster',
+    bold: 'Fett', italic: 'Kursiv', strike: 'Durchgestrichen',
+    inlineCode: 'Code im Text', bulletList: 'Aufzählung', orderedList: 'Nummerierte Liste',
+    taskList: 'Aufgabenliste', blockquote: 'Zitat', codeBlock: 'Codeblock',
+    horizontalRule: 'Horizontale Linie', pageBreak: 'Seitenumbruch', link: 'Link', image: 'Bild',
+    customize: 'Layout anpassen…', restore: 'Standardlayout wiederherstellen…',
+    presets: 'Layout-Vorgabe', full: 'Vollständig', minimal: 'Minimal', custom: 'Eigenes',
+    fullDescription: 'Alle Bearbeitungswerkzeuge in der Werkzeugleiste.',
+    minimalDescription: 'Arbeitsbereich, Statistik, Zoom, KI und Editormodus in der unteren Leiste. Alles andere bleibt in den Menüs.',
+    menuHint: 'Ausgeblendete Werkzeuge bleiben in den Anwendungsmenüs verfügbar.',
+    replaceTitle: 'Eigenes Layout ersetzen?',
+    replaceMessage: 'Diese Vorgabe ersetzt die aktuelle Anordnung der Werkzeuge. Ihre übrigen Einstellungen bleiben unverändert.',
+    apply: 'Vorgabe anwenden', zoomReset: 'Originalgröße', reload: 'Von Festplatte neu laden',
+    cut: 'Ausschneiden', copy: 'Kopieren', paste: 'Einfügen', selectAll: 'Alles auswählen',
+    newWindow: 'Neues Fenster', closeWindow: 'Fenster schließen', tokens: 'Token-Anzahl anzeigen',
+  },
 };
 export function useMenuLabels() {
   const { locale } = useI18n();
