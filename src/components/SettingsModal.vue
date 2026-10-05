@@ -766,8 +766,8 @@ onUnmounted(() => {
                   </button>
                   <button
                     class="toggle-option"
-                    :class="{ active: settings.codeTheme === 'white' }"
-                    @click="setCodeTheme('white')"
+                    :class="{ active: settings.codeTheme === 'light' }"
+                    @click="setCodeTheme('light')"
                   >
                     {{ t.lightMode }}
                   </button>

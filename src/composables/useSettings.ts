@@ -17,8 +17,7 @@ import {
 
 export type ThemeMode = 'light' | 'dark';
 export type ThemeVariant = 'default' | 'minimal';
-// Keep the persisted "white" value compatible; the UI labels it "Light".
-export type CodeThemeMode = 'dark' | 'white';
+export type CodeThemeMode = 'dark' | 'light';
 export type CliKind = 'claude' | 'codex' | 'ollama' | 'openai';
 export type PanelSide = 'left' | 'right';
 
@@ -240,7 +239,9 @@ function loadSettings(): AppSettings {
       if (parsed.tokenModel) {
         parsed.tokenModel = migrateTokenModel(parsed.tokenModel);
       }
-      if (parsed.codeTheme && !['dark', 'white'].includes(parsed.codeTheme)) {
+      if (parsed.codeTheme === 'white') {
+        parsed.codeTheme = 'light';
+      } else if (parsed.codeTheme && !['dark', 'light'].includes(parsed.codeTheme)) {
         parsed.codeTheme = getDefaultSettings().codeTheme;
       }
       if (parsed.ai && typeof parsed.ai.snapshotsKeep === 'number') {
