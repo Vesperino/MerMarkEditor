@@ -4,7 +4,7 @@ import { mkdir } from 'node:fs/promises';
 const source = '# Document title\n\nA paragraph that introduces the document and wraps naturally as its width changes.\n\nA second paragraph with **bold** and *italic* text.\n\n## Section\n\n### Subsection\n\n#### Detail\n\n##### Smaller heading\n\n###### Fine detail\n\nBody text beneath the smallest heading.\n\n> A quotation.\n\n- One item\n- Another item\n\n| Item | Status |\n| --- | --- |\n| Styles | Ready |\n\n```javascript\nconst greeting = "Hello, world!";\n```';
 const main = '.editor-pane.active .document-root';
 async function start(page: Page, theme = 'light') {
-  await page.addInitScript(mode => { if (!localStorage.getItem('mermark-settings')) localStorage.setItem('mermark-settings', JSON.stringify({ theme: mode, codeTheme: 'white', ai: { hasSeenFirstRun: true, checkCliHealthOnStartup: false } })); }, theme);
+  await page.addInitScript(mode => { if (!localStorage.getItem('mermark-settings')) localStorage.setItem('mermark-settings', JSON.stringify({ theme: mode, codeTheme: 'light', ai: { hasSeenFirstRun: true, checkCliHealthOnStartup: false } })); }, theme);
   await setupTauriMocks(page, { initialFs: { '/docs/styles.md': source }, openFilePath: '/docs/styles.md' });
   await page.goto('/');
   await expect(page.locator(`${main} h1`)).toHaveText('Document title');
