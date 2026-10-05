@@ -181,7 +181,7 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **Kolorowanie składni** dla bloków kodu (50+ języków)
 - Tabele, listy zadań, cytaty i więcej
 - **Skróty klawiszowe** dla efektywnej edycji
-- **Konfigurowalny padding** — suwaki góry, boków i dołu w Settings
+- **Style dokumentu** — presety inspirowane GitHubem, Obsidianem, Typorą i iA Writerem w *Ustawienia → Edytor*, z podglądem na żywo i nadpisaniami fontu, rozmiaru, interlinii, odstępu akapitów i szerokości dla każdego stylu
 
 ### Diagramy Mermaid
 - **Flowchart**, **sequence**, **class**, **state**, **ER**, **Gantt**, **pie** i wiele innych typów
@@ -206,9 +206,9 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **Drag do reorder** workspace'ów; rozwinięte foldery utrzymują się między sesjami
 
 ### Eksport i integracja
-- **Eksport do PDF** — bliski WYSIWYG: ten sam serif font i skala co edytor, kolorowane bloki kodu, koralowy inline code, tabele dopasowane do zawartości
+- **Eksport do PDF** — preset *Bieżący edytor* drukuje w Twoim stylu dokumentu; kolorowane bloki kodu i tabele dopasowane do zawartości
 - **Zapis jako Markdown** (pliki .md), czysty przenośny format
-- Ustawienia paddingu edytora przekładają się na marginesy PDF
+- **Eksport do Worda (DOCX)** z fontami, rozmiarami nagłówków i odstępami Twojego stylu dokumentu
 
 ### Doświadczenie użytkownika
 - **Natywne menu aplikacji** — polecenia plików, edycji, formatowania, wstawiania, widoku i prezentacji są dostępne nawet wtedy, gdy ich przyciski są ukryte na pasku

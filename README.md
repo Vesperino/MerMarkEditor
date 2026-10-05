@@ -201,7 +201,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **Syntax highlighting** for code blocks (50+ languages)
 - Tables, task lists, blockquotes, and more
 - **Keyboard shortcuts** for efficient editing
-- **Configurable padding** — top, side and bottom sliders in Settings
+- **Document styles** — GitHub, Obsidian, Typora and iA Writer inspired presets in *Settings → Editor*, with live preview and per-style overrides for font, size, line height, paragraph spacing and width
 
 ### Mermaid Diagrams
 - **Flowcharts**, **sequence**, **class**, **state**, **ER**, **Gantt**, **pie** and many more diagram types
@@ -226,9 +226,9 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **Drag to reorder** workspaces; expanded folders persist between sessions
 
 ### Export & Integration
-- **Export to PDF** — close to WYSIWYG: same serif font and scale as the editor, syntax-highlighted code blocks, coral inline code, content-sized tables
+- **Export to PDF** — the *Current Editor* preset prints with your document style; syntax-highlighted code blocks and content-sized tables
 - **Save as Markdown** (.md files), clean portable format
-- Editor padding settings translate into PDF margins
+- **Export to Word (DOCX)** with the fonts, heading sizes and spacing of your document style
 
 ### User Experience
 - **Native application menus** — file, editing, formatting, insertion, view, and presentation commands remain available even when their toolbar controls are hidden
