@@ -1,6 +1,8 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
+import type { TiptapEditorHTMLElement } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
+import type { ResolvedPos } from '@tiptap/pm/model';
 import type { CodeEditorHandle } from '../types/code-editor';
 import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
@@ -461,6 +463,32 @@ const findElementByBlockMap = (
   return element;
 };
 
+// Lists, tables and code blocks span several source lines; pick the one the
+// visual cursor is on instead of the block's first line.
+const sourceLineInBlock = (block: MarkdownBlock, lines: string[], $pos: ResolvedPos): number => {
+  const last = block.endLine - 1;
+  if ((block.type === 'list' || block.type === 'taskList') && $pos.depth >= 2) {
+    const itemIndex = $pos.index(1);
+    const indent = lines[block.startLine].match(/^\s*/)![0].length;
+    let seen = -1;
+    for (let line = block.startLine; line <= last; line++) {
+      const marker = lines[line].match(/^(\s*)(?:[-*+]|\d+[.)])\s/);
+      if (marker && marker[1].length === indent && ++seen === itemIndex) return line;
+    }
+  }
+  if (block.type === 'table' && $pos.depth >= 2) {
+    const row = $pos.index(1);
+    // Row 0 is the header; the separator line follows it.
+    return Math.min(last, block.startLine + (row === 0 ? 0 : row + 1));
+  }
+  if (block.type === 'code' && $pos.parent.type.name === 'codeBlock') {
+    const fenced = lines[block.startLine].trim().startsWith('```');
+    const lineInCode = $pos.parent.textBetween(0, $pos.parentOffset).split('\n').length - 1;
+    return Math.min(last, block.startLine + (fenced ? 1 : 0) + lineInCode);
+  }
+  return block.startLine;
+};
+
 const positionAtLine = (source: string, line: number): number => {
   const lines = source.split('\n');
   let position = 0;
@@ -591,6 +619,8 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const codeEditorRef = ref<CodeEditorHandle | null>(null);
   const savedCursorLine = ref(0);
   const savedScrollRatio = ref(0);
+  // Visual selection placed by the last Code → Visual restore; -1 when none was placed.
+  let restoredVisualFrom = -1;
   let codeContentSnapshot = '';
   let isToggling = false;
 
@@ -663,7 +693,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           if (markerPosition < 0 && topBlockIndex >= 0 && topBlockIndex < blocks.length) {
             const block = blocks[topBlockIndex];
             const lines = codeContent.value.split('\n');
-            let sourceLine = block.startLine;
+            let sourceLine = sourceLineInBlock(block, lines, $pos);
             if (block.type === 'html') {
               const nodeDom = editor.view.nodeDOM(from) as HTMLElement | null;
               const offset = Number(nodeDom?.dataset.safeHtmlCursorLine ?? 0);
@@ -689,7 +719,9 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           }
         } catch { /* resolve() can throw for invalid positions */ }
 
-        if (savedCursorLine.value > 5) {
+        // A cursor the user moved in Visual wins over the line remembered from Code.
+        const cursorUntouched = restoredVisualFrom < 0 || from === restoredVisualFrom;
+        if (savedCursorLine.value > 5 && cursorUntouched) {
           const resolvedLine = markerPosition >= 0
             ? getLineFromPosition(codeContent.value, markerPosition)
             : -1;
@@ -769,6 +801,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       }
 
       savedCursorLine.value = cursorLine;
+      restoredVisualFrom = -1;
 
       const editedInCode = codeContent.value !== codeContentSnapshot;
       const contentChanged = editedInCode || (forceConvertOnExit?.() ?? false);
@@ -826,11 +859,13 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
           if (targetElement) {
             // Set TipTap cursor on the target element so the marker mechanism
             // preserves position when toggling back to code view.
-            if (editor) {
+            // The editor passed in was unmounted with Visual; use the instance owning this DOM.
+            const liveEditor = (proseMirror as TiptapEditorHTMLElement).editor ?? editor;
+            if (liveEditor) {
               try {
                 const safeHtmlBlock = targetElement.closest<HTMLElement>('.safe-html-block');
                 const selectionElement = safeHtmlBlock || targetElement;
-                let pos = editor.view.posAtDOM(selectionElement, 0);
+                let pos = liveEditor.view.posAtDOM(selectionElement, 0);
                 // For code blocks with a line offset, advance into the code
                 if (codeBlockIndex >= 0 && lineInCodeBlock > 0) {
                   const codeEl = targetElement.querySelector('code');
@@ -841,18 +876,19 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
                     for (let li = 0; li < lineInCodeBlock && li < codeLines.length; li++) {
                       charOffset += codeLines[li].length + 1;
                     }
-                    const codePos = editor.view.posAtDOM(codeEl, 0);
-                    pos = Math.min(codePos + charOffset, editor.state.doc.content.size);
+                    const codePos = liveEditor.view.posAtDOM(codeEl, 0);
+                    pos = Math.min(codePos + charOffset, liveEditor.state.doc.content.size);
                   }
                 }
                 if (safeHtmlBlock) {
                   safeHtmlBlock.dataset.safeHtmlCursorLine = targetElement.dataset.safeHtmlSourceLine
                     ?? safeHtmlBlock.dataset.safeHtmlCursorLine
                     ?? '0';
-                  editor.commands.setNodeSelection(pos);
+                  liveEditor.commands.setNodeSelection(pos);
                 } else {
-                  editor.commands.setTextSelection(pos);
+                  liveEditor.commands.setTextSelection(pos);
                 }
+                restoredVisualFrom = liveEditor.state.selection.from;
               } catch { /* posAtDOM can throw if DOM is not in sync */ }
             }
 
