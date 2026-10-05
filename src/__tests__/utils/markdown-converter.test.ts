@@ -606,6 +606,50 @@ describe('markdownToHtml', () => {
     });
   });
 
+  describe('paragraphs and line breaks', () => {
+    it('groups soft line breaks and preserves paragraph breaks', () => {
+      const md = [
+        '## Fullscreen rendering',
+        '',
+        'The development Mac renders a',
+        '6016 × 3384 viewport in fullscreen.',
+        'The base viewport does not cap rendering resolution.',
+        '',
+        'The physical monitor is 4K.',
+        'Desktop scaling changes the reported backing image.',
+        '',
+        'Controlled measurements identify the rendering cost.',
+      ].join('\n');
+      const html = markdownToHtml(md);
+      expect(html.match(/<p>/g)).toHaveLength(3);
+      expect(html).toContain('<p>The development Mac renders a 6016 × 3384 viewport in fullscreen. The base viewport does not cap rendering resolution.</p>');
+      expect(html).toContain('<p>The physical monitor is 4K. Desktop scaling changes the reported backing image.</p>');
+      expect(html).toContain('<p>Controlled measurements identify the rendering cost.</p>');
+    });
+
+    it('keeps hard line breaks within a paragraph', () => {
+      const html = markdownToHtml('First line  \nSecond line\\\nThird line\n\nNext paragraph.');
+      expect(html).toContain('<p>First line<br />Second line<br />Third line</p>');
+      expect(html).toContain('<p>Next paragraph.</p>');
+      expect(htmlToMarkdown(html)).toContain('First line  \nSecond line  \nThird line\n\nNext paragraph.');
+    });
+
+    it('does not merge paragraphs with adjacent block elements', () => {
+      const html = markdownToHtml('Intro\ncontinuation\n## Heading\nMore prose\n- list item\nAfter list\n```js\nconst x = 1;\n```\nAfter code');
+      expect(html).toContain('<p>Intro continuation</p>\n<h2');
+      expect(html).toContain('<p>More prose</p>\n<ul>');
+      expect(html).toContain('</ul>\n<p>After list</p>');
+      expect(html).toContain('<p>After code</p>');
+      expect(html).not.toContain('<p>__CODE_BLOCK');
+    });
+
+    it('keeps formatting across wrapped lines and whitespace-only separators', () => {
+      const html = markdownToHtml('**First:** a wrapped\ncontinuation with *emphasis*.\n  \nSecond paragraph.');
+      expect(html).toContain('<p><strong>First:</strong> a wrapped continuation with <em>emphasis</em>.</p>');
+      expect(html.match(/<p>/g)).toHaveLength(2);
+    });
+  });
+
   describe('paragraphs starting with inline formatting', () => {
     it('wraps lines starting with bold in p tags', () => {
       const md = '**Objective:** Provide a holistic view.';
