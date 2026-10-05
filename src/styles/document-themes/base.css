@@ -1,0 +1,64 @@
+/* Shared document presentation. Scoped to document roots, never app chrome. */
+.document-root {
+  font-family: var(--doc-font-family);
+  font-size: var(--doc-font-size);
+  line-height: var(--doc-line-height);
+  background: var(--doc-background);
+  color: var(--doc-text);
+  overflow-wrap: break-word;
+}
+.document-root :is(p, li, td, th, blockquote, ul, ol) { font-size: inherit; line-height: inherit; color: inherit; }
+.document-root p { margin: 0 0 calc(var(--doc-paragraph-space) * var(--doc-font-size)); }
+.document-root p + p { margin-top: 0; }
+.document-root :is(h1,h2,h3,h4,h5,h6) {
+  font-family: var(--doc-heading-font-family, var(--doc-font-family));
+  line-height: var(--doc-heading-line-height);
+  letter-spacing: normal;
+  margin: calc(var(--doc-heading-before) * var(--doc-font-size)) 0 calc(var(--doc-heading-after) * var(--doc-font-size));
+  border-top: none;
+  border-bottom-style: solid;
+  border-bottom-color: var(--doc-border);
+}
+
+.document-root h1 { line-height: var(--doc-h1-line-height); margin-top: calc(var(--doc-h1-before) * var(--doc-font-size)); margin-bottom: calc(var(--doc-h1-after) * var(--doc-font-size)); font-size: calc(var(--doc-font-size) * var(--doc-h1-size)); font-weight: var(--doc-h1-weight); font-style: var(--doc-h1-style); font-variant: var(--doc-h1-variant); text-transform: var(--doc-h1-transform); color: var(--doc-h1-color); border-bottom-width: var(--doc-h1-border); padding-bottom: var(--doc-h1-padding); }
+.document-root h2 { line-height: var(--doc-h2-line-height); margin-top: calc(var(--doc-h2-before) * var(--doc-font-size)); margin-bottom: calc(var(--doc-h2-after) * var(--doc-font-size)); font-size: calc(var(--doc-font-size) * var(--doc-h2-size)); font-weight: var(--doc-h2-weight); font-style: var(--doc-h2-style); font-variant: var(--doc-h2-variant); text-transform: var(--doc-h2-transform); color: var(--doc-h2-color); border-bottom-width: var(--doc-h2-border); padding-bottom: var(--doc-h2-padding); }
+.document-root h3 { line-height: var(--doc-h3-line-height); margin-top: calc(var(--doc-h3-before) * var(--doc-font-size)); margin-bottom: calc(var(--doc-h3-after) * var(--doc-font-size)); font-size: calc(var(--doc-font-size) * var(--doc-h3-size)); font-weight: var(--doc-h3-weight); font-style: var(--doc-h3-style); font-variant: var(--doc-h3-variant); text-transform: var(--doc-h3-transform); color: var(--doc-h3-color); border-bottom-width: var(--doc-h3-border); padding-bottom: var(--doc-h3-padding); }
+.document-root h4 { line-height: var(--doc-h4-line-height); margin-top: calc(var(--doc-h4-before) * var(--doc-font-size)); margin-bottom: calc(var(--doc-h4-after) * var(--doc-font-size)); font-size: calc(var(--doc-font-size) * var(--doc-h4-size)); font-weight: var(--doc-h4-weight); font-style: var(--doc-h4-style); font-variant: var(--doc-h4-variant); text-transform: var(--doc-h4-transform); color: var(--doc-h4-color); border-bottom-width: var(--doc-h4-border); padding-bottom: var(--doc-h4-padding); }
+.document-root h5 { line-height: var(--doc-h5-line-height); margin-top: calc(var(--doc-h5-before) * var(--doc-font-size)); margin-bottom: calc(var(--doc-h5-after) * var(--doc-font-size)); font-size: calc(var(--doc-font-size) * var(--doc-h5-size)); font-weight: var(--doc-h5-weight); font-style: var(--doc-h5-style); font-variant: var(--doc-h5-variant); text-transform: var(--doc-h5-transform); color: var(--doc-h5-color); border-bottom-width: var(--doc-h5-border); padding-bottom: var(--doc-h5-padding); }
+.document-root h6 { line-height: var(--doc-h6-line-height); margin-top: calc(var(--doc-h6-before) * var(--doc-font-size)); margin-bottom: calc(var(--doc-h6-after) * var(--doc-font-size)); font-size: calc(var(--doc-font-size) * var(--doc-h6-size)); font-weight: var(--doc-h6-weight); font-style: var(--doc-h6-style); font-variant: var(--doc-h6-variant); text-transform: var(--doc-h6-transform); color: var(--doc-h6-color); border-bottom-width: var(--doc-h6-border); padding-bottom: var(--doc-h6-padding); }
+
+.document-root strong { font-weight: 700; }
+.document-root em { font-style: italic; }
+.document-root :is(del,s) { text-decoration: line-through; }
+.document-root a, .document-root a.editor-link { color: var(--doc-link); text-decoration: underline; }
+.document-root code { font-family: var(--code-font-family); font-size: .875em; background: var(--doc-inlineCode); color: var(--doc-text); padding: .15em .35em; border: 0; border-radius: .3em; }
+.document-root pre { font-family: var(--code-font-family); font-size: .875em; line-height: 1.5; background: var(--code-block-bg); color: var(--code-block-text); padding: 1em; border: 0; border-radius: .4em; margin: 0 0 calc(var(--doc-paragraph-space) * var(--doc-font-size)); overflow-x: auto; white-space: var(--doc-code-white-space); }
+.document-root pre code { background: transparent; color: inherit; font-size: inherit; padding: 0; border: 0; border-radius: 0; white-space: inherit; }
+.document-root pre .hljs-keyword, .document-root pre .hljs-meta { color: var(--code-preview-keyword); }
+.document-root pre .hljs-string { color: var(--code-preview-string); }
+.document-root pre .hljs-number, .document-root pre .hljs-attr, .document-root pre .hljs-literal { color: var(--code-preview-number); }
+.document-root pre .hljs-title, .document-root pre .hljs-function { color: var(--code-preview-function); }
+.document-root pre .hljs-name, .document-root pre .hljs-variable, .document-root pre .hljs-tag { color: var(--code-preview-name); }
+.document-root pre .hljs-comment { color: var(--code-preview-comment); font-style: italic; }
+.document-root blockquote { margin: 0 0 calc(var(--doc-paragraph-space) * var(--doc-font-size)); padding: 0 1em; background: transparent; border: 0; border-left: .25em solid var(--doc-border); color: var(--doc-muted); font-style: var(--doc-quote-style); border-radius: 0; }
+.document-root blockquote > :last-child { margin-bottom: 0; }
+.document-root :is(ul,ol) { padding-left: 2em; margin: 0 0 calc(var(--doc-paragraph-space) * var(--doc-font-size)); }
+.document-root li { margin: .25em 0; }
+.document-root li p { margin: 0; }
+.document-root li :is(ul,ol) { margin-bottom: 0; }
+.document-root hr { height: 1px; border: 0; background: var(--doc-border); margin: 1.5em 0; }
+.document-root table { font-size: inherit; border-collapse: collapse; width: 100%; margin: 0 0 calc(var(--doc-paragraph-space) * var(--doc-font-size)); }
+.document-root :is(th,td) { border: 1px solid var(--doc-border); padding: .4em .8em; vertical-align: top; text-align: left; background: transparent; }
+.document-root th { font-weight: 600; background: var(--doc-table); border-top: 1px solid var(--doc-border); }
+.document-root table p { margin: 0; }
+.document-root tbody tr:nth-child(even) td { background: var(--doc-table); }
+.document-root :is(img,svg) { max-width: 100%; }
+.document-root img { height: auto; }
+.document-root .footnotes { font-size: .875em; color: var(--doc-muted); border-color: var(--doc-border); }
+.document-root :is(sup,sub) { font-size: .75em; line-height: 0; }
+.document-root ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.document-root ul[data-type="taskList"] > li { display: flex; gap: .5em; align-items: baseline; }
+.document-root ul[data-type="taskList"] > li > div { flex: 1; }
+.document-root .tableWrapper { overflow-x: auto; }
+
+.document-root :is(h1,h2,h3,h4,h5,h6):first-child { margin-top: 0; }

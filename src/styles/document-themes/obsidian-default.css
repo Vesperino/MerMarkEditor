@@ -1,0 +1,10 @@
+/**
+ * Obsidian Default
+ * GitHub: https://github.com/obsidianmd/obsidian-developer-docs
+ * Reference: https://github.com/obsidianmd/obsidian-developer-docs/blob/13e7fccd0b45178e9ef9855edc48bce35fc0eb75/en/Reference/CSS%20variables/Editor/Headings.md
+ * Revision: Obsidian 1.13.7 visual reference; documentation 13e7fccd0b45178e9ef9855edc48bce35fc0eb75
+ * License: Obsidian application stylesheet is proprietary and is not redistributed; independent MerMark implementation (MIT).
+ * Adaptation: normalized 16px body / 680px column; relative typography and spacing;
+ * MerMark dark/code palettes. Upstream CSS and application fonts are not copied.
+ */
+.document-root[data-document-style="obsidian-default"] :is(h1,h2,h3,h4,h5,h6) { letter-spacing: -.01em; }

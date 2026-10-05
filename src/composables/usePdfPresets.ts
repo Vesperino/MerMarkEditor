@@ -14,6 +14,7 @@ export const PDF_PRESETS_STORAGE_KEY = 'mermark.pdfPresets';
 const BUILTIN_PRESET_SETTINGS: Record<string, PdfSettings> = {
   'builtin-report': {
     ...PDF_SETTINGS_DEFAULTS,
+    typographySource: 'legacy',
     fontSize: '11pt',
     margins: 'wide',
     fontFamily: 'charter',
@@ -23,6 +24,7 @@ const BUILTIN_PRESET_SETTINGS: Record<string, PdfSettings> = {
   },
   'builtin-notes': {
     ...PDF_SETTINGS_DEFAULTS,
+    typographySource: 'legacy',
     fontSize: '10pt',
     margins: 'narrow',
     fontFamily: 'inter',
@@ -34,12 +36,14 @@ const BUILTIN_PRESET_SETTINGS: Record<string, PdfSettings> = {
   },
   'builtin-draft': {
     ...PDF_SETTINGS_DEFAULTS,
+    typographySource: 'legacy',
     watermark: { ...PDF_SETTINGS_DEFAULTS.watermark, enabled: true, text: 'DRAFT' },
   },
 };
 
 function builtinPresets(): PdfPreset[] {
   return [
+    { id: 'builtin-current-editor', name: t.value.pdfPresetCurrentEditor, settings: { ...PDF_SETTINGS_DEFAULTS, typographySource: 'current-editor' } },
     { id: 'builtin-report', name: t.value.pdfPresetReport, settings: BUILTIN_PRESET_SETTINGS['builtin-report'] },
     { id: 'builtin-notes',  name: t.value.pdfPresetNotes,  settings: BUILTIN_PRESET_SETTINGS['builtin-notes'] },
     { id: 'builtin-draft',  name: t.value.pdfPresetDraft,  settings: BUILTIN_PRESET_SETTINGS['builtin-draft'] },
@@ -51,7 +55,7 @@ function loadCustomPresets(): PdfPreset[] {
     const raw = localStorage.getItem(PDF_PRESETS_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as PdfPreset[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map(p => ({ ...p, settings: { ...p.settings, typographySource: p.settings.typographySource ?? 'legacy' } })) : [];
   } catch {
     return [];
   }
@@ -78,7 +82,7 @@ export function usePdfPresets() {
 
   function savePreset(name: string, settings: PdfSettings): PdfPreset {
     const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const preset: PdfPreset = { id, name, settings: { ...settings } };
+    const preset: PdfPreset = { id, name, settings: JSON.parse(JSON.stringify(settings)) as PdfSettings };
     customPresets.value = [...customPresets.value, preset];
     saveCustomPresets(customPresets.value);
     return preset;
@@ -87,7 +91,7 @@ export function usePdfPresets() {
   function updatePreset(id: string, name: string, settings: PdfSettings): void {
     if (isBuiltinPreset(id)) return;
     customPresets.value = customPresets.value.map(p =>
-      p.id === id ? { ...p, name, settings: { ...settings } } : p,
+      p.id === id ? { ...p, name, settings: JSON.parse(JSON.stringify(settings)) as PdfSettings } : p,
     );
     saveCustomPresets(customPresets.value);
   }

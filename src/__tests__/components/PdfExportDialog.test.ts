@@ -61,14 +61,36 @@ describe('PdfExportDialog', () => {
     expect(JSON.parse(raw!).watermark.enabled).toBe(true);
   });
 
-  it('preset select includes 3 builtin presets and "no preset" option', () => {
+  it('preset select includes Current Editor and 3 builtin presets and "no preset" option', () => {
     const wrapper = mount(PdfExportDialog, { props: { contentHtml: CONTENT_HTML } });
     const opts = wrapper.find('[data-testid="pdf-preset-select"]').findAll('option');
     // 1 "no preset" + 3 builtins = at least 4 options
     expect(opts.length).toBeGreaterThanOrEqual(4);
     const values = opts.map(o => o.attributes('value'));
+    expect(values).toContain('builtin-current-editor');
     expect(values).toContain('builtin-report');
     expect(values).toContain('builtin-notes');
     expect(values).toContain('builtin-draft');
+  });
+});
+
+describe('Current Editor PDF preset', () => {
+  beforeEach(() => localStorage.clear());
+  it('inherits typography, retains it on margin edits, and snapshots it on typography edits', async () => {
+    const wrapper = mount(PdfExportDialog, { props: { contentHtml: '<h1>Title</h1>' } });
+    const preset = wrapper.find('[data-testid="pdf-preset-select"]');
+    expect((preset.element as HTMLSelectElement).value).toBe('builtin-current-editor');
+    await wrapper.find('[data-testid="pdf-margins"]').setValue('wide');
+    expect((preset.element as HTMLSelectElement).value).toBe('builtin-current-editor');
+    await wrapper.find('[data-testid="pdf-font-size"]').setValue('11pt');
+    expect((preset.element as HTMLSelectElement).value).toBe('');
+    await wrapper.find('[data-testid="pdf-confirm"]').trigger('click');
+    const saved = JSON.parse(localStorage.getItem('mermark.pdfSettings')!);
+    expect(saved.typographySource).toBe('custom');
+    expect(saved.documentStyleSnapshot.id).toBe('github');
+    await preset.setValue('builtin-current-editor');
+    await wrapper.find('[data-testid="pdf-confirm"]').trigger('click');
+    expect(JSON.parse(localStorage.getItem('mermark.pdfSettings')!).typographySource).toBe('current-editor');
+    wrapper.unmount();
   });
 });

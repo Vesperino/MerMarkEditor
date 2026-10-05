@@ -11,6 +11,7 @@ const FAKE_CSS = 'body { color: red; }';
 function withSettings(overrides: Partial<PdfSettings>): PdfSettings {
   return {
     ...PDF_SETTINGS_DEFAULTS,
+    typographySource: 'legacy', // Existing explicit font/size controls and presets.
     ...overrides,
     header: { ...PDF_SETTINGS_DEFAULTS.header, ...(overrides.header ?? {}) },
     footer: { ...PDF_SETTINGS_DEFAULTS.footer, ...(overrides.footer ?? {}) },
