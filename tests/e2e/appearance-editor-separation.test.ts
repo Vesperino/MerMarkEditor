@@ -56,7 +56,7 @@ for (const theme of ['light', 'dark'] as const) {
         localStorage.setItem('mermark-settings', JSON.stringify({
           theme: mode,
           themeVariant: 'default',
-          codeTheme: 'white',
+          codeTheme: 'light',
           editorFontFamily: font,
           editorLineHeight: 2,
           editorPaddingTop: 30,
