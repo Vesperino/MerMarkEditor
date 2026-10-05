@@ -17,7 +17,7 @@ import {
 
 export type ThemeMode = 'light' | 'dark';
 export type ThemeVariant = 'default' | 'minimal';
-export type CodeThemeMode = 'dark' | 'white';
+export type CodeThemeMode = 'dark' | 'light';
 export type CliKind = 'claude' | 'codex' | 'ollama' | 'openai';
 export type PanelSide = 'left' | 'right';
 
@@ -154,9 +154,8 @@ export interface AppSettings {
   editorPaddingTop: number;
   /** Bottom padding of the editor surface, in pixels (clamped 0–160). */
   editorPaddingBottom: number;
-  /** Horizontal margins of the editor surface, in pixels per side (clamped 0–160).
-   *  Functions as a soft outer gutter — content max-width is enforced by the
-   *  Minimal theme's reading measure independently. */
+  /** Horizontal padding of the editor surface, in pixels per side (clamped 0–160).
+   *  Applied once, independently of the Appearance style. */
   editorPaddingX: number;
   /** @deprecated kept for migration from older builds — use mermaidWriteFormatId. */
   mermaidFenceOpen?: string;
@@ -240,7 +239,9 @@ function loadSettings(): AppSettings {
       if (parsed.tokenModel) {
         parsed.tokenModel = migrateTokenModel(parsed.tokenModel);
       }
-      if (parsed.codeTheme && !['dark', 'white'].includes(parsed.codeTheme)) {
+      if (parsed.codeTheme === 'white') {
+        parsed.codeTheme = 'light';
+      } else if (parsed.codeTheme && !['dark', 'light'].includes(parsed.codeTheme)) {
         parsed.codeTheme = getDefaultSettings().codeTheme;
       }
       if (parsed.ai && typeof parsed.ai.snapshotsKeep === 'number') {
@@ -781,11 +782,15 @@ function applyCodeThemeVars(root: CSSStyleDeclaration, theme: CodeThemeMode) {
   root.setProperty('--code-editor-container-bg', darkTheme ? '#1e293b' : '#f1f5f9');
   root.setProperty('--code-editor-bg', darkTheme ? '#0f172a' : '#ffffff');
   root.setProperty('--code-editor-text', darkTheme ? '#e2e8f0' : '#1e293b');
+  root.setProperty('--code-block-bg', darkTheme ? '#0f172a' : '#f8fafc');
+  root.setProperty('--code-block-text', darkTheme ? '#e2e8f0' : '#1e293b');
   root.setProperty('--code-editor-gutter-text', darkTheme ? '#94a3b8' : '#64748b');
   root.setProperty('--code-preview-keyword', darkTheme ? '#c678dd' : '#7c3aed');
   root.setProperty('--code-preview-name', darkTheme ? '#e06c75' : '#dc2626');
   root.setProperty('--code-preview-string', darkTheme ? '#98c379' : '#15803d');
   root.setProperty('--code-preview-function', darkTheme ? '#61afef' : '#2563eb');
+  root.setProperty('--code-preview-number', darkTheme ? '#d19a66' : '#a16207');
+  root.setProperty('--code-preview-comment', darkTheme ? '#94a3b8' : '#64748b');
   root.setProperty('--code-md-heading', darkTheme ? '#61afef' : '#2563eb');
   root.setProperty('--code-md-bullet', darkTheme ? '#c678dd' : '#7c3aed');
   root.setProperty('--code-md-strong', darkTheme ? '#e5c07b' : '#a16207');
@@ -805,8 +810,7 @@ function applyCssVars(s: AppSettings) {
   }
   root.setProperty('--code-font-family', resolveCodeFont(s.codeFontFamily));
   root.setProperty('--editor-line-height', `${s.editorLineHeight}`);
-  // Editor surface paddings — picked up by the Minimal theme via
-  // `padding: var(--editor-pad-top) var(--editor-pad-x) ...`.
+  // Shared editor surface padding, independent of the appearance theme.
   root.setProperty('--editor-pad-top', `${s.editorPaddingTop ?? 16}px`);
   root.setProperty('--editor-pad-bottom', `${s.editorPaddingBottom ?? 32}px`);
   root.setProperty('--editor-pad-x', `${s.editorPaddingX ?? 24}px`);

@@ -255,7 +255,6 @@ const zhCN: Translations = {
   // Theme
   darkMode: '深色',
   lightMode: '浅色',
-  whiteMode: '白色',
 
   // File watching & conflict
   fileReloadedExternally: (fileName: string) => `"${fileName}" 已被外部更新并重新加载。`,
@@ -465,6 +464,7 @@ const zhCN: Translations = {
 
   // Theme variant
   themeVariantLabel: '主题风格',
+  themeVariantHint: '仅影响应用控件和面板的外观。文档格式请在“编辑器”中设置。',
   themeVariantDefault: '默认',
   themeVariantMinimal: '极简',
 

@@ -136,9 +136,18 @@ describe('useSettings', () => {
 
     it('should set code theme', () => {
       const { settings, setCodeTheme } = useSettings();
-      setCodeTheme('white');
-      expect(settings.value.codeTheme).toBe('white');
+      setCodeTheme('light');
+      expect(settings.value.codeTheme).toBe('light');
       setCodeTheme('dark');
+    });
+
+    it('migrates a saved white code theme to light', async () => {
+      // Drop return values queued by earlier tests that the singleton never consumed.
+      localStorageMock.getItem.mockReset();
+      localStorageMock.setItem('mermark-settings', JSON.stringify({ codeTheme: 'white' }));
+      vi.resetModules();
+      const fresh = await import('../../composables/useSettings');
+      expect(fresh.useSettings().settings.value.codeTheme).toBe('light');
     });
 
     it('should set Mermaid delimiters', () => {
