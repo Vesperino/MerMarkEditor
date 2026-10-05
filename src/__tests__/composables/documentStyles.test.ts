@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { inflateRawSync } from 'node:zlib';
 import { Packer } from 'docx';
 import { DOCUMENT_STYLES, resolveDocumentStyle } from '../../styles/document-themes';
-import { documentPrintCss } from '../../styles/document-themes/print';
+import { documentPrintCss, loadPrintFonts } from '../../styles/document-themes/print';
 import { buildDocxDocument } from '../../composables/useDocxExport';
 import { buildPrintDocument, loadPdfSettings, PDF_SETTINGS_DEFAULTS } from '../../composables/usePdfExport';
+import { useDocumentStyle } from '../../composables/useDocumentStyle';
+import { useSettings } from '../../composables/useSettings';
 
 // Read a real DOCX ZIP entry using its central directory (not implementation objects).
 function zipEntry(zip: Buffer, name: string): string {
@@ -51,8 +53,19 @@ describe('document style settings', () => {
 });
 
 describe('document export styles', () => {
+  it('exports with the light palette while the app is in dark mode', () => {
+    const { settings, setTheme } = useSettings();
+    setTheme('dark');
+    const light = resolveDocumentStyle(settings.value.documentStyle, {}, 'light');
+    expect(useDocumentStyle('light').value.palette).toEqual(light.palette);
+    expect(useDocumentStyle().value.palette).not.toEqual(light.palette);
+    setTheme('light');
+  });
+
+
   it.each(DOCUMENT_STYLES)('exports $label with its own heading hierarchy and no app asset paths', async definition => {
     const style = resolveDocumentStyle(definition.id, { fontSize: 20 });
+    await loadPrintFonts();
     const css = documentPrintCss(style);
     expect(css).toContain('--doc-font-size: 20px');
     expect(css).toContain(`--doc-h1-size: ${definition.headings[0].size}`);

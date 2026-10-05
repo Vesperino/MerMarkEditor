@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import DocumentPreview from '../../src/components/DocumentPreview.vue';
 import { DOCUMENT_STYLES, resolveDocumentStyle, type DocumentStyleId } from '../../src/styles/document-themes';
-import { documentPrintCss } from '../../src/styles/document-themes/print';
+import { documentPrintCss, loadPrintFonts } from '../../src/styles/document-themes/print';
 import illustration from './public/demo-landscape.svg?inline';
 import { mathPrintCss } from '../../src/utils/math-print';
 import { serializeEditorContent } from '../../src/utils/documentSerializer';
@@ -40,7 +40,8 @@ function synchronize(index: number) {
   const targetBox = targetBlocks[i].getBoundingClientRect();
   target.scrollTop += targetBox.top - target.getBoundingClientRect().top + fraction * targetBox.height;
 }
-function downloadHtml(index: number) {
+async function downloadHtml(index: number) {
+  await loadPrintFonts();
   const root = panes.value[index].querySelector<HTMLElement>('.ProseMirror');
   if (!root) return;
   const style = styles.value[index];

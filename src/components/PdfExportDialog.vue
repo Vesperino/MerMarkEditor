@@ -337,6 +337,7 @@ import {
   type DocumentMeta,
 } from '../composables/usePdfExport';
 import { useDocumentStyle } from '../composables/useDocumentStyle';
+import { loadPrintFonts } from '../styles/document-themes/print';
 import { usePdfPresets, isBuiltinPreset } from '../composables/usePdfPresets';
 import { t } from '../i18n';
 
@@ -358,7 +359,7 @@ type TabId = 'layout' | 'typography' | 'header' | 'toc' | 'watermark';
 const activeTab = ref<TabId>('layout');
 const previewFrame = ref<HTMLIFrameElement | null>(null);
 const settings = reactive<PdfSettings>(loadPdfSettings());
-const editorStyle = useDocumentStyle();
+const editorStyle = useDocumentStyle('light');
 let applyingStyle = false;
 function mirrorEditorTypography() {
   applyingStyle = true;
@@ -501,6 +502,7 @@ watch(srcdoc, () => {
 });
 
 onMounted(() => {
+  void loadPrintFonts();
   writeIframeContent();
 });
 

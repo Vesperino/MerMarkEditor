@@ -1,5 +1,5 @@
 import { useDocumentStyle } from './useDocumentStyle';
-import { documentPrintCss } from '../styles/document-themes/print';
+import { documentPrintCss, loadPrintFonts } from '../styles/document-themes/print';
 import type { ResolvedDocumentStyle } from '../styles/document-themes';
 import { invoke } from '@tauri-apps/api/core';
 import { serializeEditorContent } from '../utils/documentSerializer';
@@ -350,7 +350,7 @@ export function buildPrintDocument(
 ): string {
   const m = resolveMargins(settings);
   const documentStyle = settings.typographySource === 'current-editor'
-    ? useDocumentStyle().value
+    ? useDocumentStyle('light').value
     : settings.typographySource === 'custom' ? settings.documentStyleSnapshot : undefined;
   let documentCss = '';
   let resolvedDocumentStyle: ResolvedDocumentStyle | undefined;
@@ -472,6 +472,7 @@ export const isChromiumWebview = /Chrome\//.test(navigator.userAgent);
 async function _doPrint(editorEl: HTMLElement, settings: PdfSettings, meta: DocumentMeta): Promise<void> {
   savePdfSettings(settings);
   const contentHtml = serializeEditorContent(editorEl);
+  await loadPrintFonts();
   const doc = buildPrintDocument(contentHtml, settings, printCssRaw, meta);
 
   if (!isChromiumWebview) {

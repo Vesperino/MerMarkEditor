@@ -245,7 +245,7 @@ export function useDocxExport() {
     if (!filePath) return;
 
     const cleanHtml = serializeEditorContent(editorEl);
-    const doc = buildDocxDocument(cleanHtml, useDocumentStyle().value);
+    const doc = buildDocxDocument(cleanHtml, useDocumentStyle('light').value);
     const blob = await Packer.toBlob(doc);
     const arrayBuffer = await blob.arrayBuffer();
     await writeFile(filePath, new Uint8Array(arrayBuffer));
