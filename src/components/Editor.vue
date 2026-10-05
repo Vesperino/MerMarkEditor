@@ -100,6 +100,7 @@ import { MoveBlockExtension } from "../extensions/MoveBlockExtension";
 import { SafeHtmlBlockExtension } from "../extensions/SafeHtmlBlockExtension";
 import type { VisualSearchMatch, VisualTextMap } from "../composables/useDocumentSearch";
 import { useI18n } from "../i18n";
+import { isTableOnlyHtml, isTableOnlyText } from "../utils/table-paste";
 
 const { t } = useI18n();
 
@@ -582,7 +583,7 @@ const editor = useEditor({
 
       // Try HTML table first (case-insensitive check)
       const html = clipboardData.getData("text/html");
-      if (html && /<table/i.test(html)) {
+      if (html && /<table/i.test(html) && isTableOnlyHtml(html)) {
         const tableHtml = parseHtmlTable(html);
         if (tableHtml && editor.value) {
           editor.value.chain().focus().insertContent(tableHtml).run();
@@ -592,7 +593,7 @@ const editor = useEditor({
 
       // Try plain text table (tab-separated or pipe-separated)
       const text = clipboardData.getData("text/plain");
-      if (text) {
+      if (text && isTableOnlyText(text)) {
         const tableHtml = parseTextTable(text);
         if (tableHtml && editor.value) {
           editor.value.chain().focus().insertContent(tableHtml).run();
