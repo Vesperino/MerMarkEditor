@@ -64,4 +64,72 @@ describe('native menu adapter', () => {
     expect(mocks.unlisten).toHaveBeenCalled(); expect(mocks.unfocus).toHaveBeenCalled();
     expect(item.close).toHaveBeenCalled();
   });
+  it.each([
+    ['save-file', 'CmdOrCtrl+S', 's', false],
+    ['save-file-as', 'CmdOrCtrl+Shift+S', 'S', true],
+    ['show-settings', 'CmdOrCtrl+Comma', ',', false],
+    ['show-shortcuts', 'CmdOrCtrl+/', '/', false],
+    ['zoom-in', 'CmdOrCtrl+Plus', '+', true],
+    ['toggle-code-view', 'CmdOrCtrl+Shift+V', 'V', true],
+    ['undo', 'CmdOrCtrl+Z', 'z', false],
+  ])('executes %s when its shortcut reaches the webview', async (id, accelerator, key, shiftKey) => {
+    const menus = ref<CommandMenu[]>([{ label: 'File', items: [{ id, label: id, accelerator, enabled: true, run: vi.fn() }] }]);
+    const execute = vi.fn(async () => {});
+    const commands: AppCommands = { menus, execute, enabled: () => true };
+    const wrapper = mount(defineComponent({ setup() { useNativeMenus(commands); return () => h('div'); } }));
+    await flushPromises();
+    const downstream = vi.fn();
+    window.addEventListener('keydown', downstream);
+    try {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, ctrlKey: true, bubbles: true, cancelable: true }));
+      await flushPromises();
+      expect(execute).toHaveBeenCalledExactlyOnceWith(id);
+      expect(downstream).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', downstream);
+      wrapper.unmount();
+      await flushPromises();
+    }
+  });
+
+  it('dispatches Command shortcuts on macOS and leaves editor-only bindings alone', async () => {
+    const platform = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
+    vi.resetModules();
+    const { useNativeMenus: useMacMenus } = await import('../../composables/useNativeMenus');
+    const command = { id: 'show-settings', label: 'Settings', accelerator: 'CmdOrCtrl+Comma', enabled: true, run: vi.fn() };
+    const menus = ref<CommandMenu[]>([{ label: 'File', items: [] }, { label: 'Edit', items: [command] }]);
+    const execute = vi.fn(async () => {});
+    const commands: AppCommands = { menus, execute, enabled: () => true };
+    const wrapper = mount(defineComponent({ setup() { useMacMenus(commands); return () => h('div'); } }));
+    try {
+      await flushPromises();
+      const event = new KeyboardEvent('keydown', { key: ',', metaKey: true, bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      await flushPromises();
+      expect(event.defaultPrevented).toBe(true);
+      expect(execute).toHaveBeenCalledExactlyOnceWith('show-settings');
+      execute.mockClear();
+      for (const options of [
+        { key: 'ArrowUp', altKey: true },
+        { key: ',', metaKey: true, altKey: true },
+        { key: ',', metaKey: true, isComposing: true },
+        { key: 'c', metaKey: true },
+      ]) {
+        const other = new KeyboardEvent('keydown', { ...options, bubbles: true, cancelable: true });
+        document.dispatchEvent(other);
+        expect(other.defaultPrevented).toBe(false);
+      }
+      expect(execute).not.toHaveBeenCalled();
+      command.enabled = false;
+      menus.value = [...menus.value];
+      await flushPromises();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: ',', metaKey: true, bubbles: true }));
+      expect(execute).not.toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+      await flushPromises();
+      platform.mockRestore();
+    }
+  });
+
 });
