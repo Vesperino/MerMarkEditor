@@ -28,6 +28,7 @@ const props = defineProps<{
   index: number;
   /** Highlighted as the landing slot of an in-flight section reorder. */
   isReorderTarget?: boolean;
+  focusedPath?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   (e: 'view-changes', path: string): void;
   (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
+  (e: 'focus-node', path: string): void;
   /** New file/folder inside this workspace's root — bubbles up to the
    *  sidebar so the same pending-action dialog flow handles it. */
   (e: 'new-file-at', parent: string): void;
@@ -210,6 +212,8 @@ function newFolderHere(ev: MouseEvent) {
         :is-root="true"
         :drag-over-path="dragOverPath"
         :workspace-id="workspace.id"
+        :focused-path="focusedPath"
+        @focus-node="(p) => emit('focus-node', p)"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
         @sort-folder="(payload) => emit('sort-folder', payload)"

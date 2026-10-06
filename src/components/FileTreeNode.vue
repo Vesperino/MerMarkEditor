@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useId, watch } from 'vue';
 import type { WorkspaceNode } from '../composables/useWorkspace';
 import { useWorkspace } from '../composables/useWorkspace';
 import { useI18n } from '../i18n';
@@ -19,6 +19,7 @@ const props = defineProps<{
   dragOverPath?: string | null;
   /** Id of the owning workspace — used to resolve per-workspace/folder sort. */
   workspaceId: string;
+  focusedPath?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +27,7 @@ const emit = defineEmits<{
   (e: 'view-changes', path: string): void;
   (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
   (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
+  (e: 'focus-node', path: string): void;
 }>();
 
 const ws = useWorkspace();
@@ -56,6 +58,7 @@ const isSelectedRow = computed(() => ws.isSelected(props.node.path));
 const isDirtyRow = computed(() => !isFolder.value && ws.isDirty(props.node.path));
 
 const rowEl = ref<HTMLDivElement | null>(null);
+const childrenId = useId();
 
 function onViewChanges(e: MouseEvent) {
   e.stopPropagation();
@@ -68,7 +71,7 @@ function onViewChanges(e: MouseEvent) {
  * open files / expand folders, drag to insert/open in editor.
  */
 function onRowClick(e: MouseEvent) {
-  rowEl.value?.focus();
+  rowEl.value?.focus({ preventScroll: true });
   const path = props.node.path;
   if (e.shiftKey) {
     ws.rangeSelect(path);
@@ -89,6 +92,7 @@ function onRowDblClick() {
 
 function onChevronClick(e: MouseEvent) {
   e.stopPropagation();
+  rowEl.value?.focus({ preventScroll: true });
   if (isFolder.value) ws.toggleFolder(props.node.path);
 }
 
@@ -154,8 +158,6 @@ watch(
       v-if="!isRoot"
       ref="rowEl"
       class="tree-row"
-      tabindex="0"
-      :aria-label="node.name"
       :class="{
         folder: isFolder,
         file: !isFolder,
@@ -166,6 +168,14 @@ watch(
       :style="{ paddingLeft: indentPx }"
       :data-tree-path="node.path"
       :data-tree-kind="node.kind"
+      role="treeitem"
+      :tabindex="focusedPath === node.path ? 0 : -1"
+      :aria-label="node.name"
+      :aria-level="depth + 1"
+      :aria-selected="isSelectedRow"
+      :aria-expanded="isFolder ? expanded : undefined"
+      :aria-owns="isFolder && expanded ? childrenId : undefined"
+      @focus="emit('focus-node', node.path)"
       @click="onRowClick"
       @dblclick="onRowDblClick"
       @contextmenu.prevent.stop="onContextMenu"
@@ -218,7 +228,7 @@ watch(
       </span>
     </div>
 
-    <div v-if="isFolder && expanded" class="tree-children">
+    <div v-if="isFolder && expanded" :id="childrenId" :role="isRoot ? undefined : 'group'" class="tree-children">
       <FileTreeNode
         v-for="child in ws.sortChildren(node.children || [], node.path, workspaceId)"
         :key="child.path"
@@ -226,6 +236,8 @@ watch(
         :depth="isRoot ? depth : depth + 1"
         :drag-over-path="dragOverPath"
         :workspace-id="workspaceId"
+        :focused-path="focusedPath"
+        @focus-node="(p) => emit('focus-node', p)"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
         @sort-folder="(payload) => emit('sort-folder', payload)"
@@ -252,6 +264,11 @@ watch(
 
 .tree-row:hover {
   background: var(--hover-bg);
+}
+
+.tree-row:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: -1px;
 }
 
 .tree-row.active {
