@@ -548,6 +548,79 @@ const sidebarEl = ref<HTMLElement | null>(null);
 const sidebarRootEl = ref<HTMLElement | null>(null);
 const headerMenuRoot = ref<HTMLElement | null>(null);
 
+// One Tab stop for the tree; focus remains independent of multi-selection.
+const focusedPath = ref<string | null>(null);
+const treeTabPath = computed(() => {
+  const paths = ws.visibleNodePaths.value;
+  if (focusedPath.value && paths.includes(focusedPath.value)) return focusedPath.value;
+  return paths.find((path) => ws.isSelected(path))
+    ?? paths.find((path) => path === ws.highlightedPath.value)
+    ?? paths[0]
+    ?? null;
+});
+
+function onTreeFocus(path: string) {
+  focusedPath.value = path;
+}
+
+function focusTreeRow(path: string, extendSelection = false) {
+  if (extendSelection) ws.rangeSelect(path);
+  else ws.selectOnly(path);
+  const rows = sidebarEl.value?.querySelectorAll<HTMLElement>('.tree-row');
+  const row = Array.from(rows ?? []).find((el) => el.dataset.treePath === path);
+  row?.focus({ preventScroll: true });
+  row?.scrollIntoView({ block: 'nearest' });
+}
+
+function onTreeKeyDown(e: KeyboardEvent) {
+  // Buttons and inputs inside the tree retain their own keyboard behavior.
+  const row = e.target as HTMLElement | null;
+  const isMac = /Mac/.test(navigator.platform);
+  const macOpen = isMac && e.metaKey && e.key === 'ArrowDown' && !e.shiftKey;
+  if (!row?.matches('.tree-row') || e.defaultPrevented || e.altKey || e.ctrlKey || (e.metaKey && !macOpen) || e.isComposing) return;
+  if (pendingAction.value || document.querySelector('[aria-modal="true"]')) return;
+  // Keep Enter-to-rename on macOS; Command+Down activates the focused item.
+  if (isMac && e.key === 'Enter') return;
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', ' '].includes(e.key)) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const path = row.dataset.treePath!;
+  const paths = ws.visibleNodePaths.value;
+  const index = paths.indexOf(path);
+  if (index < 0) return;
+  const folder = row.dataset.treeKind === 'folder';
+
+  if (macOpen) {
+    if (folder) ws.toggleFolder(path);
+    else emit('open-file', path);
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    const next = index + (e.key === 'ArrowDown' ? 1 : -1);
+    if (next >= 0 && next < paths.length) focusTreeRow(paths[next], e.shiftKey);
+  } else if (e.key === 'Home' || e.key === 'End') {
+    focusTreeRow(e.key === 'Home' ? paths[0] : paths[paths.length - 1], e.shiftKey);
+  } else if (e.key === 'ArrowRight') {
+    if (!folder) return;
+    if (!ws.isFolderExpanded(path)) ws.expandFolder(path);
+    else {
+      const child = row.parentElement?.querySelector<HTMLElement>(':scope > .tree-children > .file-tree-node > .tree-row');
+      if (child?.dataset.treePath) focusTreeRow(child.dataset.treePath);
+    }
+  } else if (e.key === 'ArrowLeft') {
+    if (folder && ws.isFolderExpanded(path)) ws.collapseFolder(path);
+    else {
+      const parent = row.parentElement?.parentElement?.closest('.file-tree-node');
+      const parentRow = parent?.querySelector<HTMLElement>(':scope > .tree-row');
+      if (parentRow?.dataset.treePath) focusTreeRow(parentRow.dataset.treePath);
+    }
+  } else if (e.key === 'Enter') {
+    if (folder) ws.toggleFolder(path);
+    else emit('open-file', path);
+  } else if (e.key === ' ') {
+    ws.toggleSelect(path);
+  }
+}
+
 // Close the header (3-dots) menu when clicking anywhere outside it.
 function onDocMouseDown(e: MouseEvent) {
   if (!showHeaderMenu.value) return;
@@ -727,7 +800,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div class="ws-body" ref="sidebarEl" @mousedown="onBodyMouseDown">
+    <div class="ws-body" ref="sidebarEl" role="tree" :aria-label="t.workspaces" aria-multiselectable="true" @mousedown="onBodyMouseDown" @keydown="onTreeKeyDown">
       <div v-if="!hasOpen" class="ws-empty">
         <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -748,6 +821,8 @@ onBeforeUnmount(() => {
           :is-active-context="activeContextWorkspaceId === w.id"
           :drag-over-path="dragOverFolderPath"
           :is-reorder-target="sectionDropIndex === idx"
+          :focused-path="treeTabPath"
+          @focus-node="onTreeFocus"
           @open-file="(p) => emit('open-file', p)"
           @view-changes="(p) => emit('view-changes', p)"
           @sort-folder="onFolderSortRequest"
