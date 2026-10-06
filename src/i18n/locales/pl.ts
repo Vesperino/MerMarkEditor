@@ -1,6 +1,19 @@
 import type { Translations } from '../index';
 
 const pl: Translations = {
+  shortcutSearch: 'Szukaj poleceń lub skrótów…',
+  shortcutSettingsHelp: 'Zmiany są zapisywane automatycznie. Skróty schowka i nawigacji w tekście są zgodne z systemem.',
+  shortcutResetAll: 'Przywróć wszystkie domyślne',
+  shortcutReset: 'Przywróć domyślny',
+  shortcutChange: 'Zmień skrót',
+  shortcutRemove: 'Usuń skrót',
+  shortcutAdd: 'Dodaj skrót',
+  shortcutUnassigned: 'Nie przypisano',
+  shortcutRecord: 'Naciśnij skrót…',
+  shortcutInvalid: 'Użyj klawisza z modyfikatorem lub klawisza funkcyjnego (F1–F12).',
+  shortcutReserved: 'Ten skrót jest zarezerwowany dla systemu lub schowka.',
+  shortcutConflict: (action: string) => 'Już przypisano do: ' + action,
+
   noSearchResults: 'Nie znaleziono wyników.',
   commandPalette: 'Paleta poleceń',
   quickOpen: 'Szybkie otwieranie',

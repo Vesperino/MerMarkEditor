@@ -8,6 +8,19 @@ import ja from './locales/ja';
 export type Locale = 'en' | 'pl' | 'zh-CN' | 'de' | 'ja';
 
 export interface Translations {
+  shortcutSearch: string;
+  shortcutSettingsHelp: string;
+  shortcutResetAll: string;
+  shortcutReset: string;
+  shortcutChange: string;
+  shortcutRemove: string;
+  shortcutAdd: string;
+  shortcutUnassigned: string;
+  shortcutRecord: string;
+  shortcutInvalid: string;
+  shortcutReserved: string;
+  shortcutConflict: (action: string) => string;
+
   noSearchResults: string;
   commandPalette: string;
   quickOpen: string;

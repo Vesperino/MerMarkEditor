@@ -41,4 +41,25 @@ describe('command shortcuts', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }));
     expect(execute).toHaveBeenCalledTimes(2);
   });
+  it('blocks retired editor defaults after a remap and bypasses the shortcut recorder', () => {
+    const execute = vi.fn(async () => {});
+    const menus = ref([{ label: 'Format', items: [{ id: 'bold', label: 'Bold', enabled: true,
+      accelerator: 'CmdOrCtrl+Alt+B', defaultShortcuts: ['CmdOrCtrl+B'], run: vi.fn() }] }]);
+    const wrapper = mount(defineComponent({ setup() {
+      useCommandShortcuts({ menus, execute, enabled: () => true });
+      return () => h('input');
+    } }), { attachTo: document.body });
+    try {
+      const old = new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, bubbles: true, cancelable: true });
+      wrapper.element.dispatchEvent(old);
+      expect(old.defaultPrevented).toBe(true); expect(execute).not.toHaveBeenCalled();
+      const current = new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', ctrlKey: true, altKey: true, bubbles: true, cancelable: true });
+      wrapper.element.dispatchEvent(current); expect(execute).toHaveBeenCalledExactlyOnceWith('bold');
+      wrapper.element.setAttribute('data-shortcut-recorder', ''); (wrapper.element as HTMLInputElement).focus();
+      const recording = new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', ctrlKey: true, altKey: true, bubbles: true, cancelable: true });
+      wrapper.element.dispatchEvent(recording); expect(recording.defaultPrevented).toBe(false);
+      expect(execute).toHaveBeenCalledTimes(1);
+    } finally { wrapper.unmount(); }
+  });
+
 });

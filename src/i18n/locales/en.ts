@@ -1,6 +1,19 @@
 import type { Translations } from '../index';
 
 const en: Translations = {
+  shortcutSearch: 'Search commands or shortcuts…',
+  shortcutSettingsHelp: 'Changes are saved automatically. Clipboard and text navigation shortcuts follow system conventions.',
+  shortcutResetAll: 'Restore all defaults',
+  shortcutReset: 'Restore default',
+  shortcutChange: 'Change shortcut',
+  shortcutRemove: 'Remove shortcut',
+  shortcutAdd: 'Add shortcut',
+  shortcutUnassigned: 'Not assigned',
+  shortcutRecord: 'Press a shortcut…',
+  shortcutInvalid: 'Use a modifier with a key, or a function key (F1–F12).',
+  shortcutReserved: 'This shortcut is reserved for a system or clipboard action.',
+  shortcutConflict: (action: string) => 'Already assigned to: ' + action,
+
   noSearchResults: 'No results found.',
   commandPalette: 'Command Palette',
   quickOpen: 'Quick Open',
