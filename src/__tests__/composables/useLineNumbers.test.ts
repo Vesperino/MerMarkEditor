@@ -50,6 +50,96 @@ beforeEach(() => {
 });
 
 describe('useLineNumbers', () => {
+  it.each([0.5, 0.7, 1.5, 2])('keeps wrapped text in gutter coordinates at %sx zoom', async (zoom) => {
+    const anchorTop = 100;
+    const makeRect = (top: number, height: number): RectStub => ({
+      top: anchorTop + top * zoom, height: height * zoom,
+      left: 0, right: 100 * zoom, bottom: anchorTop + (top + height) * zoom, width: 100 * zoom,
+    });
+    const paragraph = stubChild('p', makeRect(20, 48), { text: 'wrapped paragraph', lineHeight: '24px' });
+    const container = mountContainer([paragraph], makeRect(16, 52));
+    const anchor = stubChild('div', makeRect(0, 100));
+    vi.spyOn(document, 'createRange').mockImplementation(() => ({
+      selectNodeContents() {},
+      getClientRects: () => [makeRect(23, 18), makeRect(47, 18)],
+      detach() {},
+    }) as unknown as Range);
+
+    const { lines } = useLineNumbers({
+      containerRef: ref(container), anchorRef: ref(anchor), enabled: ref(true), zoomRef: ref(zoom),
+    });
+    await nextTick();
+
+    expect(lines.value).toHaveLength(2);
+    lines.value.forEach((line, index) => {
+      expect(line.top).toBeCloseTo(20 + index * 24);
+      expect(line.height).toBeCloseTo(24);
+    });
+  });
+
+  it.each([0.5, 2])('keeps fallback and empty-block line counts unchanged at %sx zoom', async (zoom) => {
+    const makeRect = (top: number, height: number): RectStub => ({
+      top: top * zoom, height: height * zoom,
+      left: 0, right: 100 * zoom, bottom: (top + height) * zoom, width: 100 * zoom,
+    });
+    const container = mountContainer([
+      stubChild('p', makeRect(0, 60), { text: 'wrapped paragraph' }),
+      stubChild('p', makeRect(60, 40)),
+      stubChild('div', makeRect(100, 80)),
+      stubChild('hr', makeRect(180, 4)),
+    ], makeRect(0, 184));
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true), zoomRef: ref(zoom) });
+    await nextTick();
+
+    expect(lines.value.map(line => line.top)).toEqual([0, 20, 40, 60, 180]);
+    expect(lines.value.map(line => line.height)).toEqual([20, 20, 20, 40, 4]);
+  });
+
+  it('remeasures when zoom changes even if the unzoomed block size is unchanged', async () => {
+    let frame: FrameRequestCallback | undefined;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { frame = cb; return 1; });
+    const zoomRef = ref(1);
+    const paragraph = stubChild('p', { top: 20, height: 20, left: 0, right: 100, bottom: 40, width: 100 });
+    const container = mountContainer([paragraph], { top: 0, height: 60, left: 0, right: 100, bottom: 60, width: 100 });
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true), zoomRef });
+    frame!(0);
+    expect(lines.value[0].top).toBe(20);
+
+    paragraph.getBoundingClientRect = () => ({ top: 40, height: 40 }) as DOMRect;
+    zoomRef.value = 2;
+    await nextTick();
+    frame!(0);
+
+    expect(lines.value).toEqual([{ top: 20, num: 1, height: 20 }]);
+  });
+
+  it('remeasures nested text edits without a block resize', async () => {
+    let frame: FrameRequestCallback | undefined;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { frame = cb; return 1; });
+    const paragraph = stubChild('p', { top: 0, height: 40, left: 0, right: 100, bottom: 40, width: 100 });
+    const span = document.createElement('span');
+    span.textContent = 'first row';
+    paragraph.appendChild(span);
+    const container = mountContainer([paragraph], { top: 0, height: 40, left: 0, right: 100, bottom: 40, width: 100 });
+    let textTop = 0;
+    vi.spyOn(document, 'createRange').mockImplementation(() => ({
+      selectNodeContents() {},
+      getClientRects: () => [{ top: textTop, height: 20, width: 100 }],
+      detach() {},
+    }) as unknown as Range);
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
+    frame!(0);
+    frame = undefined;
+    expect(lines.value[0].top).toBe(0);
+
+    textTop = 20;
+    span.firstChild!.nodeValue = 'second row';
+    await nextTick();
+    expect(frame).toBeDefined();
+    frame!(0);
+    expect(lines.value[0].top).toBe(20);
+  });
+
   it('returns empty when disabled', async () => {
     const container = mountContainer([
       stubChild('p', { top: 0, height: 20, left: 0, right: 100, bottom: 20, width: 100 }),
