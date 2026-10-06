@@ -416,9 +416,9 @@ Settings is always available in the application menu on macOS, or the Edit menu 
 | Reset zoom | `Ctrl+0` |
 | Settings | `Ctrl+,` |
 | Keyboard shortcuts help | Command Palette or Help menu |
+| Close modal | `Escape` |
 
 You can customize app command bindings in **Settings → Keyboard Shortcuts**. Search for a command, click a binding to record a replacement, or use **+** to add an alternative. Conflicting assignments are rejected. Changes are saved automatically; remove a binding with **×**, or restore defaults for one command or all commands. System clipboard and text navigation bindings retain their standard behavior.
-| Close modal | `Escape` |
 
 > On macOS, use `⌘` (Cmd) in place of `Ctrl`, and `⌥` (Option) in place of `Alt`.
 
