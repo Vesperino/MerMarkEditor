@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useI18n } from '../i18n';
+import { useRecentFiles } from '../composables/useRecentFiles';
 import { useWorkspace } from '../composables/useWorkspace';
 import type { OpenWorkspaceEntry } from '../composables/useSettings';
 import type { WorkspaceNode } from '../services/workspaceFs';
@@ -22,12 +23,15 @@ import { basenameOf } from '../utils/path-utils';
  * Up/Down/Enter to commit. Esc to dismiss. Click works too.
  */
 
+const props = withDefaults(defineProps<{ mode?: 'all' | 'files' | 'content'; openTabs?: { id: string; name: string; path: string | null }[] }>(), { mode: 'all' });
 const { t } = useI18n();
 const ws = useWorkspace();
+const { recentFiles } = useRecentFiles();
 
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'open-file', path: string): void;
+  (e: 'select-tab', id: string): void;
 }>();
 
 const query = ref('');
@@ -49,6 +53,7 @@ interface WorkspaceEntry {
 
 interface FileEntry {
   kind: 'file';
+  tabId?: string;
   key: string;
   path: string;
   name: string;
@@ -108,10 +113,20 @@ function collectFiles(node: WorkspaceNode | null, workspaceName: string, out: { 
 }
 
 const allFilesInWorkspaces = computed(() => {
-  const out: { path: string; name: string; workspaceName: string }[] = [];
+  const out: { path: string; name: string; workspaceName: string; tabId?: string }[] = [];
   for (const w of ws.openWorkspaces.value) {
     const tree = ws.treesById.value[w.id];
     collectFiles(tree, w.name, out);
+  }
+  if (props.mode === 'files') {
+    const tabs: typeof out = (props.openTabs ?? []).map(tab => ({ path: tab.path ?? '', name: tab.name, workspaceName: '', tabId: tab.id }));
+    const seen = new Set(tabs.filter(tab => tab.path).map(tab => tab.path));
+    const candidates = [...out, ...recentFiles.value.map(file => ({ path: file.filePath, name: file.fileName, workspaceName: '' }))];
+    for (const file of candidates) {
+      if (seen.has(file.path)) continue;
+      seen.add(file.path); tabs.push(file);
+    }
+    return tabs;
   }
   return out;
 });
@@ -121,6 +136,7 @@ const trimmed = computed(() => query.value.trim());
 const lower = computed(() => trimmed.value.toLowerCase());
 
 const filteredWorkspaces = computed<WorkspaceEntry[]>(() => {
+  if (props.mode !== 'all') return [];
   const all = buildWorkspaceEntries();
   if (!lower.value) return all;
   return all.filter(
@@ -131,14 +147,16 @@ const filteredWorkspaces = computed<WorkspaceEntry[]>(() => {
 });
 
 const filteredFiles = computed<FileEntry[]>(() => {
-  if (!lower.value) return [];
+  if (props.mode === 'content') return [];
+  if (!lower.value && props.mode !== 'files') return [];
   const q = lower.value;
   return allFilesInWorkspaces.value
     .filter((f) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
     .slice(0, 80)
     .map((f) => ({
       kind: 'file' as const,
-      key: `file:${f.path}`,
+      key: `file:${f.tabId ?? f.path}`,
+      tabId: f.tabId,
       path: f.path,
       name: f.name,
       workspaceName: f.workspaceName,
@@ -171,6 +189,7 @@ let contentDebounce: ReturnType<typeof setTimeout> | null = null;
 let lastQueryToken = 0;
 
 async function runContentSearch(q: string) {
+  if (props.mode === 'files') return;
   if (!q) {
     contentHits.value = [];
     contentTruncated.value = false;
@@ -205,6 +224,10 @@ async function runContentSearch(q: string) {
 }
 
 watch(trimmed, (q) => {
+  lastQueryToken++;
+  contentHits.value = [];
+  contentSearching.value = false;
+  contentTruncated.value = false;
   if (contentDebounce) clearTimeout(contentDebounce);
   // 150 ms feels responsive without spamming IPC mid-keystroke.
   contentDebounce = setTimeout(() => runContentSearch(q), 150);
@@ -241,11 +264,13 @@ function commitSelection() {
     return;
   }
   // File or content — open the file.
-  emit('open-file', entry.path);
+  if (entry.kind === 'file' && entry.tabId) emit('select-tab', entry.tabId);
+  else emit('open-file', entry.path);
   emit('close');
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (e.defaultPrevented) return;
   if (e.key === 'Escape') {
     e.preventDefault();
     emit('close');
@@ -277,6 +302,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown);
+  lastQueryToken++;
   if (contentDebounce) clearTimeout(contentDebounce);
 });
 
@@ -317,7 +343,8 @@ function highlightMatch(text: string): { before: string; match: string; after: s
             v-model="query"
             class="qs-input"
             type="text"
-            :placeholder="t.workspaceQuickSwitcherPlaceholder"
+            :placeholder="mode === 'files' ? t.quickOpen : mode === 'content' ? t.searchWorkspace : t.workspaceQuickSwitcherPlaceholder"
+            :aria-label="mode === 'files' ? t.quickOpen : t.searchWorkspace"
             @input="selectedIndex = 0"
           />
           <span v-if="contentSearching" class="qs-spinner" :title="t.qsContentSearching"></span>
@@ -325,7 +352,7 @@ function highlightMatch(text: string): { before: string; match: string; after: s
         </div>
 
         <div v-if="flatEntries.length === 0" class="qs-empty">
-          {{ t.workspaceQuickSwitcherNoMatches }}
+          {{ t.noSearchResults }}
         </div>
 
         <ul v-else class="qs-list" role="listbox">

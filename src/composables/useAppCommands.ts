@@ -1,19 +1,21 @@
 import { computed, inject, onScopeDispose, ref, watch, type InjectionKey, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
 import { EditorView } from '@codemirror/view';
-import { undo, redo, undoDepth, redoDepth, selectAll } from '@codemirror/commands';
+import { undo, redo, undoDepth, redoDepth, selectAll, toggleBlockComment } from '@codemirror/commands';
 import { useToolbarActions } from './useToolbarActions';
 import { useLayoutConfig } from './useLayoutConfig';
 import { useRecentFiles } from './useRecentFiles';
 import { useWorkspace } from './useWorkspace';
 import { useSettings } from './useSettings';
 import { useMenuLabels } from '../i18n/menus';
+import { formatSource, selectNextOccurrence } from '../utils/source-commands';
 import { t } from '../i18n';
 
 export interface AppCommand {
   id: string;
   label: string;
   accelerator?: string;
+  aliases?: string[];
   enabled: boolean;
   checked?: boolean;
   run: () => unknown;
@@ -98,10 +100,21 @@ export function useAppCommands(options: {
     const inputFocused = !!document.activeElement?.matches('input, textarea') || !!document.activeElement?.closest('.cm-editor');
     const visual = c.hasDocument && !!options.editor.value && !c.codeView && !c.splitEditor && !c.modal && !inputFocused;
     const doc = c.hasDocument && !c.modal;
+    const code = focusedCodeEditor();
+    const source = doc && !!code;
+    const formatting = visual || source;
+    const sourceHeading = code?.state.doc.lineAt(code.state.selection.main.head).text.match(/^ {0,3}(#{1,6})(?:\s|$)/)?.[1].length ?? 0;
     const command = (id: string, label: string, run?: () => unknown, enabled = !c.modal, accelerator?: string, checked?: boolean): AppCommand =>
       ({ id, label, run: run ?? (() => options.actions[id]?.()), enabled, accelerator, checked });
     const edit = (id: string, label: string, run: () => unknown, active?: string): AppCommand =>
-      command(id, label, run, visual, id === 'bold' ? 'CmdOrCtrl+B' : id === 'italic' ? 'CmdOrCtrl+I' : undefined, active ? a.isActive(active) : undefined);
+      command(id, label, () => {
+        if (source && code && (id === 'bold' || id === 'italic' || id === 'link')) {
+          const url = id === 'link' ? window.prompt(tr.linkPrompt) : '';
+          if (url !== null) formatSource(code, id, url);
+        } else run();
+      }, ['bold', 'italic', 'link'].includes(id) ? formatting : visual,
+      id === 'bold' ? 'CmdOrCtrl+B' : id === 'italic' ? 'CmdOrCtrl+I' : id === 'link' ? 'CmdOrCtrl+K' : undefined,
+      active ? visual && a.isActive(active) : undefined);
     const invoke = (id: string, ...args: unknown[]) => () => options.actions[id]?.(...args);
     const chain = (fn: (editor: Editor) => void) => () => a.runCommand(fn);
     const menu = (label: string, items: (AppCommand | CommandMenu)[]): CommandMenu => ({ label, items });
@@ -122,7 +135,7 @@ export function useAppCommands(options: {
         command('save-file', tr.save, undefined, doc, 'CmdOrCtrl+S'),
         command('save-file-as', tr.saveAs, undefined, doc, 'CmdOrCtrl+Shift+S'),
         command('reload-file', l.reload, undefined, doc, 'CmdOrCtrl+R'),
-        command('export-pdf', `${tr.exportPdf}…`, undefined, doc, 'CmdOrCtrl+P'),
+        command('export-pdf', `${tr.exportPdf}…`, undefined, doc),
         command('export-docx', `${tr.exportDocx}…`, undefined, doc),
         command('close-tab', tr.closeTab, undefined, doc, 'CmdOrCtrl+W'),
         command('close-window', l.closeWindow, undefined, !c.modal, 'CmdOrCtrl+Shift+W'),
@@ -138,11 +151,16 @@ export function useAppCommands(options: {
           if (code) selectAll(code); else document.execCommand('selectAll');
         }, true),
         command('find', tr.documentSearch, undefined, doc, 'CmdOrCtrl+F'),
+        command('find-next', tr.documentSearchNext, undefined, doc, 'CmdOrCtrl+G'),
+        command('find-previous', tr.documentSearchPrevious, undefined, doc, 'CmdOrCtrl+Shift+G'),
+        command('replace', tr.replace, undefined, doc, /Mac/.test(navigator.platform) ? 'CmdOrCtrl+Alt+F' : 'CmdOrCtrl+H'),
+        command('toggle-comment', tr.toggleComment, () => { if (code) toggleBlockComment(code); }, source, 'CmdOrCtrl+/'),
+        command('select-next-occurrence', tr.selectNextOccurrence, () => { if (code) selectNextOccurrence(code); }, source, 'CmdOrCtrl+D'),
         command('show-settings', `${tr.settings}…`, undefined, true, 'CmdOrCtrl+Comma'),
       ]),
       menu(l.format, [
         menu(tr.heading, Array.from({ length: 7 }, (_, level) => command(`heading:${level}`, level ? tr.headingLevel(level) : tr.paragraph,
-          () => a.setHeading(level), visual, undefined, level ? a.isActive('heading', { level }) : a.isActive('paragraph')))),
+          () => { if (source && code) formatSource(code, level); else a.setHeading(level); }, formatting, level ? `CmdOrCtrl+${level}` : undefined, source ? sourceHeading === level : level ? a.isActive('heading', { level }) : a.isActive('paragraph')))),
         edit('bold', l.bold, chain(e => { e.chain().focus().toggleBold().run(); }), 'bold'),
         edit('italic', l.italic, chain(e => { e.chain().focus().toggleItalic().run(); }), 'italic'),
         edit('strikethrough', l.strike, chain(e => { e.chain().focus().toggleStrike().run(); }), 'strike'),
@@ -170,7 +188,14 @@ export function useAppCommands(options: {
         edit('page-break', l.pageBreak, chain(e => { e.chain().focus().insertContent({ type: 'pageBreak' }).run(); })),
       ]),
       menu(l.view, [
-        command('toggle-workspace-sidebar', tr.workspace, workspace.toggleSidebarVisible, !c.modal, undefined, workspace.sidebarVisible.value),
+        command('toggle-workspace-sidebar', tr.workspace, workspace.toggleSidebarVisible, !c.modal, 'CmdOrCtrl+Shift+B', workspace.sidebarVisible.value),
+        { ...command('command-palette', tr.commandPalette, undefined, !c.modal, 'CmdOrCtrl+Shift+P'), aliases: ['F1'] },
+        command('quick-open', tr.quickOpen, undefined, !c.modal, 'CmdOrCtrl+P'),
+        command('workspace-search', tr.searchWorkspace, undefined, !c.modal, 'CmdOrCtrl+Shift+F'),
+        command('go-to-heading', tr.goToHeading, undefined, doc, 'CmdOrCtrl+Shift+O'),
+        command('next-tab', tr.nextTab, undefined, doc, 'Control+Tab'),
+        command('previous-tab', tr.previousTab, undefined, doc, 'Control+Shift+Tab'),
+        menu(tr.jumpToTab, Array.from({ length: 9 }, (_, i) => command(`tab:${i}`, `${tr.jumpToTab}: ${i + 1}`, invoke('select-tab', i), doc, `CmdOrCtrl+Alt+${i + 1}`))),
         command('workspace-switcher', tr.searchWorkspace, undefined, !c.modal, 'CmdOrCtrl+Shift+E'),
         command('toggle-toc', tr.tableOfContents, undefined, visual, 'CmdOrCtrl+Shift+T', c.toc),
         command('toggle-code-view', tr.codeView, undefined, doc && !c.splitEditor, 'CmdOrCtrl+Shift+V', c.codeView),
@@ -201,7 +226,7 @@ export function useAppCommands(options: {
         menu(tr.marpBarFont, [0, 18, 22, 26, 32].map(v => command(`marp-font:${v}`, v ? `${v}px` : tr.marpFontDefault, invoke('marp-font', v), visual && c.marp))),
         command('marp-preview', tr.marpBarPreview, undefined, visual && c.marp, undefined, c.marpPreview),
       ]),
-      menu(l.help, [command('show-shortcuts', tr.keyboardShortcuts, undefined, true, 'CmdOrCtrl+/'), command('whats-new', tr.whatsNew, undefined, !c.modal)]),
+      menu(l.help, [command('show-shortcuts', tr.keyboardShortcuts, undefined, true), command('whats-new', tr.whatsNew, undefined, !c.modal)]),
     ];
   });
   const all = computed(() => {

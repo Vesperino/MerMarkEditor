@@ -1,6 +1,15 @@
 import type { Translations } from '../index';
 
 const pl: Translations = {
+  noSearchResults: 'Nie znaleziono wyników.',
+  commandPalette: 'Paleta poleceń',
+  quickOpen: 'Szybkie otwieranie',
+  goToHeading: 'Przejdź do nagłówka',
+  replace: 'Zamień',
+  replaceAll: 'Zamień wszystko',
+  toggleComment: 'Przełącz komentarz',
+  selectNextOccurrence: 'Zaznacz następne wystąpienie',
+
   documentStyle: "Styl dokumentu",
   styleOverrides: "Nadpisania",
   styleOverridesHint: "Użyj ustawień stylu lub dostosuj czytelność. Zmiany są zapamiętywane dla tego stylu.",

@@ -13,6 +13,11 @@ import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 // Components
 import { useAppCommands, appCommandsKey } from './composables/useAppCommands';
 import { useNativeMenus } from './composables/useNativeMenus';
+import { useCommandShortcuts, paletteCommands, formatShortcut } from './composables/useCommandShortcuts';
+import { EditorView } from '@codemirror/view';
+import { replaceDocumentMatches } from './utils/document-replace';
+import { sourceHeadings } from './utils/source-headings';
+import CommandPicker from './components/CommandPicker.vue';
 import Toolbar from './components/Toolbar.vue';
 import StatusBar from './components/StatusBar.vue';
 import LeftBar from './components/LeftBar.vue';
@@ -990,6 +995,13 @@ const onSplitPreviewChanged = (changed: boolean) => {
 };
 
 // ============ Current Document Search ============
+const replaceOpen = ref(false);
+const replacement = ref('');
+const getSearchCodeView = () => {
+  if (!codeView.value && !splitEditorActive.value) return null;
+  const node = document.querySelector<HTMLElement>('.cm-editor');
+  return node ? EditorView.findFromDOM(node) : null;
+};
 const documentSearchBarRef = ref<InstanceType<typeof DocumentSearchBar> | null>(null);
 
 const getCodeEditor = (): CodeEditorHandle | null => {
@@ -1006,18 +1018,17 @@ const { handleDrop: handleImageDrop } = useImageDrop({
 });
 
 const focusCodeMatch = (match: DocumentSearchMatch) => {
-  const editor = getCodeEditor();
-  if (!editor) return;
-  editor.focus();
-  editor.setSelection(match.start, match.end);
+  const view = getSearchCodeView();
+  if (!view) return;
+  view.focus();
+  view.dispatch({ selection: { anchor: match.start, head: match.end }, effects: EditorView.scrollIntoView(match.start, { y: 'center' }) });
 };
 
 const getSelectedTextForDocumentSearch = (): string => {
-  if (codeView.value) {
-    const editor = getCodeEditor();
-    if (!editor) return '';
-    const { start, end } = editor.getSelection();
-    return start === end ? '' : editor.getValue().slice(start, end);
+  const code = getSearchCodeView();
+  if (code) {
+    const { from, to } = code.state.selection.main;
+    return code.state.sliceDoc(from, to);
   }
 
   const ed = editorInstance.value;
@@ -1038,8 +1049,8 @@ const getSelectedTextForDocumentSearch = (): string => {
 };
 
 const documentSearch = useDocumentSearch({
-  getMode: () => (codeView.value ? 'code' : 'visual'),
-  getCodeText: () => codeContent.value,
+  getMode: () => (codeView.value || splitEditorActive.value ? 'code' : 'visual'),
+  getCodeText: () => getSearchCodeView()?.state.doc.toString() ?? codeContent.value,
   getVisualTextAndMap: () => splitContainerRef.value?.getActiveVisualSearchApi?.()?.getSearchTextMap() ?? null,
   focusCodeMatch,
   focusVisualMatch: (match: VisualSearchMatch) => {
@@ -1056,8 +1067,8 @@ const documentSearch = useDocumentSearch({
   },
   focusEditor: () => {
     nextTick(() => {
-      if (codeView.value) {
-        getCodeEditor()?.focus();
+      if (codeView.value || splitEditorActive.value) {
+        getSearchCodeView()?.focus();
       } else {
         editorInstance.value?.commands.focus();
       }
@@ -1066,7 +1077,23 @@ const documentSearch = useDocumentSearch({
 });
 
 const openDocumentSearch = async () => {
+  replaceOpen.value = false;
   await documentSearch.open(getSelectedTextForDocumentSearch());
+};
+
+const openReplace = async () => { await openDocumentSearch(); replaceOpen.value = true; };
+const navigateSearch = async (previous: boolean) => {
+  if (!documentSearch.state.value.open) await documentSearch.open(getSelectedTextForDocumentSearch());
+  if (previous) documentSearch.previous(); else documentSearch.next();
+};
+const replaceMatches = (all: boolean) => {
+  documentSearch.refresh();
+  const state = documentSearch.state.value;
+  const matches = all ? state.matches : state.matches.slice(state.activeIndex, state.activeIndex + 1);
+  if (!matches.length) return;
+  replaceDocumentMatches(matches, replacement.value, getSearchCodeView(), editorInstance.value);
+  documentSearch.refresh();
+  documentSearchBarRef.value?.focusInput();
 };
 
 watch(
@@ -1286,11 +1313,10 @@ const aiSelectionRange = computed<{ start: number; end: number } | null>(() => {
 // may diverge from htmlToMarkdown(visual).
 const aiSelectionText = computed<string>(() => {
   aiSelectionTick.value;
-  if (codeView.value) {
-    const editor = getCodeEditor();
-    if (!editor) return '';
-    const { start, end } = editor.getSelection();
-    return start === end ? '' : editor.getValue().slice(start, end);
+  const code = getSearchCodeView();
+  if (code) {
+    const { from, to } = code.state.selection.main;
+    return code.state.sliceDoc(from, to);
   }
   const ed = editorInstance.value;
   if (!ed) return '';
@@ -1442,6 +1468,45 @@ const handleOpenRecentWorkspaceFromToolbar = (rootPath: string) => {
 
 // Quick-switcher modal state. Triggered from sidebar search icon or Ctrl+Shift+E.
 const showWorkspaceQuickSwitcher = ref(false);
+const workspacePickerMode = ref<'all' | 'files' | 'content'>('all');
+const openWorkspacePicker = (mode: 'all' | 'files' | 'content') => { workspacePickerMode.value = mode; showWorkspaceQuickSwitcher.value = true; };
+const pickerMode = ref<'commands' | 'headings' | null>(null);
+const pickerEntries = ref<{ id: string; label: string; shortcut?: string; enabled: boolean }[]>([]);
+let pickerFocus: HTMLElement | null = null;
+let headingActions = new Map<string, () => void>();
+const closePicker = async () => { pickerMode.value = null; await nextTick(); pickerFocus?.focus(); };
+const openCommandPalette = () => {
+  pickerFocus = document.activeElement as HTMLElement;
+  pickerEntries.value = paletteCommands(appCommands.menus.value).map(c => ({ id: c.id, label: c.label, shortcut: c.accelerator ? formatShortcut(c.accelerator) : undefined, enabled: c.enabled }));
+  pickerMode.value = 'commands';
+};
+const openHeadingPicker = () => {
+  pickerFocus = document.activeElement as HTMLElement;
+  headingActions = new Map();
+  const entries: typeof pickerEntries.value = [];
+  const code = getSearchCodeView();
+  if (code) {
+    for (const heading of sourceHeadings(code.state.doc.toString())) {
+      const id = `heading-${heading.from}`;
+      entries.push({ id, label: `${'#'.repeat(heading.level)} ${heading.label}`, enabled: true });
+      headingActions.set(id, () => { code.focus(); code.dispatch({ selection: { anchor: heading.from }, effects: EditorView.scrollIntoView(heading.from, { y: 'center' }) }); });
+    }
+  } else {
+    const ed = editorInstance.value;
+    ed?.state.doc.descendants((node, pos) => {
+      if (node.type.name !== 'heading') return;
+      const id = `heading-${pos}`;
+      entries.push({ id, label: `${'#'.repeat(node.attrs.level)} ${node.textContent}`, enabled: true });
+      headingActions.set(id, () => { ed.chain().focus().setTextSelection(pos + 1).scrollIntoView().run(); });
+    });
+  }
+  pickerEntries.value = entries; pickerMode.value = 'headings';
+};
+const pickCommand = async (id: string) => {
+  const mode = pickerMode.value; await closePicker();
+  if (mode === 'headings') headingActions.get(id)?.();
+  else await appCommands.execute(id);
+};
 
 // Sync the active tab's file path into the workspace tree highlight so the
 // sidebar reveals (and scrolls to) whichever file the user is editing.
@@ -1645,39 +1710,7 @@ const switchTabByIndex = (index: number) => {
   switchTab(pane.id, pane.tabs[index].id);
 };
 
-const handleKeyboard = (event: KeyboardEvent) => {
-  const modifier = event.ctrlKey || event.metaKey;
 
-  if (modifier) {
-    const key = event.key.toLowerCase();
-
-    if (key === 'tab') {
-      event.preventDefault();
-      switchTabByOffset(event.shiftKey ? -1 : 1);
-      return;
-    }
-
-    if (!event.shiftKey && key >= '1' && key <= '9') {
-      event.preventDefault();
-      switchTabByIndex(Number(key) - 1);
-      return;
-    }
-
-    const shortcut = `${event.shiftKey ? 'shift+' : ''}${key}`;
-    const commands: Record<string, string> = {
-      n: 'new-file', s: 'save-file', 'shift+s': 'save-file-as', o: 'open-file', p: 'export-pdf',
-      'shift+d': 'toggle-diff', 'shift+c': 'compare-tabs', 'shift+t': 'toggle-toc', r: 'reload-file',
-      'shift+e': 'workspace-switcher', f: 'find', w: 'close-tab', '=': 'zoom-in', '+': 'zoom-in',
-      'shift++': 'zoom-in', '-': 'zoom-out', '0': 'zoom-reset', ',': 'show-settings',
-      'shift+v': 'toggle-code-view', '/': 'show-shortcuts',
-    };
-    const id = commands[shortcut];
-    if (id) {
-      event.preventDefault();
-      void appCommands.execute(id).catch(console.error);
-    }
-  }
-};
 
 // ============ Lifecycle ============
 let unlistenOpenFile: UnlistenFn | null = null;
@@ -1788,7 +1821,7 @@ const openFileWithCrossWindowDialog = async (): Promise<void> => {
 };
 
 onMounted(async () => {
-  window.addEventListener('keydown', handleKeyboard);
+
   window.addEventListener('wheel', handleWheel, { passive: false });
 
   // Restore last opened workspace (if any). Silent on failure — composable
@@ -1968,7 +2001,7 @@ onMounted(async () => {
 });
 
 onUnmounted(async () => {
-  window.removeEventListener('keydown', handleKeyboard);
+
   window.removeEventListener('wheel', handleWheel);
   scrollSync.detach();
   marpScrollSync.detach();
@@ -2013,7 +2046,7 @@ const appCommands = useAppCommands({
     hasDocument: !!activeTab.value, canDiff: canShowDiff.value, canCompare: canCompareTabs.value,
     diff: showDiffPreview.value, toc: showTocPanel.value, ai: aiPanelOpen.value,
     marp: isMarp.value, marpPreview: showMarpPreview.value,
-    modal: showWorkspaceQuickSwitcher.value || !!tmpRecovery.value || showSettingsModal.value || showShortcutsModal.value || showNewFileModal.value ||
+    modal: !!pickerMode.value || showWorkspaceQuickSwitcher.value || !!tmpRecovery.value || showSettingsModal.value || showShortcutsModal.value || showNewFileModal.value ||
       showPdfDialog.value || showMarpDialog.value || showSaveConfirmDialog.value || showTabCloseDialog.value ||
       showConflictModal.value || showPreSaveConflictModal.value || showExternalLinkDialog.value ||
       showWhatsNewModal.value || showChangelogModal.value || !!showUpdateDialog.value,
@@ -2026,11 +2059,14 @@ const appCommands = useAppCommands({
     'save-file': saveFile, 'save-file-as': saveFileAs, 'reload-file': manualReload,
     'export-pdf': openPdfDialog, 'export-docx': exportDocx, 'present-marp': openMarpDialog,
     'close-tab': () => { if (activeTabId.value) return handleCloseTabRequest(activePaneId.value, activeTabId.value); },
-    'find': openDocumentSearch, 'show-settings': () => openSettings(),
+    'find': openDocumentSearch, 'find-next': () => navigateSearch(false), 'find-previous': () => navigateSearch(true),
+    'replace': openReplace, 'command-palette': openCommandPalette, 'go-to-heading': openHeadingPicker,
+    'quick-open': () => openWorkspacePicker('files'), 'workspace-search': () => openWorkspacePicker('content'),
+    'next-tab': () => switchTabByOffset(1), 'previous-tab': () => switchTabByOffset(-1), 'select-tab': switchTabByIndex, 'show-settings': () => openSettings(),
     'customize-layout': () => openSettings(true), 'restore-layout': () => openSettings(true, true),
     'toggle-toc': toggleTocPanel, 'toggle-code-view': toggleCodeView, 'toggle-split-view': toggleSplit,
     'toggle-split-editor': toggleSplitEditor, 'toggle-diff': toggleDiffPreview, 'compare-tabs': compareTabs,
-    'ai-toggle': toggleAiPanel, 'workspace-switcher': () => { showWorkspaceQuickSwitcher.value = true; },
+    'ai-toggle': toggleAiPanel, 'workspace-switcher': () => openWorkspacePicker('all'),
     'show-shortcuts': () => { showShortcutsModal.value = !showShortcutsModal.value; },
     'whats-new': () => { showWhatsNewModal.value = true; },
     'marp-new-slide': marpNewSlide, 'marp-theme': (v: string) => marpUpdateFrontmatter('theme', v),
@@ -2041,6 +2077,7 @@ const appCommands = useAppCommands({
 });
 provide(appCommandsKey, appCommands);
 useNativeMenus(appCommands);
+useCommandShortcuts(appCommands);
 </script>
 
 <template>
@@ -2106,7 +2143,7 @@ useNativeMenus(appCommands);
         ref="workspaceSidebarRef"
         :folder-drop-active="sidebarFolderDropActive"
         @open-file="handleWorkspaceOpenFile"
-        @open-quick-switcher="showWorkspaceQuickSwitcher = true"
+        @open-quick-switcher="openWorkspacePicker('all')"
         @view-changes="handleWorkspaceViewChanges"
         @drop-in-pane="handleWorkspaceDropInPane"
       />
@@ -2378,21 +2415,31 @@ useNativeMenus(appCommands);
     <!-- Workspace Quick Switcher (Ctrl+Shift+E) -->
     <WorkspaceQuickSwitcher
       v-if="showWorkspaceQuickSwitcher"
+      :mode="workspacePickerMode"
+      :open-tabs="splitState.panes.flatMap(p => p.tabs.map(tab => ({ id: tab.id, name: tab.fileName, path: tab.filePath })))"
+      @select-tab="(id: string) => { const pane = splitState.panes.find(p => p.tabs.some(tab => tab.id === id)); if (pane) switchTab(pane.id, id); }"
       @close="showWorkspaceQuickSwitcher = false"
       @open-file="handleWorkspaceOpenFile"
     />
+
+    <CommandPicker v-if="pickerMode" :title="pickerMode === 'commands' ? t.commandPalette : t.goToHeading" :entries="pickerEntries" @close="closePicker" @pick="pickCommand" />
 
     <!-- Current Document Search (Ctrl/Cmd+F) -->
     <DocumentSearchBar
       v-if="documentSearch.state.value.open"
       ref="documentSearchBarRef"
+      :replace-open="replaceOpen"
+      :replacement="replacement"
+      @update:replacement="replacement = $event"
+      @replace="replaceMatches(false)"
+      @replace-all="replaceMatches(true)"
       :query="documentSearch.state.value.query"
       :active-index="documentSearch.state.value.activeIndex"
       :total="documentSearch.state.value.matches.length"
       @update:query="documentSearch.setQuery"
       @next="documentSearch.next"
       @previous="documentSearch.previous"
-      @close="documentSearch.close"
+      @close="replaceOpen = false; documentSearch.close()"
     />
 
     <!-- AI Assistant Panel (fixed overlay; reports whether main content should

@@ -8,6 +8,15 @@ import ja from './locales/ja';
 export type Locale = 'en' | 'pl' | 'zh-CN' | 'de' | 'ja';
 
 export interface Translations {
+  noSearchResults: string;
+  commandPalette: string;
+  quickOpen: string;
+  goToHeading: string;
+  replace: string;
+  replaceAll: string;
+  toggleComment: string;
+  selectNextOccurrence: string;
+
   documentStyle: string;
   styleOverrides: string;
   styleOverridesHint: string;
