@@ -737,6 +737,7 @@ const { lines: lineNumberEntries } = useLineNumbers({
   containerRef: proseMirrorRef,
   anchorRef: contentWrapperRef,
   enabled: showLineNumbersRef,
+  zoomRef: zoomScale,
 });
 
 watchEffect(() => {
