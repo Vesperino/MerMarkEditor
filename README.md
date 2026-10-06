@@ -387,26 +387,40 @@ Settings is always available in the application menu on macOS, or the Edit menu 
 | Open file | `Ctrl+O` |
 | Save | `Ctrl+S` |
 | Save As | `Ctrl+Shift+S` |
-| Export PDF | `Ctrl+P` |
+| Quick Open | `Ctrl+P` |
+| Command Palette | `Ctrl+Shift+P` / `F1` |
+| Workspace content search | `Ctrl+Shift+F` |
+| Find | `Ctrl+F` |
+| Find next / previous | `Ctrl+G` / `Ctrl+Shift+G` |
+| Replace | `Ctrl+H` (macOS: `Cmd+Option+F`) |
+| Go to heading | `Ctrl+Shift+O` |
+| Toggle workspace sidebar | `Ctrl+Shift+B` |
+| Insert link | `Ctrl+K` |
+| Toggle Markdown comment (Source view) | `Ctrl+/` |
+| Select next occurrence (Source view) | `Ctrl+D` |
+| Rename focused sidebar file | `F2` (macOS: `Enter`) |
 | Undo | `Ctrl+Z` |
-| Redo | `Ctrl+Y` |
+| Redo | `Ctrl+Y` (macOS: `Cmd+Shift+Z`) |
 | Bold | `Ctrl+B` |
 | Italic | `Ctrl+I` |
+| Set heading 1–6 (Visual or Source view) | `Ctrl+1` … `Ctrl+6` |
 | Show changes | `Ctrl+Shift+D` |
 | Compare tabs | `Ctrl+Shift+C` |
 | Reload file | `Ctrl+R` |
 | Close tab | `Ctrl+W` |
 | Next tab | `Ctrl+Tab` |
 | Previous tab | `Ctrl+Shift+Tab` |
-| Jump to tab 1–9 | `Ctrl+1` … `Ctrl+9` |
+| Jump to tab 1–9 | `Ctrl+Alt+1` … `Ctrl+Alt+9` |
 | Toggle Code / Visual view | `Ctrl+Shift+V` |
 | Zoom in / out | `Ctrl++` / `Ctrl+-` |
 | Reset zoom | `Ctrl+0` |
 | Settings | `Ctrl+,` |
-| Keyboard shortcuts | `Ctrl+/` |
+| Keyboard shortcuts help | Command Palette or Help menu |
 | Close modal | `Escape` |
 
-> On macOS, use `⌘` (Cmd) in place of `Ctrl`.
+You can customize app command bindings in **Settings → Keyboard Shortcuts**. Search for a command, click a binding to record a replacement, or use **+** to add an alternative. Conflicting assignments are rejected. Changes are saved automatically; remove a binding with **×**, or restore defaults for one command or all commands. System clipboard and text navigation bindings retain their standard behavior.
+
+> On macOS, use `⌘` (Cmd) in place of `Ctrl`, and `⌥` (Option) in place of `Alt`.
 
 ### Creating Mermaid Diagrams
 

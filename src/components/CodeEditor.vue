@@ -148,6 +148,7 @@ onMounted(() => {
       doc: props.modelValue,
       extensions: [
         history(),
+        EditorState.allowMultipleSelections.of(true),
         markdown(),
         syntaxHighlighting(markdownHighlightStyle),
         keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
