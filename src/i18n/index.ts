@@ -7,6 +7,15 @@ import de from './locales/de';
 export type Locale = 'en' | 'pl' | 'zh-CN' | 'de';
 
 export interface Translations {
+  noSearchResults: string;
+  commandPalette: string;
+  quickOpen: string;
+  goToHeading: string;
+  replace: string;
+  replaceAll: string;
+  toggleComment: string;
+  selectNextOccurrence: string;
+
   documentStyle: string;
   styleOverrides: string;
   styleOverridesHint: string;

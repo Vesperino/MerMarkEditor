@@ -1,6 +1,15 @@
 import type { Translations } from '../index';
 
 const zhCN: Translations = {
+  noSearchResults: '未找到结果。',
+  commandPalette: '命令面板',
+  quickOpen: '快速打开',
+  goToHeading: '转到标题',
+  replace: '替换',
+  replaceAll: '全部替换',
+  toggleComment: '切换注释',
+  selectNextOccurrence: '选择下一个匹配项',
+
   mathInline: '行内公式',
   mathBlock: '块公式',
   mathEdit: '编辑公式',

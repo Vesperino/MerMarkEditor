@@ -4,6 +4,7 @@ import { Menu, MenuItem, CheckMenuItem, Submenu, PredefinedMenuItem } from '@tau
 import { getCurrentWindow, getAllWindows } from '@tauri-apps/api/window';
 import { emitTo, type UnlistenFn } from '@tauri-apps/api/event';
 import type { AppCommands, AppCommand, CommandMenu } from './useAppCommands';
+import { matchesShortcut, flattenCommands } from './useCommandShortcuts';
 import { useMenuLabels } from '../i18n/menus';
 
 const EVENT = 'mermark:menu-command';
@@ -123,19 +124,8 @@ export function useNativeMenus(commands: AppCommands) {
   // A native accelerator may be delivered to the webview instead of the menu.
   // Resolve it here so the capture handler executes it before editor keymaps.
   function shortcutCommand(event: KeyboardEvent): AppCommand | undefined {
-    if (!ready.value || !(isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) || event.altKey || event.isComposing) return undefined;
-    let key = event.key.toLowerCase();
-    if (key === ',' ) key = 'comma';
-    if (key === '+' || key === '=') key = 'plus';
-    const accelerator = `cmdorctrl+${event.shiftKey && key !== 'plus' ? 'shift+' : ''}${key}`;
-    function find(items: (AppCommand | CommandMenu)[]): AppCommand | undefined {
-      for (const item of items) {
-        const match = 'items' in item ? find(item.items)
-          : item.accelerator?.toLowerCase() === accelerator ? item : undefined;
-        if (match) return match;
-      }
-    }
-    return find(commands.menus.value);
+    if (!ready.value || event.isComposing) return undefined;
+    return flattenCommands(commands.menus.value).find(command => command.accelerator && matchesShortcut(event, command.accelerator));
   }
   const ownsShortcut = (event: KeyboardEvent) => !!shortcutCommand(event);
   const handleShortcut = (event: KeyboardEvent) => {

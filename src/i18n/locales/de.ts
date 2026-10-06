@@ -1,6 +1,15 @@
 import type { Translations } from '../index';
 
 const de: Translations = {
+  noSearchResults: 'Keine Ergebnisse gefunden.',
+  commandPalette: 'Befehlspalette',
+  quickOpen: 'Schnell öffnen',
+  goToHeading: 'Zur Überschrift wechseln',
+  replace: 'Ersetzen',
+  replaceAll: 'Alle ersetzen',
+  toggleComment: 'Kommentar umschalten',
+  selectNextOccurrence: 'Nächstes Vorkommen auswählen',
+
   documentStyle: "Dokumentstil",
   styleOverrides: "Anpassungen",
   styleOverridesHint: "Stilvorgaben verwenden oder Lesedarstellung anpassen. Änderungen werden für diesen Stil gespeichert.",

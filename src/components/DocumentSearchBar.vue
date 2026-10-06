@@ -5,12 +5,17 @@ import { useI18n } from '../i18n';
 const { t } = useI18n();
 
 const props = defineProps<{
+  replaceOpen?: boolean;
+  replacement?: string;
   query: string;
   activeIndex: number;
   total: number;
 }>();
 
 const emit = defineEmits<{
+  'update:replacement': [value: string];
+  replace: [];
+  'replace-all': [];
   'update:query': [value: string];
   next: [];
   previous: [];
@@ -64,6 +69,11 @@ defineExpose({ focusInput });
       @input="emit('update:query', ($event.target as HTMLInputElement).value)"
       @keydown="onKeydown"
     />
+    <template v-if="replaceOpen">
+      <input class="document-search-input" :value="replacement" :placeholder="t.replace" :aria-label="t.replace" @input="emit('update:replacement', ($event.target as HTMLInputElement).value)" @keydown.enter.prevent="emit('replace')" @keydown.escape.prevent="emit('close')" />
+      <button type="button" :disabled="!hasMatches" @click="emit('replace')">{{ t.replace }}</button>
+      <button type="button" :disabled="!hasMatches" @click="emit('replace-all')">{{ t.replaceAll }}</button>
+    </template>
     <span class="document-search-count" :class="{ empty: !hasMatches }">{{ displayCount }}</span>
     <button
       class="document-search-btn"
@@ -111,6 +121,8 @@ defineExpose({ focusInput });
   right: 18px;
   z-index: 9000;
   display: flex;
+  flex-wrap: wrap;
+  max-width: calc(100vw - 40px);
   align-items: center;
   gap: 6px;
   padding: 8px;

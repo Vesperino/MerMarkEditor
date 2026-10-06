@@ -570,6 +570,16 @@ function onKeyDown(e: KeyboardEvent) {
   // Ignore when typing in an input/textarea/contenteditable inside the sidebar.
   const target = e.target as HTMLElement | null;
   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+  const row = target?.closest<HTMLElement>('.tree-row');
+  if (row && sidebarRootEl.value?.contains(row) && e.key === (/Mac/.test(navigator.platform) ? 'Enter' : 'F2')) {
+    const path = row.dataset.treePath;
+    if (!path || pendingAction.value || document.querySelector('[aria-modal="true"]')) return;
+    e.preventDefault();
+    ws.selectOnly(path);
+    pendingAction.value = { kind: 'rename', from: path, originalName: basenameOf(path) };
+    return;
+  }
   if (e.key !== 'Delete' && e.key !== 'Backspace') return;
   if (ws.selectedPaths.value.size === 0) return;
   e.preventDefault();

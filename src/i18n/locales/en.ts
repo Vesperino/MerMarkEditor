@@ -1,6 +1,15 @@
 import type { Translations } from '../index';
 
 const en: Translations = {
+  noSearchResults: 'No results found.',
+  commandPalette: 'Command Palette',
+  quickOpen: 'Quick Open',
+  goToHeading: 'Go to Heading',
+  replace: 'Replace',
+  replaceAll: 'Replace All',
+  toggleComment: 'Toggle Comment',
+  selectNextOccurrence: 'Select Next Occurrence',
+
   documentStyle: "Document style",
   styleOverrides: "Overrides",
   styleOverridesHint: "Use the style defaults, or adjust your reading preferences. Changes are remembered for this style.",
