@@ -120,21 +120,32 @@ export function useNativeMenus(commands: AppCommands) {
       await sync(tree);
     }).catch(error => { console.error('Native menu update failed:', error); });
   }
-  // Native accelerators own their keypress. Other editor bindings stay with
-  // TipTap/CodeMirror; history commands explicitly target the focused text field.
-  function ownsShortcut(event: KeyboardEvent) {
-    if (!ready.value || !(isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) || event.altKey) return false;
+  // A native accelerator may be delivered to the webview instead of the menu.
+  // Resolve it here so the capture handler executes it before editor keymaps.
+  function shortcutCommand(event: KeyboardEvent): AppCommand | undefined {
+    if (!ready.value || !(isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) || event.altKey || event.isComposing) return undefined;
     let key = event.key.toLowerCase();
     if (key === ',' ) key = 'comma';
     if (key === '+' || key === '=') key = 'plus';
     const accelerator = `cmdorctrl+${event.shiftKey && key !== 'plus' ? 'shift+' : ''}${key}`;
-    function matches(items: (AppCommand | CommandMenu)[]): boolean {
-      return items.some(i => 'items' in i ? matches(i.items) : i.accelerator?.toLowerCase() === accelerator);
+    function find(items: (AppCommand | CommandMenu)[]): AppCommand | undefined {
+      for (const item of items) {
+        const match = 'items' in item ? find(item.items)
+          : item.accelerator?.toLowerCase() === accelerator ? item : undefined;
+        if (match) return match;
+      }
     }
-    return matches(commands.menus.value);
+    return find(commands.menus.value);
   }
-  const blockDuplicate = (event: KeyboardEvent) => {
-    if (ownsShortcut(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
+  const ownsShortcut = (event: KeyboardEvent) => !!shortcutCommand(event);
+  const handleShortcut = (event: KeyboardEvent) => {
+    const command = shortcutCommand(event);
+    if (!command) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    // Native menu actions still route to the focused window. DOM keypresses
+    // already belong to this window and must not be silently discarded.
+    if (command.enabled) void commands.execute(command.id).catch(console.error);
   };
   onMounted(async () => {
     if (!enabled) return;
@@ -143,14 +154,14 @@ export function useNativeMenus(commands: AppCommands) {
     unfocus = await getCurrentWindow().onFocusChanged(event => { if (event.payload) schedule(true); });
     if (disposed) { unfocus(); return; }
     listening = true;
-    document.addEventListener('keydown', blockDuplicate, true);
+    document.addEventListener('keydown', handleShortcut, true);
     schedule(true);
   });
   watch(commands.menus, () => schedule());
   onScopeDispose(() => {
     disposed = true;
     unlisten?.(); unfocus?.();
-    document.removeEventListener('keydown', blockDuplicate, true);
+    document.removeEventListener('keydown', handleShortcut, true);
     void queue.then(() => Promise.allSettled(resources.map(r => r.close())));
   });
   return { ready, ownsShortcut };
