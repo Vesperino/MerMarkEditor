@@ -1,6 +1,19 @@
 import type { Translations } from '../index';
 
 const zhCN: Translations = {
+  shortcutSearch: '搜索命令或快捷键…',
+  shortcutSettingsHelp: '更改会自动保存。剪贴板和文本导航快捷键遵循系统惯例。',
+  shortcutResetAll: '恢复所有默认快捷键',
+  shortcutReset: '恢复默认快捷键',
+  shortcutChange: '更改快捷键',
+  shortcutRemove: '删除快捷键',
+  shortcutAdd: '添加快捷键',
+  shortcutUnassigned: '未分配',
+  shortcutRecord: '按下快捷键…',
+  shortcutInvalid: '请使用修饰键组合或功能键（F1–F12）。',
+  shortcutReserved: '此快捷键已保留用于系统或剪贴板操作。',
+  shortcutConflict: (action: string) => '已分配给：' + action,
+
   noSearchResults: '未找到结果。',
   commandPalette: '命令面板',
   quickOpen: '快速打开',

@@ -124,7 +124,7 @@ export function useNativeMenus(commands: AppCommands) {
   // A native accelerator may be delivered to the webview instead of the menu.
   // Resolve it here so the capture handler executes it before editor keymaps.
   function shortcutCommand(event: KeyboardEvent): AppCommand | undefined {
-    if (!ready.value || event.isComposing) return undefined;
+    if (!ready.value || event.isComposing || document.activeElement?.closest('[data-shortcut-recorder]')) return undefined;
     return flattenCommands(commands.menus.value).find(command => command.accelerator && matchesShortcut(event, command.accelerator));
   }
   const ownsShortcut = (event: KeyboardEvent) => !!shortcutCommand(event);

@@ -7,6 +7,19 @@ import de from './locales/de';
 export type Locale = 'en' | 'pl' | 'zh-CN' | 'de';
 
 export interface Translations {
+  shortcutSearch: string;
+  shortcutSettingsHelp: string;
+  shortcutResetAll: string;
+  shortcutReset: string;
+  shortcutChange: string;
+  shortcutRemove: string;
+  shortcutAdd: string;
+  shortcutUnassigned: string;
+  shortcutRecord: string;
+  shortcutInvalid: string;
+  shortcutReserved: string;
+  shortcutConflict: (action: string) => string;
+
   noSearchResults: string;
   commandPalette: string;
   quickOpen: string;

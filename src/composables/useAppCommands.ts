@@ -16,6 +16,7 @@ export interface AppCommand {
   label: string;
   accelerator?: string;
   aliases?: string[];
+  defaultShortcuts?: string[];
   enabled: boolean;
   checked?: boolean;
   run: () => unknown;
@@ -97,6 +98,7 @@ export function useAppCommands(options: {
   const menus = computed<CommandMenu[]>(() => {
     void revision.value;
     const c = options.context(), l = labels.value, tr = t.value;
+    const recording = !!document.activeElement?.closest('[data-shortcut-recorder]');
     const inputFocused = !!document.activeElement?.matches('input, textarea') || !!document.activeElement?.closest('.cm-editor');
     const visual = c.hasDocument && !!options.editor.value && !c.codeView && !c.splitEditor && !c.modal && !inputFocused;
     const doc = c.hasDocument && !c.modal;
@@ -104,8 +106,12 @@ export function useAppCommands(options: {
     const source = doc && !!code;
     const formatting = visual || source;
     const sourceHeading = code?.state.doc.lineAt(code.state.selection.main.head).text.match(/^ {0,3}(#{1,6})(?:\s|$)/)?.[1].length ?? 0;
-    const command = (id: string, label: string, run?: () => unknown, enabled = !c.modal, accelerator?: string, checked?: boolean): AppCommand =>
-      ({ id, label, run: run ?? (() => options.actions[id]?.()), enabled, accelerator, checked });
+    const command = (id: string, label: string, run?: () => unknown, enabled = !c.modal, accelerator?: string, checked?: boolean, aliases: string[] = []): AppCommand => {
+      const defaultShortcuts = [accelerator, ...aliases].filter((key): key is string => !!key);
+      const shortcuts = settings.value.keyboardShortcuts?.[id] ?? defaultShortcuts;
+      return { id, label, run: run ?? (() => options.actions[id]?.()), enabled, checked,
+        defaultShortcuts, accelerator: shortcuts[0], aliases: shortcuts.slice(1) };
+    };
     const edit = (id: string, label: string, run: () => unknown, active?: string): AppCommand =>
       command(id, label, () => {
         if (source && code && (id === 'bold' || id === 'italic' || id === 'link')) {
@@ -113,7 +119,9 @@ export function useAppCommands(options: {
           if (url !== null) formatSource(code, id, url);
         } else run();
       }, ['bold', 'italic', 'link'].includes(id) ? formatting : visual,
-      id === 'bold' ? 'CmdOrCtrl+B' : id === 'italic' ? 'CmdOrCtrl+I' : id === 'link' ? 'CmdOrCtrl+K' : undefined,
+      ({ bold: 'CmdOrCtrl+B', italic: 'CmdOrCtrl+I', link: 'CmdOrCtrl+K', 'inline-code': 'CmdOrCtrl+E',
+        'bullet-list': 'CmdOrCtrl+Shift+8', 'ordered-list': 'CmdOrCtrl+Shift+7', 'task-list': 'CmdOrCtrl+Shift+9',
+        'code-block': 'CmdOrCtrl+Alt+C' } as Record<string, string>)[id],
       active ? visual && a.isActive(active) : undefined);
     const invoke = (id: string, ...args: unknown[]) => () => options.actions[id]?.(...args);
     const chain = (fn: (editor: Editor) => void) => () => a.runCommand(fn);
@@ -156,7 +164,7 @@ export function useAppCommands(options: {
         command('replace', tr.replace, undefined, doc, /Mac/.test(navigator.platform) ? 'CmdOrCtrl+Alt+F' : 'CmdOrCtrl+H'),
         command('toggle-comment', tr.toggleComment, () => { if (code) toggleBlockComment(code); }, source, 'CmdOrCtrl+/'),
         command('select-next-occurrence', tr.selectNextOccurrence, () => { if (code) selectNextOccurrence(code); }, source, 'CmdOrCtrl+D'),
-        command('show-settings', `${tr.settings}…`, undefined, true, 'CmdOrCtrl+Comma'),
+        command('show-settings', `${tr.settings}…`, undefined, !recording, 'CmdOrCtrl+Comma'),
       ]),
       menu(l.format, [
         menu(tr.heading, Array.from({ length: 7 }, (_, level) => command(`heading:${level}`, level ? tr.headingLevel(level) : tr.paragraph,
@@ -189,7 +197,7 @@ export function useAppCommands(options: {
       ]),
       menu(l.view, [
         command('toggle-workspace-sidebar', tr.workspace, workspace.toggleSidebarVisible, !c.modal, 'CmdOrCtrl+Shift+B', workspace.sidebarVisible.value),
-        { ...command('command-palette', tr.commandPalette, undefined, !c.modal, 'CmdOrCtrl+Shift+P'), aliases: ['F1'] },
+        command('command-palette', tr.commandPalette, undefined, !c.modal, 'CmdOrCtrl+Shift+P', undefined, ['F1']),
         command('quick-open', tr.quickOpen, undefined, !c.modal, 'CmdOrCtrl+P'),
         command('workspace-search', tr.searchWorkspace, undefined, !c.modal, 'CmdOrCtrl+Shift+F'),
         command('go-to-heading', tr.goToHeading, undefined, doc, 'CmdOrCtrl+Shift+O'),

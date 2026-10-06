@@ -1,4 +1,5 @@
 import { isDocumentStyleId, normalizeOverrides, type DocumentStyleId, type DocumentStyleOverrides } from '../styles/document-themes';
+import { normalizeShortcutOverrides } from '../utils/shortcut-preferences';
 import { ref, watch } from 'vue';
 import type { TokenModelId } from '../services/tokenCounter';
 import { TOKEN_MODELS } from '../services/tokenCounter';
@@ -136,6 +137,7 @@ export const CODE_FONTS: FontPreset[] = [
 ];
 
 export interface AppSettings {
+  keyboardShortcuts: Record<string, string[]>;
   autoSave: boolean;
   showTokenCount: boolean;
   tokenModel: TokenModelId;
@@ -314,6 +316,7 @@ function loadSettings(): AppSettings {
         ai: mergedAi,
       };
 
+      merged.keyboardShortcuts = normalizeShortcutOverrides(parsed.keyboardShortcuts);
       merged.documentStyle = isDocumentStyleId(parsed.documentStyle) ? parsed.documentStyle : 'github';
       merged.documentStyleOverrides = {};
       if (parsed.documentStyleOverrides && typeof parsed.documentStyleOverrides === 'object') {
@@ -362,6 +365,7 @@ function loadSettings(): AppSettings {
 
 function getDefaultSettings(): AppSettings {
   return {
+    keyboardShortcuts: {},
     autoSave: false,
     showTokenCount: true,
     tokenModel: 'gpt',
