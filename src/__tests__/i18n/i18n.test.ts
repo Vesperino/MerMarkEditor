@@ -3,8 +3,9 @@ import type { Translations } from '../../i18n/index';
 import en from '../../i18n/locales/en';
 import pl from '../../i18n/locales/pl';
 import zhCN from '../../i18n/locales/zh-CN';
+import ja from '../../i18n/locales/ja';
 
-const locales: Record<string, Translations> = { en, pl, 'zh-CN': zhCN };
+const locales: Record<string, Translations> = { en, pl, 'zh-CN': zhCN, ja };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
@@ -64,5 +65,15 @@ describe('i18n translations', () => {
     const chineseCount = keysToCheck.filter(key => chineseRegex.test((zhCN as AnyRecord)[key] as string)).length;
     const ratio = chineseCount / keysToCheck.length;
     expect(ratio, `Only ${(ratio * 100).toFixed(0)}% of zh-CN keys contain Chinese characters`).toBeGreaterThan(0.8);
+  });
+
+  it('ja should have Japanese characters in most values', () => {
+    const japaneseRegex = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]/;
+    const stringKeys = getStringKeys(locales.ja);
+    const skipKeys = new Set(['appName', 'bold', 'italic', 'strikethrough', 'inlineCode', 'mermaid', 'exportPdf', 'printScale', 'diffView', 'mergeView']);
+    const keysToCheck = stringKeys.filter(k => !skipKeys.has(k));
+    const japaneseCount = keysToCheck.filter(key => japaneseRegex.test((locales.ja as AnyRecord)[key] as string)).length;
+    const ratio = japaneseCount / keysToCheck.length;
+    expect(ratio, `Only ${(ratio * 100).toFixed(0)}% of ja keys contain Japanese characters`).toBeGreaterThan(0.8);
   });
 });

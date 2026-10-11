@@ -76,6 +76,24 @@ const labels: Record<Locale, MenuLabels> = {
     cut: 'Ausschneiden', copy: 'Kopieren', paste: 'Einfügen', selectAll: 'Alles auswählen',
     newWindow: 'Neues Fenster', closeWindow: 'Fenster schließen', tokens: 'Token-Anzahl anzeigen',
   },
+  ja: {
+    file: 'ファイル', edit: '編集', format: '書式', insert: '挿入', view: '表示',
+    presentation: 'プレゼンテーション', help: 'ヘルプ', window: 'ウィンドウ',
+    bold: '太字', italic: '斜体', strike: '打ち消し線',
+    inlineCode: 'インラインコード', bulletList: '箇条書きリスト', orderedList: '番号付きリスト',
+    taskList: 'タスクリスト', blockquote: '引用', codeBlock: 'コードブロック',
+    horizontalRule: '水平線', pageBreak: '改ページ', link: 'リンク', image: '画像',
+    customize: 'レイアウトのカスタマイズ…', restore: 'デフォルトレイアウトに戻す…',
+    presets: 'レイアウトのプリセット', full: 'フル', minimal: 'ミニマル', custom: 'カスタム',
+    fullDescription: 'ツールバーのすべての編集コントロールを表示します。',
+    minimalDescription: 'ワークスペース、統計、ズーム、AI、エディタモードを下部バーに配置し、その他はメニュー内に格納します。',
+    menuHint: '非表示のコントロールもアプリのメニューからいつでも利用できます。',
+    replaceTitle: 'カスタムレイアウトを置き換えますか？',
+    replaceMessage: 'このプリセットを適用すると、現在のコントロール配置が上書きされます。その他の設定は維持されます。',
+    apply: 'プリセットを適用', zoomReset: '実際のサイズ', reload: 'ディスクから再読込',
+    cut: '切り取り', copy: 'コピー', paste: '貼り付け', selectAll: 'すべて選択',
+    newWindow: '新しいウィンドウ', closeWindow: 'ウィンドウを閉じる', tokens: 'トークン',
+  },
 };
 export function useMenuLabels() {
   const { locale } = useI18n();
