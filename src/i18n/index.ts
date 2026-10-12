@@ -37,6 +37,11 @@ export interface Translations {
   baseFontSize: string;
   paragraphSpacing: string;
   contentWidth: string;
+  editorMargin: string;
+  editorMarginPageless: string;
+  editorMarginSmall: string;
+  editorMarginMedium: string;
+  editorMarginLarge: string;
   resetStyleValue: string;
   resetStyleOverrides: string;
   pdfPresetCurrentEditor: string;

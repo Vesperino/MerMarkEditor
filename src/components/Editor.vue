@@ -734,12 +734,17 @@ watch(() => appSettings.value.spellcheck, (newVal) => {
 const proseMirrorRef = ref<HTMLElement | null>(null);
 const contentWrapperRef = ref<HTMLElement | null>(null);
 const showLineNumbersRef = showGutter;
-const { lines: lineNumberEntries } = useLineNumbers({
+const { lines: lineNumberEntries, recompute: recomputeLineNumbers } = useLineNumbers({
   containerRef: proseMirrorRef,
   anchorRef: contentWrapperRef,
   enabled: showLineNumbersRef,
   zoomRef: zoomScale,
 });
+
+// Margins can move text without resizing it when the reading width is unchanged.
+watch(() => appSettings.value.editorMargin, () => {
+  if (showGutter.value) recomputeLineNumbers();
+}, { flush: 'post' });
 
 watchEffect(() => {
   proseMirrorRef.value = (editor.value?.view?.dom as HTMLElement | undefined) ?? null;
@@ -872,7 +877,7 @@ defineExpose({
     <div
       ref="contentWrapperRef"
       class="editor-content-wrapper"
-      :class="{ 'has-line-numbers': showGutter }"
+      :class="{ 'has-line-numbers': showGutter, 'is-pageless': appSettings.editorMargin === 'pageless' }"
       :style="editorZoomStyle"
     >
       <EditorGutter v-if="showGutter" :lines="lineNumberEntries" />
@@ -971,7 +976,7 @@ defineExpose({
   font-size: var(--doc-font-size, 16px);
   flex: 1 0 auto;
   width: 100%;
-  max-width: calc(var(--doc-content-width, 680px) + 48px + var(--editor-gutter-width, 0px));
+  max-width: calc(var(--doc-content-width, 680px) + 2 * var(--editor-pad-x, 48px) + var(--editor-gutter-width, 0px));
   margin: 20px auto;
 }
 
@@ -980,8 +985,8 @@ defineExpose({
 }
 
 .editor-content-wrapper.has-line-numbers .editor-content {
-  /* Keep fixed side padding outside the line-number gutter. */
-  padding-left: calc(24px + var(--editor-gutter-width));
+  /* Reserve line-number space independently of the selected margin. */
+  padding-left: calc(var(--editor-pad-x, 48px) + var(--editor-gutter-width));
 }
 
 .editor-content {
@@ -992,11 +997,25 @@ defineExpose({
   line-height: var(--doc-line-height, 1.5);
   display: flex;
   flex-direction: column;
-  /* Fixed editor breathing room. Reading width controls the text column. */
-  padding: 16px 24px 32px;
+  /* Reading width controls the text column; margins surround it. */
+  padding: var(--editor-pad-top, 32px) var(--editor-pad-x, 48px) var(--editor-pad-bottom, 64px);
   min-height: 100%;
   box-shadow: var(--shadow-sm);
   border-radius: 4px;
+}
+
+.editor-content-wrapper.is-pageless {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  margin: 0;
+  background: var(--doc-background, var(--editor-content-bg));
+}
+
+.editor-content-wrapper.is-pageless .editor-content {
+  flex: 1;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 :where(.editor-content .tiptap) {

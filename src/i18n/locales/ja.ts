@@ -1,6 +1,11 @@
 import type { Translations } from '../index';
 
 const ja: Translations = {
+  editorMargin: '余白',
+  editorMarginPageless: 'ページ分けなし',
+  editorMarginSmall: '小',
+  editorMarginMedium: '中',
+  editorMarginLarge: '大',
   shortcutSearch: 'コマンドまたはショートカットを検索…',
   shortcutSettingsHelp: '変更は自動的に保存されます。クリップボード操作とカーソル移動のショートカットは OS の標準に従います。',
   shortcutResetAll: 'すべてデフォルトに戻す',

@@ -74,7 +74,7 @@ for (const theme of ['light', 'dark'] as const) {
 
       const before = await documentStyles(page);
       const savedBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('mermark-settings')!));
-      expect(before.content['padding-left']).toBe('24px');
+      expect(before.content['padding-left']).toBe('48px');
       expect(before.elements.find((element) => element.tag === 'P')!.styles['line-height']).toBe('32px');
 
       await page.locator('.settings-btn').click();
