@@ -1014,8 +1014,16 @@ defineExpose({
 
 .editor-content-wrapper.is-pageless .editor-content {
   flex: 1;
+  width: 100%;
+  max-width: calc(var(--doc-content-width, 680px) + var(--editor-gutter-width, 0px));
+  margin: 0 auto;
   border-radius: 0;
   box-shadow: none;
+}
+
+.editor-content-wrapper.is-pageless > .editor-gutter {
+  /* Keep the gutter beside the centered text, while the background fills the pane. */
+  left: max(0px, calc((100% - var(--doc-content-width, 680px) - var(--editor-gutter-width, 0px)) / 2));
 }
 
 :where(.editor-content .tiptap) {

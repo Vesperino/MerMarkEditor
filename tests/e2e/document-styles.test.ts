@@ -25,6 +25,51 @@ async function sizes(page: Page) {
   }));
 }
 
+for (const zoom of [50, 100, 150]) {
+  test(`Pageless preserves content width and gutter alignment at ${zoom}% zoom`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.addInitScript(value => localStorage.setItem('mermark-editor-zoom', String(value)), zoom);
+    await start(page);
+    await page.locator('#editor-margin').selectOption('pageless');
+    await page.getByTestId('document-overrides').locator('summary').click();
+    for (const width of [520, 680]) {
+      await range(page, 'contentWidth', width);
+      expect((await sizes(page)).width).toBeCloseTo(width * zoom / 100, 0);
+    }
+    await page.locator('.setting-row').filter({ has: page.getByText('Line numbers', { exact: true }) }).getByRole('button', { name: 'On', exact: true }).click();
+    expect((await sizes(page)).width).toBeCloseTo(680 * zoom / 100, 0);
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(page.locator('.editor-pane.active .editor-gutter-line').first()).toBeVisible();
+    const geometry = () => page.locator('.editor-pane.active .editor-container').evaluate(container => {
+      const wrapper = container.querySelector('.editor-content-wrapper')!;
+      const content = container.querySelector('.editor-content')!;
+      const rect = container.getBoundingClientRect();
+      const background = wrapper.getBoundingClientRect();
+      const column = content.getBoundingClientRect();
+      return {
+        paneWidth: rect.width,
+        backgroundWidth: background.width,
+        fillsHeight: background.bottom >= rect.bottom - 1,
+        sameBackground: getComputedStyle(wrapper).backgroundColor === getComputedStyle(content).backgroundColor,
+        centered: Math.abs((column.left + column.right) / 2 - (background.left + background.right) / 2) < 1,
+        gutterRight: container.querySelector('.editor-gutter')!.getBoundingClientRect().right,
+        textLeft: container.querySelector('.tiptap')!.getBoundingClientRect().left,
+        noOverflow: container.scrollWidth <= container.clientWidth,
+      };
+    });
+    for (const viewportWidth of [1600, 600]) {
+      await page.setViewportSize({ width: viewportWidth, height: 1000 });
+      const layout = await geometry();
+      expect(layout.backgroundWidth).toBeCloseTo(layout.paneWidth, 0);
+      expect(layout.fillsHeight).toBe(true);
+      expect(layout.sameBackground).toBe(true);
+      expect(layout.centered).toBe(true);
+      expect(layout.gutterRight).toBeCloseTo(layout.textLeft, 0);
+      expect(layout.noOverflow).toBe(true);
+    }
+  });
+}
+
 test('all seven styles render matching editor previews with independent, persistent overrides', async ({ page }) => {
   await start(page);
   const selector = page.getByTestId('document-style-select');
