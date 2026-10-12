@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRecentFiles } from '../composables/useRecentFiles';
 import { useWorkspace } from '../composables/useWorkspace';
+import { useAppCommandDispatcher } from '../composables/useAppCommands';
+import { flattenCommands, formatShortcut } from '../composables/useCommandShortcuts';
 import { t } from '../i18n';
 
 /**
@@ -11,6 +13,12 @@ import { t } from '../i18n';
  * Replaces the original "open-file group" — keeps the file-open default but
  * lifts workspace operations to a single discoverable spot.
  */
+
+const commands = useAppCommandDispatcher();
+const openShortcut = computed(() => {
+  const key = flattenCommands(commands?.menus.value ?? []).find(c => c.id === 'open-file')?.accelerator;
+  return key ? formatShortcut(key) : '';
+});
 
 const emit = defineEmits<{
   /** User clicked the main icon (or selected "Open file" from dropdown). */
@@ -88,7 +96,7 @@ const primaryAction = () => {
   <div class="open-split-button" ref="dropdownRef">
     <button
       class="toolbar-btn primary-btn"
-      :title="`${t.open} (Ctrl+O)`"
+      :title="openShortcut ? `${t.open} (${openShortcut})` : t.open"
       @click="primaryAction"
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -116,7 +124,7 @@ const primaryAction = () => {
           <path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/>
         </svg>
         <span class="dropdown-action-label">{{ t.openFile }}</span>
-        <span class="dropdown-action-shortcut">Ctrl+O</span>
+        <span v-if="openShortcut" class="dropdown-action-shortcut">{{ openShortcut }}</span>
       </button>
       <button class="dropdown-action" @click="handleOpenWorkspace">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

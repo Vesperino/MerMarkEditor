@@ -27,7 +27,8 @@
 <p align="center">
   <a href="README.md">English</a> •
   <a href="README_PL.md">Polski</a> •
-  <strong>中文</strong>
+  <strong>中文</strong> •
+  <a href="README_JA.md">日本語</a>
 </p>
 
 ---
@@ -219,7 +220,7 @@
 - **字符 / 单词 / 行 / token 计数器** 作为单一可移动单元
 - **样式化的 prompt / confirm 对话框** 全程使用（不再有原生浏览器弹窗）
 - **自动保存** - 不会丢失工作
-- **多语言界面** - 英语、波兰语、中文、德语
+- **多语言界面** - 英语、波兰语、中文、德语和日语
 - **快捷键速查模态** - 所有快捷键的快速参考 (`Ctrl+/`)
 
 ### 高级功能
@@ -354,7 +355,7 @@
 1. **打开文件**：`Ctrl+O`（macOS 上为 `Cmd+O`）
 2. **保存**：`Ctrl+S`（保存为 Markdown）
 3. **另存为**：`Ctrl+Shift+S`
-4. **导出 PDF**：使用 **文件 → PDF…** 或工具栏中的 PDF 按钮
+4. **打印或导出 PDF**：使用 **文件 → 打印…**（`Ctrl+P`）或 **文件 → PDF…**，也可以点击工具栏中的 PDF 按钮
 5. **简化界面**：打开 **视图 → 自定义布局…** 并选择 **精简**。工作区、统计、缩放、AI 和代码视图控件位于底部栏，顶部工具栏留空。所有命令仍保留在原生菜单中。通过 **视图 → 恢复默认布局…** 恢复原始布局。
 
 设置始终可在 macOS 的应用菜单或 Windows/Linux 的编辑菜单中找到，也可通过 `Cmd/Ctrl+,` 打开。精简布局与 Minimal 颜色主题相互独立。
@@ -362,29 +363,42 @@
 ### 键盘快捷键
 
 | 操作 | 快捷键 |
-|------|--------|
+|---|---|
 | 新建文件 | `Ctrl+N` |
 | 打开文件 | `Ctrl+O` |
 | 保存 | `Ctrl+S` |
 | 另存为 | `Ctrl+Shift+S` |
-| 导出 PDF | `Ctrl+P` |
+| 打印 / PDF | `Ctrl+P` |
+| 命令面板 | `Ctrl+Shift+P` / `F1` |
+| 搜索工作区（文件和内容） | `Ctrl+Shift+E` |
+| 搜索工作区文件内容 | `Ctrl+Shift+F` |
+| 查找 | `Ctrl+F` |
+| 查找下一个 / 上一个 | `Ctrl+G` / `Ctrl+Shift+G` |
+| 替换 | `Ctrl+H`（macOS：`Cmd+Option+F`） |
+| 转到标题 | `Ctrl+Shift+O` |
+| 插入链接 | `Ctrl+K` |
+| 切换 Markdown 注释（代码视图） | `Ctrl+/` |
+| 选择下一个匹配项（代码视图） | `Ctrl+D` |
+| 重命名侧边栏中选中的文件 | `F2`（macOS：`Enter`） |
 | 撤销 | `Ctrl+Z` |
-| 重做 | `Ctrl+Y` |
+| 重做 | `Ctrl+Y`（macOS：`Cmd+Shift+Z`） |
 | 加粗 | `Ctrl+B` |
 | 斜体 | `Ctrl+I` |
+| 标题 1–6 / 正文 | `Ctrl+Alt+1` … `Ctrl+Alt+6` / `Ctrl+Alt+0` |
 | 显示变更 | `Ctrl+Shift+D` |
 | 标签对比 | `Ctrl+Shift+C` |
 | 重新加载文件 | `Ctrl+R` |
 | 关闭标签 | `Ctrl+W` |
-| 下一个标签 | `Ctrl+Tab` |
-| 上一个标签 | `Ctrl+Shift+Tab` |
+| 下一个 / 上一个标签 | `Ctrl+Tab` / `Ctrl+Shift+Tab`（也可用 `Ctrl+PageDown` / `Ctrl+PageUp`） |
 | 跳到标签 1–9 | `Ctrl+1` … `Ctrl+9` |
 | 切换 代码 / 可视化 视图 | `Ctrl+Shift+V` |
 | 放大 / 缩小 | `Ctrl++` / `Ctrl+-` |
 | 重置缩放 | `Ctrl+0` |
 | 设置 | `Ctrl+,` |
-| 键盘快捷键 | `Ctrl+/` |
+| 键盘快捷键 | `Ctrl+/`（代码视图之外） |
 | 关闭模态 | `Escape` |
+
+可在 **设置 → 键盘快捷键** 中修改命令的快捷键：搜索命令，点击快捷键录制新的组合，或用 **+** 添加备用快捷键。冲突的分配会被拒绝，更改会自动保存。用 **×** 删除快捷键，也可以恢复单个命令或全部命令的默认值。快速打开默认没有快捷键，可以在这里自行分配。剪贴板和文本导航按键保持系统行为，AltGr 字符（ą、ć、@、[、{）不会被当作快捷键。
 
 > 在 macOS 上，使用 `⌘`（Cmd）替代 `Ctrl`。
 

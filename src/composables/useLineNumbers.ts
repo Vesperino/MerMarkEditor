@@ -10,6 +10,7 @@ interface UseLineNumbersOptions {
   containerRef: Ref<HTMLElement | null>;
   enabled: Ref<boolean>;
   anchorRef?: Ref<HTMLElement | null>;
+  zoomRef?: Ref<number>;
 }
 
 interface LineRect {
@@ -22,7 +23,7 @@ const MERGE_OVERLAP_FRACTION = 0.35;
 const LINE_HEIGHT_SNAP_FRACTION = 0.45;
 const MAX_EMPTY_LINE_HEIGHT_PX = 60;
 
-export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumbersOptions) {
+export function useLineNumbers({ containerRef, enabled, anchorRef, zoomRef = ref(1) }: UseLineNumbersOptions) {
   const lines = ref<LineEntry[]>([]);
 
   let resizeObserver: ResizeObserver | null = null;
@@ -46,6 +47,7 @@ export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumb
 
     const anchor = anchorRef?.value ?? container;
     const anchorRect = anchor.getBoundingClientRect();
+    const zoom = measureScale(container, zoomRef.value);
     const entries: LineEntry[] = [];
     let counter = 1;
 
@@ -53,12 +55,13 @@ export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumb
       const rect = child.getBoundingClientRect();
       if (rect.height === 0) continue;
 
-      const lineRects = getLinesForBlock(child, rect);
+      const lineRects = getLinesForBlock(child, rect, zoom);
       for (const lr of lineRects) {
         entries.push({
-          top: lr.top - anchorRect.top,
+          // Rects are in viewport pixels; the gutter's CSS positions are not.
+          top: (lr.top - anchorRect.top) / zoom,
           num: counter++,
-          height: lr.height,
+          height: lr.height / zoom,
         });
       }
     }
@@ -84,7 +87,7 @@ export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumb
       }
       scheduleRecompute();
     });
-    mutationObserver.observe(container, { childList: true, subtree: false, characterData: true });
+    mutationObserver.observe(container, { childList: true });
 
     scheduleRecompute();
   };
@@ -104,14 +107,24 @@ export function useLineNumbers({ containerRef, enabled, anchorRef }: UseLineNumb
   watch([containerRef, enabled], ([container, isEnabled]) => {
     detach();
     if (isEnabled && container) attach();
-  }, { immediate: true });
+  }, { immediate: true, flush: 'post' });
+  // CSS zoom changes viewport rects without resizing blocks.
+  watch(zoomRef, scheduleRecompute, { flush: 'post' });
 
   onBeforeUnmount(detach);
 
   return { lines, recompute: scheduleRecompute };
 }
 
-function getLinesForBlock(el: HTMLElement, rect: DOMRect): LineRect[] {
+/** Engines disagree on whether rects include CSS zoom (WebKit before 2025 divides it out),
+ *  so derive the scale from the layout instead of trusting the configured zoom. */
+function measureScale(el: HTMLElement, fallback: number): number {
+  const layout = el.offsetWidth;
+  const visual = el.getBoundingClientRect().width;
+  return layout > 0 && visual > 0 ? visual / layout : fallback;
+}
+
+function getLinesForBlock(el: HTMLElement, rect: DOMRect, zoom: number): LineRect[] {
   if (isAtomicBlock(el)) {
     return [{ top: rect.top, height: rect.height }];
   }
@@ -122,18 +135,18 @@ function getLinesForBlock(el: HTMLElement, rect: DOMRect): LineRect[] {
   }
 
   if ((el.textContent ?? '').trim() === '') {
-    if (rect.height > MAX_EMPTY_LINE_HEIGHT_PX) return [];
+    if (rect.height > MAX_EMPTY_LINE_HEIGHT_PX * zoom) return [];
     return [{ top: rect.top, height: rect.height }];
   }
 
-  const textRects = getTextLineRects(el);
+  const textRects = getTextLineRects(el, zoom);
   if (textRects.length > 0) return textRects;
 
   if (el.tagName === 'PRE') {
     return getPreLineRects(el, rect);
   }
 
-  return fallbackLineRects(el, rect);
+  return fallbackLineRects(el, rect, zoom);
 }
 
 function getTableRowRects(table: HTMLElement, tableRect: DOMRect): LineRect[] {
@@ -168,11 +181,11 @@ function getPreLineRects(pre: HTMLElement, rect: DOMRect): LineRect[] {
   return out;
 }
 
-function getTextLineRects(el: HTMLElement): LineRect[] {
+function getTextLineRects(el: HTMLElement, zoom: number): LineRect[] {
   if (!el.firstChild || typeof document.createRange !== 'function') return [];
   const collected: DOMRect[] = [];
   collectInlineRects(el, collected);
-  return normalizeTextLineRects(mergeSameRow(collected), resolveLineHeightPx(el));
+  return normalizeTextLineRects(mergeSameRow(collected), resolveLineHeightPx(el) * zoom);
 }
 
 function collectInlineRects(el: HTMLElement, out: DOMRect[]): void {
@@ -271,8 +284,8 @@ function normalizeTextLineRects(rects: LineRect[], lineHeightPx: number): LineRe
   return normalized;
 }
 
-function fallbackLineRects(el: HTMLElement, rect: DOMRect): LineRect[] {
-  const lineHeightPx = resolveLineHeightPx(el);
+function fallbackLineRects(el: HTMLElement, rect: DOMRect, zoom: number): LineRect[] {
+  const lineHeightPx = resolveLineHeightPx(el) * zoom;
   if (lineHeightPx < MIN_LINE_HEIGHT_PX) {
     return [{ top: rect.top, height: rect.height }];
   }

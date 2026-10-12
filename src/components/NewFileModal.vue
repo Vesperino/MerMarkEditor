@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount } from 'vue';
+import { onMounted, onBeforeUnmount, ref } from 'vue';
 import { t } from '../i18n';
 
 const emit = defineEmits<{ choose: [kind: 'plain' | 'marp']; close: [] }>();
+const plainRef = ref<HTMLButtonElement | null>(null);
 
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close');
 }
-onMounted(() => window.addEventListener('keydown', onKey));
+onMounted(() => {
+  window.addEventListener('keydown', onKey);
+  // Opened from a shortcut, focus would stay in the document behind the dialog.
+  plainRef.value?.focus({ preventScroll: true });
+});
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 </script>
 
@@ -16,7 +21,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
     <div class="nf-dialog">
       <h3 class="nf-title">{{ t.newFileChoiceTitle }}</h3>
       <div class="nf-cards">
-        <button class="nf-card" @click="emit('choose', 'plain')">
+        <button ref="plainRef" class="nf-card" @click="emit('choose', 'plain')">
           <span class="nf-icon">📄</span>
           <span class="nf-name">{{ t.newFilePlain }}</span>
           <span class="nf-desc">{{ t.newFilePlainDesc }}</span>

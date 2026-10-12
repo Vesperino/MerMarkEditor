@@ -27,7 +27,8 @@
 <p align="center">
   <strong>English</strong> •
   <a href="README_PL.md">Polski</a> •
-  <a href="README_ZH.md">中文</a>
+  <a href="README_ZH.md">中文</a> •
+  <a href="README_JA.md">日本語</a>
 </p>
 
 ---
@@ -239,7 +240,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **Character / word / line / token counters** as a single movable unit
 - **Styled prompt / confirm dialogs** throughout (no native browser modals)
 - **Auto-save** — never lose your work
-- **Multilingual UI** - English, Polish, Chinese and German interface
+- **Multilingual UI** - English, Polish, Chinese, German and Japanese interface
 - **Keyboard shortcuts modal** - Quick reference for all shortcuts (`Ctrl+/`)
 
 ### Advanced Features
@@ -374,7 +375,7 @@ This is standard behavior for open-source software distributed without a paid co
 1. **Open a file**: `Ctrl+O` (or `Cmd+O` on macOS)
 2. **Save**: `Ctrl+S` (saves as Markdown)
 3. **Save As**: `Ctrl+Shift+S`
-4. **Export to PDF**: Use **File → PDF…** or the PDF toolbar button
+4. **Print or export to PDF**: Use **File → Print…** (`Ctrl+P`) or **File → PDF…**, or the PDF toolbar button
 5. **Simplify the interface**: Open **View → Customize Layout…** and choose **Minimal**. Workspace, statistics, zoom, AI, and Code controls share the bottom bar, leaving the top toolbar empty. All commands remain in the native menus. Restore the original arrangement with **View → Restore Default Layout…**.
 
 Settings is always available in the application menu on macOS, or the Edit menu on Windows/Linux, and through `Cmd/Ctrl+,`. The Minimal layout is independent of the Minimal color theme.
@@ -382,31 +383,44 @@ Settings is always available in the application menu on macOS, or the Edit menu 
 ### Keyboard Shortcuts
 
 | Action | Shortcut |
-|--------|----------|
+|---|---|
 | New file | `Ctrl+N` |
 | Open file | `Ctrl+O` |
 | Save | `Ctrl+S` |
 | Save As | `Ctrl+Shift+S` |
-| Export PDF | `Ctrl+P` |
+| Print / PDF | `Ctrl+P` |
+| Command Palette | `Ctrl+Shift+P` / `F1` |
+| Search workspace (files and content) | `Ctrl+Shift+E` |
+| Workspace content search | `Ctrl+Shift+F` |
+| Find | `Ctrl+F` |
+| Find next / previous | `Ctrl+G` / `Ctrl+Shift+G` |
+| Replace | `Ctrl+H` (macOS: `Cmd+Option+F`) |
+| Go to heading | `Ctrl+Shift+O` |
+| Insert link | `Ctrl+K` |
+| Toggle Markdown comment (Code view) | `Ctrl+/` |
+| Select next occurrence (Code view) | `Ctrl+D` |
+| Rename focused sidebar file | `F2` (macOS: `Enter`) |
 | Undo | `Ctrl+Z` |
-| Redo | `Ctrl+Y` |
+| Redo | `Ctrl+Y` (macOS: `Cmd+Shift+Z`) |
 | Bold | `Ctrl+B` |
 | Italic | `Ctrl+I` |
+| Heading 1–6 / paragraph | `Ctrl+Alt+1` … `Ctrl+Alt+6` / `Ctrl+Alt+0` |
 | Show changes | `Ctrl+Shift+D` |
 | Compare tabs | `Ctrl+Shift+C` |
 | Reload file | `Ctrl+R` |
 | Close tab | `Ctrl+W` |
-| Next tab | `Ctrl+Tab` |
-| Previous tab | `Ctrl+Shift+Tab` |
+| Next / previous tab | `Ctrl+Tab` / `Ctrl+Shift+Tab` (also `Ctrl+PageDown` / `Ctrl+PageUp`) |
 | Jump to tab 1–9 | `Ctrl+1` … `Ctrl+9` |
 | Toggle Code / Visual view | `Ctrl+Shift+V` |
 | Zoom in / out | `Ctrl++` / `Ctrl+-` |
 | Reset zoom | `Ctrl+0` |
 | Settings | `Ctrl+,` |
-| Keyboard shortcuts | `Ctrl+/` |
+| Keyboard shortcuts help | `Ctrl+/` (outside Code view) |
 | Close modal | `Escape` |
 
-> On macOS, use `⌘` (Cmd) in place of `Ctrl`.
+You can change app command bindings in **Settings → Keyboard Shortcuts**: search for a command, click a binding to record a replacement, or use **+** to add an alternative. Conflicting assignments are rejected and changes are saved automatically. Remove a binding with **×**, or restore defaults for one command or all of them. Quick Open has no default key; assign one there if you want it. Clipboard and text navigation keys keep their system behavior, and AltGr characters (ą, ć, @, [, {) are never treated as shortcuts.
+
+> On macOS, use `⌘` (Cmd) in place of `Ctrl`, and `⌥` (Option) in place of `Alt`.
 
 ### Creating Mermaid Diagrams
 

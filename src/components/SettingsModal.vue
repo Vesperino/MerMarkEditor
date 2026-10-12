@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import KeyboardSettingsTab from './KeyboardSettingsTab.vue';
 import DocumentPreview from './DocumentPreview.vue';
 import { documentPreviewSample } from './documentPreviewSample';
 import { useDocumentStyle } from '../composables/useDocumentStyle';
@@ -66,7 +67,7 @@ const editorSystemFonts = computed(() =>
 );
 const codeSystemFonts = computed(() => monoFonts.value);
 
-type SettingsTab = 'appearance' | 'editor' | 'code' | 'general' | 'layout' | 'ai' | 'updates';
+type SettingsTab = 'appearance' | 'editor' | 'code' | 'general' | 'layout' | 'ai' | 'updates' | 'keyboard';
 const props = defineProps<{ initialTab?: SettingsTab; restoreLayout?: boolean }>();
 const activeTab = ref<SettingsTab>(props.initialTab ?? 'editor');
 const menuLabels = useMenuLabels();
@@ -417,6 +418,7 @@ const emit = defineEmits<{
 }>();
 
 const appVersion = ref('');
+const panelRef = ref<HTMLElement | null>(null);
 
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.defaultPrevented) return;
@@ -427,6 +429,8 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
+  // Opened from a shortcut, focus would stay in the document behind the dialog.
+  panelRef.value?.focus({ preventScroll: true });
   try {
     appVersion.value = await getVersion();
   } catch {
@@ -441,7 +445,7 @@ onUnmounted(() => {
 
 <template>
   <div class="settings-overlay" @click.self="emit('close')">
-    <div class="settings-panel">
+    <div ref="panelRef" class="settings-panel" tabindex="-1">
       <div class="settings-header">
         <h3>{{ t.settings }}</h3>
         <button @click="emit('close')" class="settings-close-btn" :title="t.close">
@@ -456,7 +460,7 @@ onUnmounted(() => {
         <!-- Tab Navigation -->
         <div class="settings-tabs">
           <button
-            v-for="tab in (['appearance', 'editor', 'code', 'general', 'layout', 'ai', 'updates'] as SettingsTab[])"
+            v-for="tab in (['appearance', 'editor', 'code', 'general', 'layout', 'keyboard', 'ai', 'updates'] as SettingsTab[])"
             :key="tab"
             class="settings-tab"
             :class="{ active: activeTab === tab }"
@@ -495,6 +499,7 @@ onUnmounted(() => {
               <line x1="3" y1="9" x2="21" y2="9"/>
               <line x1="9" y1="9" x2="9" y2="21"/>
             </svg>
+            <svg v-else-if="tab === 'keyboard'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h2m2 0h2m2 0h2m2 0h1M6 13h2m2 0h2m2 0h2M7 16h10"/></svg>
             <!-- AI icon -->
             <svg v-else-if="tab === 'ai'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -504,12 +509,14 @@ onUnmounted(() => {
               <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
               <polyline points="17 6 23 6 23 12"/>
             </svg>
-            {{ tab === 'appearance' ? t.appearance : tab === 'editor' ? t.editor : tab === 'code' ? t.code : tab === 'general' ? t.general : tab === 'layout' ? t.layout : tab === 'ai' ? t.aiTabLabel : t.updatesTab }}
+            {{ tab === 'appearance' ? t.appearance : tab === 'editor' ? t.editor : tab === 'code' ? t.code : tab === 'general' ? t.general : tab === 'layout' ? t.layout : tab === 'keyboard' ? t.keyboardShortcuts : tab === 'ai' ? t.aiTabLabel : t.updatesTab }}
           </button>
         </div>
 
         <!-- Tab Content -->
         <div class="settings-content">
+
+          <KeyboardSettingsTab v-if="activeTab === 'keyboard'" />
 
           <!-- Appearance Tab -->
           <div v-if="activeTab === 'appearance'" class="settings-section">
@@ -1147,6 +1154,8 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 10000;
 }
+
+.settings-panel:focus { outline: none; }
 
 .settings-panel {
   background: var(--dialog-bg);

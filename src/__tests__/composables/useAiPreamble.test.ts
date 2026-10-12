@@ -243,6 +243,15 @@ describe('useAiPreamble.buildTurnContext', () => {
     expect(out).toContain('Der Benutzer hat unten 1 Fragment(e) angehängt.');
   });
 
+  it('uses Japanese instructions for ja locale', () => {
+    const out = buildTurnContext({
+      ...base(),
+      pins: [{ id: '1', text: 'foo' }],
+      localeKey: 'ja',
+    });
+    expect(out).toContain('ユーザーが以下に 1 個の断片を添付しました。');
+  });
+
   it('includes unsaved doc warning when docNeedsSave', () => {
     const out = buildTurnContext({ ...base(), docNeedsSave: true });
     expect(out).toContain('IMPORTANT: The document is not saved yet');

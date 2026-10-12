@@ -11,6 +11,28 @@ const showImageMenu = ref(false);
 const showTokenMenu = ref(false);
 const editorUpdateCounter = ref(0);
 
+// Dropdowns close on any click outside them or on Escape, not only on the bar background.
+const closeAllMenus = () => { showTableMenu.value = false; showImageMenu.value = false; showTokenMenu.value = false; };
+const onPointerOutsideMenu = (event: PointerEvent) => {
+  if (!(event.target as Element | null)?.closest?.('.dropdown-menu, [data-dropdown-toggle]')) closeAllMenus();
+};
+const onMenuEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') closeAllMenus(); };
+for (const menu of [showTableMenu, showImageMenu, showTokenMenu]) {
+  watch(menu, open => {
+    if (!open) return;
+    for (const other of [showTableMenu, showImageMenu, showTokenMenu]) if (other !== menu) other.value = false;
+  });
+}
+watch(() => showTableMenu.value || showImageMenu.value || showTokenMenu.value, open => {
+  if (open) {
+    document.addEventListener('pointerdown', onPointerOutsideMenu, true);
+    document.addEventListener('keydown', onMenuEscape, true);
+  } else {
+    document.removeEventListener('pointerdown', onPointerOutsideMenu, true);
+    document.removeEventListener('keydown', onMenuEscape, true);
+  }
+});
+
 // ===== Shared editor-update listener =====
 // `useToolbarActions` is called by Toolbar / LeftBar / StatusBar AND by every
 // ToolbarItemRenderer instance — easily 20+ call sites once the toolbar is
@@ -214,11 +236,7 @@ export function useToolbarActions(editorOverride?: Ref<Editor | null>) {
   };
 
   // Close all dropdowns
-  const closeDropdowns = () => {
-    showTableMenu.value = false;
-    showImageMenu.value = false;
-    showTokenMenu.value = false;
-  };
+  const closeDropdowns = closeAllMenus;
 
   return {
     // Editor helpers

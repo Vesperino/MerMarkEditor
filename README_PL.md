@@ -27,7 +27,8 @@
 <p align="center">
   <a href="README.md">English</a> •
   <strong>Polski</strong> •
-  <a href="README_ZH.md">中文</a>
+  <a href="README_ZH.md">中文</a> •
+  <a href="README_JA.md">日本語</a>
 </p>
 
 ---
@@ -219,7 +220,7 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **Licznik znaków / słów / linii / tokenów** jako pojedyncza przesuwalna jednostka
 - **Stylizowane prompt / confirm dialogi** wszędzie (bez natywnych modali przeglądarki)
 - **Automatyczny zapis** — nigdy nie stracisz pracy
-- **Wielojęzyczny interfejs** - polski, angielski, chiński i niemiecki
+- **Wielojęzyczny interfejs** - polski, angielski, chiński, niemiecki i japoński
 - **Modal skrótów klawiszowych** - Szybki podgląd wszystkich skrótów (`Ctrl+/`)
 
 ### Zaawansowane funkcje
@@ -345,7 +346,7 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 1. **Otwórz plik**: `Ctrl+O` (lub `Cmd+O` na macOS)
 2. **Zapisz**: `Ctrl+S` (zapisuje jako Markdown)
 3. **Zapisz jako**: `Ctrl+Shift+S`
-4. **Eksportuj do PDF**: Użyj **Plik → PDF…** lub przycisku PDF w pasku narzędzi
+4. **Drukuj lub eksportuj do PDF**: Użyj **Plik → Drukuj…** (`Ctrl+P`) lub **Plik → PDF…** albo przycisku PDF w pasku narzędzi
 5. **Uprość interfejs**: Otwórz **Widok → Dostosuj układ…** i wybierz **Minimalny**. Obszar roboczy, statystyki, zoom, AI i widok kodu trafiają na dolny pasek, a górny pasek narzędzi zostaje pusty. Wszystkie polecenia zostają w natywnych menu. Pierwotny układ przywrócisz przez **Widok → Przywróć domyślny układ…**.
 
 Ustawienia są zawsze dostępne w menu aplikacji na macOS lub w menu Edycja na Windows/Linux, a także przez `Cmd/Ctrl+,`. Układ Minimalny jest niezależny od motywu kolorystycznego Minimal.
@@ -353,29 +354,42 @@ Ustawienia są zawsze dostępne w menu aplikacji na macOS lub w menu Edycja na W
 ### Skróty klawiszowe
 
 | Akcja | Skrót |
-|-------|-------|
+|---|---|
 | Nowy plik | `Ctrl+N` |
 | Otwórz plik | `Ctrl+O` |
 | Zapisz | `Ctrl+S` |
 | Zapisz jako | `Ctrl+Shift+S` |
-| Eksport PDF | `Ctrl+P` |
+| Drukuj / PDF | `Ctrl+P` |
+| Paleta poleceń | `Ctrl+Shift+P` / `F1` |
+| Szukaj w obszarze roboczym (pliki i treść) | `Ctrl+Shift+E` |
+| Szukaj w treści plików obszaru roboczego | `Ctrl+Shift+F` |
+| Znajdź | `Ctrl+F` |
+| Następne / poprzednie wystąpienie | `Ctrl+G` / `Ctrl+Shift+G` |
+| Zamień | `Ctrl+H` (macOS: `Cmd+Option+F`) |
+| Przejdź do nagłówka | `Ctrl+Shift+O` |
+| Wstaw link | `Ctrl+K` |
+| Przełącz komentarz Markdown (widok kodu) | `Ctrl+/` |
+| Zaznacz następne wystąpienie (widok kodu) | `Ctrl+D` |
+| Zmień nazwę pliku zaznaczonego w panelu bocznym | `F2` (macOS: `Enter`) |
 | Cofnij | `Ctrl+Z` |
-| Ponów | `Ctrl+Y` |
+| Ponów | `Ctrl+Y` (macOS: `Cmd+Shift+Z`) |
 | Pogrubienie | `Ctrl+B` |
 | Kursywa | `Ctrl+I` |
+| Nagłówek 1–6 / akapit | `Ctrl+Alt+1` … `Ctrl+Alt+6` / `Ctrl+Alt+0` |
 | Pokaż zmiany | `Ctrl+Shift+D` |
 | Porównaj zakładki | `Ctrl+Shift+C` |
 | Przeładuj plik | `Ctrl+R` |
 | Zamknij kartę | `Ctrl+W` |
-| Następna karta | `Ctrl+Tab` |
-| Poprzednia karta | `Ctrl+Shift+Tab` |
+| Następna / poprzednia karta | `Ctrl+Tab` / `Ctrl+Shift+Tab` (także `Ctrl+PageDown` / `Ctrl+PageUp`) |
 | Przejdź do karty 1–9 | `Ctrl+1` … `Ctrl+9` |
 | Przełącz widok Kod / Wizualny | `Ctrl+Shift+V` |
 | Powiększ / pomniejsz | `Ctrl++` / `Ctrl+-` |
 | Reset powiększenia | `Ctrl+0` |
 | Ustawienia | `Ctrl+,` |
-| Skróty klawiszowe | `Ctrl+/` |
+| Skróty klawiszowe | `Ctrl+/` (poza widokiem kodu) |
 | Zamknij modal | `Escape` |
+
+Skróty poleceń zmienisz w **Ustawienia → Skróty klawiszowe**: wyszukaj polecenie, kliknij skrót, żeby nagrać nowy, albo dodaj alternatywny przyciskiem **+**. Kolidujące przypisania są odrzucane, a zmiany zapisują się automatycznie. Skrót usuniesz przyciskiem **×**; możesz też przywrócić domyślne dla jednego polecenia lub wszystkich. Szybkie otwieranie nie ma domyślnego skrótu, możesz mu go tam przypisać. Skróty schowka i nawigacji po tekście działają jak w systemie, a znaki z AltGr (ą, ć, @, [, {) nigdy nie są traktowane jak skróty.
 
 > Na macOS używaj `⌘` (Cmd) zamiast `Ctrl`.
 

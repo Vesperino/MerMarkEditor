@@ -1,6 +1,28 @@
 import type { Translations } from '../index';
 
 const de: Translations = {
+  shortcutSearch: 'Befehle oder Tastenkürzel suchen…',
+  shortcutSettingsHelp: 'Änderungen werden automatisch gespeichert. Zwischenablage und Textnavigation verwenden Systemkürzel.',
+  shortcutResetAll: 'Alle Standardwerte wiederherstellen',
+  shortcutReset: 'Standard wiederherstellen',
+  shortcutChange: 'Tastenkürzel ändern',
+  shortcutRemove: 'Tastenkürzel entfernen',
+  shortcutAdd: 'Tastenkürzel hinzufügen',
+  shortcutUnassigned: 'Nicht zugewiesen',
+  shortcutRecord: 'Tastenkürzel drücken…',
+  shortcutInvalid: 'Eine Taste mit Modifikator oder eine Funktionstaste (F1–F12) verwenden.',
+  shortcutReserved: 'Dieses Kürzel ist für das System oder die Zwischenablage reserviert.',
+  shortcutConflict: (action: string) => 'Bereits zugewiesen: ' + action,
+
+  noSearchResults: 'Keine Ergebnisse gefunden.',
+  commandPalette: 'Befehlspalette',
+  quickOpen: 'Schnell öffnen',
+  goToHeading: 'Zur Überschrift wechseln',
+  replace: 'Ersetzen',
+  replaceAll: 'Alle ersetzen',
+  toggleComment: 'Kommentar umschalten',
+  selectNextOccurrence: 'Nächstes Vorkommen auswählen',
+
   documentStyle: "Dokumentstil",
   styleOverrides: "Anpassungen",
   styleOverridesHint: "Stilvorgaben verwenden oder Lesedarstellung anpassen. Änderungen werden für diesen Stil gespeichert.",

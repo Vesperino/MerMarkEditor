@@ -3,10 +3,33 @@ import en from './locales/en';
 import pl from './locales/pl';
 import zhCN from './locales/zh-CN';
 import de from './locales/de';
+import ja from './locales/ja';
 
-export type Locale = 'en' | 'pl' | 'zh-CN' | 'de';
+export type Locale = 'en' | 'pl' | 'zh-CN' | 'de' | 'ja';
 
 export interface Translations {
+  shortcutSearch: string;
+  shortcutSettingsHelp: string;
+  shortcutResetAll: string;
+  shortcutReset: string;
+  shortcutChange: string;
+  shortcutRemove: string;
+  shortcutAdd: string;
+  shortcutUnassigned: string;
+  shortcutRecord: string;
+  shortcutInvalid: string;
+  shortcutReserved: string;
+  shortcutConflict: (action: string) => string;
+
+  noSearchResults: string;
+  commandPalette: string;
+  quickOpen: string;
+  goToHeading: string;
+  replace: string;
+  replaceAll: string;
+  toggleComment: string;
+  selectNextOccurrence: string;
+
   documentStyle: string;
   styleOverrides: string;
   styleOverridesHint: string;
@@ -692,6 +715,7 @@ const translations: Record<Locale, Translations> = {
   pl,
   'zh-CN': zhCN,
   de,
+  ja,
 };
 
 const localeLabels: Record<Locale, string> = {
@@ -699,6 +723,7 @@ const localeLabels: Record<Locale, string> = {
   pl: 'Polski',
   'zh-CN': '简体中文',
   de: 'Deutsch',
+  ja: '日本語',
 };
 
 function getInitialLocale(): Locale {
@@ -730,7 +755,7 @@ export function useI18n() {
     locale.value = locales[(idx + 1) % locales.length];
   };
 
-  const availableLocales: Locale[] = ['en', 'pl', 'zh-CN', 'de'];
+  const availableLocales: Locale[] = ['en', 'pl', 'zh-CN', 'de', 'ja'];
 
   return {
     locale,

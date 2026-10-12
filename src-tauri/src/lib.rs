@@ -136,8 +136,57 @@ fn get_all_windows(app: tauri::AppHandle) -> Vec<String> {
 /// rather than `file://` (which WKWebView refuses via `loadRequest:`) or post-
 /// load JS injection (which rendered blank). `async` keeps window creation off
 /// the main thread, since creating a webview from a sync command can deadlock.
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+struct PrintPage {
+    page_size: String,
+    margins_mm: PrintMargins,
+}
+
+#[derive(Clone, Copy, serde::Deserialize)]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+struct PrintMargins {
+    top: f64,
+    right: f64,
+    bottom: f64,
+    left: f64,
+}
+
+/// WebKitGTK lays pages out from the GtkPageSetup, not CSS `@page` margins, so
+/// the chosen paper size and margins must reach the print operation (#163).
+#[cfg(target_os = "linux")]
+fn print_with_page_setup(window: &tauri::WebviewWindow, page: PrintPage) {
+    let owner = window.clone();
+    let _ = window.with_webview(move |webview| {
+        use gtk::prelude::*;
+        use webkit2gtk::PrintOperationExt;
+        let view = webview.inner();
+        let setup = gtk::PageSetup::new();
+        let paper = match page.page_size.as_str() {
+            "Letter" => "na_letter",
+            "A3" => "iso_a3",
+            _ => "iso_a4",
+        };
+        setup.set_paper_size(&gtk::PaperSize::new(Some(paper)));
+        let m = page.margins_mm;
+        setup.set_top_margin(m.top, gtk::Unit::Mm);
+        setup.set_right_margin(m.right, gtk::Unit::Mm);
+        setup.set_bottom_margin(m.bottom, gtk::Unit::Mm);
+        setup.set_left_margin(m.left, gtk::Unit::Mm);
+        let operation = webkit2gtk::PrintOperation::new(&view);
+        operation.set_page_setup(&setup);
+        let finished = owner.clone();
+        operation.connect_finished(move |_| { let _ = finished.close(); });
+        let parent = view.toplevel().and_then(|w| w.downcast::<gtk::Window>().ok());
+        if operation.run_dialog(parent.as_ref()) == webkit2gtk::PrintOperationResponse::Cancel {
+            let _ = owner.close();
+        }
+    });
+}
+
 #[tauri::command]
-async fn print_document(app: tauri::AppHandle, html: String) -> Result<(), String> {
+async fn print_document(app: tauri::AppHandle, html: String, page: Option<PrintPage>) -> Result<(), String> {
     *app.state::<PrintHtmlState>().0.lock().unwrap() = Some(html);
 
     if let Some(existing) = app.get_webview_window(PRINT_WINDOW_LABEL) {
@@ -160,8 +209,15 @@ async fn print_document(app: tauri::AppHandle, html: String) -> Result<(), Strin
         .initialization_script("window.addEventListener('afterprint',function(){window.close();});")
         // on_page_load runs on the UI thread — which WKWebView's print() requires —
         // and firing on Finished prints exactly when the document is ready.
-        .on_page_load(|window, payload| {
+        .on_page_load(move |window, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                #[cfg(target_os = "linux")]
+                if let Some(page) = page.clone() {
+                    print_with_page_setup(&window, page);
+                    return;
+                }
+                #[cfg(not(target_os = "linux"))]
+                let _ = &page;
                 let _ = window.print();
             }
         })

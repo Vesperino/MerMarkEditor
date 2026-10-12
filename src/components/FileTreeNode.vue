@@ -68,6 +68,7 @@ function onViewChanges(e: MouseEvent) {
  * open files / expand folders, drag to insert/open in editor.
  */
 function onRowClick(e: MouseEvent) {
+  rowEl.value?.focus();
   const path = props.node.path;
   if (e.shiftKey) {
     ws.rangeSelect(path);
@@ -153,6 +154,8 @@ watch(
       v-if="!isRoot"
       ref="rowEl"
       class="tree-row"
+      tabindex="0"
+      :aria-label="node.name"
       :class="{
         folder: isFolder,
         file: !isFolder,

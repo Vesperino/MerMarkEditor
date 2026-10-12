@@ -230,14 +230,19 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     await atomicWriteFile(filePath, markdown);
 
     if (tabIndex !== -1) {
+      // Edits made while the file was being written (#164: bold reverting right after
+      // a save) are newer than `html`; writing it back would undo them.
+      const editedDuringSave = markdownOverride !== null
+        ? (getMarkdownOverride?.() ?? null) !== markdownOverride
+        : (findActiveTabIndex() === tabIndex ? getEditorHtml() : tabs.value[tabIndex].content) !== html;
       tabs.value[tabIndex].filePath = filePath;
       tabs.value[tabIndex].fileName = extractFileName(filePath);
-      tabs.value[tabIndex].hasChanges = false;
+      if (!editedDuringSave) tabs.value[tabIndex].hasChanges = false;
       // Only update cached HTML when saving from visual mode — in code view the HTML
       // will be regenerated from the saved markdown when switching back to visual mode.
       // Skip when merged content was applied: the conflict handler already set tab.content
       // via reloadTabContent; overwriting it here with pre-dialog html would revert the editor.
-      if (html !== null && !mergedContentApplied) {
+      if (html !== null && !mergedContentApplied && !editedDuringSave) {
         tabs.value[tabIndex].content = html;
       }
       tabs.value[tabIndex].originalMarkdown = markdown;

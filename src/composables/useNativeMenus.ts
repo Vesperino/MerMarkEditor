@@ -8,6 +8,9 @@ import { useMenuLabels } from '../i18n/menus';
 
 const EVENT = 'mermark:menu-command';
 const isMac = /Mac/.test(navigator.platform);
+const isLinux = !isMac && /Linux/.test(navigator.platform);
+// muda has no "Plus" key; an unparsable accelerator is silently dropped.
+const nativeAccelerator = (shortcut?: string) => shortcut?.replace(/\+Plus$/, '+=');
 type Resource = Menu | Submenu | MenuItem | CheckMenuItem | PredefinedMenuItem;
 
 /** Native menus belong to the focused editor window, never the print helper. */
@@ -49,11 +52,16 @@ export function useNativeMenus(commands: AppCommands) {
             const items = await Promise.all(item.items.map(build));
             return track(await Submenu.new({ text: item.label, items: items as (MenuItem | Submenu)[] }));
           }
-          // OS clipboard roles keep editing scoped to the actual focused field.
+          // OS clipboard roles keep editing scoped to the actual focused field. GTK roles
+          // need libxdo, which does not exist on Wayland, so Linux runs them in the page.
           const roles = { cut: 'Cut', copy: 'Copy', paste: 'Paste', 'select-all': 'SelectAll' } as const;
-          if (item.id in roles) return track(await PredefinedMenuItem.new({ text: item.label, item: roles[item.id as keyof typeof roles] }));
-          const opts = { id: item.id, text: item.label, enabled: item.enabled, accelerator: item.accelerator,
-            action: () => { void route(item.id).catch(console.error); } };
+          if (item.id in roles && !isLinux) return track(await PredefinedMenuItem.new({ text: item.label, item: roles[item.id as keyof typeof roles] }));
+          const opts = { id: item.id, text: item.label, enabled: item.enabled, accelerator: item.id in roles ? undefined : nativeAccelerator(item.accelerator),
+            action: () => {
+              states.delete(item.id);
+              // Windows and Linux menus belong to one window; only the shared macOS app menu needs routing.
+              void (isMac ? route(item.id) : commands.execute(item.id)).catch(console.error).finally(() => schedule());
+            } };
           const handle = item.checked === undefined ? await MenuItem.new(opts) : await CheckMenuItem.new({ ...opts, checked: item.checked });
           handles.set(item.id, handle);
           return track(handle);
@@ -120,22 +128,6 @@ export function useNativeMenus(commands: AppCommands) {
       await sync(tree);
     }).catch(error => { console.error('Native menu update failed:', error); });
   }
-  // Native accelerators own their keypress. Other editor bindings stay with
-  // TipTap/CodeMirror; history commands explicitly target the focused text field.
-  function ownsShortcut(event: KeyboardEvent) {
-    if (!ready.value || !(isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) || event.altKey) return false;
-    let key = event.key.toLowerCase();
-    if (key === ',' ) key = 'comma';
-    if (key === '+' || key === '=') key = 'plus';
-    const accelerator = `cmdorctrl+${event.shiftKey && key !== 'plus' ? 'shift+' : ''}${key}`;
-    function matches(items: (AppCommand | CommandMenu)[]): boolean {
-      return items.some(i => 'items' in i ? matches(i.items) : i.accelerator?.toLowerCase() === accelerator);
-    }
-    return matches(commands.menus.value);
-  }
-  const blockDuplicate = (event: KeyboardEvent) => {
-    if (ownsShortcut(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
-  };
   onMounted(async () => {
     if (!enabled) return;
     unlisten = await getCurrentWindow().listen<string>(EVENT, event => { void commands.execute(event.payload).catch(console.error); });
@@ -143,15 +135,13 @@ export function useNativeMenus(commands: AppCommands) {
     unfocus = await getCurrentWindow().onFocusChanged(event => { if (event.payload) schedule(true); });
     if (disposed) { unfocus(); return; }
     listening = true;
-    document.addEventListener('keydown', blockDuplicate, true);
     schedule(true);
   });
   watch(commands.menus, () => schedule());
   onScopeDispose(() => {
     disposed = true;
     unlisten?.(); unfocus?.();
-    document.removeEventListener('keydown', blockDuplicate, true);
     void queue.then(() => Promise.allSettled(resources.map(r => r.close())));
   });
-  return { ready, ownsShortcut };
+  return { ready };
 }
