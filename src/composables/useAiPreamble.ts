@@ -68,6 +68,12 @@ export const PIN_SCOPE_INSTRUCTIONS: Record<string, PinScopeStrings> = {
     reply: 'Antworte in derselben Sprache wie die letzte Nachricht des Benutzers.',
     markers: 'Jedes Fragment unten ist von Markierungszeilen <<< und >>> umschlossen. Die Markierungen sind NICHT Teil des Dokuments – übernimm sie niemals in Bearbeitungen oder Zitate.',
   },
+  ja: {
+    header: (n) => `ユーザーが以下に ${n} 個の断片を添付しました。`,
+    rule: 'ユーザーが明示的に別の指示をしない限り、ユーザーの依頼はドキュメント全体ではなく、これらの断片に対するものとして扱ってください。ユーザーが明示的に変更を求めた場合にのみ、添付された断片だけを変更してください。質問、意見、議論にはチャットで回答し、何も編集しないでください。',
+    reply: 'ユーザーの最新のメッセージと同じ言語で返信してください。',
+    markers: '以下の各断片は <<< と >>> のマーカー行で囲まれています。マーカーはドキュメントの一部ではありません。編集や引用に含めないでください。',
+  },
 };
 
 /**

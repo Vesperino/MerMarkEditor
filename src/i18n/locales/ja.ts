@@ -1,6 +1,28 @@
 import type { Translations } from '../index';
 
 const ja: Translations = {
+  shortcutSearch: 'コマンドまたはショートカットを検索…',
+  shortcutSettingsHelp: '変更は自動的に保存されます。クリップボードとテキスト移動のショートカットはシステムの規則に従います。',
+  shortcutResetAll: 'すべて既定に戻す',
+  shortcutReset: '既定に戻す',
+  shortcutChange: 'ショートカットを変更',
+  shortcutRemove: 'ショートカットを削除',
+  shortcutAdd: 'ショートカットを追加',
+  shortcutUnassigned: '未割り当て',
+  shortcutRecord: 'ショートカットを押してください…',
+  shortcutInvalid: '修飾キーと組み合わせるか、ファンクションキー（F1〜F12）を使用してください。',
+  shortcutReserved: 'このショートカットはシステムまたはクリップボード操作用に予約されています。',
+  shortcutConflict: (action: string) => '割り当て済み: ' + action,
+
+  noSearchResults: '結果が見つかりません。',
+  commandPalette: 'コマンドパレット',
+  quickOpen: 'クイックオープン',
+  goToHeading: '見出しへ移動',
+  replace: '置換',
+  replaceAll: 'すべて置換',
+  toggleComment: 'コメントの切り替え',
+  selectNextOccurrence: '次の一致を選択',
+
   documentStyle: "ドキュメントスタイル",
   styleOverrides: "上書き設定",
   styleOverridesHint: "デフォルトのスタイルを使用するか、好みにあわせて調整してください。変更内容はこのスタイル用に保存されます。",
@@ -16,7 +38,7 @@ const ja: Translations = {
   mathBlock: 'ブロック数式',
   mathEdit: '数式を編集',
   mathDelete: '数式を削除',
-  mathSource: 'LaTeX  ソースコード',
+  mathSource: 'LaTeX ソースコード',
   aiCodexPathHint: 'デスクトップアプリのランチャーではなく、Codex CLI (.exe または .cmd) を選択してください。通常、デスクトップ版の実行ファイルは %LOCALAPPDATA%\\OpenAI\\Codex\\bin の下にあります。ここに直接フルパスを貼り付けることも可能です。',
 
   // Toolbar - File operations
@@ -40,18 +62,18 @@ const ja: Translations = {
   headingLevel: (level: number) => `見出し ${level}`,
 
   // Toolbar - Formatting
-  bold: '太字(B)',
+  bold: 'B',
   boldTooltip: '太字 **テキスト** (Ctrl+B)',
-  italic: '斜体(I)',
+  italic: 'I',
   italicTooltip: '斜体 *テキスト* (Ctrl+I)',
-  strikethrough: '打ち消し線(S)',
+  strikethrough: 'S',
   strikethroughTooltip: '打ち消し線 ~~テキスト~~',
   inlineCode: 'コード',
   inlineCodeTooltip: 'インラインコード `code`',
 
   // Toolbar - Lists
-  bulletList: ' 箇条書きリスト',
-  orderedList: ' 番号付きリスト',
+  bulletList: '箇条書きリスト',
+  orderedList: '番号付きリスト',
   taskList: 'タスクリスト [x]',
 
   // Toolbar - Blocks
@@ -86,7 +108,7 @@ const ja: Translations = {
   // Toolbar - Footnotes
   footnote: '脚注',
   insertFootnote: '脚注を挿入',
-  footnotes: 'Footnotes',
+  footnotes: '脚注',
   addFootnote: '脚注一覧',
   deleteFootnotes: 'すべての脚注を削除',
   noFootnotes: '脚注がありません。「+」をクリックして追加してください。',
@@ -180,7 +202,7 @@ const ja: Translations = {
   categoryDataRelations: 'データとリレーション',
   categoryGitRequirements: 'Git と要件定義',
   categoryC4Model: 'C4 モデル',
-  categoryAdvanced: 'Advanced',
+  categoryAdvanced: '詳細設定',
 
   // File dialogs
   openFile: 'Markdown ファイルを開く',
@@ -264,7 +286,7 @@ const ja: Translations = {
   lightMode: 'ライト',
 
   // File watching & conflict
-  fileReloadedExternally: (fileName: string) => `"${fileName}"  は外部で更新されたため、再読み込みされました。`,
+  fileReloadedExternally: (fileName: string) => `"${fileName}" は外部で更新されたため、再読み込みされました。`,
   fileReloaded: 'ファイルがディスクから再読み込みされました。',
   fileReloadError: 'ファイルをディスクから再読み込みできませんでした',
   fileChangedExternally: '外部でのファイル変更を検出',
@@ -333,7 +355,7 @@ const ja: Translations = {
   aiBypassHelper: '現在のアプリセッションに限り、AI ツールが事前の確認プロンプトなしで実行されます。アプリを再起動すると自動的に「無効」に戻ります。',
   aiCliStatusClaude: 'Claude Code',
   aiCliStatusCodex: 'Codex',
-  aiCliStatusOllama: 'Ollama (local)',
+  aiCliStatusOllama: 'Ollama（ローカル）',
   aiOllamaConnected: (info: string) => `接続中 — ${info}`,
   aiOllamaNotRunning: '未起動 — Ollama を起動するか、ベース URL を確認してください',
   aiOllamaLocalHint: 'お使いの PC 上で完全にオフラインで動作します',
@@ -605,7 +627,7 @@ const ja: Translations = {
   pdfPageNumberFormat: '番号の形式',
   pdfPageNumberFormatN: '1, 2, 3…',
   pdfPageNumberFormatNOfTotal: '1/12',
-  pdfPageNumberFormatPageNOfTotal: 'Page 1 of 12',
+  pdfPageNumberFormatPageNOfTotal: '1 / 12 ページ',
   pdfPageNumberFormatPageNOfTotalLive: (n: number, total: number) => `${n} / ${total} ページ`,
   pdfStartPageNumber: '開始ページ番号',
   pdfWatermarkEnabled: '透かし / 背景テキストを表示',

@@ -755,7 +755,7 @@ export function useI18n() {
     locale.value = locales[(idx + 1) % locales.length];
   };
 
-  const availableLocales: Locale[] = ['en', 'pl', 'zh-CN', 'de' , 'ja'];
+  const availableLocales: Locale[] = ['en', 'pl', 'zh-CN', 'de', 'ja'];
 
   return {
     locale,
