@@ -22,6 +22,13 @@ export type ThemeVariant = 'default' | 'minimal';
 export type CodeThemeMode = 'dark' | 'light';
 export type CliKind = 'claude' | 'codex' | 'ollama' | 'openai';
 export type PanelSide = 'left' | 'right';
+export const EDITOR_MARGINS = {
+  pageless: { top: 0, bottom: 0, x: 0 },
+  small: { top: 16, bottom: 32, x: 24 },
+  medium: { top: 32, bottom: 64, x: 48 },
+  large: { top: 64, bottom: 128, x: 96 },
+} as const;
+export type EditorMargin = keyof typeof EDITOR_MARGINS;
 
 export const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
 export const OPENAI_DEFAULT_BASE_URL = 'http://localhost:8080';
@@ -155,6 +162,7 @@ export interface AppSettings {
   spellcheck: boolean;
   expandTabs: boolean;
   showLineNumbers: boolean;
+  editorMargin: EditorMargin;
   /** When true, the vertical left toolbar widens to show text labels next to icons. */
   leftBarExpanded: boolean;
   /** @deprecated kept for migration from older builds — use mermaidWriteFormatId. */
@@ -241,9 +249,13 @@ function loadSettings(): AppSettings {
       if (parsed.ai && typeof parsed.ai.snapshotsKeep === 'number') {
         parsed.ai.snapshotsKeep = Math.max(1, Math.floor(parsed.ai.snapshotsKeep));
       }
-      // Retire configurable editor padding; the document surface uses fixed breathing room.
+      // Replace the old independent padding controls with named margin presets.
       for (const key of ['editorPaddingTop', 'editorPaddingBottom', 'editorPaddingX']) Reflect.deleteProperty(parsed, key);
       const defaults = getDefaultSettings();
+      if (parsed.editorMargin === 'none') parsed.editorMargin = 'pageless';
+      if (!Object.prototype.hasOwnProperty.call(EDITOR_MARGINS, parsed.editorMargin)) {
+        parsed.editorMargin = defaults.editorMargin;
+      }
       // Deep-merge the ai field so new fields added in updates get their defaults
       // even when localStorage holds an older partial ai object.
       const mergedAi = { ...defaults.ai, ...(parsed.ai ?? {}) };
@@ -381,6 +393,7 @@ function getDefaultSettings(): AppSettings {
     spellcheck: false,
     expandTabs: false,
     showLineNumbers: false,
+    editorMargin: 'medium',
     leftBarExpanded: false,
     mermaidFenceOpen: DEFAULT_MERMAID_DELIMITERS.open,
     mermaidFenceClose: DEFAULT_MERMAID_DELIMITERS.close,
@@ -592,6 +605,12 @@ export function useSettings() {
     settings.value.showLineNumbers = value;
   };
 
+  const setEditorMargin = (value: EditorMargin) => {
+    if (!Object.prototype.hasOwnProperty.call(EDITOR_MARGINS, value)) return;
+    settings.value.editorMargin = value;
+    applyCssVars(settings.value);
+  };
+
   const toggleShowLineNumbers = () => {
     settings.value.showLineNumbers = !settings.value.showLineNumbers;
   };
@@ -714,6 +733,7 @@ export function useSettings() {
     setSpellcheck,
     setExpandTabs,
     setShowLineNumbers,
+    setEditorMargin,
     toggleShowLineNumbers,
     setLeftBarExpanded,
     toggleLeftBarExpanded,
@@ -824,9 +844,10 @@ function applyCssVars(s: AppSettings) {
   root.setProperty('--code-font-family', resolveCodeFont(s.codeFontFamily));
   root.setProperty('--editor-line-height', `${s.editorLineHeight}`);
   // Shared editor surface padding, independent of the appearance theme.
-  root.setProperty('--editor-pad-top', '16px');
-  root.setProperty('--editor-pad-bottom', '32px');
-  root.setProperty('--editor-pad-x', '24px');
+  const margin = EDITOR_MARGINS[s.editorMargin];
+  root.setProperty('--editor-pad-top', `${margin.top}px`);
+  root.setProperty('--editor-pad-bottom', `${margin.bottom}px`);
+  root.setProperty('--editor-pad-x', `${margin.x}px`);
   applyCodeThemeVars(root, s.codeTheme);
 }
 
