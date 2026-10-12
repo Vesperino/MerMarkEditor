@@ -4,7 +4,7 @@ import { Compartment, EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
+import { EditorView, drawSelection, keymap, lineNumbers } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
@@ -149,6 +149,8 @@ onMounted(() => {
       extensions: [
         history(),
         EditorState.allowMultipleSelections.of(true),
+        // Without it only the main range of a multi-selection (Ctrl+D) is visible.
+        drawSelection(),
         markdown(),
         syntaxHighlighting(markdownHighlightStyle),
         keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
@@ -182,6 +184,9 @@ onMounted(() => {
           },
           '.cm-lineNumbers .cm-gutterElement': { padding: '0 0.5em 0 0.75em', minWidth: '3em' },
           '&.cm-focused': { outline: 'none', boxShadow: '0 0 0 2px var(--focus-ring-alpha)' },
+          '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--code-editor-text)' },
+          '.cm-selectionBackground': { backgroundColor: 'rgba(59, 130, 246, 0.2)' },
+          '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': { backgroundColor: 'rgba(59, 130, 246, 0.35)' },
         }),
       ],
     }),
