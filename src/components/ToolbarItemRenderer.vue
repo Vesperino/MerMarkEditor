@@ -354,7 +354,7 @@ const showLabel = (id: string) => {
 
   <!-- Image (with dropdown) -->
   <div v-else-if="itemId === 'image'" class="dropdown-container">
-    <button @mousedown.prevent @click="showImageMenu = !showImageMenu" class="toolbar-btn icon-only" v-tooltip="commandTooltip(t.image)" :disabled="isDisabled(itemId)">
+    <button @mousedown.prevent data-dropdown-toggle @click="showImageMenu = !showImageMenu" class="toolbar-btn icon-only" v-tooltip="commandTooltip(t.image)" :disabled="isDisabled(itemId)">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2"/>
         <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -381,7 +381,7 @@ const showLabel = (id: string) => {
 
   <!-- Table (with dropdown) -->
   <div v-else-if="itemId === 'table'" class="toolbar-group dropdown-container">
-    <button @mousedown.prevent @click="showTableMenu = !showTableMenu" :class="{ active: isActive('table') }" class="toolbar-btn icon-only" v-tooltip="commandTooltip(t.table)" :disabled="isDisabled(itemId)">
+    <button @mousedown.prevent data-dropdown-toggle @click="showTableMenu = !showTableMenu" :class="{ active: isActive('table') }" class="toolbar-btn icon-only" v-tooltip="commandTooltip(t.table)" :disabled="isDisabled(itemId)">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2"/>
         <line x1="3" y1="9" x2="21" y2="9"/>
@@ -446,7 +446,7 @@ const showLabel = (id: string) => {
     <template v-if="showTokens">
       <span class="stats-sep">|</span>
       <div class="token-counter dropdown-container">
-        <button @mousedown.prevent
+        <button @mousedown.prevent data-dropdown-toggle
           class="token-btn"
           @click.stop="showTokenMenu = !showTokenMenu"
           v-tooltip="commandTooltip(t.tokensTooltip)"
