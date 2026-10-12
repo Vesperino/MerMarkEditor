@@ -410,6 +410,25 @@ describe('useFileOperations', () => {
       expect(tabs.value[0].hasChanges).toBe(false);
       expect(tabs.value[0].filePath).toBe('/test/file.md');
     });
+
+    it('keeps edits made while the file was being written (#164)', async () => {
+      const { options, tabs, getEditorHtml } = makeOptions();
+      mockReadTextFile.mockImplementation(async (path: string) => {
+        if (path.endsWith('.tmp')) {
+          // The user bolds text while the save is in flight.
+          tabs.value[0].content = '<p><strong>hello</strong></p>';
+          getEditorHtml.mockReturnValue('<p><strong>hello</strong></p>');
+          return 'md:<p>hello</p>';
+        }
+        return '# hello';
+      });
+      const { saveFile } = useFileOperations(options);
+
+      await saveFile();
+
+      expect(tabs.value[0].content).toBe('<p><strong>hello</strong></p>');
+      expect(tabs.value[0].hasChanges).toBe(true);
+    });
   });
 
   // ----------------------------------------------------------

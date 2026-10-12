@@ -1635,9 +1635,12 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
     await writeTextFile(tab.filePath, markdown);
     markSaveEnd(tab.filePath, markdown);
 
-    // Update tab state
-    tab.hasChanges = false;
-    tab.content = html;
+    // Edits made during the write are newer than `html`; keep them and stay dirty (#164).
+    const stillActive = tabId === activeTabId.value && paneId === activePaneId.value;
+    if ((stillActive ? getEditorContent() : tab.content) === html) {
+      tab.hasChanges = false;
+      tab.content = html;
+    }
     tab.originalMarkdown = markdown;
   } catch (error) {
     console.error('Błąd automatycznego zapisywania:', error);
