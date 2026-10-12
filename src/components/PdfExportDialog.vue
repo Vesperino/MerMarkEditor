@@ -331,6 +331,7 @@ import {
   savePdfSettings,
   buildPrintDocument,
   isChromiumWebview,
+  printPageSetup,
   SYSTEM_FONTS,
   getFontStack,
   type PdfSettings,
@@ -517,7 +518,7 @@ async function handlePrint() {
     return;
   }
   try {
-    await invoke('print_document', { html: srcdoc.value });
+    await invoke('print_document', { html: srcdoc.value, page: printPageSetup(settings) });
   } catch (e) {
     console.error('print_document failed', e);
   }

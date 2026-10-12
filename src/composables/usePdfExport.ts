@@ -169,6 +169,15 @@ function resolveMargins(settings: PdfSettings): Margins {
   }
 }
 
+/** Paper and margins for print engines that ignore CSS `@page` (WebKitGTK, #163). */
+export function printPageSetup(settings: PdfSettings) {
+  const m = resolveMargins(settings);
+  return {
+    pageSize: settings.pageSize,
+    marginsMm: { top: parseFloat(m.top), right: parseFloat(m.right), bottom: parseFloat(m.bottom), left: parseFloat(m.left) },
+  };
+}
+
 function getPageNumberCssExpr(format: PageNumberFormat): string {
   if (format === 'n') return 'counter(page)';
   if (format === 'n-of-total') return 'counter(page) "/" counter(pages)';
@@ -476,7 +485,7 @@ async function _doPrint(editorEl: HTMLElement, settings: PdfSettings, meta: Docu
   const doc = buildPrintDocument(contentHtml, settings, printCssRaw, meta);
 
   if (!isChromiumWebview) {
-    await invoke('print_document', { html: doc });
+    await invoke('print_document', { html: doc, page: printPageSetup(settings) });
     return;
   }
 

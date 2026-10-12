@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  printPageSetup,
   buildPrintDocument,
   buildHeaderFooterContent,
   PDF_SETTINGS_DEFAULTS,
@@ -187,5 +188,13 @@ describe('buildHeaderFooterContent', () => {
   it('escapes embedded double quotes in literals', () => {
     const r = buildHeaderFooterContent('say "hi"', {});
     expect(r).toContain('\\"hi\\"');
+  });
+});
+
+describe('printPageSetup', () => {
+  it('hands WebKitGTK the paper size and resolved margins in millimetres', () => {
+    expect(printPageSetup({ ...PDF_SETTINGS_DEFAULTS, pageSize: 'Letter', margins: 'custom', customMargins: { top: 5, right: 70, bottom: 12, left: 30 } }))
+      .toEqual({ pageSize: 'Letter', marginsMm: { top: 5, right: 60, bottom: 12, left: 30 } });
+    expect(printPageSetup(PDF_SETTINGS_DEFAULTS).marginsMm).toEqual({ top: 18, right: 18, bottom: 22, left: 18 });
   });
 });
