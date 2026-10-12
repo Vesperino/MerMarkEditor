@@ -32,6 +32,8 @@ async function begin(id: string, index: number) {
 }
 function cancel() { editing.value = null; candidate.value = ''; message.value = ''; }
 function record(event: KeyboardEvent) {
+  // Plain Tab/Shift+Tab leaves the recorder so keyboard users are never trapped.
+  if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) { cancel(); return; }
   event.preventDefault(); event.stopImmediatePropagation();
   if (event.key === 'Escape') { cancel(); return; }
   if (['Meta', 'Control', 'Alt', 'Shift'].includes(event.key)) return;

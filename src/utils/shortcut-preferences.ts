@@ -28,10 +28,38 @@ export function normalizeShortcutOverrides(value: unknown): Record<string, strin
     return [[id, [...new Set(normalized as string[])]]];
   }));
 }
+const symbolKeys = ['Comma', 'Slash', 'Minus', 'Equal', 'Period', 'Semicolon', 'Quote', 'BracketLeft', 'BracketRight', 'Backslash', 'Backquote'];
+const isAscii = (key: string) => key.length === 1 && key.charCodeAt(0) < 128;
+const physicalKey = (code: string) => /^(Key[A-Z]|Digit[0-9])$/.test(code) ? code.replace(/^(Key|Digit)/, '') : code ? canonicalKey(code) : null;
+const producedKey = (key: string) => key === '+' ? 'Plus' : key.length === 1 && !isAscii(key) ? null : canonicalKey(key);
+export const isSymbolKey = (key: string) => symbolKeys.includes(key);
+
+/** Layout-aware names for a keypress: the character the layout produced, then the
+ *  physical key when that character is unusable (Cyrillic, macOS Option, Shift+digit). */
+export function eventKeyNames(event: KeyboardEvent): { key: string; produced: boolean }[] {
+  const produced = producedKey(event.key);
+  const physical = physicalKey(event.code);
+  const names = produced ? [{ key: produced, produced: true }] : [];
+  if (physical && physical !== produced && (!produced || (/^[0-9]$/.test(physical) && !/^[0-9]$/.test(produced)))) {
+    names.push({ key: physical, produced: false });
+  }
+  return names;
+}
+
+/** Windows and Linux report AltGr as Ctrl+Alt; such keypresses type characters (ą, ć, @, [, {). */
+export function isAltGraph(event: KeyboardEvent, isMac = /Mac/.test(navigator.platform)): boolean {
+  if (isMac || !event.ctrlKey || !event.altKey) return false;
+  if (event.getModifierState?.('AltGraph')) return true;
+  if (event.key.length !== 1) return false;
+  const produced = producedKey(event.key);
+  const physical = physicalKey(event.code);
+  return !produced || (!!physical && produced !== physical);
+}
+
 export function shortcutFromEvent(event: KeyboardEvent, isMac = /Mac/.test(navigator.platform)): string | null {
-  if (event.isComposing || ['Meta', 'Control', 'Alt', 'Shift'].includes(event.key)) return null;
-  const key = /^(Key[A-Z]|Digit[0-9])$/.test(event.code) ? event.code.replace(/^(Key|Digit)/, '')
-    : canonicalKey(event.code) ?? canonicalKey(event.key);
+  if (event.isComposing || ['Meta', 'Control', 'Alt', 'Shift', 'AltGraph'].includes(event.key) || isAltGraph(event, isMac)) return null;
+  const names = eventKeyNames(event);
+  const key = (event.shiftKey || event.altKey ? names.find(n => !n.produced) : undefined)?.key ?? names[0]?.key;
   if (!key) return null;
   const mods = [event.metaKey ? isMac ? 'CmdOrCtrl' : 'Super' : '', event.ctrlKey ? isMac ? 'Control' : 'CmdOrCtrl' : '', event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : ''].filter(Boolean);
   return normalizeShortcut([...mods, key].join('+'));

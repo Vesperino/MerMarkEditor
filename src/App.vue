@@ -999,7 +999,7 @@ const replaceOpen = ref(false);
 const replacement = ref('');
 const getSearchCodeView = () => {
   if (!codeView.value && !splitEditorActive.value) return null;
-  const node = document.querySelector<HTMLElement>('.cm-editor');
+  const node = document.querySelector<HTMLElement>(splitEditorActive.value ? '.split-editor-code .cm-editor' : '.code-view-area .cm-editor');
   return node ? EditorView.findFromDOM(node) : null;
 };
 const documentSearchBarRef = ref<InstanceType<typeof DocumentSearchBar> | null>(null);

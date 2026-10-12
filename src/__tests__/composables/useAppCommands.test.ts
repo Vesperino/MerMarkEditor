@@ -83,7 +83,7 @@ describe('command dispatch', () => {
     try {
       for (let level = 1; level <= 6; level++) {
         const command = flatten(commands.menus.value).find(item => item.id === `heading:${level}`)!;
-        expect(command.accelerator).toBe(`CmdOrCtrl+${level}`);
+        expect(command.accelerator).toBe(`CmdOrCtrl+Alt+${level}`);
         await commands.execute(command.id);
         expect(editor.getHTML()).toContain(`<h${level}>Heading text</h${level}>`);
         await commands.execute(command.id);
@@ -100,6 +100,12 @@ describe('command dispatch', () => {
       document.body.appendChild(input); input.focus(); commands.refresh();
       expect(commands.enabled('heading:1')).toBe(false);
       input.remove(); commands.refresh();
+      // A focused zoom slider is not a text field (#164).
+      const slider = document.createElement('input'); slider.type = 'range';
+      document.body.appendChild(slider); slider.focus(); commands.refresh();
+      expect(commands.enabled('heading:1')).toBe(true);
+      expect(commands.enabled('bold')).toBe(true);
+      slider.remove(); commands.refresh();
     } finally {
       wrapper.unmount(); editor.destroy();
     }

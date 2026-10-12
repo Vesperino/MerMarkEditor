@@ -46,6 +46,25 @@ export function createDispatcher(find: (id: string) => AppCommand | undefined) {
   };
 }
 
+/** Menu-driven clipboard for webviews without native clipboard roles (Linux). */
+async function clipboardCommand(action: 'cut' | 'copy' | 'paste') {
+  if (document.execCommand(action)) return;
+  if (action !== 'paste') {
+    const text = window.getSelection()?.toString() ?? '';
+    if (!text) return;
+    await navigator.clipboard?.writeText(text);
+    if (action === 'cut') document.execCommand('delete');
+    return;
+  }
+  const text = await navigator.clipboard?.readText().catch(() => '');
+  if (!text) return;
+  const data = new DataTransfer();
+  data.setData('text/plain', text);
+  // Editors handle the synthetic paste (Markdown conversion); plain fields insert the text.
+  const handled = !document.activeElement?.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  if (!handled) document.execCommand('insertText', false, text);
+}
+
 export function useAppCommands(options: {
   editor: Ref<Editor | null>;
   context: () => CommandContext;
@@ -73,6 +92,13 @@ export function useAppCommands(options: {
     document.removeEventListener('selectionchange', refresh);
     document.removeEventListener('input', refresh);
   });
+  // Sliders, checkboxes and buttons hold focus too; only text fields own the keyboard.
+  function textEntryFocused() {
+    const el = document.activeElement;
+    if (!el) return false;
+    if (el.closest('.cm-editor') || el.matches('textarea')) return true;
+    return el.matches('input') && /^(|text|search|url|email|tel|password|number)$/.test((el as HTMLInputElement).type);
+  }
   function focusedCodeEditor() {
     const node = document.activeElement?.closest('.cm-editor');
     return node ? EditorView.findFromDOM(node as HTMLElement) : null;
@@ -81,7 +107,7 @@ export function useAppCommands(options: {
     const code = focusedCodeEditor();
     if (code) { (direction === 'undo' ? undo : redo)(code); return; }
     const el = document.activeElement;
-    if (el?.matches('input, textarea') || (el?.closest('[contenteditable="true"]') && !el.closest('.tiptap'))) {
+    if (textEntryFocused() || (el?.closest('[contenteditable="true"]') && !el.closest('.tiptap'))) {
       document.execCommand(direction); return;
     }
     if (!options.context().codeView && !options.context().splitEditor && !options.context().modal) {
@@ -91,7 +117,7 @@ export function useAppCommands(options: {
   function canHistory(direction: 'undo' | 'redo') {
     const code = focusedCodeEditor();
     if (code) return (direction === 'undo' ? undoDepth : redoDepth)(code.state) > 0;
-    if (document.activeElement?.matches('input, textarea')) return document.queryCommandEnabled?.(direction) ?? true;
+    if (textEntryFocused()) return document.queryCommandEnabled?.(direction) ?? true;
     return !options.context().modal && !options.context().codeView && !options.context().splitEditor &&
       !!options.editor.value?.can()[direction]();
   }
@@ -99,8 +125,8 @@ export function useAppCommands(options: {
     void revision.value;
     const c = options.context(), l = labels.value, tr = t.value;
     const recording = !!document.activeElement?.closest('[data-shortcut-recorder]');
-    const inputFocused = !!document.activeElement?.matches('input, textarea') || !!document.activeElement?.closest('.cm-editor');
-    const visual = c.hasDocument && !!options.editor.value && !c.codeView && !c.splitEditor && !c.modal && !inputFocused;
+    const visualDocument = c.hasDocument && !!options.editor.value && !c.codeView && !c.splitEditor && !c.modal;
+    const visual = visualDocument && !textEntryFocused();
     const doc = c.hasDocument && !c.modal;
     const code = focusedCodeEditor();
     const source = doc && !!code;
@@ -122,7 +148,7 @@ export function useAppCommands(options: {
       ({ bold: 'CmdOrCtrl+B', italic: 'CmdOrCtrl+I', link: 'CmdOrCtrl+K', 'inline-code': 'CmdOrCtrl+E',
         'bullet-list': 'CmdOrCtrl+Shift+8', 'ordered-list': 'CmdOrCtrl+Shift+7', 'task-list': 'CmdOrCtrl+Shift+9',
         'code-block': 'CmdOrCtrl+Alt+C' } as Record<string, string>)[id],
-      active ? visual && a.isActive(active) : undefined);
+      active ? visualDocument && a.isActive(active) : undefined);
     const invoke = (id: string, ...args: unknown[]) => () => options.actions[id]?.(...args);
     const chain = (fn: (editor: Editor) => void) => () => a.runCommand(fn);
     const menu = (label: string, items: (AppCommand | CommandMenu)[]): CommandMenu => ({ label, items });
@@ -143,6 +169,7 @@ export function useAppCommands(options: {
         command('save-file', tr.save, undefined, doc, 'CmdOrCtrl+S'),
         command('save-file-as', tr.saveAs, undefined, doc, 'CmdOrCtrl+Shift+S'),
         command('reload-file', l.reload, undefined, doc, 'CmdOrCtrl+R'),
+        command('print', `${l.print}…`, invoke('export-pdf'), doc, 'CmdOrCtrl+P'),
         command('export-pdf', `${tr.exportPdf}…`, undefined, doc),
         command('export-docx', `${tr.exportDocx}…`, undefined, doc),
         command('close-tab', tr.closeTab, undefined, doc, 'CmdOrCtrl+W'),
@@ -151,9 +178,9 @@ export function useAppCommands(options: {
       menu(l.edit, [
         command('undo', tr.undo, () => textHistory('undo'), canHistory('undo'), 'CmdOrCtrl+Z'),
         command('redo', tr.redo, () => textHistory('redo'), canHistory('redo'), /Mac/.test(navigator.platform) ? 'CmdOrCtrl+Shift+Z' : 'CmdOrCtrl+Y'),
-        command('cut', l.cut, () => document.execCommand('cut'), true),
-        command('copy', l.copy, () => document.execCommand('copy'), true),
-        command('paste', l.paste, () => document.execCommand('paste'), true),
+        command('cut', l.cut, () => clipboardCommand('cut'), true),
+        command('copy', l.copy, () => clipboardCommand('copy'), true),
+        command('paste', l.paste, () => clipboardCommand('paste'), true),
         command('select-all', l.selectAll, () => {
           const code = focusedCodeEditor();
           if (code) selectAll(code); else document.execCommand('selectAll');
@@ -168,7 +195,7 @@ export function useAppCommands(options: {
       ]),
       menu(l.format, [
         menu(tr.heading, Array.from({ length: 7 }, (_, level) => command(`heading:${level}`, level ? tr.headingLevel(level) : tr.paragraph,
-          () => { if (source && code) formatSource(code, level); else a.setHeading(level); }, formatting, level ? `CmdOrCtrl+${level}` : undefined, source ? sourceHeading === level : level ? a.isActive('heading', { level }) : a.isActive('paragraph')))),
+          () => { if (source && code) formatSource(code, level); else a.setHeading(level); }, formatting, `CmdOrCtrl+Alt+${level}`, source ? sourceHeading === level : level ? a.isActive('heading', { level }) : a.isActive('paragraph')))),
         edit('bold', l.bold, chain(e => { e.chain().focus().toggleBold().run(); }), 'bold'),
         edit('italic', l.italic, chain(e => { e.chain().focus().toggleItalic().run(); }), 'italic'),
         edit('strikethrough', l.strike, chain(e => { e.chain().focus().toggleStrike().run(); }), 'strike'),
@@ -196,21 +223,21 @@ export function useAppCommands(options: {
         edit('page-break', l.pageBreak, chain(e => { e.chain().focus().insertContent({ type: 'pageBreak' }).run(); })),
       ]),
       menu(l.view, [
-        command('toggle-workspace-sidebar', tr.workspace, workspace.toggleSidebarVisible, !c.modal, 'CmdOrCtrl+Shift+B', workspace.sidebarVisible.value),
+        command('toggle-workspace-sidebar', tr.workspace, workspace.toggleSidebarVisible, !c.modal, undefined, workspace.sidebarVisible.value),
         command('command-palette', tr.commandPalette, undefined, !c.modal, 'CmdOrCtrl+Shift+P', undefined, ['F1']),
-        command('quick-open', tr.quickOpen, undefined, !c.modal, 'CmdOrCtrl+P'),
+        command('quick-open', tr.quickOpen, undefined, !c.modal),
         command('workspace-search', tr.searchWorkspace, undefined, !c.modal, 'CmdOrCtrl+Shift+F'),
         command('go-to-heading', tr.goToHeading, undefined, doc, 'CmdOrCtrl+Shift+O'),
-        command('next-tab', tr.nextTab, undefined, doc, 'Control+Tab'),
-        command('previous-tab', tr.previousTab, undefined, doc, 'Control+Shift+Tab'),
-        menu(tr.jumpToTab, Array.from({ length: 9 }, (_, i) => command(`tab:${i}`, `${tr.jumpToTab}: ${i + 1}`, invoke('select-tab', i), doc, `CmdOrCtrl+Alt+${i + 1}`))),
+        command('next-tab', tr.nextTab, undefined, doc, 'Control+Tab', undefined, ['Control+PageDown']),
+        command('previous-tab', tr.previousTab, undefined, doc, 'Control+Shift+Tab', undefined, ['Control+PageUp']),
+        menu(tr.jumpToTab, Array.from({ length: 9 }, (_, i) => command(`tab:${i}`, `${tr.jumpToTab}: ${i + 1}`, invoke('select-tab', i), doc, `CmdOrCtrl+${i + 1}`))),
         command('workspace-switcher', tr.searchWorkspace, undefined, !c.modal, 'CmdOrCtrl+Shift+E'),
-        command('toggle-toc', tr.tableOfContents, undefined, visual, 'CmdOrCtrl+Shift+T', c.toc),
+        command('toggle-toc', tr.tableOfContents, undefined, visualDocument, 'CmdOrCtrl+Shift+T', c.toc),
         command('toggle-code-view', tr.codeView, undefined, doc && !c.splitEditor, 'CmdOrCtrl+Shift+V', c.codeView),
-        command('toggle-split-view', tr.splitView, undefined, visual, undefined, c.splitView),
+        command('toggle-split-view', tr.splitView, undefined, visualDocument, undefined, c.splitView),
         command('toggle-split-editor', tr.splitEditor, undefined, doc && !c.splitView, undefined, c.splitEditor),
-        command('toggle-diff', tr.changes, undefined, visual && c.canDiff, 'CmdOrCtrl+Shift+D', c.diff),
-        command('compare-tabs', tr.compareTabs, undefined, visual && c.canCompare, 'CmdOrCtrl+Shift+C'),
+        command('toggle-diff', tr.changes, undefined, visualDocument && c.canDiff, 'CmdOrCtrl+Shift+D', c.diff),
+        command('compare-tabs', tr.compareTabs, undefined, visualDocument && c.canCompare, 'CmdOrCtrl+Shift+C'),
         command('ai-toggle', tr.aiToggleTooltip, undefined, !c.modal, undefined, c.ai),
         menu(tr.zoom, [command('zoom-in', tr.zoomIn, a.zoomIn, !c.modal, 'CmdOrCtrl+Plus'), command('zoom-out', tr.zoomOut, a.zoomOut, !c.modal, 'CmdOrCtrl+-'), command('zoom-reset', l.zoomReset, a.resetZoom, !c.modal, 'CmdOrCtrl+0')]),
         menu(tr.stats, [
@@ -222,19 +249,19 @@ export function useAppCommands(options: {
       ]),
       menu(l.presentation, [
         command('present-marp', tr.presentMarp, undefined, doc),
-        command('marp-new-slide', tr.marpBarNewSlide, undefined, visual && c.marp),
-        menu(tr.marpBarTheme, ['gaia', 'default', 'uncover'].map(v => command(`marp-theme:${v}`, v, invoke('marp-theme', v), visual && c.marp))),
-        menu(tr.marpBarLayout, ['lead', 'invert', ''].map(v => command(`marp-layout:${v}`, v || tr.marpBarLayoutDefault, invoke('marp-layout', v), visual && c.marp))),
+        command('marp-new-slide', tr.marpBarNewSlide, undefined, visualDocument && c.marp),
+        menu(tr.marpBarTheme, ['gaia', 'default', 'uncover'].map(v => command(`marp-theme:${v}`, v, invoke('marp-theme', v), visualDocument && c.marp))),
+        menu(tr.marpBarLayout, ['lead', 'invert', ''].map(v => command(`marp-layout:${v}`, v || tr.marpBarLayoutDefault, invoke('marp-layout', v), visualDocument && c.marp))),
         menu(tr.marpBarBackground, [
-          ...(['', 'left', 'right'] as const).map((pos, i) => command(`marp-bg:${pos}`, [tr.marpBgLocalFull, tr.marpBgLocalLeft, tr.marpBgLocalRight][i], invoke('marp-bg', { source: 'local', pos }), visual && c.marp)),
-          command('marp-bg:url', tr.marpBgUrl, invoke('marp-bg', { source: 'url', pos: '' }), visual && c.marp),
+          ...(['', 'left', 'right'] as const).map((pos, i) => command(`marp-bg:${pos}`, [tr.marpBgLocalFull, tr.marpBgLocalLeft, tr.marpBgLocalRight][i], invoke('marp-bg', { source: 'local', pos }), visualDocument && c.marp)),
+          command('marp-bg:url', tr.marpBgUrl, invoke('marp-bg', { source: 'url', pos: '' }), visualDocument && c.marp),
         ]),
-        command('marp-paginate', tr.marpBarPaginate, undefined, visual && c.marp),
-        menu(tr.marpBarSize, ['16:9', '4:3'].map(v => command(`marp-size:${v}`, v, invoke('marp-size', v), visual && c.marp))),
-        menu(tr.marpBarFont, [0, 18, 22, 26, 32].map(v => command(`marp-font:${v}`, v ? `${v}px` : tr.marpFontDefault, invoke('marp-font', v), visual && c.marp))),
-        command('marp-preview', tr.marpBarPreview, undefined, visual && c.marp, undefined, c.marpPreview),
+        command('marp-paginate', tr.marpBarPaginate, undefined, visualDocument && c.marp),
+        menu(tr.marpBarSize, ['16:9', '4:3'].map(v => command(`marp-size:${v}`, v, invoke('marp-size', v), visualDocument && c.marp))),
+        menu(tr.marpBarFont, [0, 18, 22, 26, 32].map(v => command(`marp-font:${v}`, v ? `${v}px` : tr.marpFontDefault, invoke('marp-font', v), visualDocument && c.marp))),
+        command('marp-preview', tr.marpBarPreview, undefined, visualDocument && c.marp, undefined, c.marpPreview),
       ]),
-      menu(l.help, [command('show-shortcuts', tr.keyboardShortcuts, undefined, true), command('whats-new', tr.whatsNew, undefined, !c.modal)]),
+      menu(l.help, [command('show-shortcuts', tr.keyboardShortcuts, undefined, true, 'CmdOrCtrl+/'), command('whats-new', tr.whatsNew, undefined, !c.modal)]),
     ];
   });
   const all = computed(() => {

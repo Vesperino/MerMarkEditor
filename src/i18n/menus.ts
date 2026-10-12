@@ -17,7 +17,7 @@ const en = {
   replaceMessage: 'Applying this preset replaces your current control placements. Your other settings will stay the same.',
   apply: 'Apply preset', zoomReset: 'Actual Size', reload: 'Reload from Disk',
   cut: 'Cut', copy: 'Copy', paste: 'Paste', selectAll: 'Select All',
-  newWindow: 'New Window', closeWindow: 'Close Window', tokens: 'Show Token Count',
+  newWindow: 'New Window', closeWindow: 'Close Window', tokens: 'Show Token Count', print: 'Print',
 };
 type MenuLabels = typeof en;
 const labels: Record<Locale, MenuLabels> = {
@@ -38,7 +38,7 @@ const labels: Record<Locale, MenuLabels> = {
     replaceMessage: 'Wybrany układ zastąpi obecne rozmieszczenie narzędzi. Pozostałe ustawienia nie zmienią się.',
     apply: 'Zastosuj układ', zoomReset: 'Rzeczywisty rozmiar', reload: 'Wczytaj ponownie z dysku',
     cut: 'Wytnij', copy: 'Kopiuj', paste: 'Wklej', selectAll: 'Zaznacz wszystko',
-    newWindow: 'Nowe okno', closeWindow: 'Zamknij okno', tokens: 'Pokaż liczbę tokenów',
+    newWindow: 'Nowe okno', closeWindow: 'Zamknij okno', tokens: 'Pokaż liczbę tokenów', print: 'Drukuj',
   },
   'zh-CN': {
     file: '文件', edit: '编辑', format: '格式', insert: '插入', view: '视图',
@@ -56,7 +56,7 @@ const labels: Record<Locale, MenuLabels> = {
     replaceMessage: '应用此预设将替换当前控件的位置。其他设置将保持不变。',
     apply: '应用预设', zoomReset: '实际大小', reload: '从磁盘重新加载',
     cut: '剪切', copy: '复制', paste: '粘贴', selectAll: '全选',
-    newWindow: '新建窗口', closeWindow: '关闭窗口', tokens: '显示 Token 数量',
+    newWindow: '新建窗口', closeWindow: '关闭窗口', tokens: '显示 Token 数量', print: '打印',
   },
   de: {
     file: 'Datei', edit: 'Bearbeiten', format: 'Format', insert: 'Einfügen', view: 'Ansicht',
@@ -74,7 +74,7 @@ const labels: Record<Locale, MenuLabels> = {
     replaceMessage: 'Diese Vorgabe ersetzt die aktuelle Anordnung der Werkzeuge. Ihre übrigen Einstellungen bleiben unverändert.',
     apply: 'Vorgabe anwenden', zoomReset: 'Originalgröße', reload: 'Von Festplatte neu laden',
     cut: 'Ausschneiden', copy: 'Kopieren', paste: 'Einfügen', selectAll: 'Alles auswählen',
-    newWindow: 'Neues Fenster', closeWindow: 'Fenster schließen', tokens: 'Token-Anzahl anzeigen',
+    newWindow: 'Neues Fenster', closeWindow: 'Fenster schließen', tokens: 'Token-Anzahl anzeigen', print: 'Drucken',
   },
   ja: {
     file: 'ファイル', edit: '編集', format: '書式', insert: '挿入', view: '表示',
@@ -92,7 +92,7 @@ const labels: Record<Locale, MenuLabels> = {
     replaceMessage: 'このプリセットを適用すると、現在のコントロール配置が上書きされます。その他の設定は維持されます。',
     apply: 'プリセットを適用', zoomReset: '実際のサイズ', reload: 'ディスクから再読込',
     cut: '切り取り', copy: 'コピー', paste: '貼り付け', selectAll: 'すべて選択',
-    newWindow: '新しいウィンドウ', closeWindow: 'ウィンドウを閉じる', tokens: 'トークン',
+    newWindow: '新しいウィンドウ', closeWindow: 'ウィンドウを閉じる', tokens: 'トークン数を表示', print: '印刷',
   },
 };
 export function useMenuLabels() {

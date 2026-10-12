@@ -15,6 +15,9 @@ describe('shortcut preferences', () => {
     expect(shortcutFromEvent(new KeyboardEvent('keydown', { key: 'Tab', ctrlKey: true }), true)).toBe('Control+Tab');
     expect(shortcutFromEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true }), false)).toBe('CmdOrCtrl+B');
     expect(shortcutFromEvent(new KeyboardEvent('keydown', { key: 'b' }), true)).toBeNull();
+    expect(shortcutFromEvent(new KeyboardEvent('keydown', { key: 'ć', code: 'KeyC', ctrlKey: true, altKey: true }), false)).toBeNull();
+    expect(shortcutFromEvent(new KeyboardEvent('keydown', { key: '-', code: 'Slash', ctrlKey: true }), false)).toBe('CmdOrCtrl+Minus');
+    expect(shortcutFromEvent(new KeyboardEvent('keydown', { key: '&', code: 'Digit7', ctrlKey: true, shiftKey: true }), false)).toBe('CmdOrCtrl+Shift+7');
   });
   it('detects platform collisions and the two equivalent zoom-in combinations', () => {
     expect(shortcutsOverlap('CmdOrCtrl+B', 'Control+B', false)).toBe(true);
