@@ -1,6 +1,6 @@
 <template>
   <div class="pdf-overlay">
-    <div class="pdf-sidebar">
+    <div ref="sidebarRef" class="pdf-sidebar" tabindex="-1">
       <div class="pdf-sidebar-header">
         <h3 class="pdf-title">{{ t.pdfPreviewTitle }}</h3>
         <select
@@ -346,7 +346,7 @@ const props = defineProps<{
   contentHtml: string;
   meta?: DocumentMeta;
 }>();
-defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: [] }>();
 
 const TABS = computed(() => [
   { id: 'layout' as const, label: t.value.pdfTabLayout },
@@ -502,13 +502,22 @@ watch(srcdoc, () => {
   writeTimer = setTimeout(writeIframeContent, 120);
 });
 
+const sidebarRef = ref<HTMLElement | null>(null);
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && !e.defaultPrevented) emit('close');
+}
+
 onMounted(() => {
   void loadPrintFonts();
   writeIframeContent();
+  window.addEventListener('keydown', onKeydown);
+  // Opened from Ctrl+P, focus would stay in the document behind the dialog.
+  sidebarRef.value?.focus({ preventScroll: true });
 });
 
 onBeforeUnmount(() => {
   if (writeTimer) clearTimeout(writeTimer);
+  window.removeEventListener('keydown', onKeydown);
 });
 
 async function handlePrint() {
@@ -533,6 +542,8 @@ async function handlePrint() {
   display: flex;
   background: #3a3a3a;
 }
+
+.pdf-sidebar:focus { outline: none; }
 
 .pdf-sidebar {
   width: 320px;

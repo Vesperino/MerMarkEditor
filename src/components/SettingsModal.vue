@@ -418,6 +418,7 @@ const emit = defineEmits<{
 }>();
 
 const appVersion = ref('');
+const panelRef = ref<HTMLElement | null>(null);
 
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.defaultPrevented) return;
@@ -428,6 +429,8 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
+  // Opened from a shortcut, focus would stay in the document behind the dialog.
+  panelRef.value?.focus({ preventScroll: true });
   try {
     appVersion.value = await getVersion();
   } catch {
@@ -442,7 +445,7 @@ onUnmounted(() => {
 
 <template>
   <div class="settings-overlay" @click.self="emit('close')">
-    <div class="settings-panel">
+    <div ref="panelRef" class="settings-panel" tabindex="-1">
       <div class="settings-header">
         <h3>{{ t.settings }}</h3>
         <button @click="emit('close')" class="settings-close-btn" :title="t.close">
@@ -1151,6 +1154,8 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 10000;
 }
+
+.settings-panel:focus { outline: none; }
 
 .settings-panel {
   background: var(--dialog-bg);

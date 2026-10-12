@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useAppCommandDispatcher } from '../composables/useAppCommands';
 import { flattenCommands, formatShortcut } from '../composables/useCommandShortcuts';
 import { useI18n } from '../i18n';
@@ -30,8 +30,12 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 };
 
+const panelRef = ref<HTMLElement | null>(null);
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
+  // Opened from a shortcut, focus would stay in the document behind the dialog.
+  panelRef.value?.focus({ preventScroll: true });
 });
 
 onUnmounted(() => {
@@ -41,7 +45,7 @@ onUnmounted(() => {
 
 <template>
   <div class="shortcuts-overlay" @click.self="emit('close')">
-    <div class="shortcuts-panel">
+    <div ref="panelRef" class="shortcuts-panel" tabindex="-1">
       <div class="shortcuts-header">
         <h3>{{ t.keyboardShortcuts }}</h3>
         <button @click="emit('close')" class="shortcuts-close-btn" :title="t.close">
@@ -84,6 +88,8 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 10000;
 }
+
+.shortcuts-panel:focus { outline: none; }
 
 .shortcuts-panel {
   background: var(--dialog-bg);
