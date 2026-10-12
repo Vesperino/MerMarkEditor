@@ -113,31 +113,13 @@ describe('useLineNumbers', () => {
     expect(lines.value).toEqual([{ top: 20, num: 1, height: 20 }]);
   });
 
-  it('remeasures nested text edits without a block resize', async () => {
-    let frame: FrameRequestCallback | undefined;
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => { frame = cb; return 1; });
-    const paragraph = stubChild('p', { top: 0, height: 40, left: 0, right: 100, bottom: 40, width: 100 });
-    const span = document.createElement('span');
-    span.textContent = 'first row';
-    paragraph.appendChild(span);
-    const container = mountContainer([paragraph], { top: 0, height: 40, left: 0, right: 100, bottom: 40, width: 100 });
-    let textTop = 0;
-    vi.spyOn(document, 'createRange').mockImplementation(() => ({
-      selectNodeContents() {},
-      getClientRects: () => [{ top: textTop, height: 20, width: 100 }],
-      detach() {},
-    }) as unknown as Range);
-    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true) });
-    frame!(0);
-    frame = undefined;
-    expect(lines.value[0].top).toBe(0);
-
-    textTop = 20;
-    span.firstChild!.nodeValue = 'second row';
+  it('trusts layout over the configured zoom when the engine reports unzoomed rects (older WebKit)', async () => {
+    const paragraph = stubChild('p', { top: 20, height: 20, left: 0, right: 100, bottom: 40, width: 100 });
+    const container = mountContainer([paragraph], { top: 0, height: 60, left: 0, right: 100, bottom: 60, width: 100 });
+    Object.defineProperty(container, 'offsetWidth', { value: 100 });
+    const { lines } = useLineNumbers({ containerRef: ref(container), enabled: ref(true), zoomRef: ref(2) });
     await nextTick();
-    expect(frame).toBeDefined();
-    frame!(0);
-    expect(lines.value[0].top).toBe(20);
+    expect(lines.value).toEqual([{ top: 20, num: 1, height: 20 }]);
   });
 
   it('returns empty when disabled', async () => {

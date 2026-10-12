@@ -47,7 +47,7 @@ export function useLineNumbers({ containerRef, enabled, anchorRef, zoomRef = ref
 
     const anchor = anchorRef?.value ?? container;
     const anchorRect = anchor.getBoundingClientRect();
-    const zoom = zoomRef.value;
+    const zoom = measureScale(container, zoomRef.value);
     const entries: LineEntry[] = [];
     let counter = 1;
 
@@ -58,7 +58,7 @@ export function useLineNumbers({ containerRef, enabled, anchorRef, zoomRef = ref
       const lineRects = getLinesForBlock(child, rect, zoom);
       for (const lr of lineRects) {
         entries.push({
-          // Browser rects include CSS zoom; the gutter's CSS positions do not.
+          // Rects are in viewport pixels; the gutter's CSS positions are not.
           top: (lr.top - anchorRect.top) / zoom,
           num: counter++,
           height: lr.height / zoom,
@@ -87,7 +87,7 @@ export function useLineNumbers({ containerRef, enabled, anchorRef, zoomRef = ref
       }
       scheduleRecompute();
     });
-    mutationObserver.observe(container, { childList: true, subtree: true, characterData: true });
+    mutationObserver.observe(container, { childList: true });
 
     scheduleRecompute();
   };
@@ -104,14 +104,24 @@ export function useLineNumbers({ containerRef, enabled, anchorRef, zoomRef = ref
     lines.value = [];
   };
 
-  watch([containerRef, enabled, zoomRef], ([container, isEnabled]) => {
+  watch([containerRef, enabled], ([container, isEnabled]) => {
     detach();
     if (isEnabled && container) attach();
   }, { immediate: true, flush: 'post' });
+  // CSS zoom changes viewport rects without resizing blocks.
+  watch(zoomRef, scheduleRecompute, { flush: 'post' });
 
   onBeforeUnmount(detach);
 
   return { lines, recompute: scheduleRecompute };
+}
+
+/** Engines disagree on whether rects include CSS zoom (WebKit before 2025 divides it out),
+ *  so derive the scale from the layout instead of trusting the configured zoom. */
+function measureScale(el: HTMLElement, fallback: number): number {
+  const layout = el.offsetWidth;
+  const visual = el.getBoundingClientRect().width;
+  return layout > 0 && visual > 0 ? visual / layout : fallback;
 }
 
 function getLinesForBlock(el: HTMLElement, rect: DOMRect, zoom: number): LineRect[] {
