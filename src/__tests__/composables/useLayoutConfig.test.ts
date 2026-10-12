@@ -151,10 +151,24 @@ describe('layout presets and migration', () => {
     expect(loadLayoutConfig().preset).toBe('full');
   });
 
-  it.each([1, 2])('preserves all-hidden version %s layouts and legacy zoom placement', version => {
+  it('preserves all-hidden version 2 layouts, including a toolbar zoom chosen by the user', () => {
     const placements = TOOLBAR_ITEMS.map(i => ({ id: i.id, zone: i.id === 'zoom-controls' ? 'toolbar' : 'hidden', order: i.defaultOrder }));
-    localStorage.setItem('mermark-layout', JSON.stringify({ version, placements }));
+    localStorage.setItem('mermark-layout', JSON.stringify({ version: 2, placements }));
     expect(loadLayoutConfig()).toEqual({ version: 3, preset: 'custom', placements });
+  });
+
+  it('moves version 1 toolbar zoom to the status bar, its later default', () => {
+    const placements = TOOLBAR_ITEMS.map(i => ({ id: i.id, zone: i.id === 'zoom-controls' ? 'toolbar' : 'hidden', order: i.defaultOrder }));
+    localStorage.setItem('mermark-layout', JSON.stringify({ version: 1, placements }));
+    expect(loadLayoutConfig().placements.find(p => p.id === 'zoom-controls')?.zone).toBe('statusbar');
+  });
+
+  it('treats an untouched pre-preset layout as Full and shows controls added since', () => {
+    const placements = TOOLBAR_ITEMS.filter(i => i.id !== 'save-file').map(i => ({ id: i.id, zone: i.defaultZone, order: i.defaultOrder }));
+    localStorage.setItem('mermark-layout', JSON.stringify({ version: 2, placements }));
+    const config = loadLayoutConfig();
+    expect(config.preset).toBe('full');
+    expect(config.placements.find(p => p.id === 'save-file')?.zone).toBe(TOOLBAR_ITEMS.find(i => i.id === 'save-file')!.defaultZone);
   });
 
   it.each(['custom', 'minimal'])('does not expose newly registered controls in %s layouts', preset => {

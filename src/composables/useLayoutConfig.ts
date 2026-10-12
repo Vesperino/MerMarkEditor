@@ -42,12 +42,25 @@ export function loadLayoutConfig(): LayoutConfig {
       if (parsed.version >= 1 && parsed.version <= CONFIG_VERSION && Array.isArray(parsed.placements)) {
         // Ensure all registry items exist in placements (handles new items added in updates)
         const existingIds = new Set(parsed.placements.map(p => p.id));
-        parsed.preset = parsed.version < 3 || !['full', 'minimal', 'custom'].includes(parsed.preset)
-          ? 'custom' : parsed.preset;
+        const legacy = parsed.version < 3;
+        // Migration v1 -> v2: zoom-controls moved from the toolbar to the status bar.
+        if (parsed.version < 2) {
+          const zoom = parsed.placements.find(p => p.id === 'zoom-controls');
+          const def = getItemDef('zoom-controls');
+          if (zoom && zoom.zone === 'toolbar' && def) { zoom.zone = def.defaultZone; zoom.order = def.defaultOrder; }
+        }
+        if (legacy) {
+          // Layouts from before presets were the Full layout unless the user moved something.
+          const full = new Map(generateDefaults('full').map(p => [p.id, p.zone]));
+          parsed.preset = parsed.placements.every(p => !full.has(p.id) || full.get(p.id) === p.zone) ? 'full' : 'custom';
+        } else if (!['full', 'minimal', 'custom'].includes(parsed.preset)) {
+          parsed.preset = 'custom';
+        }
         const defaults = generateDefaults(parsed.preset === 'minimal' ? 'minimal' : 'full');
         for (const def of defaults) {
           if (!existingIds.has(def.id)) {
-            parsed.placements.push({ ...def, zone: parsed.preset === 'custom' ? 'hidden' : def.zone });
+            // A pre-preset layout never chose to hide controls added after it was saved.
+            parsed.placements.push({ ...def, zone: parsed.preset === 'custom' && !legacy ? 'hidden' : def.zone });
           }
         }
         // Remove placements for items no longer in registry
@@ -66,7 +79,6 @@ export function loadLayoutConfig(): LayoutConfig {
             }
           }
         }
-        // Preserve every saved placement, including legacy zoom placement.
         parsed.version = CONFIG_VERSION;
         return parsed;
       }
