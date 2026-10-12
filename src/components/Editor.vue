@@ -67,6 +67,7 @@ import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
 import { watch, ref, nextTick, computed, watchEffect } from "vue";
+import { addTableBordersToClipboard } from "../utils/table-copy";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { useEditorZoom } from "../composables/useEditorZoom";
 import { useDocumentStyle } from '../composables/useDocumentStyle';
@@ -863,6 +864,8 @@ defineExpose({
     ref="editorContainerRef"
     @click="handleEditorClick"
     @contextmenu="handleContextMenu"
+    @copy="addTableBordersToClipboard"
+    @cut="addTableBordersToClipboard"
     @mouseover="(e) => { footnotes.handleMouseOver(e); handleEditorMouseOver(e); }"
     @mouseout="(e) => { footnotes.handleMouseOut(e); handleEditorMouseOut(e); }"
   >
