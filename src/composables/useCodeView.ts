@@ -4,7 +4,8 @@ import type { TiptapEditorHTMLElement } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
 import type { ResolvedPos } from '@tiptap/pm/model';
 import type { CodeEditorHandle } from '../types/code-editor';
-import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
+import { markdownToHtml } from '../utils/markdown-converter';
+import { sourcePreservingMarkdown } from '../utils/source-preserving-markdown';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import { targetScrollTop } from '../utils/scroll';
 import { isStandaloneSafeHtmlBlock, safeHtmlSourceKey, safeHtmlTagTokens } from '../utils/safe-html';
@@ -18,7 +19,8 @@ import {
 
 export interface UseCodeViewOptions {
   getActiveContent: () => string;
-  setActiveContent: (content: string) => void;
+  setActiveContent: (content: string, source?: string) => void;
+  getSourceMarkdown?: () => string | null | undefined;
   markAsChanged: () => void;
   /** When true at CODE→VISUAL time, convert even if the snapshot is unchanged —
    *  used for markdown-first tabs whose HTML was never generated (issue #129). */
@@ -655,7 +657,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       if (editor) {
         const { from } = editor.state.selection;
 
-        codeContent.value = htmlToMarkdown(editor.getHTML());
+        codeContent.value = sourcePreservingMarkdown(editor.getHTML(), options.getSourceMarkdown?.());
 
         try {
           const $pos = editor.state.doc.resolve(from);
@@ -736,7 +738,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         }
       } else {
         const html = getActiveContent();
-        codeContent.value = htmlToMarkdown(html);
+        codeContent.value = sourcePreservingMarkdown(html, options.getSourceMarkdown?.());
       }
 
       codeContentSnapshot = codeContent.value;
@@ -808,7 +810,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
       if (contentChanged) {
         const html = markdownToHtml(codeContent.value);
-        setActiveContent(html);
+        setActiveContent(html, codeContent.value);
         if (editedInCode) markAsChanged();
       }
 

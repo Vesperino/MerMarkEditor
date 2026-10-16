@@ -6,7 +6,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { copyFile, writeTextFile, exists, readTextFile, remove } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
-import { htmlToMarkdown, detectLineEnding, applyLineEnding, markdownToHtml } from './utils/markdown-converter';
+import { htmlToMarkdown, markdownToHtml } from './utils/markdown-converter';
+import { sourcePreservingMarkdown } from './utils/source-preserving-markdown';
 import { inlineMarkdownImages, getDirectoryFromFilePath } from './utils/image-resolver';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
@@ -174,6 +175,16 @@ const getEditorContent = () => {
   return '<p></p>';
 };
 
+const getLiveMarkdownOverride = (): string | null => {
+  if (splitEditorActive.value) {
+    return splitSourceTabId.value === activeTabId.value ? splitMarkdownSource.value : null;
+  }
+  if (codeView.value) return codeContent.value;
+  return largeFileVisualMode.value
+    ? lazyMarkdownEditorRef.value?.getMarkdown() ?? activeTab.value?.pendingMarkdown ?? null
+    : null;
+};
+
 const setEditorContent = (content: string) => {
   if (splitContainerRef.value) {
     isLoadingContent.value = true;
@@ -236,6 +247,7 @@ const createDocument = async (kind: 'plain' | 'marp') => {
   if (splitEditorActive.value && activeTab.value) {
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
     activeTab.value.content = exitSplitEditor();
+    activeTab.value.sourceMarkdown = splitMarkdownSource.value;
     activeTab.value.hasChanges = true;
   }
   if (kind === 'marp') {
@@ -487,19 +499,7 @@ const {
   createNewTab,
   switchToTab,
   getEditorHtml: getEditorContent,
-  // eslint-disable-next-line @typescript-eslint/no-use-before-define
-  getMarkdownOverride: () => {
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    if (splitEditorActive.value) {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      return splitSourceTabId.value === activeTabId.value ? splitMarkdownSource.value : null;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    if (codeView.value) return codeContent.value;
-    return largeFileVisualMode.value
-      ? lazyMarkdownEditorRef.value?.getMarkdown() ?? activeTab.value?.pendingMarkdown ?? null
-      : null;
-  },
+  getMarkdownOverride: getLiveMarkdownOverride,
   setEditorContent,
   markSaveStart: (filePath: string) => markSaveStart(filePath),
   markSaveEnd: (filePath: string, content: string) => markSaveEnd(filePath, content),
@@ -806,9 +806,11 @@ const {
   seedCodeContent,
 } = useCodeView({
   getActiveContent: () => activeTab.value?.content || '<p></p>',
-  setActiveContent: (content: string) => {
+  getSourceMarkdown: () => activeTab.value?.sourceMarkdown ?? activeTab.value?.originalMarkdown,
+  setActiveContent: (content: string, source?: string) => {
     if (activeTab.value) {
       activeTab.value.content = content;
+      activeTab.value.sourceMarkdown = source;
       activeTab.value.pendingMarkdown = null;
     }
   },
@@ -890,7 +892,7 @@ const splitPreviewLatestHtml = ref('');
 const splitSourceTabId = ref<string | null>(null);
 
 const enterSplitEditor = (html: string): void => {
-  enterSplitEditorRaw(html);
+  enterSplitEditorRaw(html, activeTab.value?.sourceMarkdown ?? activeTab.value?.originalMarkdown);
   splitSourceTabId.value = activeTabId.value;
 };
 
@@ -908,6 +910,7 @@ watch(activeTabId, (_newId, oldId) => {
     const oldIndex = tabs.value.findIndex(t => t.id === oldId);
     if (oldIndex !== -1) {
       tabs.value[oldIndex].content = markdownToHtml(splitMarkdownSource.value);
+      tabs.value[oldIndex].sourceMarkdown = splitMarkdownSource.value;
       tabs.value[oldIndex].hasChanges = true;
     }
   }
@@ -938,7 +941,7 @@ watch(activeTabId, (_newId, oldId) => {
   }
 
   if (codeView.value) {
-    seedCodeContent(htmlToMarkdown(tab?.content || '<p></p>'));
+    seedCodeContent(sourcePreservingMarkdown(tab?.content || '<p></p>', tab?.sourceMarkdown ?? tab?.originalMarkdown));
   }
 });
 
@@ -968,6 +971,7 @@ const toggleSplitEditor = async () => {
   const html = exitSplitEditor();
   if (activeTab.value) {
     activeTab.value.content = html;
+    activeTab.value.sourceMarkdown = splitMarkdownSource.value;
     activeTab.value.hasChanges = true;
   }
   isLoadingContent.value = true;
@@ -1166,8 +1170,10 @@ const {
 } = useDiffPreview({
   originalMarkdown: computed(() => activeTab.value?.originalMarkdown ?? null),
   getCurrentMarkdown: () => {
+    const source = getLiveMarkdownOverride();
+    if (source !== null) return source;
     const html = getEditorContent();
-    return htmlToMarkdown(html);
+    return sourcePreservingMarkdown(html, activeTab.value?.sourceMarkdown ?? activeTab.value?.originalMarkdown);
   },
   hasChanges,
 });
@@ -1257,6 +1263,7 @@ function onAiApplyContent(content: string) {
   const tab = activeTab.value;
   if (tab && typeof tab === 'object' && 'originalMarkdown' in tab) {
     (tab as { originalMarkdown: string | null; hasChanges: boolean }).originalMarkdown = content;
+    tab.sourceMarkdown = content;
     (tab as { originalMarkdown: string | null; hasChanges: boolean }).hasChanges = false;
   }
 }
@@ -1542,7 +1549,7 @@ const handleWorkspaceViewChanges = (path: string) => {
     ?? splitState.value.panes.flatMap((p) => p.tabs).find((tb) => (tb.filePath ?? '').replace(/\\/g, '/') === norm);
   if (!tab || !tab.filePath) return;
   const original = tab.originalMarkdown ?? '';
-  const current = htmlToMarkdown(tab.content || '').trimEnd();
+  const current = sourcePreservingMarkdown(tab.content || '', tab.sourceMarkdown ?? tab.originalMarkdown);
   // No explicit names → DiffPreview falls back to its "Changes" title.
   openComparePreview(original, current);
 };
@@ -1580,6 +1587,7 @@ const syncActiveTabContent = () => {
     const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
     if (tabIndex !== -1) {
       tabs.value[tabIndex].content = markdownToHtml(splitMarkdownSource.value);
+      tabs.value[tabIndex].sourceMarkdown = splitMarkdownSource.value;
     }
     return;
   }
@@ -1621,15 +1629,9 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
   try {
     // For active tab in active pane, get fresh content from editor; for others, use stored content
     const isActiveTab = tabId === activeTabId.value && paneId === activePaneId.value;
-    const html = isActiveTab ? getEditorContent() : tab.content;
-    let markdown = htmlToMarkdown(html).trimEnd();
-
-    // Preserve original line endings
-    if (tab.originalMarkdown) {
-      const originalLineEnding = detectLineEnding(tab.originalMarkdown);
-      markdown = applyLineEnding(markdown, originalLineEnding);
-      markdown = markdown.trimEnd();
-    }
+    const source = isActiveTab ? getLiveMarkdownOverride() : tab.pendingMarkdown ?? null;
+    const html = source === null ? (isActiveTab ? getEditorContent() : tab.content) : null;
+    const markdown = source ?? sourcePreservingMarkdown(html!, tab.sourceMarkdown ?? tab.originalMarkdown);
 
     markSaveStart(tab.filePath);
     await writeTextFile(tab.filePath, markdown);
@@ -1637,9 +1639,13 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
 
     // Edits made during the write are newer than `html`; keep them and stay dirty (#164).
     const stillActive = tabId === activeTabId.value && paneId === activePaneId.value;
-    if ((stillActive ? getEditorContent() : tab.content) === html) {
+    const unchanged = source !== null
+      ? (stillActive ? getLiveMarkdownOverride() : tab.pendingMarkdown ?? tab.sourceMarkdown) === source
+      : (stillActive ? getEditorContent() : tab.content) === html;
+    if (unchanged) {
       tab.hasChanges = false;
-      tab.content = html;
+      if (html !== null) tab.content = html;
+      tab.sourceMarkdown = markdown;
     }
     tab.originalMarkdown = markdown;
   } catch (error) {

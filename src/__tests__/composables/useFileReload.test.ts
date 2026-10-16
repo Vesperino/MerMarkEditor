@@ -113,6 +113,20 @@ describe('useFileReload', () => {
     });
   });
 
+  it.each([false, true])('replaces a stale source baseline on reload (markdown-first: %s)', (markdownFirst) => {
+    mockTab.sourceMarkdown = 'stale unsaved formatting';
+    if (markdownFirst) {
+      mockTab.largeFile = true;
+      mockTab.pendingMarkdown = 'old source';
+    }
+    const { reloadTabContent } = createReload();
+    const external = '# External\r\n\r\nwrapped\r\nparagraph\r\n';
+    reloadTabContent('/test/file.md', external);
+    expect(mockTab.sourceMarkdown).toBe(external);
+    expect(mockTab.originalMarkdown).toBe(external);
+    expect(mockTab.hasChanges).toBe(false);
+  });
+
   describe('dismissToast', () => {
     it('should hide toast on dismiss', () => {
       const { showToast, dismissToast } = createReload();

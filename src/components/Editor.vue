@@ -2,6 +2,7 @@
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Link as TiptapLink } from "@tiptap/extension-link";
+import { isAllowedMarkdownLink } from '../utils/markdown-link';
 
 // Extend Link with a custom name to avoid TipTap v3 duplicate warning
 const Link = TiptapLink.extend({
@@ -492,6 +493,7 @@ const editor = useEditor({
     ListKeymap,
     Link.configure({
       openOnClick: false,
+      isAllowedUri: isAllowedMarkdownLink,
       HTMLAttributes: {
         class: "editor-link",
       },
