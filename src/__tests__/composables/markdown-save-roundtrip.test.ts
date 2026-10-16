@@ -27,11 +27,11 @@ const makeEditor = (markdown = source) => new Editor({
   content: markdownToHtml(markdown),
 });
 
-function makeSaveHarness(overrides: Partial<UseFileOperationsOptions> = {}) {
-  const editor = makeEditor();
+function makeSaveHarness(overrides: Partial<UseFileOperationsOptions> = {}, markdown = source) {
+  const editor = makeEditor(markdown);
   const tabs = ref<Tab[]>([{
     id: '1', filePath: '/test/handbook.md', fileName: 'handbook.md',
-    originalMarkdown: source, sourceMarkdown: source,
+    originalMarkdown: markdown, sourceMarkdown: markdown,
     content: editor.getHTML(), hasChanges: true, scrollTop: 0,
   }]);
   fs.read.mockImplementation(async (path: string) => path.endsWith('.tmp') ? fs.write.mock.lastCall?.[1] : tabs.value[0].originalMarkdown);
@@ -42,6 +42,36 @@ function makeSaveHarness(overrides: Partial<UseFileOperationsOptions> = {}) {
     ...overrides,
   });
   return { editor, tabs, ...operations };
+}
+
+function replaceVisualText(editor: Editor, before: string, after: string) {
+  const matches: { from: number; to: number }[] = [];
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    let index = node.text.indexOf(before);
+    while (index >= 0) {
+      matches.push({ from: pos + index, to: pos + index + before.length });
+      index = node.text.indexOf(before, index + before.length);
+    }
+  });
+  expect(matches, `Unique visual target: ${before}`).toHaveLength(1);
+  editor.view.dispatch(editor.state.tr.insertText(after, matches[0].from, matches[0].to));
+}
+
+function expectOnlyTargetedLines(before: string, actual: string, expected: string, targets: readonly string[]) {
+  // Exact equality protects whitespace and line endings too. The separate line
+  // assertion makes the allowed diff explicit for this editing-session contract.
+  expect(actual).toBe(expected);
+  const originalLines = before.split(/\r?\n/);
+  const actualLines = actual.split(/\r?\n/);
+  expect(actualLines).toHaveLength(originalLines.length);
+  const intendedLines = new Set(targets.map(target => {
+    const matches = originalLines.flatMap((line, index) => line.includes(target) ? [index + 1] : []);
+    expect(matches, `Unique source line: ${target}`).toHaveLength(1);
+    return matches[0];
+  }));
+  const changedLines = originalLines.flatMap((line, index) => line === actualLines[index] ? [] : [index + 1]);
+  expect(changedLines).toEqual([...intendedLines].sort((a, b) => a - b));
 }
 
 describe('Markdown save round-trip', () => {
@@ -67,6 +97,70 @@ describe('Markdown save round-trip', () => {
       await saveFile();
       expect(fs.write).toHaveBeenLastCalledWith('/test/handbook.md.tmp', source.replace('# Sample', '# XYSample'));
     } finally { editor.destroy(); }
+  });
+
+  it.each([
+    { cadence: 'one save after all edits', saveEach: false, ending: '\n' },
+    { cadence: 'save after every edit', saveEach: true, ending: '\n' },
+    { cadence: 'one save after all edits', saveEach: false, ending: '\r\n' },
+    { cadence: 'save after every edit', saveEach: true, ending: '\r\n' },
+  ])('changes only targeted lines across ten edits, reopening, and further edits ($cadence, $ending)', async ({ saveEach, ending }) => {
+    const original = source.replace(/\n/g, ending);
+    const session = makeSaveHarness({}, original);
+    let reopened: ReturnType<typeof makeSaveHarness> | undefined;
+    const edits = [
+      ['Sample handbook', 'Sample field notes'],
+      ['Write short notes.', 'Write clear notes.'],
+      ['bold text', 'bold examples'],
+      ['inline code', 'inline sample'],
+      ['A record can span several source lines.', 'A record can span multiple source lines.'],
+      ['presents these lines', 'shows these lines'],
+      ['Revision checks', 'Review checks'],
+      ['reference index', 'reference catalog'],
+      ['short sections.', 'brief sections.'],
+      ['two source lines.', 'three source lines.'],
+    ] as const;
+    let expected = original;
+    const targets: string[] = [];
+    try {
+      for (const [before, after] of edits) {
+        replaceVisualText(session.editor, before, after);
+        expected = expected.replace(before, after);
+        targets.push(before);
+        session.tabs.value[0].hasChanges = true;
+        if (saveEach) {
+          await session.saveFile();
+          expectOnlyTargetedLines(original, fs.write.mock.lastCall![1], expected, targets);
+        }
+      }
+      if (!saveEach) {
+        expect(fs.write).not.toHaveBeenCalled();
+        await session.saveFile();
+      }
+      const saved = fs.write.mock.lastCall![1] as string;
+      expectOnlyTargetedLines(original, saved, expected, targets);
+
+      // Recreate the visual editor and source baseline from the saved bytes.
+      // A no-edit save after reopening must introduce no extra changes.
+      reopened = makeSaveHarness({}, saved);
+      await reopened.saveFile();
+      expectOnlyTargetedLines(saved, fs.write.mock.lastCall![1], saved, []);
+
+      const furtherEdits = [
+        ['Sample field notes', 'Sample handbook v2'],
+        ['three source lines.', 'four source lines.'],
+      ] as const;
+      for (const [before, after] of furtherEdits) {
+        replaceVisualText(reopened.editor, before, after);
+        expected = expected.replace(before, after);
+      }
+      reopened.tabs.value[0].hasChanges = true;
+      await reopened.saveFile();
+      expectOnlyTargetedLines(saved, fs.write.mock.lastCall![1], expected, furtherEdits.map(([before]) => before));
+    } finally {
+      session.editor.destroy();
+      reopened?.editor.destroy();
+    }
   });
 
   it.each(['saveFile', 'saveFileAs'] as const)('%s preserves an unchanged document exactly', async (method) => {
