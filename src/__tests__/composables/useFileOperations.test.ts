@@ -50,6 +50,13 @@ vi.mock('../../utils/markdown-converter', async (importOriginal) => ({
   applyLineEnding: vi.fn((content: string) => content),
 }));
 
+// These tests isolate filesystem/conflict behavior. Real source-preserving
+// conversion is exercised by markdown-save-roundtrip.test.ts.
+vi.mock('../../utils/source-preserving-markdown', async () => {
+  const { htmlToMarkdown } = await import('../../utils/markdown-converter');
+  return { sourcePreservingMarkdown: (html: string) => htmlToMarkdown(html) };
+});
+
 vi.mock('../../constants', () => ({
   EMPTY_TAB_CONTENT: '<p></p>',
   DEFAULT_FILE_NAME: 'dokument.md',

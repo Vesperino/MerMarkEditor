@@ -2,7 +2,8 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile, rename, remove } from '@tauri-apps/plugin-fs';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
-import { htmlToMarkdown, markdownToHtml, detectLineEnding, applyLineEnding, generateSlug } from '../utils/markdown-converter';
+import { markdownToHtml, generateSlug } from '../utils/markdown-converter';
+import { sourcePreservingMarkdown } from '../utils/source-preserving-markdown';
 import { aiCommands } from '../services/aiCommands';
 import type { Tab } from './useTabs';
 import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS, LARGE_FILE_CHAR_THRESHOLD } from '../constants';
@@ -115,6 +116,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       tabs.value[activeIdx].content = htmlContent;
       tabs.value[activeIdx].hasChanges = false;
       tabs.value[activeIdx].originalMarkdown = fileContent;
+      tabs.value[activeIdx].sourceMarkdown = fileContent;
       tabs.value[activeIdx].largeFile = isLarge || undefined;
       tabs.value[activeIdx].pendingMarkdown = isLarge ? fileContent : undefined;
       if (!isLarge) setEditorContent(htmlContent);
@@ -198,17 +200,9 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     // avoids the empty-content bug caused by SplitContainer being unmounted.
     const markdownOverride = getMarkdownOverride?.() ?? null;
     const html = markdownOverride === null ? getEditorHtml() : null;
-    let markdown = (markdownOverride ?? htmlToMarkdown(html!)).trimEnd();
-
     const tabIndex = findActiveTabIndex();
-
-    // Preserve original line endings if we have the original content
-    if (tabIndex !== -1 && tabs.value[tabIndex].originalMarkdown) {
-      const originalLineEnding = detectLineEnding(tabs.value[tabIndex].originalMarkdown!);
-      markdown = applyLineEnding(markdown, originalLineEnding);
-    }
-
-    markdown = markdown.trimEnd();
+    const tab = tabs.value[tabIndex];
+    let markdown = markdownOverride ?? sourcePreservingMarkdown(html!, tab?.sourceMarkdown ?? tab?.originalMarkdown);
 
     // Pre-save conflict check
     let mergedContentApplied = false;
@@ -246,6 +240,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
         tabs.value[tabIndex].content = html;
       }
       tabs.value[tabIndex].originalMarkdown = markdown;
+      if (!editedDuringSave) tabs.value[tabIndex].sourceMarkdown = markdown;
     }
 
     // Tell host to start watching this path (no-op if already watched).
