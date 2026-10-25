@@ -533,6 +533,19 @@ describe('markdownToHtml', () => {
       expect(markdownToHtml('![Alt](image.png)')).toContain('src="image.png"');
       expect(markdownToHtml('![Alt](image.png)')).toContain('alt="Alt"');
     });
+
+    it('never turns quotes in an image or link target into extra attributes', () => {
+      const doc = new DOMParser().parseFromString(
+        markdownToHtml('![a" onload="x](p.png" onerror="alert(1)) and [l](u" onmouseover="z)'),
+        'text/html',
+      );
+      const img = doc.querySelector('img')!;
+      const link = doc.querySelector('a')!;
+      expect(img.getAttributeNames().filter(name => name.startsWith('on'))).toEqual([]);
+      expect(link.getAttributeNames().filter(name => name.startsWith('on'))).toEqual([]);
+      expect(img.getAttribute('src')).toMatch(/^p\.png" onerror="/);
+      expect(link.getAttribute('href')).toBe('u" onmouseover="z');
+    });
   });
 
   describe('lists', () => {

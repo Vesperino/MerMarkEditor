@@ -312,9 +312,13 @@ export function convertMarkdownFormatting(html: string): string {
 
 export function convertMarkdownLinksAndImages(html: string): string {
   let result = html;
+  // A quote in a target must not close the attribute and start a new one (onerror=…).
+  const attr = (value: string) => value.replace(/"/g, '&quot;');
   // Images: ![alt](url) or ![alt](url "title") — .+? supports paths with spaces
-  result = result.replace(/!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\s*\)/g, (_match, alt: string, src: string, title: string) => {
-    const titleAttr = title ? ` title="${title}"` : '';
+  result = result.replace(/!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\s*\)/g, (_match, alt: string, rawSrc: string, title: string) => {
+    const src = attr(rawSrc);
+    alt = attr(alt);
+    const titleAttr = title ? ` title="${attr(title)}"` : '';
     // For local file paths, preserve the original path in data-original-src so it
     // survives blob URL resolution roundtrips (the image-resolver replaces src with
     // a blob URL for display, and data-original-src ensures htmlToMarkdown can
@@ -323,7 +327,7 @@ export function convertMarkdownLinksAndImages(html: string): string {
     const originalSrcAttr = isLocalPath ? ` data-original-src="${src}"` : '';
     return `<img class="editor-image" src="${src}" alt="${alt}"${titleAttr}${originalSrcAttr} />`;
   });
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="editor-link" href="$2">$1</a>');
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text: string, href: string) => `<a class="editor-link" href="${attr(href)}">${text}</a>`);
   return result;
 }
 
