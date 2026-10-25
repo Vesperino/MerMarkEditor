@@ -66,6 +66,7 @@ jobs:
           npm version "$NEW" --no-git-tag-version
           sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW\"/" src-tauri/tauri.conf.json
           sed -i "s/^version = \"[^\"]*\"/version = \"$NEW\"/" src-tauri/Cargo.toml
+          perl -0pi -e "s/(\nname = \"mdreader\"\nversion = \")[^\"]+/\${1}$NEW/" src-tauri/Cargo.lock
 
       - name: Create release-notes stub (legacy fallback)
         if: steps.notes.outputs.prepared == 'false'
@@ -84,7 +85,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml \
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock \
                   docs/release-notes/v${{ steps.bump.outputs.version }}/RELEASE_NOTES.md
           git commit -m "chore: bump version to ${{ steps.bump.outputs.version }}"
           git push
