@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Vesperino.MerMarkEditor</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>MerMark Editor</name>
+  <summary>Edit Markdown with Mermaid diagrams</summary>
+
+  <developer id="io.github.vesperino">
+    <name>Vesperino</name>
+  </developer>
+
+  <description>
+    <p>
+      MerMark Editor is an open-source Markdown editor with built-in Mermaid diagram support.
+      Write in a WYSIWYG view or in the raw Markdown source, and your files stay plain .md on your disk.
+    </p>
+    <ul>
+      <li>GitHub Flavored Markdown with tables, task lists, footnotes, math and syntax-highlighted code</li>
+      <li>Mermaid flowcharts, sequence, class, state, ER, Gantt and many more diagram types, editable in place</li>
+      <li>Marp presentations with a live slide preview and fullscreen present mode</li>
+      <li>Multi-root workspaces with a file tree, quick switcher and full-text search</li>
+      <li>Split view, tab comparison, change tracking and automatic reload of files changed on disk</li>
+      <li>Export to PDF and Word using your chosen document style</li>
+      <li>Optional AI assistant for local Ollama models and OpenAI-compatible servers</li>
+      <li>English, Polish, German, Chinese and Japanese interface</li>
+    </ul>
+    <p>
+      The Flatpak build runs in a sandbox: Claude Code and Codex CLI installed on the host system are not visible to it.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.Vesperino.MerMarkEditor.desktop</launchable>
+
+  <url type="homepage">https://github.com/Vesperino/MerMarkEditor</url>
+  <url type="bugtracker">https://github.com/Vesperino/MerMarkEditor/issues</url>
+  <url type="vcs-browser">https://github.com/Vesperino/MerMarkEditor</url>
+  <url type="donation">https://buymeacoffee.com/vesperinio</url>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#b8e6df</color>
+    <color type="primary" scheme_preference="dark">#1d4f4c</color>
+  </branding>
+
+  <categories>
+    <category>Utility</category>
+    <category>TextEditor</category>
+  </categories>
+
+  <keywords>
+    <keyword>markdown</keyword>
+    <keyword>mermaid</keyword>
+    <keyword>diagram</keyword>
+    <keyword>marp</keyword>
+    <keyword>notes</keyword>
+  </keywords>
+
+  <provides>
+    <binary>mdreader</binary>
+    <mediatype>text/markdown</mediatype>
+  </provides>
+
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <content_rating type="oars-1.1"/>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>WYSIWYG editing with a workspace sidebar</caption>
+      <image>https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/assets/screenshots/editor-welcome.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Mermaid diagrams rendered inside the document</caption>
+      <image>https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/assets/screenshots/mermaid-diagrams.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Table of contents for long documents</caption>
+      <image>https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/assets/screenshots/document-with-toc.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Two documents side by side in split view</caption>
+      <image>https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/assets/screenshots/split-view.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Raw Markdown source in code view</caption>
+      <image>https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/assets/screenshots/code-view.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Marp presentation with a live slide preview</caption>
+      <image>https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/assets/screenshots/marp-presentation.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="0.8.1" date="2026-10-12">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.1</url>
+      <description>
+        <p>Keyboard shortcuts and menus work again on Windows and Linux, including the Minimal layout.</p>
+        <ul>
+          <li>Command palette, Go to heading, Find next/previous and Replace</li>
+          <li>Change, add or remove keyboard shortcuts in the settings</li>
+          <li>Print from the File menu and a Japanese interface</li>
+          <li>Print and PDF margins are respected on Linux</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.8.0" date="2026-10-05">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.0</url>
+      <description>
+        <p>Seven document styles with per-style overrides, used for both the editor and PDF and Word exports.</p>
+      </description>
+    </release>
+    <release version="0.7.7" date="2026-10-05">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.7.7</url>
+      <description>
+        <p>Cleaner paragraphs and reliable pasting of chat answers that contain tables.</p>
+      </description>
+    </release>
+    <release version="0.7.6" date="2026-10-02">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.7.6</url>
+      <description>
+        <p>German interface language.</p>
+      </description>
+    </release>
+    <release version="0.7.5" date="2026-10-02">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.7.5</url>
+      <description>
+        <p>Native application menus and a Minimal layout preset.</p>
+      </description>
+    </release>
+  </releases>
+</component>

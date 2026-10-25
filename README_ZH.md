@@ -205,9 +205,10 @@
 - **AI 看到工作区** — 工作区根目录自动作为只读范围加入 AI preamble
 - **快速切换器**（`Ctrl+Shift+E`）— 工作区、文件、活动工作区中的全文 grep
 - **拖动重新排序** 工作区；展开的文件夹在会话之间保留
+- **键盘导航** — 按 Tab 进入文件树，用方向键、Home 和 End 移动；右 / 左方向键展开和折叠文件夹。Shift 加方向键扩展选择，空格键切换选择。Enter 打开文件或展开 / 折叠文件夹（macOS：`Cmd+↓`），F2 重命名（macOS：`Enter`）
 
 ### 导出与集成
-- **导出 PDF** — *当前编辑器* 预设按你的文档样式打印；带语法高亮的代码块和根据内容自适应的表格
+- **导出 PDF** — *当前编辑器* 预设按你的文档样式打印；带语法高亮的代码块和根据内容自适应的表格；预览按真实分页显示，页眉、页脚和页码与打印结果一致（Windows、macOS 和 Linux 均适用）
 - **保存为 Markdown** (.md 文件)，简洁可移植
 - **导出 Word (DOCX)**，沿用文档样式的字体、标题字号和间距
 
@@ -380,6 +381,10 @@
 | 切换 Markdown 注释（代码视图） | `Ctrl+/` |
 | 选择下一个匹配项（代码视图） | `Ctrl+D` |
 | 重命名侧边栏中选中的文件 | `F2`（macOS：`Enter`） |
+| 在侧边栏文件树中移动 | `↑` / `↓` / `Home` / `End`（`Shift` 扩展选择） |
+| 在文件树中展开 / 折叠文件夹 | `→` / `←` |
+| 打开文件或展开 / 折叠文件夹 | `Enter`（macOS：`Cmd+↓`） |
+| 选择 / 取消选择文件树中的项目 | `Space` |
 | 撤销 | `Ctrl+Z` |
 | 重做 | `Ctrl+Y`（macOS：`Cmd+Shift+Z`） |
 | 加粗 | `Ctrl+B` |
@@ -504,6 +509,7 @@ pnpm test:run
 - [Codycody31](https://github.com/Codycody31) - 非常感谢对 macOS 与 Linux 的支持！
 - [TipTap](https://tiptap.dev/) - Headless 编辑器框架
 - [Mermaid](https://mermaid.js.org/) - 图表与流程图工具
+- [Paged.js](https://pagedjs.org/) - 用于 PDF 预览和 WebKit 打印的分页排版
 - [Tauri](https://tauri.app/) - 桌面应用框架
 - [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
 

@@ -68,6 +68,19 @@ describe('bump-version.mjs', () => {
     expect(readFileSync(join(repo, 'CHANGELOG.md'), 'utf8')).toMatch(/v0\.2\.14/);
   });
 
+  it('bumps the app entry in Cargo.lock and leaves dependencies alone', () => {
+    const repo = fixtureRepo('0.2.13');
+    writeFileSync(
+      join(repo, 'src-tauri', 'Cargo.lock'),
+      '[[package]]\nname = "dep"\nversion = "0.2.13"\n\n[[package]]\nname = "fake"\nversion = "0.2.13"\ndependencies = [\n "dep",\n]\n',
+    );
+    run(repo, 'patch', '0.2.13');
+
+    const lock = readFileSync(join(repo, 'src-tauri/Cargo.lock'), 'utf8');
+    expect(lock).toContain('name = "fake"\nversion = "0.2.14"');
+    expect(lock).toContain('name = "dep"\nversion = "0.2.13"');
+  });
+
   it('bumps minor and major', () => {
     const repoMinor = fixtureRepo('0.2.13');
     run(repoMinor, 'minor', '0.2.13');

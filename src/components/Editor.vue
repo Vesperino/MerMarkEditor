@@ -734,12 +734,17 @@ watch(() => appSettings.value.spellcheck, (newVal) => {
 const proseMirrorRef = ref<HTMLElement | null>(null);
 const contentWrapperRef = ref<HTMLElement | null>(null);
 const showLineNumbersRef = showGutter;
-const { lines: lineNumberEntries } = useLineNumbers({
+const { lines: lineNumberEntries, recompute: recomputeLineNumbers } = useLineNumbers({
   containerRef: proseMirrorRef,
   anchorRef: contentWrapperRef,
   enabled: showLineNumbersRef,
   zoomRef: zoomScale,
 });
+
+// ResizeObserver misses margin changes: they move the text without resizing it.
+watch(() => appSettings.value.editorMargin, () => {
+  if (showGutter.value) recomputeLineNumbers();
+}, { flush: 'post' });
 
 watchEffect(() => {
   proseMirrorRef.value = (editor.value?.view?.dom as HTMLElement | undefined) ?? null;
@@ -872,7 +877,7 @@ defineExpose({
     <div
       ref="contentWrapperRef"
       class="editor-content-wrapper"
-      :class="{ 'has-line-numbers': showGutter }"
+      :class="{ 'has-line-numbers': showGutter, 'is-pageless': appSettings.editorMargin === 'pageless' }"
       :style="editorZoomStyle"
     >
       <EditorGutter v-if="showGutter" :lines="lineNumberEntries" />
@@ -971,7 +976,8 @@ defineExpose({
   font-size: var(--doc-font-size, 16px);
   flex: 1 0 auto;
   width: 100%;
-  max-width: calc(var(--doc-content-width, 680px) + 48px + var(--editor-gutter-width, 0px));
+  --editor-page-width: calc(var(--doc-content-width, 680px) + 2 * var(--editor-pad-x, 24px) + var(--editor-gutter-width, 0px));
+  max-width: var(--editor-page-width);
   margin: 20px auto;
 }
 
@@ -980,23 +986,46 @@ defineExpose({
 }
 
 .editor-content-wrapper.has-line-numbers .editor-content {
-  /* Keep fixed side padding outside the line-number gutter. */
-  padding-left: calc(24px + var(--editor-gutter-width));
+  padding-left: calc(var(--editor-pad-x, 24px) + var(--editor-gutter-width));
+}
+
+.editor-content,
+.editor-content-wrapper.is-pageless {
+  background: var(--doc-background, var(--editor-content-bg));
 }
 
 .editor-content {
-  background: var(--doc-background, var(--editor-content-bg));
   /* Document typography is independent of the theme's UI font. */
   font-family: var(--doc-font-family, var(--font-sans));
   font-size: var(--doc-font-size, 16px);
   line-height: var(--doc-line-height, 1.5);
   display: flex;
   flex-direction: column;
-  /* Fixed editor breathing room. Reading width controls the text column. */
-  padding: 16px 24px 32px;
+  padding: var(--editor-pad-top, 16px) var(--editor-pad-x, 24px) var(--editor-pad-bottom, 32px);
   min-height: 100%;
   box-shadow: var(--shadow-sm);
   border-radius: 4px;
+}
+
+.editor-content-wrapper.is-pageless {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  margin: 0;
+}
+
+.editor-content-wrapper.is-pageless .editor-content {
+  flex: 1;
+  width: 100%;
+  max-width: var(--editor-page-width);
+  margin: 0 auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.editor-content-wrapper.is-pageless > .editor-gutter {
+  /* Keep the gutter beside the centered text, while the background fills the pane. */
+  left: max(0px, calc((100% - var(--editor-page-width)) / 2));
 }
 
 :where(.editor-content .tiptap) {

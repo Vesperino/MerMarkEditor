@@ -20,52 +20,6 @@ html, body {
   background: #ffffff;
 }
 
-/* Screen preview only: simulate @page margins via body padding,
-   since @page rules are honored only during actual printing. */
-@media screen {
-  body {
-    padding:
-      var(--pf-margin-top, 18mm)
-      var(--pf-margin-right, 18mm)
-      var(--pf-margin-bottom, 22mm)
-      var(--pf-margin-left, 18mm);
-    box-sizing: border-box;
-    min-height: 297mm;
-  }
-}
-
-/* Preview header/footer — shown on screen only; @page margin boxes handle print. */
-.pdf-preview-header,
-.pdf-preview-footer {
-  display: none;
-}
-
-@media screen {
-  .pdf-preview-header,
-  .pdf-preview-footer {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    font-size: calc(var(--pf-size, 10pt) * 0.85);
-    color: #555;
-    column-gap: 8pt;
-    padding: 4mm 0;
-  }
-  .pdf-preview-header {
-    border-bottom: 0.5pt dashed #c0c8d0;
-    margin-bottom: 6mm;
-  }
-  .pdf-preview-footer {
-    border-top: 0.5pt dashed #c0c8d0;
-    margin-top: 6mm;
-  }
-  .pdf-preview-header .hf-l,
-  .pdf-preview-footer .hf-l { text-align: left; }
-  .pdf-preview-header .hf-c,
-  .pdf-preview-footer .hf-c { text-align: center; }
-  .pdf-preview-header .hf-r,
-  .pdf-preview-footer .hf-r { text-align: right; }
-}
-
 body {
   font-family: var(--pf-font-body, "Charter", "Iowan Old Style", "Palatino Linotype",
     "Cambria", Georgia, "Times New Roman", serif);
@@ -323,30 +277,6 @@ img {
   page-break-before: always !important;
 }
 
-/* Real page breaks only happen at print time, so the on-screen PDF preview
-   shows nothing where a break sits. Draw a labelled divider in screen media
-   so the user can see where pages will split. Print media keeps the marker
-   invisible (the @page break does the real work). */
-@media screen {
-  .page-break {
-    height: auto;
-    margin: 1.4em 0;
-    border-top: 1px dashed #b8c0c8;
-    position: relative;
-    text-align: center;
-  }
-  .page-break::after {
-    content: "PAGE BREAK";
-    position: relative;
-    top: -0.7em;
-    background: #ffffff;
-    padding: 0 8px;
-    font-size: 9px;
-    letter-spacing: 0.12em;
-    color: #8a949e;
-  }
-}
-
 /* ===== Task lists ===== */
 .task-cb {
   font-family: "Segoe UI Symbol", "Apple Color Emoji", sans-serif;
@@ -422,11 +352,8 @@ sup.footnote-ref a { color: var(--pf-accent, #0b56c4); text-decoration: none; }
 
 .pdf-toc-text { flex: 0 0 auto; }
 
-/* Page numbers next to each TOC entry. Chromium honours target-counter()
-   in @media print, resolving to the destination page for the anchor's
-   href. The leader fills the gap with dots so the eye tracks the row.
-   Hide both helpers on screen so the live preview doesn't show empty
-   space; only the print stage cares about page numbers. */
+/* Page numbers next to each TOC entry, written in once Paged.js has laid the
+   pages out. The leader fills the gap with dots so the eye tracks the row. */
 .pdf-toc-leader,
 .pdf-toc-page { display: none; }
 
@@ -445,9 +372,6 @@ sup.footnote-ref a { color: var(--pf-accent, #0b56c4); text-decoration: none; }
     color: #555;
     font-variant-numeric: tabular-nums;
     flex: 0 0 auto;
-  }
-  .pdf-toc-page::after {
-    content: target-counter(attr(href url), page);
   }
 }
 

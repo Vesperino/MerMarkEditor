@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { check } from '@tauri-apps/plugin-updater';
 import { useAutoUpdate } from '../../composables/useAutoUpdate';
 
 const DISMISSED_KEY = 'mermark-dismissed-update-version';
@@ -10,10 +11,18 @@ vi.mock('@tauri-apps/plugin-updater', () => ({
   check: vi.fn(async () => mockCheckResult.value),
 }));
 
+const mockFlatpak = vi.hoisted(() => ({ value: false }));
+
+vi.mock('../../services/flatpak', () => ({
+  isFlatpak: vi.fn(async () => mockFlatpak.value),
+}));
+
 describe('useAutoUpdate', () => {
   beforeEach(() => {
     localStorage.clear();
     mockCheckResult.value = null;
+    mockFlatpak.value = false;
+    vi.mocked(check).mockClear();
     // Prevent real network calls via fetch
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     // The composable uses module-level singleton refs (so App.vue and the
@@ -117,6 +126,49 @@ describe('useAutoUpdate', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(updateInfo.value?.notes).toBe('Tauri provided');
+  });
+
+  it('leaves updates to Flathub inside Flatpak', async () => {
+    mockFlatpak.value = true;
+    mockCheckResult.value = { version: '0.1.72', body: 'notes' };
+    const { checkForUpdates, showUpdateDialog, updatesViaFlatpak } = useAutoUpdate();
+    updatesViaFlatpak.value = null;
+
+    await checkForUpdates();
+
+    expect(check).not.toHaveBeenCalled();
+    expect(showUpdateDialog.value).toBe(false);
+    expect(updatesViaFlatpak.value).toBe(true);
+  });
+
+  it('detects Flatpak as soon as the composable is used, before any check', async () => {
+    mockFlatpak.value = true;
+    useAutoUpdate().updatesViaFlatpak.value = null;
+
+    const { updatesViaFlatpak } = useAutoUpdate();
+    await vi.waitFor(() => expect(updatesViaFlatpak.value).toBe(true));
+  });
+
+  it('does not claim "up to date" on a manual check inside Flatpak', async () => {
+    mockFlatpak.value = true;
+    const { checkForUpdatesManual, noUpdateFound, updatesViaFlatpak } = useAutoUpdate();
+    updatesViaFlatpak.value = null;
+
+    await checkForUpdatesManual();
+
+    expect(check).not.toHaveBeenCalled();
+    expect(noUpdateFound.value).toBe(false);
+  });
+
+  it('uses the bundled updater outside Flatpak', async () => {
+    mockCheckResult.value = { version: '0.1.72', body: 'notes' };
+    const { checkForUpdates, updatesViaFlatpak } = useAutoUpdate();
+    updatesViaFlatpak.value = null;
+
+    await checkForUpdates();
+
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(updatesViaFlatpak.value).toBe(false);
   });
 
   it('handles GitHub API failure silently (empty notes)', async () => {

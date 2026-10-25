@@ -29,7 +29,6 @@ pnpm-debug.log*
 .env.*.local
 
 # Tauri
-src-tauri/Cargo.lock
 
 # Signing keys (NEVER commit private keys!)
 *.key

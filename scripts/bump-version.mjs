@@ -9,6 +9,7 @@ const ROOT = cwd();
 const PACKAGE_JSON = resolve(ROOT, 'package.json');
 const TAURI_CONF = resolve(ROOT, 'src-tauri', 'tauri.conf.json');
 const CARGO_TOML = resolve(ROOT, 'src-tauri', 'Cargo.toml');
+const CARGO_LOCK = resolve(ROOT, 'src-tauri', 'Cargo.lock');
 const GEN_CHANGELOG = resolve(ROOT, 'scripts', 'gen-changelog.mjs');
 
 const VERSION_RE = /^(\d+)\.(\d+)\.(\d+)$/;
@@ -92,6 +93,19 @@ async function writeCargoToml(file, next) {
   await writeFile(file, updated, 'utf8');
 }
 
+// A stale app entry makes `cargo --locked` (Flatpak, Nix) refuse the lockfile.
+async function writeCargoLock(file, cargoToml, next) {
+  if (!existsSync(file)) return false;
+  const crate = /^\s*name\s*=\s*"([^"]+)"/m.exec(await readFile(cargoToml, 'utf8'))?.[1];
+  const text = await readFile(file, 'utf8');
+  const updated = text.replace(new RegExp(`(\\nname = "${crate}"\\r?\\nversion = ")[^"]+(")`), `$1${next}$2`);
+  if (updated === text) {
+    throw new Error(`could not find ${crate} in ${file}`);
+  }
+  await writeFile(file, updated, 'utf8');
+  return true;
+}
+
 // Stub is intentionally user-facing — no "Under the hood" / "Chores" section
 // and the placeholders nudge the author towards outcomes rather than internals.
 const STUB = (version) => `# Release v${version} — TODO short user-facing headline
@@ -134,6 +148,7 @@ async function main() {
   await writeJsonVersion(PACKAGE_JSON, next);
   await writeJsonVersion(TAURI_CONF, next);
   await writeCargoToml(CARGO_TOML, next);
+  const lockUpdated = await writeCargoLock(CARGO_LOCK, CARGO_TOML, next);
   await runChangelog();
 
   console.log(
@@ -145,6 +160,7 @@ async function main() {
           PACKAGE_JSON,
           TAURI_CONF,
           CARGO_TOML,
+          ...(lockUpdated ? [CARGO_LOCK] : []),
           resolve(ROOT, 'docs', 'release-notes', `v${next}`, 'RELEASE_NOTES.md'),
           resolve(ROOT, 'CHANGELOG.md'),
         ],

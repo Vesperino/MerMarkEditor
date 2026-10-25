@@ -488,18 +488,7 @@ const {
   switchToTab,
   getEditorHtml: getEditorContent,
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
-  getMarkdownOverride: () => {
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    if (splitEditorActive.value) {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      return splitSourceTabId.value === activeTabId.value ? splitMarkdownSource.value : null;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    if (codeView.value) return codeContent.value;
-    return largeFileVisualMode.value
-      ? lazyMarkdownEditorRef.value?.getMarkdown() ?? activeTab.value?.pendingMarkdown ?? null
-      : null;
-  },
+  getMarkdownOverride: () => activeMarkdownOverride(),
   setEditorContent,
   markSaveStart: (filePath: string) => markSaveStart(filePath),
   markSaveEnd: (filePath: string, content: string) => markSaveEnd(filePath, content),
@@ -1612,6 +1601,18 @@ const {
 // ============ Auto-save ============
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Markdown of the active tab when its visual editor is not the source of truth
+ *  (code view, split editor, large-file mode); null otherwise. */
+function activeMarkdownOverride(): string | null {
+  if (splitEditorActive.value) {
+    return splitSourceTabId.value === activeTabId.value ? splitMarkdownSource.value : null;
+  }
+  if (codeView.value) return codeContent.value;
+  return largeFileVisualMode.value
+    ? lazyMarkdownEditorRef.value?.getMarkdown() ?? activeTab.value?.pendingMarkdown ?? null
+    : null;
+}
+
 // Save a specific tab from any pane
 const saveTabFromPane = async (paneId: string, tabId: string) => {
   const pane = splitState.value.panes.find(p => p.id === paneId);
@@ -1621,8 +1622,10 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
   try {
     // For active tab in active pane, get fresh content from editor; for others, use stored content
     const isActiveTab = tabId === activeTabId.value && paneId === activePaneId.value;
+    // In code view the visual editor is unmounted and would yield an empty document.
+    const override = isActiveTab ? activeMarkdownOverride() : null;
     const html = isActiveTab ? getEditorContent() : tab.content;
-    let markdown = htmlToMarkdown(html).trimEnd();
+    let markdown = (override ?? htmlToMarkdown(html)).trimEnd();
 
     // Preserve original line endings
     if (tab.originalMarkdown) {
@@ -1637,9 +1640,12 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
 
     // Edits made during the write are newer than `html`; keep them and stay dirty (#164).
     const stillActive = tabId === activeTabId.value && paneId === activePaneId.value;
-    if ((stillActive ? getEditorContent() : tab.content) === html) {
+    const unchanged = override !== null
+      ? activeMarkdownOverride() === override
+      : (stillActive ? getEditorContent() : tab.content) === html;
+    if (unchanged) {
       tab.hasChanges = false;
-      tab.content = html;
+      if (override === null) tab.content = html;
     }
     tab.originalMarkdown = markdown;
   } catch (error) {

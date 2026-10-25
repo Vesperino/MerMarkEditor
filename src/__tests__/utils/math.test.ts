@@ -74,11 +74,17 @@ describe('math source and editor round trips', () => {
     expect(chunks.map(c => c.markdown).join('\n')).toBe(source);
     expect(chunks.some(c => c.markdown.includes(formula))).toBe(true);
   });
+
+  it('ignores dollars in an indented code block of a CRLF file', () => {
+    const lf = 'Text $a$\n\n    $not_math$\n\n    $still_code$\n\nMore $b$';
+    expect(findMath(lf.replace(/\n/g, '\r\n')).map(m => m.formula)).toEqual(['a', 'b']);
+  });
 });
 
 describe('rendering and exports', () => {
   it('renders all examples in the demonstration document', () => {
-    const source = readFileSync('docs/math-showcase.md', 'utf8');
+    // Windows checkouts get CRLF; saving restores the file's own line endings separately.
+    const source = readFileSync('docs/math-showcase.md', 'utf8').replace(/\r\n/g, '\n');
     const math = findMath(source);
     expect(math.length).toBeGreaterThan(25);
     for (const m of math) expect(renderMath(m.formula, m.display).error, m.source).toBeNull();
@@ -105,6 +111,18 @@ describe('rendering and exports', () => {
     expect(html).toContain('data:font/woff2;base64,');
     expect(html).not.toContain('url(fonts/');
     expect(html).not.toContain('katex-actions');
+  });
+
+  it('numbers printed equations as text, because paged layout rewrites CSS counters', () => {
+    const md = String.raw`\begin{equation}
+a=b
+\end{equation}
+
+\begin{equation}
+c=d
+\end{equation}`;
+    const doc = new DOMParser().parseFromString(buildPrintDocument(markdownToHtml(md), PDF_SETTINGS_DEFAULTS, ''), 'text/html');
+    expect([...doc.querySelectorAll('.eqn-num')].map(n => n.textContent)).toEqual(['(1)', '(2)']);
   });
 
   it('lets long display equations wrap in print instead of clipping them', () => {

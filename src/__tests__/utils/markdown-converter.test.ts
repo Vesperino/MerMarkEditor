@@ -393,6 +393,14 @@ describe('htmlToMarkdown', () => {
     it('converts blockquote tags', () => {
       expect(htmlToMarkdown('<blockquote><p>Quote</p></blockquote>')).toContain('> Quote');
     });
+
+    it('keeps each paragraph of a quote on its own quoted line (#173)', () => {
+      expect(htmlToMarkdown('<blockquote><p>line one</p><p>line two</p></blockquote>')).toBe('> line one\n>\n> line two');
+    });
+
+    it('keeps a line break inside a quote as a hard break (#173)', () => {
+      expect(htmlToMarkdown('<blockquote><p>line one<br>line two</p></blockquote>')).toBe('> line one  \n> line two');
+    });
   });
 
   describe('edge cases - generic types preservation', () => {
@@ -525,6 +533,19 @@ describe('markdownToHtml', () => {
       expect(markdownToHtml('![Alt](image.png)')).toContain('src="image.png"');
       expect(markdownToHtml('![Alt](image.png)')).toContain('alt="Alt"');
     });
+
+    it('never turns quotes in an image or link target into extra attributes', () => {
+      const doc = new DOMParser().parseFromString(
+        markdownToHtml('![a" onload="x](p.png" onerror="alert(1)) and [l](u" onmouseover="z)'),
+        'text/html',
+      );
+      const img = doc.querySelector('img')!;
+      const link = doc.querySelector('a')!;
+      expect(img.getAttributeNames().filter(name => name.startsWith('on'))).toEqual([]);
+      expect(link.getAttributeNames().filter(name => name.startsWith('on'))).toEqual([]);
+      expect(img.getAttribute('src')).toMatch(/^p\.png" onerror="/);
+      expect(link.getAttribute('href')).toBe('u" onmouseover="z');
+    });
   });
 
   describe('lists', () => {
@@ -597,6 +618,26 @@ describe('markdownToHtml', () => {
     it('converts blockquotes', () => {
       const result = markdownToHtml('> Quote');
       expect(result).toContain('<blockquote>');
+    });
+
+    it('reads consecutive quoted lines as one quote (#173)', () => {
+      const result = markdownToHtml('> line one\n> line two');
+      expect(result.match(/<blockquote>/g)).toHaveLength(1);
+      expect(result).toContain('line one line two');
+    });
+
+    it('reads an empty quoted line as a paragraph break inside the quote (#173)', () => {
+      expect(markdownToHtml('> line one\n>\n> line two')).toBe('<blockquote><p>line one</p><p>line two</p></blockquote>');
+    });
+
+    it('reads a hard break inside a quote (#173)', () => {
+      expect(markdownToHtml('> line one  \n> line two')).toBe('<blockquote><p>line one<br />line two</p></blockquote>');
+    });
+
+    it('round-trips quote paragraphs and line breaks (#173)', () => {
+      for (const md of ['> line one\n>\n> line two', '> line one  \n> line two', '> **bold** quote\n\nafter']) {
+        expect(htmlToMarkdown(markdownToHtml(md))).toBe(md);
+      }
     });
   });
 
