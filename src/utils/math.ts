@@ -183,6 +183,8 @@ export function renderMathNodes(root: HTMLElement): void {
     el.innerHTML = renderMath(formula, display).html;
     el.removeAttribute('contenteditable');
   });
+  // Paged layout takes over CSS counters, which left every number at (0).
+  root.querySelectorAll('.eqn-num').forEach((num, i) => { num.textContent = `(${i + 1})`; });
 }
 
 /** Give Marp the same input syntaxes, while keeping its native math renderer. */

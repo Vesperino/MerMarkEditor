@@ -97,6 +97,31 @@ test('math, diagrams, images, tables, page breaks and watermark survive paginati
   await page.locator('.pdf-preview-area').screenshot({ path: testInfo.outputPath(`preview-${testInfo.project.name}.png`) });
 });
 
+test('display equations are numbered in order and never show scrollbars', async ({ page }) => {
+  const markdown = [
+    '# Equations',
+    String.raw`\begin{equation}
+a=b
+\end{equation}`,
+    String.raw`$$
+Y=\frac{1}{Z}
+$$`,
+    String.raw`\begin{equation}
+c=d
+\end{equation}`,
+    `$$\n${'x_{1}+'.repeat(60)}x\n$$`,
+  ].join('\n\n');
+  const frame = await open(page, markdown, {});
+  await expect(frame.locator('.katex-display')).toHaveCount(4);
+  await expect(frame.locator('.eqn-num')).toHaveText(['(1)', '(2)']);
+  expect(await frame.locator('.eqn-num').evaluateAll(nums => nums.map(n => getComputedStyle(n, '::before').content))).toEqual(['none', 'none']);
+  const scrollable = await frame.locator('.math-print-block').evaluateAll(blocks => blocks.filter(block => {
+    const style = getComputedStyle(block);
+    return ['auto', 'scroll'].includes(style.overflowX) || ['auto', 'scroll'].includes(style.overflowY);
+  }).length);
+  expect(scrollable).toBe(0);
+});
+
 test('printing sends the paginated layout to WebKit and the native document to Chromium', async ({ page, browserName }) => {
   await page.addInitScript(() => localStorage.setItem('mermark-settings', JSON.stringify({ documentStyle: 'ia-helvetica', ai: { hasSeenFirstRun: true } })));
   const frame = await open(page, threePages.replace('Opening paragraph.', '###### Lead\n\nRuns on after the heading.'), { typographySource: 'current-editor' });

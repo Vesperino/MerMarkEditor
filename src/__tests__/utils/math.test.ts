@@ -113,6 +113,18 @@ describe('rendering and exports', () => {
     expect(html).not.toContain('katex-actions');
   });
 
+  it('numbers printed equations as text, because paged layout rewrites CSS counters', () => {
+    const md = String.raw`\begin{equation}
+a=b
+\end{equation}
+
+\begin{equation}
+c=d
+\end{equation}`;
+    const doc = new DOMParser().parseFromString(buildPrintDocument(markdownToHtml(md), PDF_SETTINGS_DEFAULTS, ''), 'text/html');
+    expect([...doc.querySelectorAll('.eqn-num')].map(n => n.textContent)).toEqual(['(1)', '(2)']);
+  });
+
   it('lets long display equations wrap in print instead of clipping them', () => {
     const html = buildPrintDocument(markdownToHtml('$$x^2$$'), PDF_SETTINGS_DEFAULTS, '');
     const katexNowrap = html.indexOf('.katex-display>.katex{display:block;text-align:center;white-space:nowrap}');
