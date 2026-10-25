@@ -21,6 +21,8 @@ Thanks to @zkendall and @sunao1222 for their contributions.
 - Fix the Paragraph/Headings list in the toolbar doing nothing (#171)
 - Fix line breaks and paragraphs inside quotes being merged into one line when saving (#173)
 - Fix auto-save writing an empty file while the code view is open
+- Fix numbered equations showing (0) and scrollbars around formulas in the PDF preview and printout
+- Fix dollar amounts in indented code being shown as formulas in files with Windows line endings
 - Fix a crafted image or link address in a Markdown file adding unwanted behaviour to the page
 
 ## UI/UX
