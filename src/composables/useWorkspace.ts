@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, type InjectionKey, type Ref } from 'vue';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   useSettings,
@@ -15,6 +15,16 @@ import {
 } from '../utils/workspace-sort';
 
 export type { WorkspaceNode } from '../services/workspaceFs';
+
+/**
+ * The tree's single Tab stop, injected per row so a focus move re-renders
+ * only the two rows whose tabindex changes, not every row.
+ */
+export interface TreeFocus {
+  tabStop: Readonly<Ref<string | null>>;
+  focused: Ref<string | null>;
+}
+export const treeFocusKey: InjectionKey<TreeFocus> = Symbol('treeFocus');
 
 /** Tree state per open workspace, keyed by workspace id. */
 const treesById = ref<Record<string, WorkspaceNode | null>>({});

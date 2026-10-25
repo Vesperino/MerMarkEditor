@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, provide, watch } from 'vue';
 import { useI18n } from '../i18n';
-import { useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
+import { treeFocusKey, useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
 import { SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '../composables/useSettings';
 import WorkspaceSection from './WorkspaceSection.vue';
 import WorkspaceContextMenu, { type WorkspaceContextAction } from './WorkspaceContextMenu.vue';
@@ -10,6 +10,7 @@ import WorkspaceInputDialog from './WorkspaceInputDialog.vue';
 import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
 import type { WorkspaceSortMode } from '../utils/workspace-sort';
 import { basenameOf } from '../utils/path-utils';
+import { isMacPlatform } from '../utils/platform';
 import {
   autoScrollStep,
   exceedsThreshold,
@@ -188,6 +189,17 @@ async function onContextAction(action: WorkspaceContextAction) {
 function dismissDialog() {
   pendingAction.value = null;
 }
+
+// Closing a dialog removes its focused input; hand focus back to what opened it.
+let dialogOpener: HTMLElement | null = null;
+watch(pendingAction, async (action, previous) => {
+  if (action && !previous) dialogOpener = document.activeElement as HTMLElement | null;
+  if (action || !previous) return;
+  const opener = dialogOpener;
+  dialogOpener = null;
+  await nextTick();
+  if (opener?.isConnected && document.activeElement === document.body) opener.focus({ preventScroll: true });
+});
 
 async function onConfirmNewFile(name: string) {
   const a = pendingAction.value;
@@ -550,7 +562,7 @@ const headerMenuRoot = ref<HTMLElement | null>(null);
 
 // One Tab stop for the tree; focus remains independent of multi-selection.
 const focusedPath = ref<string | null>(null);
-const treeTabPath = computed(() => {
+const treeTabStop = computed(() => {
   const paths = ws.visibleNodePaths.value;
   if (focusedPath.value && paths.includes(focusedPath.value)) return focusedPath.value;
   return paths.find((path) => ws.isSelected(path))
@@ -558,10 +570,7 @@ const treeTabPath = computed(() => {
     ?? paths[0]
     ?? null;
 });
-
-function onTreeFocus(path: string) {
-  focusedPath.value = path;
-}
+provide(treeFocusKey, { tabStop: treeTabStop, focused: focusedPath });
 
 function focusTreeRow(path: string, extendSelection = false) {
   if (extendSelection) ws.rangeSelect(path);
@@ -572,35 +581,33 @@ function focusTreeRow(path: string, extendSelection = false) {
   row?.scrollIntoView({ block: 'nearest' });
 }
 
-function onTreeKeyDown(e: KeyboardEvent) {
-  // Buttons and inputs inside the tree retain their own keyboard behavior.
-  const row = e.target as HTMLElement | null;
-  const isMac = /Mac/.test(navigator.platform);
-  const macOpen = isMac && e.metaKey && e.key === 'ArrowDown' && !e.shiftKey;
-  if (!row?.matches('.tree-row') || e.defaultPrevented || e.altKey || e.ctrlKey || (e.metaKey && !macOpen) || e.isComposing) return;
-  if (pendingAction.value || document.querySelector('[aria-modal="true"]')) return;
-  // Keep Enter-to-rename on macOS; Command+Down activates the focused item.
-  if (isMac && e.key === 'Enter') return;
-  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', ' '].includes(e.key)) return;
-  e.preventDefault();
-  e.stopPropagation();
+const TREE_NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', ' '];
 
+/** Returns true when the key was a tree command for the focused row. */
+function onTreeRowKeyDown(e: KeyboardEvent, row: HTMLElement): boolean {
   const path = row.dataset.treePath!;
-  const paths = ws.visibleNodePaths.value;
-  const index = paths.indexOf(path);
-  if (index < 0) return;
   const folder = row.dataset.treeKind === 'folder';
-
-  if (macOpen) {
+  const mac = isMacPlatform();
+  if (e.key === (mac ? 'Enter' : 'F2') && !e.metaKey && !e.shiftKey) {
+    ws.selectOnly(path);
+    pendingAction.value = { kind: 'rename', from: path, originalName: basenameOf(path) };
+    return true;
+  }
+  if (mac ? e.metaKey && !e.shiftKey && e.key === 'ArrowDown' : !e.metaKey && e.key === 'Enter') {
     if (folder) ws.toggleFolder(path);
     else emit('open-file', path);
-  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-    const next = index + (e.key === 'ArrowDown' ? 1 : -1);
-    if (next >= 0 && next < paths.length) focusTreeRow(paths[next], e.shiftKey);
+    return true;
+  }
+  if (e.metaKey || !TREE_NAV_KEYS.includes(e.key)) return false;
+
+  const paths = ws.visibleNodePaths.value;
+  const index = paths.indexOf(path);
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    const next = paths[index + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (next) focusTreeRow(next, e.shiftKey);
   } else if (e.key === 'Home' || e.key === 'End') {
     focusTreeRow(e.key === 'Home' ? paths[0] : paths[paths.length - 1], e.shiftKey);
-  } else if (e.key === 'ArrowRight') {
-    if (!folder) return;
+  } else if (e.key === 'ArrowRight' && folder) {
     if (!ws.isFolderExpanded(path)) ws.expandFolder(path);
     else {
       const child = row.parentElement?.querySelector<HTMLElement>(':scope > .tree-children > .file-tree-node > .tree-row');
@@ -613,12 +620,10 @@ function onTreeKeyDown(e: KeyboardEvent) {
       const parentRow = parent?.querySelector<HTMLElement>(':scope > .tree-row');
       if (parentRow?.dataset.treePath) focusTreeRow(parentRow.dataset.treePath);
     }
-  } else if (e.key === 'Enter') {
-    if (folder) ws.toggleFolder(path);
-    else emit('open-file', path);
   } else if (e.key === ' ') {
     ws.toggleSelect(path);
   }
+  return true;
 }
 
 // Close the header (3-dots) menu when clicking anywhere outside it.
@@ -638,22 +643,20 @@ function onBodyMouseDown(e: MouseEvent) {
   ws.clearSelection();
 }
 
-// Delete key removes selected nodes after a single confirm dialog.
+// Tree rows own rename/open/navigation keys; Delete removes the selection.
 function onKeyDown(e: KeyboardEvent) {
   // Ignore when typing in an input/textarea/contenteditable inside the sidebar.
   const target = e.target as HTMLElement | null;
   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-  const row = target?.closest<HTMLElement>('.tree-row');
-  if (row && sidebarRootEl.value?.contains(row) && e.key === (/Mac/.test(navigator.platform) ? 'Enter' : 'F2')) {
-    const path = row.dataset.treePath;
-    if (!path || pendingAction.value || document.querySelector('[aria-modal="true"]')) return;
-    e.preventDefault();
-    ws.selectOnly(path);
-    pendingAction.value = { kind: 'rename', from: path, originalName: basenameOf(path) };
-    return;
+  if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.altKey) return;
+  if (target?.matches('.tree-row') && sidebarRootEl.value?.contains(target)) {
+    if (document.querySelector('[aria-modal="true"]')) return;
+    if (onTreeRowKeyDown(e, target)) {
+      e.preventDefault();
+      return;
+    }
   }
-  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  if (e.metaKey || e.shiftKey || (e.key !== 'Delete' && e.key !== 'Backspace')) return;
   if (ws.selectedPaths.value.size === 0) return;
   e.preventDefault();
   const paths = Array.from(ws.selectedPaths.value);
@@ -800,7 +803,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div class="ws-body" ref="sidebarEl" role="tree" :aria-label="t.workspaces" aria-multiselectable="true" @mousedown="onBodyMouseDown" @keydown="onTreeKeyDown">
+    <div class="ws-body" ref="sidebarEl" @mousedown="onBodyMouseDown">
       <div v-if="!hasOpen" class="ws-empty">
         <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -821,8 +824,6 @@ onBeforeUnmount(() => {
           :is-active-context="activeContextWorkspaceId === w.id"
           :drag-over-path="dragOverFolderPath"
           :is-reorder-target="sectionDropIndex === idx"
-          :focused-path="treeTabPath"
-          @focus-node="onTreeFocus"
           @open-file="(p) => emit('open-file', p)"
           @view-changes="(p) => emit('view-changes', p)"
           @sort-folder="onFolderSortRequest"

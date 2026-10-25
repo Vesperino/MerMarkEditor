@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
@@ -21,6 +21,12 @@ describe('workspace tree keyboard navigation', () => {
   const ws = useWorkspace();
   let wrapper: VueWrapper;
   const scrollIntoView = vi.fn();
+  const updatedRows: string[] = [];
+  const countRowUpdates = {
+    updated(this: { $options: { name?: string }; $props: { node?: WorkspaceNode } }) {
+      if (this.$options.name === 'FileTreeNode') updatedRows.push(this.$props.node!.path);
+    },
+  };
   const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
 
   function row(path: string) {
@@ -64,7 +70,8 @@ describe('workspace tree keyboard navigation', () => {
     ws.clearSelection();
     scrollIntoView.mockClear();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
-    wrapper = mount(WorkspaceSidebar, { attachTo: document.body });
+    updatedRows.length = 0;
+    wrapper = mount(WorkspaceSidebar, { attachTo: document.body, global: { mixins: [countRowUpdates] } });
   });
 
   afterEach(() => {
@@ -257,5 +264,62 @@ describe('workspace tree keyboard navigation', () => {
     ws.collapseFolder('/one/docs');
     await nextTick();
     expect(wrapper.findAll('.tree-row[tabindex="0"]').map((r) => r.attributes('data-tree-path'))).toEqual(['/one/docs']);
+  });
+
+  it('re-renders only the rows that lose and gain focus', async () => {
+    ws.expandFolder('/one/docs');
+    ws.expandFolder('/one/docs/nested');
+    await nextTick();
+    await row('/one/z.md').trigger('click');
+    updatedRows.length = 0;
+    await press('ArrowDown');
+    selected('/two/a.md');
+    expect(updatedRows.sort()).toEqual(['/one/z.md', '/two/a.md']);
+  });
+
+  it('asks to delete the selection on Delete from a row, but not with modifiers', async () => {
+    await row('/one/docs').trigger('click');
+    await row('/one/z.md').trigger('click', { shiftKey: true });
+    for (const options of [{ shiftKey: true }, { metaKey: true }]) {
+      expect((await press('Delete', options)).defaultPrevented).toBe(false);
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    }
+    expect((await press('Delete')).defaultPrevented).toBe(true);
+    expect(document.querySelector('.wcd-message')?.textContent).toContain('3');
+  });
+
+  it('returns focus to the row when the rename dialog is cancelled', async () => {
+    await row('/one/z.md').trigger('click');
+    await press('F2');
+    await flushPromises();
+    expect(document.activeElement).toBe(document.querySelector('.wid-input'));
+    await press('Escape');
+    await flushPromises();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(row('/one/z.md').element);
+  });
+
+  it('exposes one tree per workspace holding only tree items and groups', async () => {
+    ws.expandFolder('/one/docs');
+    await nextTick();
+    const trees = wrapper.findAll('[role="tree"]');
+    expect(trees.map((tree) => tree.attributes('aria-label'))).toEqual(['one', 'two']);
+    expect(trees.map((tree) => tree.attributes('aria-multiselectable'))).toEqual(['true', 'true']);
+    expect(wrapper.findAll('[role="tree"] button:not(.tree-row button), [role="tree"] .ws-section-header')).toHaveLength(0);
+    const roles = trees.flatMap((tree) => tree.findAll('[role]').map((el) => el.attributes('role')));
+    expect(new Set(roles)).toEqual(new Set(['treeitem', 'group']));
+    expect(wrapper.findAll('.tree-row').every((r) => r.attributes('role') === 'treeitem')).toBe(true);
+
+    const docs = row('/one/docs');
+    expect(docs.attributes('aria-expanded')).toBe('true');
+    const group = wrapper.find(`#${docs.attributes('aria-owns')}`);
+    expect(group.attributes('role')).toBe('group');
+    expect(group.find('.tree-row').attributes('data-tree-path')).toBe('/one/docs/nested');
+    expect(row('/one/z.md').attributes('aria-expanded')).toBeUndefined();
+
+    expect(row('/one/z.md').attributes('aria-selected')).toBe('false');
+    await row('/one/z.md').trigger('click');
+    expect(row('/one/z.md').attributes('aria-selected')).toBe('true');
+    expect(docs.attributes('aria-selected')).toBe('false');
   });
 });
