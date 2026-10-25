@@ -262,6 +262,7 @@ const ja: Translations = {
   checkForUpdates: 'アップデートを確認',
   checkingForUpdates: '確認中…',
   upToDate: "最新の状態です",
+  flatpakUpdatesNote: 'Flatpak 版は Flathub またはソフトウェアセンターから更新されます。',
 
   // Split view / Panes
   dragTabHere: 'ここにタブをドラッグ',
@@ -345,6 +346,7 @@ const ja: Translations = {
   aiEnableLabel: 'AI 連携を有効にする',
   aiCheckCliHealthOnStartup: '起動時に Claude と Codex の状態を確認する',
   aiCheckCliHealthOnStartupHelper: '無効にすると、起動時は前回確認した状態を表示します。AI アシスタントを開くか「再確認」を押すと更新されます。',
+  aiFlatpakCliNote: 'Flatpak 版: Claude Code と Codex CLI はサンドボックス内で実行されるため、システム全体や npm でインストールした CLI は見えません。ホームフォルダー内の単体バイナリなら下で選択すると動作する場合があります。Ollama と OpenAI 互換サーバーは通常どおり使えます。',
   aiDefaultCli: 'デフォルトの CLI',
   aiPanelSide: 'チャットパネルの位置',
   aiPanelSideLeft: '左',

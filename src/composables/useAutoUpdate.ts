@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { isFlatpak } from '../services/flatpak';
 
 export interface UpdateInfo {
   version: string;
@@ -13,6 +14,7 @@ export interface UseAutoUpdateReturn {
   updateError: ReturnType<typeof ref<string | null>>;
   isCheckingForUpdates: ReturnType<typeof ref<boolean>>;
   noUpdateFound: ReturnType<typeof ref<boolean>>;
+  updatesViaFlatpak: ReturnType<typeof ref<boolean | null>>;
   checkForUpdates: () => Promise<void>;
   checkForUpdatesManual: () => Promise<void>;
   downloadAndInstallUpdate: () => Promise<void>;
@@ -30,6 +32,7 @@ const isUpdating = ref(false);
 const updateError = ref<string | null>(null);
 const isCheckingForUpdates = ref(false);
 const noUpdateFound = ref(false);
+const updatesViaFlatpak = ref<boolean | null>(null);
 
 /** Fetch release notes from GitHub API as fallback when Tauri updater body is empty. */
 async function fetchGitHubReleaseNotes(version: string): Promise<string> {
@@ -44,7 +47,14 @@ async function fetchGitHubReleaseNotes(version: string): Promise<string> {
   }
 }
 
+// Flatpak installs are updated by Flathub; the bundled updater cannot replace the read-only /app.
+async function managedByFlatpak(): Promise<boolean> {
+  if (updatesViaFlatpak.value === null) updatesViaFlatpak.value = await isFlatpak();
+  return updatesViaFlatpak.value;
+}
+
 async function runCheck(ignoreDismissed: boolean): Promise<void> {
+  if (await managedByFlatpak()) return;
   noUpdateFound.value = false;
   isCheckingForUpdates.value = true;
   try {
@@ -76,6 +86,7 @@ async function runCheck(ignoreDismissed: boolean): Promise<void> {
 }
 
 export function useAutoUpdate(): UseAutoUpdateReturn {
+  void managedByFlatpak();
   const checkForUpdates = (): Promise<void> => runCheck(false);
   const checkForUpdatesManual = (): Promise<void> => runCheck(true);
 
@@ -136,6 +147,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     updateError,
     isCheckingForUpdates,
     noUpdateFound,
+    updatesViaFlatpak,
     checkForUpdates,
     checkForUpdatesManual,
     downloadAndInstallUpdate,

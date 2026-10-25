@@ -8,6 +8,7 @@ import { useAi } from '../../composables/useAi';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS, CUSTOM_MODEL_SENTINEL, modelsFor, useAiModels } from '../../composables/useAiModels';
+import { isFlatpak } from '../../services/flatpak';
 
 const { t } = useI18n();
 const {
@@ -40,10 +41,12 @@ const BINARY_CLIS: CliKind[] = ['claude', 'codex'];
 
 const customClaude = ref<string>('');
 const customCodex = ref<string>('');
+const sandboxed = ref(false);
 
 const codexModelOptions = computed(() => modelsFor('codex'));
 
 onMounted(async () => {
+  isFlatpak().then((value) => { sandboxed.value = value; });
   await Promise.allSettled([
     check('claude'),
     check('codex'),
@@ -302,6 +305,7 @@ async function copyAudit() {
           <small class="ai-helper ai-helper--toggle">{{ t.aiCheckCliHealthOnStartupHelper }}</small>
         </span>
       </label>
+      <small v-if="sandboxed" class="ai-helper ai-helper--inline">{{ t.aiFlatpakCliNote }}</small>
       <div v-for="cli in BINARY_CLIS" :key="cli" class="ai-cli-block">
         <div class="ai-cli-row">
           <div class="ai-cli-name-col">

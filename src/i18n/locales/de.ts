@@ -262,6 +262,7 @@ const de: Translations = {
   checkForUpdates: 'Nach Updates suchen',
   checkingForUpdates: 'Wird geprüft...',
   upToDate: 'Sie sind auf dem neuesten Stand',
+  flatpakUpdatesNote: 'Diese Flatpak-Version wird über Flathub bzw. Ihre Softwareverwaltung aktualisiert.',
 
   // Split view / Panes
   dragTabHere: 'Tab hierher ziehen',
@@ -345,6 +346,7 @@ const de: Translations = {
   aiEnableLabel: 'KI-Integration aktivieren',
   aiCheckCliHealthOnStartup: 'Claude und Codex beim Start prüfen',
   aiCheckCliHealthOnStartupHelper: 'Wenn deaktiviert, wird beim Start der zuletzt bekannte Status wiederhergestellt. Das Öffnen des KI-Assistenten oder „Erneut prüfen“ aktualisiert ihn.',
+  aiFlatpakCliNote: 'Flatpak-Version: Claude Code und Codex CLI laufen in der Sandbox, daher sind systemweit oder über npm installierte CLIs nicht sichtbar. Eine eigenständige Binärdatei in Ihrem Home-Ordner kann funktionieren, wenn Sie sie unten auswählen; Ollama und OpenAI-kompatible Server funktionieren wie gewohnt.',
   aiDefaultCli: 'Standard-CLI',
   aiPanelSide: 'Seite des Chat-Bereichs',
   aiPanelSideLeft: 'Links',

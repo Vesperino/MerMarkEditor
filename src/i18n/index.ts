@@ -271,6 +271,7 @@ export interface Translations {
   checkForUpdates: string;
   checkingForUpdates: string;
   upToDate: string;
+  flatpakUpdatesNote: string;
 
   // Split view / Panes
   dragTabHere: string;
@@ -354,6 +355,7 @@ export interface Translations {
   aiEnableLabel: string;
   aiCheckCliHealthOnStartup: string;
   aiCheckCliHealthOnStartupHelper: string;
+  aiFlatpakCliNote: string;
   aiDefaultCli: string;
   aiPanelSide: string;
   aiPanelSideLeft: string;

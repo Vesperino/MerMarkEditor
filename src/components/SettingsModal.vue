@@ -179,6 +179,7 @@ const {
   updateError,
   isCheckingForUpdates,
   noUpdateFound,
+  updatesViaFlatpak,
   checkForUpdatesManual,
   downloadAndInstallUpdate,
 } = useAutoUpdate();
@@ -942,7 +943,14 @@ onUnmounted(() => {
 
             <div class="setting-divider"></div>
 
-            <div class="setting-row">
+            <div v-if="updatesViaFlatpak" class="setting-row">
+              <label class="setting-label">{{ t.updatesTab }}</label>
+              <div class="setting-control">
+                <span class="update-status">{{ t.flatpakUpdatesNote }}</span>
+              </div>
+            </div>
+
+            <div v-else class="setting-row">
               <label class="setting-label">{{ t.updatesTab }}</label>
               <div class="setting-control update-check-control">
                 <button

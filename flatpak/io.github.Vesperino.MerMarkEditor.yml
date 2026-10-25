@@ -1,0 +1,57 @@
+id: io.github.Vesperino.MerMarkEditor
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: mdreader
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # AI assistant: Ollama / OpenAI-compatible servers and remote models
+  - --share=network
+  # Workspaces anywhere in home, saving next to the opened file and watching it for external changes
+  - --filesystem=home
+
+modules:
+  - name: mermark-editor
+    buildsystem: simple
+    sources:
+      - type: file
+        dest-filename: mermark-editor.deb
+        url: https://github.com/Vesperino/MerMarkEditor/releases/download/v0.8.1/MerMark.Editor_0.8.1_amd64.deb
+        sha256: a14a26c9128e86ea4b9998eb10147a542c902dcd4935d8cb2c67ecbc02599e02
+        only-arches:
+          - x86_64
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/Vesperino/MerMarkEditor/releases/latest
+          version-query: .tag_name | sub("^v"; "")
+          url-query: .assets[] | select(.name == "MerMark.Editor_" + $version + "_amd64.deb") | .browser_download_url
+          is-main-source: true
+      - type: file
+        dest-filename: icon-128.png
+        url: https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/src-tauri/icons/128x128.png
+        sha256: e9ea615eb56b8aae5d23a0e5921496990546ed4a9e49a72c99245ac0cddd294a
+      - type: file
+        dest-filename: icon-256.png
+        url: https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/src-tauri/icons/128x128@2x.png
+        sha256: 6f569aae2024f44a2fe5c666e3365e745c3148450f85b8653de4ebd772e97ac6
+      - type: file
+        dest-filename: icon-512.png
+        url: https://raw.githubusercontent.com/Vesperino/MerMarkEditor/de3b8ec39358dc10fbd4be444db59142182fe04a/src-tauri/icons/512x512.png
+        sha256: b7c187ccfd9d76e3c6619eb04ee1255acaff95b038f91f639a3dd7f7ba66ff17
+      - type: file
+        path: io.github.Vesperino.MerMarkEditor.desktop
+      - type: file
+        path: io.github.Vesperino.MerMarkEditor.metainfo.xml
+    build-commands:
+      - ar x mermark-editor.deb
+      - tar -xf data.tar.*
+      - install -Dm755 usr/bin/mdreader -t ${FLATPAK_DEST}/bin
+      - install -Dm644 ${FLATPAK_ID}.desktop -t ${FLATPAK_DEST}/share/applications
+      - install -Dm644 ${FLATPAK_ID}.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo
+      - |
+        for size in 128 256 512; do
+          install -Dm644 icon-${size}.png ${FLATPAK_DEST}/share/icons/hicolor/${size}x${size}/apps/${FLATPAK_ID}.png
+        done
