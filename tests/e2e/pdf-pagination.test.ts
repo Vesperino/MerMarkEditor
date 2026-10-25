@@ -36,7 +36,7 @@ test('preview lays the document out in pages with header, footer and page number
     'top-left': 'report', 'top-right': 'Confidential', 'bottom-left': '/docs/report.md', 'bottom-right': `${n}/3`,
   })));
   await expect(frame.locator('.pagedjs_page').nth(1).locator('h2')).toHaveText('Chapter two');
-  expect(await frame.locator('.pagedjs_margin-content').first().evaluate(el => getComputedStyle(el, '::after').content)).toBe('none');
+  expect(await frame.locator('.pagedjs_margin-bottom-right .pagedjs_margin-content').first().evaluate(el => getComputedStyle(el, '::after').content)).toBe('none');
 
   await page.locator('.pdf-tab').nth(2).click();
   await page.getByTestId('pdf-header-enabled').uncheck();
@@ -98,7 +98,8 @@ test('math, diagrams, images, tables, page breaks and watermark survive paginati
 });
 
 test('printing sends the paginated layout to WebKit and the native document to Chromium', async ({ page, browserName }) => {
-  const frame = await open(page, threePages, {});
+  await page.addInitScript(() => localStorage.setItem('mermark-settings', JSON.stringify({ documentStyle: 'ia-helvetica', ai: { hasSeenFirstRun: true } })));
+  const frame = await open(page, threePages.replace('Opening paragraph.', '###### Lead\n\nRuns on after the heading.'), { typographySource: 'current-editor' });
   await expect.poll(() => marginTexts(frame)).toHaveLength(3);
   await page.evaluate(() => {
     const w = window as unknown as { printed?: { cmd: string; html: string; pageSize?: string }; __TAURI_INTERNALS__: { invoke: (cmd: string, args: Record<string, unknown>) => unknown } };
@@ -132,6 +133,12 @@ test('printing sends the paginated layout to WebKit and the native document to C
   expect(printed.html).not.toContain('pagedjs-content');
   const sheet = await page.context().newPage();
   await sheet.setContent(printed.html);
+  const styles = (scope: FrameLocator | Page) => scope.locator('.pagedjs_area *').evaluateAll(els => els.map(el => {
+    const css = getComputedStyle(el);
+    return [el.tagName, css.display, css.marginTop, css.marginBottom, css.fontSize].join(' ');
+  }));
+  expect(await sheet.locator('h6 + p').evaluate(el => getComputedStyle(el).display)).toBe('inline');
+  expect(await styles(sheet)).toEqual(await styles(frame));
   const box = await sheet.locator('.pagedjs_page').first().boundingBox();
   const area = await sheet.locator('.pagedjs_page').first().locator('.pagedjs_area').boundingBox();
   const mm = (px: number) => px / 96 * 25.4;
