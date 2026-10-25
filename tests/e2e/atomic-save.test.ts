@@ -230,3 +230,26 @@ test.describe('Save As', () => {
     expect(Object.keys(finalFs)).toEqual([SAMPLE_PATH]);
   });
 });
+
+test.describe('Auto-save', () => {
+  test('auto-save while the code view is open writes the document, not an empty file', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('mermark-settings', JSON.stringify({ ai: { hasSeenFirstRun: true }, autoSave: true }));
+    });
+    const { getFs } = await setupTauriMocks(page, {
+      initialFs: { [SAMPLE_PATH]: SAMPLE_MD },
+      openFilePath: SAMPLE_PATH,
+    });
+
+    await page.goto('/');
+    await waitForTab(page, 'hello.md');
+    await page.waitForTimeout(500);
+    await page.locator('.ProseMirror p').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' Edited.');
+    await openCodeView(page);
+    await page.waitForTimeout(6_500);
+
+    expect(getFs()[SAMPLE_PATH]).toContain('This is a test file. Edited.');
+  });
+});
