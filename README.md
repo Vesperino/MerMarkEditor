@@ -228,7 +228,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **Keyboard navigation** — Tab into the file tree, move with the arrow keys, Home and End; Right and Left expand and collapse folders. Shift with the arrows extends the selection, Space toggles it. Enter opens a file or toggles a folder (macOS: `Cmd+↓`), F2 renames (macOS: `Enter`)
 
 ### Export & Integration
-- **Export to PDF** — the *Current Editor* preset prints with your document style; syntax-highlighted code blocks and content-sized tables
+- **Export to PDF** — the *Current Editor* preset prints with your document style; syntax-highlighted code blocks and content-sized tables; the preview shows real pages with the headers, footers and page numbers you will print, on Windows, macOS and Linux
 - **Save as Markdown** (.md files), clean portable format
 - **Export to Word (DOCX)** with the fonts, heading sizes and spacing of your document style
 
@@ -529,6 +529,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - [Codycody31](https://github.com/Codycody31) - Huge thanks for macOS and Linux support!
 - [TipTap](https://tiptap.dev/) - Headless editor framework
 - [Mermaid](https://mermaid.js.org/) - Diagramming and charting tool
+- [Paged.js](https://pagedjs.org/) - Paged media layout for the PDF preview and WebKit printing
 - [Tauri](https://tauri.app/) - Desktop application framework
 - [Vue.js](https://vuejs.org/) - Progressive JavaScript framework
 
