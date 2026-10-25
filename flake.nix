@@ -37,7 +37,7 @@
               inherit version pnpm;
               src = ./.;
               fetcherVersion = 4;
-              hash = "sha256-WBlFefEF1na9amWnRNDcIFCMw1UOY/dp5VA8DrJn7D4=";
+              hash = "sha256-cMJuDFYHoXcNWKZ/pz1Y3JKjqedGQMA1fZ0QNGJnhh4=";
             };
 
             installPhase = ''
