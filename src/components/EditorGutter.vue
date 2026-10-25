@@ -25,7 +25,7 @@ defineProps<{
   position: absolute;
   top: 0;
   left: 0;
-  width: calc(24px + var(--editor-gutter-width, 3.5em));
+  width: calc(var(--editor-pad-x, 24px) + var(--editor-gutter-width, 3.5em));
   height: 100%;
   pointer-events: none;
   user-select: none;

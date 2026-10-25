@@ -8,7 +8,7 @@ import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useI18n } from '../i18n';
-import { useSettings, EDITOR_FONTS, CODE_FONTS } from '../composables/useSettings';
+import { useSettings, EDITOR_FONTS, CODE_FONTS, type EditorMargin } from '../composables/useSettings';
 import { BUILTIN_MERMAID_FORMATS, CUSTOM_FORMAT_ID, type MermaidFormat } from '../utils/mermaid-formats';
 import { useSystemFonts } from '../composables/useSystemFonts';
 import { useLayoutConfig, type LayoutZone } from '../composables/useLayoutConfig';
@@ -35,6 +35,7 @@ const {
   setSpellcheck,
   setExpandTabs,
   setShowLineNumbers,
+  setEditorMargin,
   toggleCodeWordWrap,
 } = useSettings();
 
@@ -654,6 +655,15 @@ onUnmounted(() => {
               </div>
               <button class="override-reset reset-all" @click="resetDocumentStyleOverrides">{{ t.resetStyleOverrides }}</button>
             </details>
+            <div class="setting-row">
+              <label class="setting-label" for="editor-margin">{{ t.editorMargin }}</label>
+              <select id="editor-margin" class="setting-select" data-testid="editor-margin-select" :value="settings.editorMargin" @change="e => setEditorMargin((e.target as HTMLSelectElement).value as EditorMargin)">
+                <option value="pageless">{{ t.editorMarginPageless }}</option>
+                <option value="small">{{ t.editorMarginSmall }}</option>
+                <option value="medium">{{ t.editorMarginMedium }}</option>
+                <option value="large">{{ t.editorMarginLarge }}</option>
+              </select>
+            </div>
             <div class="style-preview-frame"><DocumentPreview :source="documentPreviewSample" :document-style="activeDocumentStyle" /></div>
 
             <div class="setting-row">

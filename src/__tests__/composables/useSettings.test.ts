@@ -150,6 +150,15 @@ describe('useSettings', () => {
       expect(fresh.useSettings().settings.value.codeTheme).toBe('light');
     });
 
+    it('falls back to Small margins when the saved margin is unknown', async () => {
+      localStorageMock.getItem.mockReset();
+      localStorageMock.setItem('mermark-settings', JSON.stringify({ editorMargin: 'huge' }));
+      vi.resetModules();
+      const fresh = await import('../../composables/useSettings');
+      expect(fresh.useSettings().settings.value.editorMargin).toBe('small');
+      expect(document.documentElement.style.getPropertyValue('--editor-pad-x')).toBe('24px');
+    });
+
     it('should set Mermaid delimiters', () => {
       const { settings, setMermaidFenceOpen, setMermaidFenceClose } = useSettings();
       setMermaidFenceOpen(':::mermaid');
