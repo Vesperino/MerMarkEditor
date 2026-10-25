@@ -38,7 +38,7 @@ export function findMath(text: string): MathSource[] {
         continue;
       }
       // An indented code block cannot interrupt a paragraph.
-      if (/^( {4}|\t)/.test(text.slice(i)) && (i === 0 || (text[i - 1] === '\n' && text[i - 2] === '\n'))) {
+      if (/^( {4}|\t)/.test(text.slice(i)) && (i === 0 || /\n\r?\n$/.test(text.slice(Math.max(0, i - 3), i)))) {
         const code = /^(?:(?: {4}|\t)[^\n]*(?:\n|$)|[ \t]*\n)+/.exec(text.slice(i));
         if (code) { i += code[0].length; continue; }
       }

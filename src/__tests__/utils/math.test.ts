@@ -74,11 +74,17 @@ describe('math source and editor round trips', () => {
     expect(chunks.map(c => c.markdown).join('\n')).toBe(source);
     expect(chunks.some(c => c.markdown.includes(formula))).toBe(true);
   });
+
+  it('ignores dollars in an indented code block of a CRLF file', () => {
+    const lf = 'Text $a$\n\n    $not_math$\n\n    $still_code$\n\nMore $b$';
+    expect(findMath(lf.replace(/\n/g, '\r\n')).map(m => m.formula)).toEqual(['a', 'b']);
+  });
 });
 
 describe('rendering and exports', () => {
   it('renders all examples in the demonstration document', () => {
-    const source = readFileSync('docs/math-showcase.md', 'utf8');
+    // Windows checkouts get CRLF; saving restores the file's own line endings separately.
+    const source = readFileSync('docs/math-showcase.md', 'utf8').replace(/\r\n/g, '\n');
     const math = findMath(source);
     expect(math.length).toBeGreaterThan(25);
     for (const m of math) expect(renderMath(m.formula, m.display).error, m.source).toBeNull();
