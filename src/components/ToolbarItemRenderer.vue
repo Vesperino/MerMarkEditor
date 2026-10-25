@@ -243,7 +243,7 @@ const showLabel = (id: string) => {
     <select
       id="heading-level-select"
       :value="currentHeadingLevel"
-      @change="(e: Event) => dispatch('heading:' + (e.target as HTMLSelectElement).value, () => setHeading(parseInt((e.target as HTMLSelectElement).value)))"
+      @input="(e: Event) => dispatch('heading:' + (e.target as HTMLSelectElement).value, () => setHeading(parseInt((e.target as HTMLSelectElement).value)))"
       class="heading-select"
       v-tooltip="commandTooltip(t.heading)"
       :disabled="isDisabled(itemId)"
