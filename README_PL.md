@@ -205,6 +205,7 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **AI widzi workspace** — root workspace'u dodawany do AI preamble jako read-only scope automatycznie
 - **Quick switcher** (`Ctrl+Shift+E`) — workspace'y, pliki, full-text grep w aktywnym workspace
 - **Drag do reorder** workspace'ów; rozwinięte foldery utrzymują się między sesjami
+- **Nawigacja klawiaturą** — Tab przenosi fokus do drzewa plików; strzałki, Home i End poruszają się po nim, a strzałki w prawo i w lewo rozwijają i zwijają foldery. Shift ze strzałkami rozszerza zaznaczenie, Spacja je przełącza. Enter otwiera plik albo rozwija folder (macOS: `Cmd+↓`), F2 zmienia nazwę (macOS: `Enter`)
 
 ### Eksport i integracja
 - **Eksport do PDF** — preset *Bieżący edytor* drukuje w Twoim stylu dokumentu; kolorowane bloki kodu i tabele dopasowane do zawartości
@@ -371,6 +372,10 @@ Ustawienia są zawsze dostępne w menu aplikacji na macOS lub w menu Edycja na W
 | Przełącz komentarz Markdown (widok kodu) | `Ctrl+/` |
 | Zaznacz następne wystąpienie (widok kodu) | `Ctrl+D` |
 | Zmień nazwę pliku zaznaczonego w panelu bocznym | `F2` (macOS: `Enter`) |
+| Poruszanie się po drzewie plików w panelu bocznym | `↑` / `↓` / `Home` / `End` (`Shift` rozszerza zaznaczenie) |
+| Rozwiń / zwiń folder w drzewie plików | `→` / `←` |
+| Otwórz plik albo rozwiń / zwiń folder | `Enter` (macOS: `Cmd+↓`) |
+| Zaznacz / odznacz element drzewa plików | `Spacja` |
 | Cofnij | `Ctrl+Z` |
 | Ponów | `Ctrl+Y` (macOS: `Cmd+Shift+Z`) |
 | Pogrubienie | `Ctrl+B` |

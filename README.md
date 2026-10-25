@@ -225,7 +225,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **AI sees the workspace** — workspace root is added to the AI preamble as a read-only scope automatically
 - **Quick switcher** (`Ctrl+Shift+E`) — workspaces, files, full-text grep across the active workspace
 - **Drag to reorder** workspaces; expanded folders persist between sessions
-- **Keyboard file tree** — Tab into the tree, then use Up/Down to move, Right to expand or enter a folder, Left to collapse or reach its parent, and Home/End to jump. Shift+Up/Down or Shift+Home/End extends selection; Space toggles selection. Enter opens files or toggles folders on Windows/Linux; macOS uses Command+Down and keeps Enter for rename. F2 renames on Windows/Linux.
+- **Keyboard navigation** — Tab into the file tree, move with the arrow keys, Home and End; Right and Left expand and collapse folders. Shift with the arrows extends the selection, Space toggles it. Enter opens a file or toggles a folder (macOS: `Cmd+↓`), F2 renames (macOS: `Enter`)
 
 ### Export & Integration
 - **Export to PDF** — the *Current Editor* preset prints with your document style; syntax-highlighted code blocks and content-sized tables
@@ -401,6 +401,10 @@ Settings is always available in the application menu on macOS, or the Edit menu 
 | Toggle Markdown comment (Code view) | `Ctrl+/` |
 | Select next occurrence (Code view) | `Ctrl+D` |
 | Rename focused sidebar file | `F2` (macOS: `Enter`) |
+| Move in the sidebar file tree | `↑` / `↓` / `Home` / `End` (`Shift` extends the selection) |
+| Expand / collapse folder in the file tree | `→` / `←` |
+| Open focused file or toggle folder | `Enter` (macOS: `Cmd+↓`) |
+| Select / deselect focused file tree item | `Space` |
 | Undo | `Ctrl+Z` |
 | Redo | `Ctrl+Y` (macOS: `Cmd+Shift+Z`) |
 | Bold | `Ctrl+B` |
