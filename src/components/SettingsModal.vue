@@ -657,7 +657,7 @@ onUnmounted(() => {
             </details>
             <div class="setting-row">
               <label class="setting-label" for="editor-margin">{{ t.editorMargin }}</label>
-              <select id="editor-margin" class="setting-select" :value="settings.editorMargin" @change="e => setEditorMargin((e.target as HTMLSelectElement).value as EditorMargin)">
+              <select id="editor-margin" class="setting-select" data-testid="editor-margin-select" :value="settings.editorMargin" @change="e => setEditorMargin((e.target as HTMLSelectElement).value as EditorMargin)">
                 <option value="pageless">{{ t.editorMarginPageless }}</option>
                 <option value="small">{{ t.editorMarginSmall }}</option>
                 <option value="medium">{{ t.editorMarginMedium }}</option>

@@ -30,7 +30,7 @@ for (const zoom of [50, 100, 150]) {
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.addInitScript(value => localStorage.setItem('mermark-editor-zoom', String(value)), zoom);
     await start(page);
-    await page.locator('#editor-margin').selectOption('pageless');
+    await page.getByTestId('editor-margin-select').selectOption('pageless');
     await page.getByTestId('document-overrides').locator('summary').click();
     for (const width of [520, 680]) {
       await range(page, 'contentWidth', width);

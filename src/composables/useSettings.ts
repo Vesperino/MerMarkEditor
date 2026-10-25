@@ -23,7 +23,7 @@ export type CodeThemeMode = 'dark' | 'light';
 export type CliKind = 'claude' | 'codex' | 'ollama' | 'openai';
 export type PanelSide = 'left' | 'right';
 export const EDITOR_MARGINS = {
-  pageless: { top: 0, bottom: 0, x: 0 },
+  pageless: { top: 16, bottom: 32, x: 24 },
   small: { top: 16, bottom: 32, x: 24 },
   medium: { top: 32, bottom: 64, x: 48 },
   large: { top: 64, bottom: 128, x: 96 },
@@ -249,10 +249,9 @@ function loadSettings(): AppSettings {
       if (parsed.ai && typeof parsed.ai.snapshotsKeep === 'number') {
         parsed.ai.snapshotsKeep = Math.max(1, Math.floor(parsed.ai.snapshotsKeep));
       }
-      // Replace the old independent padding controls with named margin presets.
+      // Retire configurable editor padding; margins are named presets now.
       for (const key of ['editorPaddingTop', 'editorPaddingBottom', 'editorPaddingX']) Reflect.deleteProperty(parsed, key);
       const defaults = getDefaultSettings();
-      if (parsed.editorMargin === 'none') parsed.editorMargin = 'pageless';
       if (!Object.prototype.hasOwnProperty.call(EDITOR_MARGINS, parsed.editorMargin)) {
         parsed.editorMargin = defaults.editorMargin;
       }
@@ -393,7 +392,7 @@ function getDefaultSettings(): AppSettings {
     spellcheck: false,
     expandTabs: false,
     showLineNumbers: false,
-    editorMargin: 'medium',
+    editorMargin: 'small',
     leftBarExpanded: false,
     mermaidFenceOpen: DEFAULT_MERMAID_DELIMITERS.open,
     mermaidFenceClose: DEFAULT_MERMAID_DELIMITERS.close,
@@ -606,7 +605,6 @@ export function useSettings() {
   };
 
   const setEditorMargin = (value: EditorMargin) => {
-    if (!Object.prototype.hasOwnProperty.call(EDITOR_MARGINS, value)) return;
     settings.value.editorMargin = value;
     applyCssVars(settings.value);
   };

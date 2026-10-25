@@ -182,7 +182,7 @@ onMounted(() => {
             fontFamily: 'var(--code-font-family, "Fira Code", "Consolas", "Monaco", monospace)',
             fontSize: 'var(--code-font-size, 14px)',
           },
-          '.cm-lineNumbers .cm-gutterElement': { padding: '0 1.5em 0 0.75em', minWidth: '3em' },
+          '.cm-lineNumbers .cm-gutterElement': { padding: '0 0.5em 0 0.75em', minWidth: '3em' },
           '&.cm-focused': { outline: 'none', boxShadow: '0 0 0 2px var(--focus-ring-alpha)' },
           '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--code-editor-text)' },
           '.cm-selectionBackground': { backgroundColor: 'rgba(59, 130, 246, 0.2)' },

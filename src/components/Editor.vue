@@ -741,7 +741,7 @@ const { lines: lineNumberEntries, recompute: recomputeLineNumbers } = useLineNum
   zoomRef: zoomScale,
 });
 
-// Margins can move text without resizing it when the reading width is unchanged.
+// ResizeObserver misses margin changes: they move the text without resizing it.
 watch(() => appSettings.value.editorMargin, () => {
   if (showGutter.value) recomputeLineNumbers();
 }, { flush: 'post' });
@@ -976,7 +976,8 @@ defineExpose({
   font-size: var(--doc-font-size, 16px);
   flex: 1 0 auto;
   width: 100%;
-  max-width: calc(var(--doc-content-width, 680px) + 2 * var(--editor-pad-x, 48px) + var(--editor-gutter-width, 0px));
+  --editor-page-width: calc(var(--doc-content-width, 680px) + 2 * var(--editor-pad-x, 24px) + var(--editor-gutter-width, 0px));
+  max-width: var(--editor-page-width);
   margin: 20px auto;
 }
 
@@ -985,20 +986,22 @@ defineExpose({
 }
 
 .editor-content-wrapper.has-line-numbers .editor-content {
-  /* Reserve line-number space independently of the selected margin. */
-  padding-left: calc(var(--editor-pad-x, 48px) + var(--editor-gutter-width));
+  padding-left: calc(var(--editor-pad-x, 24px) + var(--editor-gutter-width));
+}
+
+.editor-content,
+.editor-content-wrapper.is-pageless {
+  background: var(--doc-background, var(--editor-content-bg));
 }
 
 .editor-content {
-  background: var(--doc-background, var(--editor-content-bg));
   /* Document typography is independent of the theme's UI font. */
   font-family: var(--doc-font-family, var(--font-sans));
   font-size: var(--doc-font-size, 16px);
   line-height: var(--doc-line-height, 1.5);
   display: flex;
   flex-direction: column;
-  /* Reading width controls the text column; margins surround it. */
-  padding: var(--editor-pad-top, 32px) var(--editor-pad-x, 48px) var(--editor-pad-bottom, 64px);
+  padding: var(--editor-pad-top, 16px) var(--editor-pad-x, 24px) var(--editor-pad-bottom, 32px);
   min-height: 100%;
   box-shadow: var(--shadow-sm);
   border-radius: 4px;
@@ -1009,13 +1012,12 @@ defineExpose({
   flex-direction: column;
   max-width: none;
   margin: 0;
-  background: var(--doc-background, var(--editor-content-bg));
 }
 
 .editor-content-wrapper.is-pageless .editor-content {
   flex: 1;
   width: 100%;
-  max-width: calc(var(--doc-content-width, 680px) + var(--editor-gutter-width, 0px));
+  max-width: var(--editor-page-width);
   margin: 0 auto;
   border-radius: 0;
   box-shadow: none;
@@ -1023,7 +1025,7 @@ defineExpose({
 
 .editor-content-wrapper.is-pageless > .editor-gutter {
   /* Keep the gutter beside the centered text, while the background fills the pane. */
-  left: max(0px, calc((100% - var(--doc-content-width, 680px) - var(--editor-gutter-width, 0px)) / 2));
+  left: max(0px, calc((100% - var(--editor-page-width)) / 2));
 }
 
 :where(.editor-content .tiptap) {
