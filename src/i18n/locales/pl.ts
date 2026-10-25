@@ -272,6 +272,7 @@ const pl: Translations = {
   checkForUpdates: 'Sprawdź aktualizacje',
   checkingForUpdates: 'Sprawdzam...',
   upToDate: 'Masz najnowszą wersję',
+  flatpakUpdatesNote: 'Wersję Flatpak aktualizuje Flathub lub Twoje centrum oprogramowania.',
 
   // Split view / Panes
   dragTabHere: 'Przeciągnij kartę tutaj',
@@ -355,6 +356,7 @@ const pl: Translations = {
   aiEnableLabel: 'Włącz integrację AI',
   aiCheckCliHealthOnStartup: 'Sprawdzaj Claude i Codex przy uruchamianiu',
   aiCheckCliHealthOnStartupHelper: 'Po wyłączeniu aplikacja przywraca ostatni znany stan. Otwarcie asystenta AI lub opcja Sprawdź ponownie odświeża go.',
+  aiFlatpakCliNote: 'Wersja Flatpak działa w piaskownicy, więc Claude Code i Codex zainstalowane w systemie lub przez npm nie są widoczne. Samodzielny plik binarny w katalogu domowym może zadziałać po wskazaniu go poniżej. Ollama i serwery zgodne z OpenAI działają normalnie.',
   aiDefaultCli: 'Domyślne CLI',
   aiPanelSide: 'Strona panelu czatu',
   aiPanelSideLeft: 'Lewo',

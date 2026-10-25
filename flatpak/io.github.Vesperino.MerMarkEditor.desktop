@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=MerMark Editor
+GenericName=Markdown Editor
+Comment=Modern Markdown editor with Mermaid diagrams
+Exec=mdreader %F
+Icon=io.github.Vesperino.MerMarkEditor
+Terminal=false
+Categories=Utility;TextEditor;
+Keywords=markdown;mermaid;diagram;editor;notes;
+MimeType=text/markdown;x-scheme-handler/mermark;
+StartupWMClass=mdreader

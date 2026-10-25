@@ -272,6 +272,7 @@ const zhCN: Translations = {
   checkForUpdates: '检查更新',
   checkingForUpdates: '正在检查...',
   upToDate: '已是最新版本',
+  flatpakUpdatesNote: 'Flatpak 版本由 Flathub 或软件中心负责更新。',
 
   // Split view / Panes
   dragTabHere: '将标签页拖放至此',
@@ -355,6 +356,7 @@ const zhCN: Translations = {
   aiEnableLabel: '启用 AI 集成',
   aiCheckCliHealthOnStartup: '启动时检查 Claude 和 Codex',
   aiCheckCliHealthOnStartupHelper: '关闭后，启动时会恢复上次已知状态。打开 AI 助手或使用“重新检查”会刷新状态。',
+  aiFlatpakCliNote: 'Flatpak 版本：Claude Code 和 Codex CLI 在沙盒内运行，因此系统级或通过 npm 安装的 CLI 不可见。在下方选择主目录中的独立可执行文件可能可以使用；Ollama 和 OpenAI 兼容服务器可正常使用。',
   aiDefaultCli: '默认 CLI',
   aiPanelSide: '聊天面板位置',
   aiPanelSideLeft: '左侧',

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use font_kit::source::SystemSource;
 
 mod ai;
+mod flatpak;
 
 // Store the file path to be opened (from CLI args or file association)
 pub struct OpenFileState(pub Mutex<Option<String>>);
@@ -230,6 +231,11 @@ async fn print_document(app: tauri::AppHandle, html: String, page: Option<PrintP
 #[tauri::command]
 fn get_current_window_label(window: tauri::Window) -> String {
     window.label().to_string()
+}
+
+#[tauri::command]
+fn is_flatpak() -> bool {
+    flatpak::is_sandboxed()
 }
 
 #[tauri::command]
@@ -1018,6 +1024,16 @@ fn apply_linux_gdk_backend() {
     }
 }
 
+// The sandbox may only own D-Bus names under its own app id, so the default
+// `com.mermark.editor.SingleInstance` would be refused inside Flatpak.
+fn single_instance_builder<R: tauri::Runtime>() -> tauri_plugin_single_instance::Builder<R> {
+    let builder = tauri_plugin_single_instance::Builder::new();
+    match flatpak::app_id() {
+        Some(id) => builder.dbus_id(id),
+        None => builder,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
@@ -1046,7 +1062,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        .plugin(single_instance_builder().callback(|app, args, _cwd| {
             // When another instance is launched with arguments (file association)
             // Send the file path to the existing window
             if let Some(window) = app.get_webview_window("main") {
@@ -1066,7 +1082,7 @@ pub fn run() {
                     }
                 }
             }
-        }))
+        }).build())
         .manage(OpenFileState(Mutex::new(None)))
         .manage(OpenFilesRegistry(Mutex::new(HashMap::new())))
         .manage(PrintHtmlState(Mutex::new(None)))
@@ -1076,6 +1092,7 @@ pub fn run() {
             create_new_window,
             get_all_windows,
             get_current_window_label,
+            is_flatpak,
             print_document,
             transfer_tab_to_window,
             register_open_file,

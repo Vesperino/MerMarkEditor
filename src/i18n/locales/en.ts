@@ -272,6 +272,7 @@ const en: Translations = {
   checkForUpdates: 'Check for updates',
   checkingForUpdates: 'Checking...',
   upToDate: "You're up to date",
+  flatpakUpdatesNote: 'This Flatpak build is updated by Flathub or your software center.',
 
   // Split view / Panes
   dragTabHere: 'Drag tab here',
@@ -355,6 +356,7 @@ const en: Translations = {
   aiEnableLabel: 'Enable AI integration',
   aiCheckCliHealthOnStartup: 'Check Claude and Codex at startup',
   aiCheckCliHealthOnStartupHelper: 'When disabled, startup restores the last-known status. Opening the AI assistant or using Re-check refreshes it.',
+  aiFlatpakCliNote: 'Flatpak build: Claude Code and Codex CLI run inside the sandbox, so CLIs installed system-wide or through npm are not visible. A standalone binary in your home folder may work when selected below; Ollama and OpenAI-compatible servers work as usual.',
   aiDefaultCli: 'Default CLI',
   aiPanelSide: 'Chat panel side',
   aiPanelSideLeft: 'Left',
