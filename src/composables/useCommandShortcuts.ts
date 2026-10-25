@@ -1,5 +1,6 @@
 import { onMounted, onScopeDispose } from 'vue';
 import { canonicalKey, eventKeyNames, isAltGraph, isSymbolKey } from '../utils/shortcut-preferences';
+import { isMacPlatform } from '../utils/platform';
 import type { AppCommand, AppCommands, CommandMenu } from './useAppCommands';
 
 export function flattenCommands(items: (AppCommand | CommandMenu)[]): AppCommand[] {
@@ -7,7 +8,7 @@ export function flattenCommands(items: (AppCommand | CommandMenu)[]): AppCommand
 }
 
 /** Match exact modifiers against the layout's character, falling back to the physical key only when needed. */
-export function matchesShortcut(event: KeyboardEvent, shortcut: string, isMac = /Mac/.test(navigator.platform)): boolean {
+export function matchesShortcut(event: KeyboardEvent, shortcut: string, isMac = isMacPlatform()): boolean {
   if (event.isComposing || isAltGraph(event, isMac)) return false;
   const parts = shortcut.split('+');
   const key = canonicalKey(parts.pop()!);
@@ -51,7 +52,7 @@ export function useCommandShortcuts(commands: AppCommands) {
   onScopeDispose(() => window.removeEventListener('keydown', handle, true));
 }
 
-export function formatShortcut(shortcut: string, isMac = /Mac/.test(navigator.platform)) {
+export function formatShortcut(shortcut: string, isMac = isMacPlatform()) {
   return shortcut.split('+').map(key => ({
     CmdOrCtrl: isMac ? '⌘' : 'Ctrl', Control: isMac ? '⌃' : 'Ctrl',
     Shift: isMac ? '⇧' : 'Shift', Alt: isMac ? '⌥' : 'Alt', Comma: ',', Plus: '+',

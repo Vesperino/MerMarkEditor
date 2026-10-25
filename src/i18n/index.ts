@@ -153,6 +153,11 @@ export interface Translations {
   keyboardShortcuts: string;
   shortcutAction: string;
   shortcutKey: string;
+  treeMove: string;
+  treeExtendSelection: string;
+  treeExpandCollapse: string;
+  treeOpenItem: string;
+  treeToggleSelection: string;
   nextTab: string;
   previousTab: string;
   jumpToTab: string;

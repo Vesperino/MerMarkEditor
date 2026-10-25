@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useAppCommandDispatcher } from '../composables/useAppCommands';
 import { flattenCommands, formatShortcut } from '../composables/useCommandShortcuts';
 import { useI18n } from '../i18n';
+import { isMacPlatform } from '../utils/platform';
 
 const { t } = useI18n();
 
@@ -10,8 +11,7 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const isMac = typeof navigator !== 'undefined'
-  && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
+const isMac = isMacPlatform();
 
 const commands = useAppCommandDispatcher();
 const shortcuts = computed(() => [
@@ -21,6 +21,11 @@ const shortcuts = computed(() => [
       action: () => command.label,
     }))),
   { key: `${formatShortcut('Alt+Up')} / ${formatShortcut('Alt+Down')}`, action: () => `${t.value.moveLineUp} / ${t.value.moveLineDown}` },
+  { key: `${formatShortcut('ArrowUp')} / ${formatShortcut('ArrowDown')} / Home / End`, action: () => t.value.treeMove },
+  { key: `${formatShortcut('Shift+ArrowUp')} / ${formatShortcut('Shift+ArrowDown')}`, action: () => t.value.treeExtendSelection },
+  { key: `${formatShortcut('ArrowRight')} / ${formatShortcut('ArrowLeft')}`, action: () => t.value.treeExpandCollapse },
+  { key: isMac ? formatShortcut('CmdOrCtrl+ArrowDown') : 'Enter', action: () => t.value.treeOpenItem },
+  { key: 'Space', action: () => t.value.treeToggleSelection },
   { key: isMac ? 'Enter' : 'F2', action: () => t.value.rename },
 ]);
 

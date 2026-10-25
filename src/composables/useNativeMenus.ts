@@ -5,9 +5,10 @@ import { getCurrentWindow, getAllWindows } from '@tauri-apps/api/window';
 import { emitTo, type UnlistenFn } from '@tauri-apps/api/event';
 import type { AppCommands, AppCommand, CommandMenu } from './useAppCommands';
 import { useMenuLabels } from '../i18n/menus';
+import { isMacPlatform } from '../utils/platform';
 
 const EVENT = 'mermark:menu-command';
-const isMac = /Mac/.test(navigator.platform);
+const isMac = isMacPlatform();
 const isLinux = !isMac && /Linux/.test(navigator.platform);
 // muda has no "Plus" key; an unparsable accelerator is silently dropped.
 const nativeAccelerator = (shortcut?: string) => shortcut?.replace(/\+Plus$/, '+=');
