@@ -70,6 +70,64 @@ for (const zoom of [50, 100, 150]) {
   });
 }
 
+test('margin presets apply their documented padding, Small by default', async ({ page }) => {
+  await start(page);
+  const padding = () => page.locator(main).evaluate(el => {
+    const style = getComputedStyle(el);
+    return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
+  });
+  await expect(page.getByTestId('editor-margin-select')).toHaveValue('small');
+  expect(await padding()).toEqual(['16px', '24px', '32px', '24px']);
+  const presets = [
+    ['medium', ['32px', '48px', '64px', '48px']],
+    ['large', ['64px', '96px', '128px', '96px']],
+    ['small', ['16px', '24px', '32px', '24px']],
+  ] as const;
+  for (const [margin, expected] of presets) {
+    await page.getByTestId('editor-margin-select').selectOption(margin);
+    expect(await padding()).toEqual(expected);
+  }
+});
+
+test('line numbers stay on their lines when the margin changes', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await start(page);
+  await page.locator('.setting-row').filter({ has: page.getByText('Line numbers', { exact: true }) }).getByRole('button', { name: 'On', exact: true }).click();
+  await expect(page.locator('.editor-pane.active .editor-gutter-line').first()).toBeVisible();
+  const drift = () => page.locator('.editor-pane.active').evaluate(pane => {
+    const number = pane.querySelector('.editor-gutter-line')!.getBoundingClientRect();
+    const line = pane.querySelector('.tiptap > h1')!.getBoundingClientRect();
+    return (number.top + number.height / 2) - (line.top + line.height / 2);
+  });
+  const aligned = await drift();
+  for (const margin of ['medium', 'large', 'pageless', 'small']) {
+    await page.getByTestId('editor-margin-select').selectOption(margin);
+    await expect.poll(drift).toBeCloseTo(aligned, 0);
+  }
+});
+
+test('pageless keeps breathing room around the text in a narrow pane', async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 900 });
+  await start(page);
+  await page.getByTestId('editor-margin-select').selectOption('pageless');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  const layout = await page.locator('.editor-pane.active .editor-container').evaluate(container => {
+    const pane = container.getBoundingClientRect();
+    const background = container.querySelector('.editor-content-wrapper')!.getBoundingClientRect();
+    const text = container.querySelector('.tiptap')!.getBoundingClientRect();
+    return {
+      left: text.left - pane.left,
+      right: pane.right - text.right,
+      top: text.top - pane.top,
+      backgroundGap: background.top - pane.top,
+    };
+  });
+  expect(layout.left).toBeGreaterThanOrEqual(24);
+  expect(layout.right).toBeGreaterThanOrEqual(24);
+  expect(layout.top).toBeGreaterThanOrEqual(16);
+  expect(layout.backgroundGap).toBeCloseTo(0, 0);
+});
+
 test('all seven styles render matching editor previews with independent, persistent overrides', async ({ page }) => {
   await start(page);
   const selector = page.getByTestId('document-style-select');
