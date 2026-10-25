@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  printPageSetup,
+  pageMarginTexts,
   buildPrintDocument,
   buildHeaderFooterContent,
   PDF_SETTINGS_DEFAULTS,
@@ -85,16 +85,6 @@ describe('buildPrintDocument', () => {
       customMargins: { top: 12, right: 24, bottom: 35, left: 8 },
     }), FAKE_CSS);
     expect(html).toContain('12mm 24mm 35mm 8mm');
-  });
-
-  it('renders preview header div when header.enabled', () => {
-    const html = buildPrintDocument('<p>x</p>', withSettings({
-      header: { enabled: true, left: 'L', center: 'C', right: 'R' },
-    }), FAKE_CSS);
-    expect(html).toContain('pdf-preview-header');
-    expect(html).toContain('>L<');
-    expect(html).toContain('>C<');
-    expect(html).toContain('>R<');
   });
 
   it('emits @bottom-right page counter when footer disabled but page numbers enabled', () => {
@@ -191,10 +181,30 @@ describe('buildHeaderFooterContent', () => {
   });
 });
 
-describe('printPageSetup', () => {
-  it('hands WebKitGTK the paper size and resolved margins in millimetres', () => {
-    expect(printPageSetup({ ...PDF_SETTINGS_DEFAULTS, pageSize: 'Letter', margins: 'custom', customMargins: { top: 5, right: 70, bottom: 12, left: 30 } }))
-      .toEqual({ pageSize: 'Letter', marginsMm: { top: 5, right: 60, bottom: 12, left: 30 } });
-    expect(printPageSetup(PDF_SETTINGS_DEFAULTS).marginsMm).toEqual({ top: 18, right: 18, bottom: 22, left: 18 });
+describe('pageMarginTexts', () => {
+  const meta = { title: 'Report', path: '/docs/report.md', date: '2026-10-25' };
+
+  it('resolves header and footer templates with the page and total', () => {
+    const settings = withSettings({
+      header: { enabled: true, left: '{title}', center: '', right: '{date}' },
+      footer: { enabled: true, left: '{path}', center: 'p{page}', right: '{page}/{pages}' },
+    });
+    expect(pageMarginTexts(settings, meta, 2, 3)).toEqual({
+      'top-left': 'Report', 'top-center': '', 'top-right': '2026-10-25',
+      'bottom-left': '/docs/report.md', 'bottom-center': 'p2', 'bottom-right': '2/3',
+    });
+  });
+
+  it('leaves out the header when it is off', () => {
+    const texts = pageMarginTexts(withSettings({ header: { enabled: false, left: '{title}', center: '', right: '' } }), meta, 1, 1);
+    expect(Object.keys(texts).filter(box => box.startsWith('top'))).toEqual([]);
+  });
+
+  it('numbers pages in the chosen format when the footer is off', () => {
+    const off = { enabled: false, left: '{path}', center: '', right: '{page}/{pages}' };
+    expect(pageMarginTexts(withSettings({ footer: off, pageNumberFormat: 'n' }), meta, 2, 3)).toEqual({ 'bottom-right': '2' });
+    expect(pageMarginTexts(withSettings({ footer: off, pageNumberFormat: 'n-of-total' }), meta, 2, 3)).toEqual({ 'bottom-right': '2/3' });
+    expect(pageMarginTexts(withSettings({ footer: off, pageNumberFormat: 'page-n-of-total' }), meta, 2, 3)).toEqual({ 'bottom-right': 'Page 2 of 3' });
+    expect(pageMarginTexts(withSettings({ footer: off, showPageNumbers: false }), meta, 2, 3)).toEqual({});
   });
 });

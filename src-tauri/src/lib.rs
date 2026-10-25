@@ -128,52 +128,27 @@ fn get_all_windows(app: tauri::AppHandle) -> Vec<String> {
         .collect()
 }
 
-/// Render the print-ready HTML in a dedicated webview window and fire the native
-/// print dialog on it. WKWebView (macOS) ignores `print()` on iframes, so the
-/// in-app preview iframe could never print there (#103).
-///
-/// The window loads its content from the in-memory `mermarkprint://` protocol
-/// rather than `file://` (which WKWebView refuses via `loadRequest:`) or post-
-/// load JS injection (which rendered blank). `async` keeps window creation off
-/// the main thread, since creating a webview from a sync command can deadlock.
-#[derive(Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-struct PrintPage {
-    page_size: String,
-    margins_mm: PrintMargins,
-}
-
-#[derive(Clone, Copy, serde::Deserialize)]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-struct PrintMargins {
-    top: f64,
-    right: f64,
-    bottom: f64,
-    left: f64,
-}
-
-/// WebKitGTK lays pages out from the GtkPageSetup, not CSS `@page` margins, so
-/// the chosen paper size and margins must reach the print operation (#163).
+/// WebKitGTK lays pages out from the GtkPageSetup, not CSS `@page`, so the paper
+/// size must reach the print operation. Paged.js has already drawn the margins,
+/// headers and footers inside each page, so the setup adds no margins (#163).
 #[cfg(target_os = "linux")]
-fn print_with_page_setup(window: &tauri::WebviewWindow, page: PrintPage) {
+fn print_with_page_setup(window: &tauri::WebviewWindow, page_size: String) {
     let owner = window.clone();
     let _ = window.with_webview(move |webview| {
         use gtk::prelude::*;
         use webkit2gtk::PrintOperationExt;
         let view = webview.inner();
         let setup = gtk::PageSetup::new();
-        let paper = match page.page_size.as_str() {
+        let paper = match page_size.as_str() {
             "Letter" => "na_letter",
             "A3" => "iso_a3",
             _ => "iso_a4",
         };
         setup.set_paper_size(&gtk::PaperSize::new(Some(paper)));
-        let m = page.margins_mm;
-        setup.set_top_margin(m.top, gtk::Unit::Mm);
-        setup.set_right_margin(m.right, gtk::Unit::Mm);
-        setup.set_bottom_margin(m.bottom, gtk::Unit::Mm);
-        setup.set_left_margin(m.left, gtk::Unit::Mm);
+        setup.set_top_margin(0.0, gtk::Unit::Mm);
+        setup.set_right_margin(0.0, gtk::Unit::Mm);
+        setup.set_bottom_margin(0.0, gtk::Unit::Mm);
+        setup.set_left_margin(0.0, gtk::Unit::Mm);
         let operation = webkit2gtk::PrintOperation::new(&view);
         operation.set_page_setup(&setup);
         let finished = owner.clone();
@@ -185,8 +160,16 @@ fn print_with_page_setup(window: &tauri::WebviewWindow, page: PrintPage) {
     });
 }
 
+/// Render the print-ready HTML in a dedicated webview window and fire the native
+/// print dialog on it. WKWebView (macOS) ignores `print()` on iframes, so the
+/// in-app preview iframe could never print there (#103).
+///
+/// The window loads its content from the in-memory `mermarkprint://` protocol
+/// rather than `file://` (which WKWebView refuses via `loadRequest:`) or post-
+/// load JS injection (which rendered blank). `async` keeps window creation off
+/// the main thread, since creating a webview from a sync command can deadlock.
 #[tauri::command]
-async fn print_document(app: tauri::AppHandle, html: String, page: Option<PrintPage>) -> Result<(), String> {
+async fn print_document(app: tauri::AppHandle, html: String, page_size: String) -> Result<(), String> {
     *app.state::<PrintHtmlState>().0.lock().unwrap() = Some(html);
 
     if let Some(existing) = app.get_webview_window(PRINT_WINDOW_LABEL) {
@@ -212,13 +195,12 @@ async fn print_document(app: tauri::AppHandle, html: String, page: Option<PrintP
         .on_page_load(move |window, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
                 #[cfg(target_os = "linux")]
-                if let Some(page) = page.clone() {
-                    print_with_page_setup(&window, page);
-                    return;
-                }
+                print_with_page_setup(&window, page_size.clone());
                 #[cfg(not(target_os = "linux"))]
-                let _ = &page;
-                let _ = window.print();
+                {
+                    let _ = &page_size;
+                    let _ = window.print();
+                }
             }
         })
         .build()
