@@ -51,10 +51,19 @@ export interface AuditEntry {
   exitCode: number | null;
 }
 
-/** A model entry from the codex CLI's models_cache.json (slug + display name). */
+/** A model from the codex CLI catalog, with the reasoning efforts it accepts. */
 export interface CodexModelInfo {
   id: string;
   label: string;
+  efforts?: string[];
+}
+
+/** An entry of Claude Code's own model picker (from its config file). */
+export interface ClaudeModelInfo {
+  id: string;
+  label: string;
+  description?: string | null;
+  disabled?: boolean;
 }
 
 /** A prior conversation turn carried into a LOCAL-provider request (ollama /
@@ -108,8 +117,11 @@ export const aiCommands = {
   openaiModels: (baseUrl: string | null = null) =>
     invoke<string[]>('ai_openai_models', { baseUrl }),
 
-  /** List models from the codex CLI's models_cache.json (empty when missing). */
-  codexModels: () => invoke<CodexModelInfo[]>('ai_codex_models'),
+  /** List the models the given codex CLI offers (empty when unknown). */
+  codexModels: (cliPath: string | null = null) => invoke<CodexModelInfo[]>('ai_codex_models', { cliPath }),
+
+  /** List the extra models Claude Code's /model picker offers (empty when unknown). */
+  claudeModels: () => invoke<ClaudeModelInfo[]>('ai_claude_models'),
 
   send: (req: AiSendRequest, requestId: string) => invoke<string>('ai_send', { req, requestId }),
   cancel: (requestId: string) => invoke<void>('ai_cancel', { requestId }),

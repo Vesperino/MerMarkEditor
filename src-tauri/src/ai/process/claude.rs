@@ -38,7 +38,7 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
         .arg("--verbose")  // REQUIRED for stream-json to actually emit
         .arg("--include-partial-messages")  // emits content_block_delta token deltas
         .arg("--input-format").arg("stream-json");
-    if let Some(model) = &req.model {
+    if let Some(model) = req.model.as_deref().filter(|m| !m.is_empty()) {
         cmd.arg("--model").arg(model);
     }
     if let Some(effort) = &req.effort {
@@ -148,9 +148,77 @@ fn allowed_tools(tools: &AccessMapTools) -> String {
     allowed.join(",")
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct ClaudeModelOption {
+    pub id: String,
+    pub label: String,
+    pub description: Option<String>,
+    pub disabled: bool,
+}
+
+/// Claude Code has no headless model listing. Its `/model` picker shows the
+/// tier aliases plus the options the server last sent, which it keeps in
+/// `.claude.json`; read those so new models appear without a MerMark update.
+pub async fn list_models() -> Vec<ClaudeModelOption> {
+    let Some(path) = config_path() else { return Vec::new() };
+    let Ok(raw) = tokio::fs::read_to_string(path).await else { return Vec::new() };
+    models_from_config(&raw)
+}
+
+fn models_from_config(raw: &str) -> Vec<ClaudeModelOption> {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else { return Vec::new() };
+    let Some(options) = v.get("additionalModelOptionsCache").and_then(|o| o.as_array()) else { return Vec::new() };
+    options
+        .iter()
+        .filter_map(|o| {
+            let id = o.get("value").and_then(|s| s.as_str())?;
+            let label = o.get("label").and_then(|s| s.as_str()).unwrap_or(id);
+            Some(ClaudeModelOption {
+                id: id.to_string(),
+                label: label.to_string(),
+                description: o.get("description").and_then(|s| s.as_str()).map(str::to_string),
+                disabled: o.get("disabled").and_then(|d| d.as_bool()).unwrap_or(false),
+            })
+        })
+        .collect()
+}
+
+fn config_path() -> Option<std::path::PathBuf> {
+    if let Some(dir) = std::env::var("CLAUDE_CONFIG_DIR").ok().filter(|s| !s.is_empty()) {
+        return Some(std::path::PathBuf::from(dir).join(".claude.json"));
+    }
+    let home = crate::ai::process::codex::pick_home_dir(
+        cfg!(windows),
+        std::env::var("USERPROFILE").ok(),
+        std::env::var("HOME").ok(),
+    )?;
+    Some(std::path::PathBuf::from(home).join(".claude.json"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn models_from_config_reads_the_model_picker_cache() {
+        let models = models_from_config(r#"{"additionalModelOptionsCache":[
+            {"value":"claude-fable-5-1[1m]","label":"Fable","description":"Fable 5.1 · Most capable"},
+            {"value":"cc-update-required-1","label":"Opus 5.5 (disabled)","description":"Update to use Opus 5.5","disabled":true},
+            {"label":"no value"}
+        ]}"#);
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0].id, "claude-fable-5-1[1m]");
+        assert_eq!(models[0].label, "Fable");
+        assert_eq!(models[0].description.as_deref(), Some("Fable 5.1 · Most capable"));
+        assert!(!models[0].disabled);
+        assert!(models[1].disabled);
+    }
+
+    #[test]
+    fn models_from_config_tolerates_missing_cache_and_bad_json() {
+        assert!(models_from_config("not json").is_empty());
+        assert!(models_from_config(r#"{"numStartups":3}"#).is_empty());
+    }
 
     #[test]
     fn allowed_tools_for_all_off_is_empty() {
