@@ -207,7 +207,7 @@
 - **拖动重新排序** 工作区；展开的文件夹在会话之间保留
 
 ### 导出与集成
-- **导出 PDF** — *当前编辑器* 预设按你的文档样式打印；带语法高亮的代码块和根据内容自适应的表格
+- **导出 PDF** — *当前编辑器* 预设按你的文档样式打印；带语法高亮的代码块和根据内容自适应的表格；预览按真实分页显示，页眉、页脚和页码与打印结果一致（Windows、macOS 和 Linux 均适用）
 - **保存为 Markdown** (.md 文件)，简洁可移植
 - **导出 Word (DOCX)**，沿用文档样式的字体、标题字号和间距
 
@@ -504,6 +504,7 @@ pnpm test:run
 - [Codycody31](https://github.com/Codycody31) - 非常感谢对 macOS 与 Linux 的支持！
 - [TipTap](https://tiptap.dev/) - Headless 编辑器框架
 - [Mermaid](https://mermaid.js.org/) - 图表与流程图工具
+- [Paged.js](https://pagedjs.org/) - 用于 PDF 预览和 WebKit 打印的分页排版
 - [Tauri](https://tauri.app/) - 桌面应用框架
 - [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
 

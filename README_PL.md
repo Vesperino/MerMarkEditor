@@ -207,7 +207,7 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 - **Drag do reorder** workspace'ów; rozwinięte foldery utrzymują się między sesjami
 
 ### Eksport i integracja
-- **Eksport do PDF** — preset *Bieżący edytor* drukuje w Twoim stylu dokumentu; kolorowane bloki kodu i tabele dopasowane do zawartości
+- **Eksport do PDF** — preset *Bieżący edytor* drukuje w Twoim stylu dokumentu; kolorowane bloki kodu i tabele dopasowane do zawartości; podgląd pokazuje prawdziwe strony z nagłówkami, stopkami i numerami stron takimi jak na wydruku, na Windows, macOS i Linuksie
 - **Zapis jako Markdown** (pliki .md), czysty przenośny format
 - **Eksport do Worda (DOCX)** z fontami, rozmiarami nagłówków i odstępami Twojego stylu dokumentu
 
@@ -495,6 +495,7 @@ Ten projekt jest licencjonowany na warunkach **licencji MIT** - zobacz plik [LIC
 - [Codycody31](https://github.com/Codycody31) - Wielkie podziękowania za wsparcie macOS i Linux!
 - [TipTap](https://tiptap.dev/) - Framework edytora headless
 - [Mermaid](https://mermaid.js.org/) - Narzędzie do tworzenia diagramów
+- [Paged.js](https://pagedjs.org/) - Układ stron dla podglądu PDF i drukowania w WebKit
 - [Tauri](https://tauri.app/) - Framework aplikacji desktopowych
 - [Vue.js](https://vuejs.org/) - Progresywny framework JavaScript
 
