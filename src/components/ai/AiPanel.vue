@@ -21,6 +21,7 @@ import { buildMermaidBlockFor } from '../../utils/mermaid-formats';
 import { resolveMermaidWriteFormat, resolveMermaidReadFormats } from '../../composables/useSettings';
 import AiPanelTab from './AiPanelTab.vue';
 import AiPanelHeader from './AiPanelHeader.vue';
+import AiCliUpdateNotice from './AiCliUpdateNotice.vue';
 import AiPanelContextBar from './AiPanelContextBar.vue';
 import AiPanelStatusNotices from './AiPanelStatusNotices.vue';
 import AiPanelMessages from './AiPanelMessages.vue';
@@ -211,7 +212,7 @@ function refreshModels(cli: CliKind) {
   if (cli === 'ollama') void aiModels.refreshOllamaModels(ai.ollamaBaseUrl || null);
   else if (cli === 'openai') void aiModels.refreshOpenaiModels(ai.openaiBaseUrl || null);
   else if (cli === 'codex') void aiModels.refreshCodexModels(ai.cliPathCodex || ai.cliResolvedPathCodex || null);
-  else void aiModels.refreshClaudeModels();
+  else void aiModels.refreshClaudeModels(health.cache.value.claude?.version ?? null);
 }
 
 watch(selectedCli, (cli, oldCli) => {
@@ -233,6 +234,10 @@ watch(selectedModel, (m) => {
   else if (selectedCli.value === 'codex') setAiDefaultModelCodex(m);
   else if (selectedCli.value === 'openai') setAiDefaultModelOpenai(m);
   else setAiDefaultModelOllama(m);
+});
+
+watch(() => health.cache.value.claude?.version, (version) => {
+  if (selectedCli.value === 'claude') void aiModels.refreshClaudeModels(version ?? null);
 });
 
 // Codex models differ in the efforts they accept; keep the pick valid.
@@ -547,6 +552,8 @@ function onPreviewImage(img: PendingImage) {
       @threads-ref="(el) => layout.setThreadsDetails(el)"
     />
 
+    <AiCliUpdateNotice class="ai-panel__cli-update" :cli="selectedCli" />
+
     <AiPanelContextBar :usage="aiContext.usage.value" :usage-label="aiContext.usageLabel.value" />
 
     <div v-if="mermaidEditMode" class="ai-panel-mermaid-chip">
@@ -655,6 +662,10 @@ function onPreviewImage(img: PendingImage) {
 </template>
 
 <style scoped>
+.ai-panel__cli-update {
+  margin: 6px 10px 0;
+}
+
 .ai-panel {
   position: fixed;
   top: var(--toolbar-height, 44px);

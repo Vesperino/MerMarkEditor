@@ -44,6 +44,13 @@ describe('useAiModels', () => {
     expect(opts[5]).toEqual({ id: 'cc-update-required-1', label: 'Update to 2.1.280+ to use Opus 5.5', disabled: true });
   });
 
+  it('claudeModelsToOptions drops an update hint once the installed Claude Code is new enough', () => {
+    const hint = { id: 'cc-update-required-1', label: 'Opus 5.5 (disabled)', description: 'Update to 2.1.280+ to use Opus 5.5', disabled: true };
+    expect(claudeModelsToOptions([hint], '2.1.278 (Claude Code)').some((o) => o.id === hint.id)).toBe(true);
+    expect(claudeModelsToOptions([hint], '2.1.310 (Claude Code)').some((o) => o.id === hint.id)).toBe(false);
+    expect(claudeModelsToOptions([hint], null).some((o) => o.id === hint.id)).toBe(true);
+  });
+
   it('refreshClaudeModels shows new models and keeps the aliases when the config is unreadable', async () => {
     (aiCommands.claudeModels as unknown as { mockResolvedValue: (v: unknown) => void })
       .mockResolvedValue([{ id: 'claude-opus-6', label: 'Opus', description: 'Opus 6 · New' }]);

@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { aiCommands, type ClaudeModelInfo, type CliKind, type CodexModelInfo } from '../services/aiCommands';
+import { isOutdated } from './useAiCliUpdates';
 
 export interface AiModelOption {
   id: string;
@@ -81,10 +82,16 @@ export function codexModelsToOptions(models: CodexModelInfo[]): AiModelOption[] 
 }
 
 /** Add Claude Code's own /model picker entries after the aliases. Entries the
- *  installed CLI is too old for stay visible but disabled, with the reason. */
-export function claudeModelsToOptions(models: ClaudeModelInfo[]): AiModelOption[] {
+ *  installed CLI is too old for stay visible but disabled, with the reason;
+ *  Claude Code rewrites its list only on its next run, so once the installed
+ *  version meets the "x.y.z+" the reason names, the entry is dropped. */
+export function claudeModelsToOptions(models: ClaudeModelInfo[], installed: string | null = null): AiModelOption[] {
+  const satisfied = (m: ClaudeModelInfo) => {
+    const required = /(\d+\.\d+\.\d+)\+/.exec(m.description ?? '')?.[1];
+    return !!m.disabled && !!required && !!installed && !isOutdated(installed, required);
+  };
   const extra = models
-    .filter((m) => !CLAUDE_MODELS.some((o) => o.id === m.id))
+    .filter((m) => !CLAUDE_MODELS.some((o) => o.id === m.id) && !satisfied(m))
     .map((m): AiModelOption => (m.disabled
       ? { id: m.id, label: m.description || m.label, disabled: true }
       : { id: m.id, label: m.description?.split(' · ')[0] || m.label, title: m.description ?? undefined }));
@@ -127,9 +134,9 @@ export function useAiModels() {
     return openaiModels.value;
   }
 
-  async function refreshClaudeModels(): Promise<AiModelOption[]> {
+  async function refreshClaudeModels(installed: string | null = null): Promise<AiModelOption[]> {
     try {
-      claudeModels.value = claudeModelsToOptions(await aiCommands.claudeModels());
+      claudeModels.value = claudeModelsToOptions(await aiCommands.claudeModels(), installed);
     } catch {
       claudeModels.value = CLAUDE_MODELS;
     }

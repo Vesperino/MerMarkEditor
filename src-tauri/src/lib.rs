@@ -268,6 +268,16 @@ async fn ai_codex_models(cli_path: Option<String>) -> Vec<ai::process::codex::Co
 }
 
 #[tauri::command]
+async fn ai_cli_latest_version(cli: CliKind) -> Result<String, String> {
+    ai::update::latest_version(cli).await
+}
+
+#[tauri::command]
+async fn ai_cli_update(cli: CliKind, cli_path: Option<String>) -> Result<String, String> {
+    ai::update::run_update(cli, cli_path.as_deref()).await
+}
+
+#[tauri::command]
 async fn ai_claude_models() -> Vec<ai::process::claude::ClaudeModelOption> {
     ai::process::claude::list_models().await
 }
@@ -1101,6 +1111,8 @@ pub fn run() {
             ai_openai_models,
             ai_codex_models,
             ai_claude_models,
+            ai_cli_latest_version,
+            ai_cli_update,
             ai_access_load,
             ai_access_save,
             ai_access_migrate,

@@ -9,6 +9,7 @@ import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
 import { CLAUDE_EFFORTS, CUSTOM_MODEL_SENTINEL, effortsFor, modelsFor, useAiModels } from '../../composables/useAiModels';
 import { isFlatpak } from '../../services/flatpak';
+import AiCliUpdateNotice from './AiCliUpdateNotice.vue';
 
 const { t } = useI18n();
 const {
@@ -51,14 +52,13 @@ const refreshCodexCatalog = () => refreshCodexModels(settings.value.ai.cliPathCo
 onMounted(async () => {
   isFlatpak().then((value) => { sandboxed.value = value; });
   await Promise.allSettled([
-    check('claude'),
+    check('claude').then((status) => refreshClaudeModels(status.version)),
     check('codex'),
     check('ollama'),
     check('openai'),
     refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null),
     refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null),
     refreshCodexCatalog(),
-    refreshClaudeModels(),
     loadAudit(),
   ]);
   if (isCustom('claude')) customClaude.value = settings.value.ai.defaultModelClaude;
@@ -120,7 +120,7 @@ async function applyOpenaiBaseUrl(value: string) {
 async function recheck(cli: CliKind) {
   await check(cli, true);
   if (cli === 'codex') await refreshCodexCatalog();
-  else if (cli === 'claude') await refreshClaudeModels();
+  else if (cli === 'claude') await refreshClaudeModels(cache.value.claude?.version ?? null);
 }
 
 function dotClass(cli: CliKind): string {
@@ -336,6 +336,7 @@ async function copyAudit() {
             </button>
           </div>
         </div>
+        <AiCliUpdateNotice :cli="cli" />
         <details class="ai-cli-path" :open="!statusOk(cli)">
           <summary>{{ t.aiSettingsCliPathHeading }}</summary>
           <div class="ai-cli-path-row">

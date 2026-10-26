@@ -123,6 +123,12 @@ export const aiCommands = {
   /** List the extra models Claude Code's /model picker offers (empty when unknown). */
   claudeModels: () => invoke<ClaudeModelInfo[]>('ai_claude_models'),
 
+  /** Newest published Claude Code / Codex CLI version. */
+  cliLatestVersion: (cli: CliKind) => invoke<string>('ai_cli_latest_version', { cli }),
+
+  /** Run the CLI's own `update` command; resolves with its output. */
+  cliUpdate: (cli: CliKind, cliPath: string | null = null) => invoke<string>('ai_cli_update', { cli, cliPath }),
+
   send: (req: AiSendRequest, requestId: string) => invoke<string>('ai_send', { req, requestId }),
   cancel: (requestId: string) => invoke<void>('ai_cancel', { requestId }),
 

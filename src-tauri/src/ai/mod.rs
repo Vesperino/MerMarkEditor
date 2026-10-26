@@ -12,3 +12,4 @@ pub mod sessions;
 pub mod snapshots;
 pub mod health;
 pub mod process;
+pub mod update;
