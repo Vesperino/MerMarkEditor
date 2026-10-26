@@ -7,8 +7,9 @@ import { useSettings, OLLAMA_MIN_NUM_CTX, type CliKind, type PanelSide } from '.
 import { useAi } from '../../composables/useAi';
 import { useAiHealth } from '../../composables/useAiHealth';
 import { useAiAudit } from '../../composables/useAiAudit';
-import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_EFFORTS, CUSTOM_MODEL_SENTINEL, modelsFor, useAiModels } from '../../composables/useAiModels';
+import { CLAUDE_EFFORTS, CUSTOM_MODEL_SENTINEL, effortsFor, modelsFor, useAiModels } from '../../composables/useAiModels';
 import { isFlatpak } from '../../services/flatpak';
+import AiCliUpdateNotice from './AiCliUpdateNotice.vue';
 
 const { t } = useI18n();
 const {
@@ -32,7 +33,7 @@ const {
   setAiCliPathCodex,
 } = useSettings();
 const { check, cache, loading } = useAiHealth();
-const { ollamaModels, refreshOllamaModels, openaiModels, refreshOpenaiModels, refreshCodexModels } = useAiModels();
+const { ollamaModels, refreshOllamaModels, openaiModels, refreshOpenaiModels, refreshCodexModels, refreshClaudeModels } = useAiModels();
 const { bypassEnabled } = useAi();
 const { entries: auditEntries, load: loadAudit, clear: clearAudit } = useAiAudit();
 
@@ -43,18 +44,21 @@ const customClaude = ref<string>('');
 const customCodex = ref<string>('');
 const sandboxed = ref(false);
 
+const claudeModelOptions = computed(() => modelsFor('claude'));
 const codexModelOptions = computed(() => modelsFor('codex'));
+const codexEffortOptions = computed(() => effortsFor('codex', settings.value.ai.defaultModelCodex));
+const refreshCodexCatalog = () => refreshCodexModels(settings.value.ai.cliPathCodex || settings.value.ai.cliResolvedPathCodex || null);
 
 onMounted(async () => {
   isFlatpak().then((value) => { sandboxed.value = value; });
   await Promise.allSettled([
-    check('claude'),
+    check('claude').then((status) => refreshClaudeModels(status.version)),
     check('codex'),
     check('ollama'),
     check('openai'),
     refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null),
     refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null),
-    refreshCodexModels(),
+    refreshCodexCatalog(),
     loadAudit(),
   ]);
   if (isCustom('claude')) customClaude.value = settings.value.ai.defaultModelClaude;
@@ -115,7 +119,8 @@ async function applyOpenaiBaseUrl(value: string) {
 
 async function recheck(cli: CliKind) {
   await check(cli, true);
-  if (cli === 'codex') await refreshCodexModels();
+  if (cli === 'codex') await refreshCodexCatalog();
+  else if (cli === 'claude') await refreshClaudeModels(cache.value.claude?.version ?? null);
 }
 
 function dotClass(cli: CliKind): string {
@@ -241,7 +246,7 @@ function searchedPaths(): string[] {
 
 function isCustom(cli: 'claude' | 'codex'): boolean {
   const cur = cli === 'claude' ? settings.value.ai.defaultModelClaude : settings.value.ai.defaultModelCodex;
-  const list = cli === 'claude' ? CLAUDE_MODELS : codexModelOptions.value;
+  const list = cli === 'claude' ? claudeModelOptions.value : codexModelOptions.value;
   return !list.some(o => o.id === cur && !o.custom);
 }
 
@@ -331,6 +336,7 @@ async function copyAudit() {
             </button>
           </div>
         </div>
+        <AiCliUpdateNotice :cli="cli" />
         <details class="ai-cli-path" :open="!statusOk(cli)">
           <summary>{{ t.aiSettingsCliPathHeading }}</summary>
           <div class="ai-cli-path-row">
@@ -454,7 +460,7 @@ async function copyAudit() {
             :value="isCustom('claude') ? CUSTOM_MODEL_SENTINEL : settings.ai.defaultModelClaude"
             @change="pickModel('claude', ($event.target as HTMLSelectElement).value)"
           >
-            <option v-for="m in CLAUDE_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+            <option v-for="m in claudeModelOptions" :key="m.id" :value="m.id" :disabled="m.disabled" :title="m.title">{{ m.label }}</option>
           </select>
           <input
             v-if="isCustom('claude')"
@@ -532,7 +538,7 @@ async function copyAudit() {
       <label class="ai-inline-label" style="margin-top: 8px;">
         {{ t.aiCliStatusCodex }}
         <select :value="settings.ai.effortCodex" @change="setAiEffortCodex(($event.target as HTMLSelectElement).value)">
-          <option v-for="e in CODEX_EFFORTS" :key="e.id" :value="e.id">{{ e.label }}</option>
+          <option v-for="e in codexEffortOptions" :key="e.id" :value="e.id">{{ e.label }}</option>
         </select>
       </label>
     </section>

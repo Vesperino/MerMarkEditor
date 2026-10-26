@@ -396,6 +396,10 @@ export interface Translations {
   aiInstall: string;
   aiAuthenticate: string;
   aiRecheck: string;
+  aiCliUpdateAvailable: (latest: string) => string;
+  aiCliUpdate: string;
+  aiCliUpdating: string;
+  aiCliUpdateFailed: string;
   aiAuditLog: string;
   aiAuditClear: string;
   aiAuditExport: string;

@@ -24,6 +24,8 @@ export async function setupTauriMocks(
     openFilePath?: string | null;
     /** App version string */
     version?: string;
+    /** Fixed results for other IPC commands, by command name */
+    commands?: Record<string, unknown>;
   } = {},
 ): Promise<{
   /** Inspect current virtual FS state from a test */
@@ -79,10 +81,11 @@ export async function setupTauriMocks(
 
   const openFilePath = opts.openFilePath ?? null;
   const version = opts.version ?? '0.0.0-test';
+  const commands = opts.commands ?? {};
 
   // Inject mock __TAURI_INTERNALS__ before the app JS runs
   await page.addInitScript(
-    ({ openFilePath, version }: { openFilePath: string | null; version: string }) => {
+    ({ openFilePath, version, commands }: { openFilePath: string | null; version: string; commands: Record<string, unknown> }) => {
       // Keep the first-run AI popover from covering toolbar controls in tests.
       // Tests that provide their own settings before this mock keep them.
       if (!localStorage.getItem('mermark-settings')) {
@@ -212,6 +215,8 @@ export async function setupTauriMocks(
             return null;
           }
 
+          if (cmd in commands) return commands[cmd];
+
           // Fallback
           console.warn(`[TauriMock] Unhandled IPC: ${cmd}`, args);
           return null;
@@ -225,7 +230,7 @@ export async function setupTauriMocks(
         },
       };
     },
-    { openFilePath, version },
+    { openFilePath, version, commands },
   );
 
   const triggerExternalChange = async (filePath: string, newContent: string): Promise<void> => {

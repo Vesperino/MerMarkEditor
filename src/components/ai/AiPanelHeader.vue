@@ -8,7 +8,7 @@ import type { AiThread } from '../../composables/useAi';
 
 const { t } = useI18n();
 
-interface ModelOption { id: string; label: string; custom?: boolean }
+interface ModelOption { id: string; label: string; custom?: boolean; disabled?: boolean; title?: string }
 interface EffortOption { id: string; label: string }
 
 const props = defineProps<{
@@ -126,7 +126,7 @@ function onCustomModelInput(e: Event) {
         @change="onModelChange"
         :title="modelTitle"
       >
-        <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        <option v-for="m in modelOptions" :key="m.id" :value="m.id" :disabled="m.disabled" :title="m.title">{{ m.label }}</option>
       </select>
       <input
         v-if="isCustomModel"

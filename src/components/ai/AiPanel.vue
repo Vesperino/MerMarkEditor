@@ -21,6 +21,7 @@ import { buildMermaidBlockFor } from '../../utils/mermaid-formats';
 import { resolveMermaidWriteFormat, resolveMermaidReadFormats } from '../../composables/useSettings';
 import AiPanelTab from './AiPanelTab.vue';
 import AiPanelHeader from './AiPanelHeader.vue';
+import AiCliUpdateNotice from './AiCliUpdateNotice.vue';
 import AiPanelContextBar from './AiPanelContextBar.vue';
 import AiPanelStatusNotices from './AiPanelStatusNotices.vue';
 import AiPanelMessages from './AiPanelMessages.vue';
@@ -180,7 +181,7 @@ const availableClis = computed<CliKind[]>(() => {
 });
 
 const modelOptions = computed(() => modelsFor(selectedCli.value));
-const effortOptions = computed(() => effortsFor(selectedCli.value));
+const effortOptions = computed(() => effortsFor(selectedCli.value, selectedModel.value));
 const cliConnected = computed(() => health.cache.value[selectedCli.value]?.ok ?? false);
 const anyHealthLoading = computed(() => health.loading.value.claude || health.loading.value.codex || health.loading.value.ollama || health.loading.value.openai);
 
@@ -206,19 +207,21 @@ watch(isCustomModel, (custom) => {
 // the just-restored thread isn't immediately wiped out.
 const restoringThread = ref(false);
 
+function refreshModels(cli: CliKind) {
+  const ai = settings.value.ai;
+  if (cli === 'ollama') void aiModels.refreshOllamaModels(ai.ollamaBaseUrl || null);
+  else if (cli === 'openai') void aiModels.refreshOpenaiModels(ai.openaiBaseUrl || null);
+  else if (cli === 'codex') void aiModels.refreshCodexModels(ai.cliPathCodex || ai.cliResolvedPathCodex || null);
+  else void aiModels.refreshClaudeModels(health.cache.value.claude?.version ?? null);
+}
+
 watch(selectedCli, (cli, oldCli) => {
   setAiDefaultCli(cli);
   if (!restoringThread.value) {
     selectedModel.value = defaultModelFor(cli);
     selectedEffort.value = defaultEffortFor(cli);
   }
-  if (cli === 'ollama') {
-    void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
-  } else if (cli === 'openai') {
-    void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
-  } else if (cli === 'codex') {
-    void aiModels.refreshCodexModels();
-  }
+  refreshModels(cli);
   aiContext.reset(cli);
   if (oldCli && oldCli !== cli && !restoringThread.value) {
     ai.startNewThread();
@@ -233,6 +236,17 @@ watch(selectedModel, (m) => {
   else setAiDefaultModelOllama(m);
 });
 
+watch(() => health.cache.value.claude?.version, (version) => {
+  if (selectedCli.value === 'claude') void aiModels.refreshClaudeModels(version ?? null);
+});
+
+// Codex models differ in the efforts they accept; keep the pick valid.
+watch(effortOptions, (opts) => {
+  if (opts.length > 0 && !opts.some(o => o.id === selectedEffort.value)) {
+    selectedEffort.value = opts.some(o => o.id === 'high') ? 'high' : opts[0].id;
+  }
+});
+
 watch(selectedEffort, (e) => {
   if (selectedCli.value === 'claude') setAiEffortClaude(e);
   else if (selectedCli.value === 'codex') setAiEffortCodex(e);
@@ -241,13 +255,7 @@ watch(selectedEffort, (e) => {
 onMounted(async () => {
   layout.mount();
   ai.bindDoc(props.docPath || '');
-  if (selectedCli.value === 'ollama') {
-    void aiModels.refreshOllamaModels(settings.value.ai.ollamaBaseUrl || null);
-  } else if (selectedCli.value === 'openai') {
-    void aiModels.refreshOpenaiModels(settings.value.ai.openaiBaseUrl || null);
-  } else if (selectedCli.value === 'codex') {
-    void aiModels.refreshCodexModels();
-  }
+  refreshModels(selectedCli.value);
   if (props.docPath) {
     await Promise.all([
       session.loadFor(props.docPath),
@@ -544,6 +552,8 @@ function onPreviewImage(img: PendingImage) {
       @threads-ref="(el) => layout.setThreadsDetails(el)"
     />
 
+    <AiCliUpdateNotice class="ai-panel__cli-update" :cli="selectedCli" />
+
     <AiPanelContextBar :usage="aiContext.usage.value" :usage-label="aiContext.usageLabel.value" />
 
     <div v-if="mermaidEditMode" class="ai-panel-mermaid-chip">
@@ -652,6 +662,10 @@ function onPreviewImage(img: PendingImage) {
 </template>
 
 <style scoped>
+.ai-panel__cli-update {
+  margin: 6px 10px 0;
+}
+
 .ai-panel {
   position: fixed;
   top: var(--toolbar-height, 44px);
