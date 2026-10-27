@@ -7,7 +7,9 @@ interface Edit { start: number; end: number; text: string }
 // on import. Apply that normalization to both sides, so loading alone is never
 // mistaken for a user edit. Code and raw-HTML node source remain verbatim.
 function normalizeVisualHtml(html: string): string {
-  const root = document.createElement('div');
+  // A detached element in the active document can still load images and run
+  // their event handlers. Normalize in an inert document, never mounted in UI.
+  const root = document.implementation.createHTMLDocument('').createElement('div');
   root.innerHTML = html;
   const walk = (element: Element) => {
     if (element.matches('pre, code, [data-safe-html-block]')) return;
