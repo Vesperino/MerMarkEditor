@@ -1,3 +1,4 @@
+import { isMacPlatform } from './platform';
 const keyAliases: Record<string, string> = {
   ',': 'Comma', '/': 'Slash', '-': 'Minus', '=': 'Equal', '.': 'Period', ';': 'Semicolon',
   "'": 'Quote', '[': 'BracketLeft', ']': 'BracketRight', '\\': 'Backslash', '`': 'Backquote', ' ': 'Space',
@@ -47,7 +48,7 @@ export function eventKeyNames(event: KeyboardEvent): { key: string; produced: bo
 }
 
 /** Windows and Linux report AltGr as Ctrl+Alt; such keypresses type characters (ą, ć, @, [, {). */
-export function isAltGraph(event: KeyboardEvent, isMac = /Mac/.test(navigator.platform)): boolean {
+export function isAltGraph(event: KeyboardEvent, isMac = isMacPlatform()): boolean {
   if (isMac || !event.ctrlKey || !event.altKey) return false;
   if (event.getModifierState?.('AltGraph')) return true;
   if (event.key.length !== 1) return false;
@@ -56,7 +57,7 @@ export function isAltGraph(event: KeyboardEvent, isMac = /Mac/.test(navigator.pl
   return !produced || (!!physical && produced !== physical);
 }
 
-export function shortcutFromEvent(event: KeyboardEvent, isMac = /Mac/.test(navigator.platform)): string | null {
+export function shortcutFromEvent(event: KeyboardEvent, isMac = isMacPlatform()): string | null {
   if (event.isComposing || ['Meta', 'Control', 'Alt', 'Shift', 'AltGraph'].includes(event.key) || isAltGraph(event, isMac)) return null;
   const names = eventKeyNames(event);
   const key = (event.shiftKey || event.altKey ? names.find(n => !n.produced) : undefined)?.key ?? names[0]?.key;
@@ -73,11 +74,11 @@ function identities(shortcut: string, isMac: boolean) {
   if (key === 'Plus') return [ [...mods, 'Equal'].join('+'), [...new Set([...mods, 'Shift'])].sort().concat('Equal').join('+') ];
   return [[...mods, key].join('+')];
 }
-export function shortcutsOverlap(a: string, b: string, isMac = /Mac/.test(navigator.platform)) {
+export function shortcutsOverlap(a: string, b: string, isMac = isMacPlatform()) {
   return identities(a, isMac).some(key => identities(b, isMac).includes(key));
 }
 /** Clipboard and system window shortcuts remain under OS control. */
-export function isReservedShortcut(shortcut: string, isMac = /Mac/.test(navigator.platform)) {
+export function isReservedShortcut(shortcut: string, isMac = isMacPlatform()) {
   const reserved = ['A', 'C', 'X', 'V', ...(isMac ? ['Q', 'H', 'M', 'Space'] : [])].map(key => `CmdOrCtrl+${key}`);
   reserved.push(...(isMac ? ['CmdOrCtrl+Alt+H', 'CmdOrCtrl+Alt+M'] : ['Alt+F4']));
   return reserved.some(key => shortcutsOverlap(shortcut, key, isMac));

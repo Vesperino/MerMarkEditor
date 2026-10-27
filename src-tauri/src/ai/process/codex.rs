@@ -90,7 +90,7 @@ pub async fn spawn(req: &AiSendRequest) -> Result<Child, String> {
             // the home-fallback case keeps the sandbox tighter.
             cmd.arg("--add-dir").arg(&req.work_dir);
         }
-        if let Some(model) = &req.model {
+        if let Some(model) = req.model.as_deref().filter(|m| !m.is_empty()) {
             cmd.arg("--model").arg(model);
         }
         if let Some(effort) = &req.effort {
@@ -154,12 +154,20 @@ pub async fn resolve_context_window(model: Option<&str>) -> Option<u64> {
 pub struct CodexModelOption {
     pub id: String,
     pub label: String,
+    pub efforts: Vec<String>,
 }
 
-/// List models from codex's own `models_cache.json` (same file used for
-/// context-window resolution). Missing/malformed cache yields an empty list;
-/// the frontend falls back to its curated list.
-pub async fn list_models() -> Vec<CodexModelOption> {
+/// Ask the codex binary MerMark runs for its model catalog, so the list
+/// matches what that CLI version accepts. `models_cache.json` is shared with
+/// other codex clients (e.g. the desktop app) and only serves as a fallback
+/// for CLIs without `debug models`. Empty means the frontend uses its own list.
+pub async fn list_models(cli_path: Option<&str>) -> Vec<CodexModelOption> {
+    if let Ok((true, out, _)) = crate::ai::health::codex::run_capture(cli_path, &["debug", "models"], 15).await {
+        let models = models_from_cache(&out);
+        if !models.is_empty() {
+            return models;
+        }
+    }
     let Some(path) = models_cache_path() else { return Vec::new() };
     let Ok(raw) = tokio::fs::read_to_string(path).await else { return Vec::new() };
     models_from_cache(&raw)
@@ -168,16 +176,22 @@ pub async fn list_models() -> Vec<CodexModelOption> {
 fn models_from_cache(raw: &str) -> Vec<CodexModelOption> {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else { return Vec::new() };
     let Some(models) = v.get("models").and_then(|m| m.as_array()) else { return Vec::new() };
-    models
+    let mut listed: Vec<_> = models
         .iter()
+        .filter(|m| m.get("visibility").and_then(|v| v.as_str()) != Some("hide"))
+        .collect();
+    listed.sort_by_key(|m| m.get("priority").and_then(|p| p.as_i64()).unwrap_or(i64::MAX));
+    listed
+        .into_iter()
         .filter_map(|m| {
             let slug = m.get("slug").and_then(|s| s.as_str())?;
-            // codex-auto-review is codex's internal review model, not user-pickable.
-            if slug == "codex-auto-review" {
-                return None;
-            }
             let label = m.get("display_name").and_then(|d| d.as_str()).unwrap_or(slug);
-            Some(CodexModelOption { id: slug.to_string(), label: label.to_string() })
+            let efforts = m
+                .get("supported_reasoning_levels")
+                .and_then(|l| l.as_array())
+                .map(|levels| levels.iter().filter_map(|l| l.get("effort")?.as_str().map(str::to_string)).collect())
+                .unwrap_or_default();
+            Some(CodexModelOption { id: slug.to_string(), label: label.to_string(), efforts })
         })
         .collect()
 }
@@ -201,7 +215,7 @@ fn models_cache_path() -> Option<std::path::PathBuf> {
 /// On Windows HOME may be set by git-bash/msys to a different dir than codex
 /// (which follows USERPROFILE semantics) actually uses — so USERPROFILE wins
 /// there, HOME wins on Unix.
-fn pick_home_dir(is_windows: bool, userprofile: Option<String>, home: Option<String>) -> Option<String> {
+pub(crate) fn pick_home_dir(is_windows: bool, userprofile: Option<String>, home: Option<String>) -> Option<String> {
     if is_windows { userprofile.or(home) } else { home.or(userprofile) }
 }
 
@@ -272,19 +286,22 @@ mod tests {
     }
 
     const MODELS_FIXTURE: &str = r#"{"models":[
-        {"slug":"gpt-5.5","display_name":"GPT-5.5","context_window":272000},
-        {"slug":"codex-auto-review","display_name":"Codex Auto Review"},
-        {"slug":"gpt-5.3-codex","context_window":272000}
+        {"slug":"gpt-5.3-codex","priority":9,"context_window":272000},
+        {"slug":"codex-auto-review","display_name":"Codex Auto Review","visibility":"hide","priority":1},
+        {"slug":"gpt-5.5","display_name":"GPT-5.5","visibility":"list","priority":2,
+         "supported_reasoning_levels":[{"effort":"low"},{"effort":"xhigh"}]}
     ]}"#;
 
     #[test]
-    fn models_from_cache_maps_display_name_and_filters_auto_review() {
+    fn models_from_cache_hides_internal_models_and_orders_by_priority() {
         let models = models_from_cache(MODELS_FIXTURE);
         assert_eq!(models.len(), 2);
         assert_eq!(models[0].id, "gpt-5.5");
         assert_eq!(models[0].label, "GPT-5.5");
+        assert_eq!(models[0].efforts, ["low", "xhigh"]);
         assert_eq!(models[1].id, "gpt-5.3-codex");
         assert_eq!(models[1].label, "gpt-5.3-codex");
+        assert!(models[1].efforts.is_empty());
     }
 
     #[test]

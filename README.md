@@ -226,9 +226,10 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 - **AI sees the workspace** — workspace root is added to the AI preamble as a read-only scope automatically
 - **Quick switcher** (`Ctrl+Shift+E`) — workspaces, files, full-text grep across the active workspace
 - **Drag to reorder** workspaces; expanded folders persist between sessions
+- **Keyboard navigation** — Tab into the file tree, move with the arrow keys, Home and End; Right and Left expand and collapse folders. Shift with the arrows extends the selection, Space toggles it. Enter opens a file or toggles a folder (macOS: `Cmd+↓`), F2 renames (macOS: `Enter`)
 
 ### Export & Integration
-- **Export to PDF** — the *Current Editor* preset prints with your document style; syntax-highlighted code blocks and content-sized tables
+- **Export to PDF** — the *Current Editor* preset prints with your document style; syntax-highlighted code blocks and content-sized tables; the preview shows real pages with the headers, footers and page numbers you will print, on Windows, macOS and Linux
 - **Save as Markdown** (.md files), clean portable format
 - **Export to Word (DOCX)** with the fonts, heading sizes and spacing of your document style
 
@@ -401,6 +402,10 @@ Settings is always available in the application menu on macOS, or the Edit menu 
 | Toggle Markdown comment (Code view) | `Ctrl+/` |
 | Select next occurrence (Code view) | `Ctrl+D` |
 | Rename focused sidebar file | `F2` (macOS: `Enter`) |
+| Move in the sidebar file tree | `↑` / `↓` / `Home` / `End` (`Shift` extends the selection) |
+| Expand / collapse folder in the file tree | `→` / `←` |
+| Open focused file or toggle folder | `Enter` (macOS: `Cmd+↓`) |
+| Select / deselect focused file tree item | `Space` |
 | Undo | `Ctrl+Z` |
 | Redo | `Ctrl+Y` (macOS: `Cmd+Shift+Z`) |
 | Bold | `Ctrl+B` |
@@ -525,6 +530,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - [Codycody31](https://github.com/Codycody31) - Huge thanks for macOS and Linux support!
 - [TipTap](https://tiptap.dev/) - Headless editor framework
 - [Mermaid](https://mermaid.js.org/) - Diagramming and charting tool
+- [Paged.js](https://pagedjs.org/) - Paged media layout for the PDF preview and WebKit printing
 - [Tauri](https://tauri.app/) - Desktop application framework
 - [Vue.js](https://vuejs.org/) - Progressive JavaScript framework
 

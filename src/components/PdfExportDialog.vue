@@ -323,15 +323,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import printCssRaw from '../styles/print.css?raw';
 import {
   loadPdfSettings,
   savePdfSettings,
   buildPrintDocument,
-  isChromiumWebview,
-  printPageSetup,
+  paginatePrintDocument,
+  printDocument,
   SYSTEM_FONTS,
   getFontStack,
   type PdfSettings,
@@ -477,29 +476,38 @@ function deletePresetById(id: string) {
 }
 
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
+let rendering = false;
+let renderAgain = false;
 
-function writeIframeContent() {
+async function renderPreview() {
   const frame = previewFrame.value;
   if (!frame) return;
-  const doc = frame.contentDocument;
-  if (!doc) return;
-  doc.open();
-  doc.write(srcdoc.value);
-  doc.close();
-  // After write, sync height
-  nextTick(() => {
-    try {
-      const body = doc.body;
-      if (body) {
-        frame.style.height = body.scrollHeight + 48 + 'px';
+  if (rendering) {
+    renderAgain = true;
+    return;
+  }
+  rendering = true;
+  try {
+    do {
+      renderAgain = false;
+      await paginatePrintDocument(frame, srcdoc.value, settings, props.meta ?? {});
+      const pages = frame.contentDocument?.querySelector<HTMLElement>('.pagedjs_pages');
+      if (pages) {
+        pages.ownerDocument.documentElement.style.overflow = 'hidden';
+        frame.style.width = `${pages.offsetWidth}px`;
+        frame.style.height = `${pages.offsetHeight}px`;
       }
-    } catch {}
-  });
+    } while (renderAgain);
+  } catch (e) {
+    console.error('PDF preview pagination failed', e);
+  } finally {
+    rendering = false;
+  }
 }
 
 watch(srcdoc, () => {
   if (writeTimer) clearTimeout(writeTimer);
-  writeTimer = setTimeout(writeIframeContent, 120);
+  writeTimer = setTimeout(renderPreview, 120);
 });
 
 const sidebarRef = ref<HTMLElement | null>(null);
@@ -508,8 +516,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  void loadPrintFonts();
-  writeIframeContent();
+  void loadPrintFonts().then(renderPreview);
   window.addEventListener('keydown', onKeydown);
   // Opened from Ctrl+P, focus would stay in the document behind the dialog.
   sidebarRef.value?.focus({ preventScroll: true });
@@ -522,12 +529,8 @@ onBeforeUnmount(() => {
 
 async function handlePrint() {
   savePdfSettings({ ...settings });
-  if (isChromiumWebview) {
-    previewFrame.value?.contentWindow?.print();
-    return;
-  }
   try {
-    await invoke('print_document', { html: srcdoc.value, page: printPageSetup(settings) });
+    await printDocument(srcdoc.value, settings, props.meta ?? {});
   } catch (e) {
     console.error('print_document failed', e);
   }
@@ -743,21 +746,16 @@ async function handlePrint() {
 
 .pdf-preview-area {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 24px;
+  overflow: auto;
   background: #505050;
 }
 
 .pdf-preview-frame {
-  width: 210mm;
-  min-height: 297mm;
+  width: calc(210mm + 48px);
+  height: 100%;
+  margin: 0 auto;
   border: none;
-  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.5);
-  background: #ffffff;
+  background: #505050;
   display: block;
 }
 

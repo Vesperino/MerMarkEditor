@@ -254,10 +254,11 @@ export function htmlToMarkdown(
   md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>\n?/gi, (_, content) => `\n###### ${convertInlineToMarkdown(content)}\n`);
 
   // Blockquote
-  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content) => {
-    const innerContent = content.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1');
-    const text = convertInlineToMarkdown(innerContent);
-    return `\n> ${text}\n\n`;
+  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content: string) => {
+    const paragraphs = [...content.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map(m => m[1]);
+    const quoted = (paragraphs.length ? paragraphs : [content]).map(paragraph =>
+      paragraph.split(/<br[^>]*\/?>/i).map(line => `> ${convertInlineToMarkdown(line).trim()}`).join('  \n'));
+    return `\n${quoted.join('\n>\n')}\n\n`;
   });
 
   // Page breaks — convert to a text marker that survives the generic
@@ -358,6 +359,38 @@ export function htmlToMarkdown(
   }
 
   return md.replace(new RegExp(`${mathPrefix}(\\d+)TOKEN`, 'g'), (_, index) => mathSources[Number(index)] ?? '').replace(/^(?:[ \t]*\n)+/, '').trimEnd();
+}
+
+/** CommonMark line joining: soft breaks become spaces, two trailing spaces or a backslash become <br />. */
+function joinParagraphLines(lines: string[]): string {
+  return lines.map((line, index) => {
+    const text = line.trim();
+    if (index === lines.length - 1) return text;
+    const trailingBackslashes = /\\+$/.exec(text)?.[0].length ?? 0;
+    if (trailingBackslashes % 2 === 1) return text.slice(0, -1) + '<br />';
+    if (/ {2,}$/.test(line)) return text + '<br />';
+    return text + ' ';
+  }).join('');
+}
+
+/** Consecutive `>` lines form one quote; an empty `>` line separates its paragraphs (#173). */
+function convertBlockquotes(html: string): string {
+  const quoted = /^&gt;(?: |$)/;
+  const lines = html.split('\n');
+  const out: string[] = [];
+  for (let i = 0; i < lines.length;) {
+    if (!quoted.test(lines[i])) { out.push(lines[i++]); continue; }
+    const inner: string[] = [];
+    while (i < lines.length && quoted.test(lines[i])) inner.push(lines[i++].replace(/^&gt; ?/, ''));
+    const paragraphs: string[][] = [[]];
+    for (const line of inner) {
+      if (line.trim()) paragraphs[paragraphs.length - 1].push(line);
+      else if (paragraphs[paragraphs.length - 1].length) paragraphs.push([]);
+    }
+    const body = paragraphs.filter(p => p.length).map(p => `<p>${joinParagraphLines(p)}</p>`).join('');
+    out.push(`<blockquote>${body}</blockquote>`);
+  }
+  return out.join('\n');
 }
 
 export function markdownToHtml(
@@ -477,8 +510,7 @@ export function markdownToHtmlWithMeta(
   // Horizontal rule
   html = html.replace(/^---$/gim, '<hr />');
 
-  // Blockquotes
-  html = html.replace(/^&gt; (.*$)/gim, '<blockquote><p>$1</p></blockquote>');
+  html = convertBlockquotes(html);
 
   // Lists
   html = parseMarkdownLists(html);
@@ -490,15 +522,7 @@ export function markdownToHtmlWithMeta(
   let paragraphLines: string[] = [];
   const flushParagraph = () => {
     if (!paragraphLines.length) return;
-    const content = paragraphLines.map((line, index) => {
-      const text = line.trim();
-      if (index === paragraphLines.length - 1) return text;
-      const trailingBackslashes = /\\+$/.exec(text)?.[0].length ?? 0;
-      if (trailingBackslashes % 2 === 1) return text.slice(0, -1) + '<br />';
-      if (/ {2,}$/.test(line)) return text + '<br />';
-      return text + ' ';
-    }).join('');
-    paragraphOutput.push(`<p>${content}</p>`);
+    paragraphOutput.push(`<p>${joinParagraphLines(paragraphLines)}</p>`);
     paragraphLines = [];
   };
   for (const line of html.split('\n')) {

@@ -37,6 +37,11 @@ export interface Translations {
   baseFontSize: string;
   paragraphSpacing: string;
   contentWidth: string;
+  editorMargin: string;
+  editorMarginPageless: string;
+  editorMarginSmall: string;
+  editorMarginMedium: string;
+  editorMarginLarge: string;
   resetStyleValue: string;
   resetStyleOverrides: string;
   pdfPresetCurrentEditor: string;
@@ -148,6 +153,11 @@ export interface Translations {
   keyboardShortcuts: string;
   shortcutAction: string;
   shortcutKey: string;
+  treeMove: string;
+  treeExtendSelection: string;
+  treeExpandCollapse: string;
+  treeOpenItem: string;
+  treeToggleSelection: string;
   nextTab: string;
   previousTab: string;
   jumpToTab: string;
@@ -271,6 +281,7 @@ export interface Translations {
   checkForUpdates: string;
   checkingForUpdates: string;
   upToDate: string;
+  flatpakUpdatesNote: string;
 
   // Split view / Panes
   dragTabHere: string;
@@ -354,6 +365,7 @@ export interface Translations {
   aiEnableLabel: string;
   aiCheckCliHealthOnStartup: string;
   aiCheckCliHealthOnStartupHelper: string;
+  aiFlatpakCliNote: string;
   aiDefaultCli: string;
   aiPanelSide: string;
   aiPanelSideLeft: string;
@@ -384,6 +396,10 @@ export interface Translations {
   aiInstall: string;
   aiAuthenticate: string;
   aiRecheck: string;
+  aiCliUpdateAvailable: (latest: string) => string;
+  aiCliUpdate: string;
+  aiCliUpdating: string;
+  aiCliUpdateFailed: string;
   aiAuditLog: string;
   aiAuditClear: string;
   aiAuditExport: string;

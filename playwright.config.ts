@@ -18,6 +18,12 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      // Linux and macOS print through WebKit, so paged print output is checked there too.
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+      testMatch: /pdf-pagination\.test\.ts/,
+    },
   ],
 
   webServer: {

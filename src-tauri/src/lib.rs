@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use font_kit::source::SystemSource;
 
 mod ai;
+mod flatpak;
 
 // Store the file path to be opened (from CLI args or file association)
 pub struct OpenFileState(pub Mutex<Option<String>>);
@@ -128,52 +129,27 @@ fn get_all_windows(app: tauri::AppHandle) -> Vec<String> {
         .collect()
 }
 
-/// Render the print-ready HTML in a dedicated webview window and fire the native
-/// print dialog on it. WKWebView (macOS) ignores `print()` on iframes, so the
-/// in-app preview iframe could never print there (#103).
-///
-/// The window loads its content from the in-memory `mermarkprint://` protocol
-/// rather than `file://` (which WKWebView refuses via `loadRequest:`) or post-
-/// load JS injection (which rendered blank). `async` keeps window creation off
-/// the main thread, since creating a webview from a sync command can deadlock.
-#[derive(Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-struct PrintPage {
-    page_size: String,
-    margins_mm: PrintMargins,
-}
-
-#[derive(Clone, Copy, serde::Deserialize)]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-struct PrintMargins {
-    top: f64,
-    right: f64,
-    bottom: f64,
-    left: f64,
-}
-
-/// WebKitGTK lays pages out from the GtkPageSetup, not CSS `@page` margins, so
-/// the chosen paper size and margins must reach the print operation (#163).
+/// WebKitGTK lays pages out from the GtkPageSetup, not CSS `@page`, so the paper
+/// size must reach the print operation. Paged.js has already drawn the margins,
+/// headers and footers inside each page, so the setup adds no margins (#163).
 #[cfg(target_os = "linux")]
-fn print_with_page_setup(window: &tauri::WebviewWindow, page: PrintPage) {
+fn print_with_page_setup(window: &tauri::WebviewWindow, page_size: String) {
     let owner = window.clone();
     let _ = window.with_webview(move |webview| {
         use gtk::prelude::*;
         use webkit2gtk::PrintOperationExt;
         let view = webview.inner();
         let setup = gtk::PageSetup::new();
-        let paper = match page.page_size.as_str() {
+        let paper = match page_size.as_str() {
             "Letter" => "na_letter",
             "A3" => "iso_a3",
             _ => "iso_a4",
         };
         setup.set_paper_size(&gtk::PaperSize::new(Some(paper)));
-        let m = page.margins_mm;
-        setup.set_top_margin(m.top, gtk::Unit::Mm);
-        setup.set_right_margin(m.right, gtk::Unit::Mm);
-        setup.set_bottom_margin(m.bottom, gtk::Unit::Mm);
-        setup.set_left_margin(m.left, gtk::Unit::Mm);
+        setup.set_top_margin(0.0, gtk::Unit::Mm);
+        setup.set_right_margin(0.0, gtk::Unit::Mm);
+        setup.set_bottom_margin(0.0, gtk::Unit::Mm);
+        setup.set_left_margin(0.0, gtk::Unit::Mm);
         let operation = webkit2gtk::PrintOperation::new(&view);
         operation.set_page_setup(&setup);
         let finished = owner.clone();
@@ -185,8 +161,16 @@ fn print_with_page_setup(window: &tauri::WebviewWindow, page: PrintPage) {
     });
 }
 
+/// Render the print-ready HTML in a dedicated webview window and fire the native
+/// print dialog on it. WKWebView (macOS) ignores `print()` on iframes, so the
+/// in-app preview iframe could never print there (#103).
+///
+/// The window loads its content from the in-memory `mermarkprint://` protocol
+/// rather than `file://` (which WKWebView refuses via `loadRequest:`) or post-
+/// load JS injection (which rendered blank). `async` keeps window creation off
+/// the main thread, since creating a webview from a sync command can deadlock.
 #[tauri::command]
-async fn print_document(app: tauri::AppHandle, html: String, page: Option<PrintPage>) -> Result<(), String> {
+async fn print_document(app: tauri::AppHandle, html: String, page_size: String) -> Result<(), String> {
     *app.state::<PrintHtmlState>().0.lock().unwrap() = Some(html);
 
     if let Some(existing) = app.get_webview_window(PRINT_WINDOW_LABEL) {
@@ -212,13 +196,12 @@ async fn print_document(app: tauri::AppHandle, html: String, page: Option<PrintP
         .on_page_load(move |window, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
                 #[cfg(target_os = "linux")]
-                if let Some(page) = page.clone() {
-                    print_with_page_setup(&window, page);
-                    return;
-                }
+                print_with_page_setup(&window, page_size.clone());
                 #[cfg(not(target_os = "linux"))]
-                let _ = &page;
-                let _ = window.print();
+                {
+                    let _ = &page_size;
+                    let _ = window.print();
+                }
             }
         })
         .build()
@@ -230,6 +213,11 @@ async fn print_document(app: tauri::AppHandle, html: String, page: Option<PrintP
 #[tauri::command]
 fn get_current_window_label(window: tauri::Window) -> String {
     window.label().to_string()
+}
+
+#[tauri::command]
+fn is_flatpak() -> bool {
+    flatpak::is_sandboxed()
 }
 
 #[tauri::command]
@@ -275,8 +263,23 @@ async fn ai_openai_models(base_url: Option<String>) -> Result<Vec<String>, Strin
 }
 
 #[tauri::command]
-async fn ai_codex_models() -> Vec<ai::process::codex::CodexModelOption> {
-    ai::process::codex::list_models().await
+async fn ai_codex_models(cli_path: Option<String>) -> Vec<ai::process::codex::CodexModelOption> {
+    ai::process::codex::list_models(cli_path.as_deref()).await
+}
+
+#[tauri::command]
+async fn ai_cli_latest_version(cli: CliKind) -> Result<String, String> {
+    ai::update::latest_version(cli).await
+}
+
+#[tauri::command]
+async fn ai_cli_update(cli: CliKind, cli_path: Option<String>) -> Result<String, String> {
+    ai::update::run_update(cli, cli_path.as_deref()).await
+}
+
+#[tauri::command]
+async fn ai_claude_models() -> Vec<ai::process::claude::ClaudeModelOption> {
+    ai::process::claude::list_models().await
 }
 
 #[tauri::command]
@@ -1018,6 +1021,16 @@ fn apply_linux_gdk_backend() {
     }
 }
 
+// The sandbox may only own D-Bus names under its own app id, so the default
+// `com.mermark.editor.SingleInstance` would be refused inside Flatpak.
+fn single_instance_builder<R: tauri::Runtime>() -> tauri_plugin_single_instance::Builder<R> {
+    let builder = tauri_plugin_single_instance::Builder::new();
+    match flatpak::app_id() {
+        Some(id) => builder.dbus_id(id),
+        None => builder,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
@@ -1046,7 +1059,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        .plugin(single_instance_builder().callback(|app, args, _cwd| {
             // When another instance is launched with arguments (file association)
             // Send the file path to the existing window
             if let Some(window) = app.get_webview_window("main") {
@@ -1066,7 +1079,7 @@ pub fn run() {
                     }
                 }
             }
-        }))
+        }).build())
         .manage(OpenFileState(Mutex::new(None)))
         .manage(OpenFilesRegistry(Mutex::new(HashMap::new())))
         .manage(PrintHtmlState(Mutex::new(None)))
@@ -1076,6 +1089,7 @@ pub fn run() {
             create_new_window,
             get_all_windows,
             get_current_window_label,
+            is_flatpak,
             print_document,
             transfer_tab_to_window,
             register_open_file,
@@ -1096,6 +1110,9 @@ pub fn run() {
             ai_ollama_models,
             ai_openai_models,
             ai_codex_models,
+            ai_claude_models,
+            ai_cli_latest_version,
+            ai_cli_update,
             ai_access_load,
             ai_access_save,
             ai_access_migrate,

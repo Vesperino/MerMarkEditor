@@ -481,7 +481,8 @@ describe('Toolbar Component', () => {
       });
 
       const select = wrapper.find('.heading-select');
-      await select.setValue('2');
+      (select.element as HTMLSelectElement).value = '2';
+      await select.trigger('input');
 
       expect(setHeadingRun).toHaveBeenCalled();
     });
@@ -539,7 +540,8 @@ describe('Toolbar Component', () => {
 
       const select = wrapper.find('.heading-select');
       // Select is currently at heading 2 (due to isActive mock), change to paragraph
-      await select.setValue('0');
+      (select.element as HTMLSelectElement).value = '0';
+      await select.trigger('input');
 
       expect(setParagraphRun).toHaveBeenCalled();
     });
@@ -553,10 +555,27 @@ describe('Toolbar Component', () => {
 
       const select = wrapper.find('.heading-select');
       // This should not throw, just silently do nothing
-      await select.setValue('2');
+      (select.element as HTMLSelectElement).value = '2';
+      await select.trigger('input');
 
       // Test passes if no error is thrown
       expect(true).toBe(true);
+    });
+
+    it('applies the chosen level even when a re-render resets the select before change (#171)', async () => {
+      const setHeadingRun = vi.fn();
+      const setParagraphRun = vi.fn();
+      const editor = createMockEditor().value as any;
+      editor.chain = () => ({ focus: () => ({ setHeading: () => ({ run: setHeadingRun }), setParagraph: () => ({ run: setParagraphRun }) }) });
+      editor.commands = { focus: vi.fn() };
+      const wrapper = mount(Toolbar, { global: { provide: { editor: ref(editor) } } });
+      const select = wrapper.find('.heading-select').element as HTMLSelectElement;
+      select.value = '2';
+      select.dispatchEvent(new Event('input', { bubbles: true }));
+      select.value = '0';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(setHeadingRun).toHaveBeenCalledTimes(1);
+      expect(setParagraphRun).not.toHaveBeenCalled();
     });
   });
 

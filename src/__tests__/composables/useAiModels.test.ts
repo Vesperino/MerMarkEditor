@@ -5,6 +5,7 @@ vi.mock('../../services/aiCommands', () => ({
     ollamaModels: vi.fn(),
     openaiModels: vi.fn(),
     codexModels: vi.fn(),
+    claudeModels: vi.fn(),
   },
 }));
 
@@ -15,7 +16,9 @@ import {
   ollamaModelsToOptions,
   openaiModelsToOptions,
   codexModelsToOptions,
+  claudeModelsToOptions,
   useAiModels,
+  CLAUDE_MODELS,
   CODEX_MODELS,
   CUSTOM_MODEL_SENTINEL,
 } from '../../composables/useAiModels';
@@ -25,11 +28,54 @@ describe('useAiModels', () => {
     vi.clearAllMocks();
   });
 
-  it('claude and codex return their static lists', () => {
-    expect(modelsFor('claude').some((m) => m.id === 'opus')).toBe(true);
-    expect(modelsFor('claude').some((m) => m.id === 'claude-fable-5')).toBe(true);
-    expect(modelsFor('claude').some((m) => m.id === 'claude-opus-4-8')).toBe(true);
-    expect(modelsFor('codex').some((m) => m.id === 'gpt-5.5')).toBe(true);
+  it('claude and codex start from aliases and the curated fallback', () => {
+    expect(modelsFor('claude')).toEqual(CLAUDE_MODELS);
+    expect(modelsFor('codex')).toEqual(CODEX_MODELS);
+  });
+
+  it('claudeModelsToOptions adds the /model picker entries between the aliases and custom', () => {
+    const opts = claudeModelsToOptions([
+      { id: 'claude-fable-5-1[1m]', label: 'Fable', description: 'Fable 5.1 · Most capable' },
+      { id: 'cc-update-required-1', label: 'Opus 5.5 (disabled)', description: 'Update to 2.1.280+ to use Opus 5.5', disabled: true },
+      { id: 'opus', label: 'Opus' },
+    ]);
+    expect(opts.map((o) => o.id)).toEqual(['opus', 'sonnet', 'haiku', 'fable', 'claude-fable-5-1[1m]', 'cc-update-required-1', CUSTOM_MODEL_SENTINEL]);
+    expect(opts[4]).toEqual({ id: 'claude-fable-5-1[1m]', label: 'Fable 5.1', title: 'Fable 5.1 · Most capable' });
+    expect(opts[5]).toEqual({ id: 'cc-update-required-1', label: 'Update to 2.1.280+ to use Opus 5.5', disabled: true });
+  });
+
+  it('claudeModelsToOptions drops an update hint once the installed Claude Code is new enough', () => {
+    const hint = { id: 'cc-update-required-1', label: 'Opus 5.5 (disabled)', description: 'Update to 2.1.280+ to use Opus 5.5', disabled: true };
+    expect(claudeModelsToOptions([hint], '2.1.278 (Claude Code)').some((o) => o.id === hint.id)).toBe(true);
+    expect(claudeModelsToOptions([hint], '2.1.310 (Claude Code)').some((o) => o.id === hint.id)).toBe(false);
+    expect(claudeModelsToOptions([hint], null).some((o) => o.id === hint.id)).toBe(true);
+  });
+
+  it('refreshClaudeModels shows new models and keeps the aliases when the config is unreadable', async () => {
+    (aiCommands.claudeModels as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue([{ id: 'claude-opus-6', label: 'Opus', description: 'Opus 6 · New' }]);
+    const { refreshClaudeModels } = useAiModels();
+    await refreshClaudeModels();
+    expect(modelsFor('claude').some((m) => m.id === 'claude-opus-6')).toBe(true);
+
+    (aiCommands.claudeModels as unknown as { mockRejectedValue: (v: unknown) => void })
+      .mockRejectedValue(new Error('not installed'));
+    await refreshClaudeModels();
+    expect(modelsFor('claude')).toEqual(CLAUDE_MODELS);
+  });
+
+  it('effortsFor offers the efforts the picked codex model supports', async () => {
+    (aiCommands.codexModels as unknown as { mockResolvedValue: (v: unknown) => void })
+      .mockResolvedValue([
+        { id: 'gpt-6', label: 'GPT-6', efforts: ['low', 'xhigh', 'ultra'] },
+        { id: 'gpt-old', label: 'Old' },
+      ]);
+    await useAiModels().refreshCodexModels('C:/bin/codex.exe');
+    expect(aiCommands.codexModels).toHaveBeenCalledWith('C:/bin/codex.exe');
+    expect(effortsFor('codex', 'gpt-6')).toEqual([
+      { id: 'low', label: 'Low' }, { id: 'xhigh', label: 'Extra high' }, { id: 'ultra', label: 'Ultra' },
+    ]);
+    expect(effortsFor('codex', 'gpt-old').map((e) => e.id)).toEqual(['low', 'medium', 'high']);
   });
 
   it('effortsFor returns [] for ollama, populated for claude/codex', () => {
@@ -101,8 +147,9 @@ describe('useAiModels', () => {
       { id: 'gpt-5.5', label: 'GPT-5.5' },
       { id: 'gpt-5.3-codex', label: '' },
     ]);
-    expect(opts[0]).toEqual({ id: 'gpt-5.5', label: 'GPT-5.5' });
-    expect(opts[1]).toEqual({ id: 'gpt-5.3-codex', label: 'gpt-5.3-codex' });
+    expect(opts[0]).toEqual({ id: '', label: 'Codex default' });
+    expect(opts[1]).toEqual({ id: 'gpt-5.5', label: 'GPT-5.5', efforts: [] });
+    expect(opts[2]).toEqual({ id: 'gpt-5.3-codex', label: 'gpt-5.3-codex', efforts: [] });
     const custom = opts[opts.length - 1];
     expect(custom.id).toBe(CUSTOM_MODEL_SENTINEL);
     expect(custom.custom).toBe(true);

@@ -8,6 +8,7 @@ import { mathPrintCss } from '../utils/math-print';
 import { renderMathNodes } from '../utils/math';
 import { DOM_SELECTORS } from '../constants';
 import { t } from '../i18n';
+import { paginate, serializePaged, type MarginBox } from '../utils/paged-media';
 
 export type FontCategory = 'serif' | 'sans' | 'mono';
 export type PageNumberFormat = 'n' | 'n-of-total' | 'page-n-of-total';
@@ -169,26 +170,10 @@ function resolveMargins(settings: PdfSettings): Margins {
   }
 }
 
-/** Paper and margins for print engines that ignore CSS `@page` (WebKitGTK, #163). */
-export function printPageSetup(settings: PdfSettings) {
-  const m = resolveMargins(settings);
-  return {
-    pageSize: settings.pageSize,
-    marginsMm: { top: parseFloat(m.top), right: parseFloat(m.right), bottom: parseFloat(m.bottom), left: parseFloat(m.left) },
-  };
-}
-
-function getPageNumberCssExpr(format: PageNumberFormat): string {
-  if (format === 'n') return 'counter(page)';
-  if (format === 'n-of-total') return 'counter(page) "/" counter(pages)';
-  // 'page-n-of-total' — build locale-aware "Page X of Y" with literals around counters
-  const sample = t.value.pdfPageNumberFormatPageNOfTotalLive(0, 0);
-  // Split on "0" placeholders to extract literal prefix/middle/suffix
-  const m = sample.match(/^(.*)0(.*)0(.*)$/);
-  if (!m) return 'counter(page) " / " counter(pages)';
-  const [, prefix, middle, suffix] = m;
-  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  return `"${esc(prefix)}" counter(page) "${esc(middle)}" counter(pages) "${esc(suffix)}"`;
+function pageNumberTemplate(format: PageNumberFormat): string {
+  if (format === 'n') return '{page}';
+  if (format === 'n-of-total') return '{page}/{pages}';
+  return t.value.pdfPageNumberFormatPageNOfTotalLive(1, 2).replace('1', '{page}').replace('2', '{pages}');
 }
 
 export interface DocumentMeta {
@@ -199,14 +184,6 @@ export interface DocumentMeta {
 
 function escapeCssString(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 /**
@@ -243,37 +220,39 @@ export function buildHeaderFooterContent(template: string, meta: DocumentMeta): 
   return parts.length ? parts.join(' ') : '""';
 }
 
-/**
- * Resolves all tokens to plain strings for screen preview rendering.
- * {page}/{pages} become "1" since real counters only exist during print.
- */
-export function resolveTemplateForPreview(template: string, meta: DocumentMeta): string {
+function resolveTemplate(template: string, meta: DocumentMeta, page: number, pages: number): string {
   if (!template) return '';
   const date = meta.date ?? new Date().toLocaleDateString();
   return template
     .replace(/\{title\}/g, meta.title ?? '')
     .replace(/\{date\}/g, date)
     .replace(/\{path\}/g, meta.path ?? '')
-    .replace(/\{page\}/g, '1')
-    .replace(/\{pages\}/g, '1');
+    .replace(/\{page\}/g, String(page))
+    .replace(/\{pages\}/g, String(pages));
+}
+
+function marginTemplates(settings: PdfSettings): Partial<Record<MarginBox, string>> {
+  const boxes: Partial<Record<MarginBox, string>> = {};
+  for (const side of ['left', 'center', 'right'] as const) {
+    if (settings.header.enabled) boxes[`top-${side}`] = settings.header[side];
+    if (settings.footer.enabled) boxes[`bottom-${side}`] = settings.footer[side];
+  }
+  if (!settings.footer.enabled && settings.showPageNumbers) {
+    boxes['bottom-right'] = pageNumberTemplate(settings.pageNumberFormat);
+  }
+  return boxes;
+}
+
+/** Header, footer and page-number text of one page. */
+export function pageMarginTexts(settings: PdfSettings, meta: DocumentMeta, page: number, pages: number): Partial<Record<MarginBox, string>> {
+  return Object.fromEntries(Object.entries(marginTemplates(settings))
+    .map(([box, template]) => [box, resolveTemplate(template, meta, page, pages)]));
 }
 
 function buildPageMarginBoxes(settings: PdfSettings, meta: DocumentMeta): string {
-  const boxes: string[] = [];
-  if (settings.header.enabled) {
-    boxes.push(`@top-left { content: ${buildHeaderFooterContent(settings.header.left, meta)}; font-size: 9pt; color: #555; }`);
-    boxes.push(`@top-center { content: ${buildHeaderFooterContent(settings.header.center, meta)}; font-size: 9pt; color: #555; }`);
-    boxes.push(`@top-right { content: ${buildHeaderFooterContent(settings.header.right, meta)}; font-size: 9pt; color: #555; }`);
-  }
-  if (settings.footer.enabled) {
-    boxes.push(`@bottom-left { content: ${buildHeaderFooterContent(settings.footer.left, meta)}; font-size: 9pt; color: #555; }`);
-    boxes.push(`@bottom-center { content: ${buildHeaderFooterContent(settings.footer.center, meta)}; font-size: 9pt; color: #555; }`);
-    boxes.push(`@bottom-right { content: ${buildHeaderFooterContent(settings.footer.right, meta)}; font-size: 9pt; color: #555; }`);
-  } else if (settings.showPageNumbers) {
-    const fmt = getPageNumberCssExpr(settings.pageNumberFormat);
-    boxes.push(`@bottom-right { content: ${fmt}; font-size: 9pt; color: #555; }`);
-  }
-  return boxes.join(' ');
+  return Object.entries(marginTemplates(settings))
+    .map(([box, template]) => `@${box} { content: ${buildHeaderFooterContent(template, meta)}; font-size: 9pt; color: #555; }`)
+    .join(' ');
 }
 
 function buildTocHtml(contentHtml: string, settings: PdfSettings, tocTitle: string): string {
@@ -332,25 +311,6 @@ function buildWatermarkCss(w: PdfWatermark): string {
 }`;
 }
 
-function buildPreviewHeaderHtml(hf: PdfHeaderFooter, meta: DocumentMeta, klass: string): string {
-  if (!hf.enabled) return '';
-  const l = escapeHtml(resolveTemplateForPreview(hf.left, meta));
-  const c = escapeHtml(resolveTemplateForPreview(hf.center, meta));
-  const r = escapeHtml(resolveTemplateForPreview(hf.right, meta));
-  return `<div class="${klass}" aria-hidden="true"><span class="hf-l">${l}</span><span class="hf-c">${c}</span><span class="hf-r">${r}</span></div>`;
-}
-
-function buildPreviewPageNumberHtml(settings: PdfSettings): string {
-  if (settings.footer.enabled || !settings.showPageNumbers) return '';
-  let text: string;
-  switch (settings.pageNumberFormat) {
-    case 'n': text = String(settings.startPageNumber); break;
-    case 'n-of-total': text = `${settings.startPageNumber}/1`; break;
-    case 'page-n-of-total': text = t.value.pdfPageNumberFormatPageNOfTotalLive(settings.startPageNumber, 1); break;
-  }
-  return `<div class="pdf-preview-footer pdf-preview-pgnum" aria-hidden="true"><span class="hf-l"></span><span class="hf-c"></span><span class="hf-r">${escapeHtml(text)}</span></div>`;
-}
-
 export function buildPrintDocument(
   contentHtml: string,
   settings: PdfSettings,
@@ -392,9 +352,6 @@ export function buildPrintDocument(
   const watermarkHtml = settings.watermark.enabled && settings.watermark.text
     ? '<div class="pdf-watermark" aria-hidden="true"></div>'
     : '';
-  const previewHeader = buildPreviewHeaderHtml(settings.header, meta, 'pdf-preview-header');
-  const previewFooter = buildPreviewHeaderHtml(settings.footer, meta, 'pdf-preview-footer');
-  const previewPgNum = buildPreviewPageNumberHtml(settings);
   const tocHtml = buildTocHtml(contentHtml, settings, t.value.pdfTocTitle);
   const startPage = Math.max(1, settings.startPageNumber | 0);
   const counterReset = startPage > 1 ? `body { counter-reset: page ${startPage - 1}; }` : '';
@@ -416,10 +373,6 @@ export function buildPrintDocument(
   --pf-font-heading: ${headingFont};
   --pf-accent: ${settings.accentColor};
   --pf-th-bg: ${settings.tableHeaderBg};
-  --pf-margin-top: ${m.top};
-  --pf-margin-right: ${m.right};
-  --pf-margin-bottom: ${m.bottom};
-  --pf-margin-left: ${m.left};
 }
 ${counterReset}
 ${printCss}
@@ -428,7 +381,7 @@ ${contentHtml.includes('katex') ? mathPrintCss : ''}
 ${watermarkCss}
 </style>
 </head>
-<body>${watermarkHtml}${previewHeader}${tocHtml}${contentHtml}${previewFooter}${previewPgNum}</body>
+<body>${watermarkHtml}${tocHtml}${contentHtml}</body>
 </html>`;
 }
 
@@ -474,25 +427,41 @@ export function savePdfSettings(settings: PdfSettings): void {
 }
 
 // WebView2 (Windows) prints an iframe in place; WebKit — macOS WKWebView and
-// Linux WebKitGTK — ignores print() on an iframe (#103). Chromium user agents
-// carry a "Chrome/" token; WebKit ones do not.
+// Linux WebKitGTK — ignores print() on an iframe (#103) and @page margin boxes
+// (#163), so it prints a Paged.js layout from a native window. Chromium user
+// agents carry a "Chrome/" token; WebKit ones do not.
 export const isChromiumWebview = /Chrome\//.test(navigator.userAgent);
 
-async function _doPrint(editorEl: HTMLElement, settings: PdfSettings, meta: DocumentMeta): Promise<void> {
-  savePdfSettings(settings);
-  const contentHtml = serializeEditorContent(editorEl);
-  await loadPrintFonts();
-  const doc = buildPrintDocument(contentHtml, settings, printCssRaw, meta);
+/** Lays the print document out into pages in `frame` and numbers the TOC entries. */
+export async function paginatePrintDocument(frame: HTMLIFrameElement, doc: string, settings: PdfSettings, meta: DocumentMeta): Promise<number> {
+  const firstPage = Math.max(1, settings.startPageNumber | 0);
+  const pages = await paginate(frame, doc, (page, total) => pageMarginTexts(settings, meta, page, total), firstPage);
+  frame.contentDocument?.querySelectorAll('.pdf-toc-list a').forEach(link => {
+    const target = `#${CSS.escape(link.getAttribute('href')?.slice(1) ?? '')}`;
+    const index = pages.findIndex(page => page.querySelector(target));
+    const number = link.querySelector('.pdf-toc-page');
+    if (number && index >= 0) number.textContent = String(firstPage + index);
+  });
+  return pages.length;
+}
+
+export async function printDocument(doc: string, settings: PdfSettings, meta: DocumentMeta): Promise<void> {
+  const iframe = document.createElement('iframe');
+  // Inside the viewport: WebKit stalls animation frames of off-screen frames,
+  // and Paged.js lays pages out on them.
+  iframe.style.cssText =
+    'position:fixed;top:0;left:0;width:210mm;height:297mm;border:none;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
 
   if (!isChromiumWebview) {
-    await invoke('print_document', { html: doc, page: printPageSetup(settings) });
+    try {
+      await paginatePrintDocument(iframe, doc, settings, meta);
+      await invoke('print_document', { html: serializePaged(iframe.contentDocument!), pageSize: settings.pageSize });
+    } finally {
+      iframe.remove();
+    }
     return;
   }
-
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText =
-    'position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;visibility:hidden;';
-  document.body.appendChild(iframe);
 
   const iframeDoc = iframe.contentDocument;
   if (!iframeDoc) {
@@ -526,7 +495,9 @@ export function usePdfExport() {
     ) ?? document.querySelector<HTMLElement>('.ProseMirror');
 
     if (!editorEl) return;
-    return _doPrint(editorEl, settings, meta);
+    savePdfSettings(settings);
+    await loadPrintFonts();
+    return printDocument(buildPrintDocument(serializeEditorContent(editorEl), settings, printCssRaw, meta), settings, meta);
   }
 
   return { exportPdf };

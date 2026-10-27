@@ -60,7 +60,7 @@ fn parse_account(out: &str) -> Option<String> {
     None
 }
 
-async fn run_capture(
+pub(crate) async fn run_capture(
     override_path: Option<&str>,
     args: &[&str],
     timeout_secs: u64,
