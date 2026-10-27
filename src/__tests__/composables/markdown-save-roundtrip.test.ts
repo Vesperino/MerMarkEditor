@@ -234,6 +234,26 @@ describe('Markdown save round-trip', () => {
     } finally { editor.destroy(); error.mockRestore(); }
   });
 
+  it('keeps a manually merged revision dirty without advancing the disk baseline when writing fails', async () => {
+    const session = makeSaveHarness({ onPreSaveConflict: async () => {
+      const merged = source.replace('Write short notes.', 'Merged notes.');
+      // Reproduce the App conflict handler's reloadTabContent side effects.
+      session.editor.commands.setContent(markdownToHtml(merged));
+      Object.assign(session.tabs.value[0], { sourceMarkdown: merged, originalMarkdown: merged, hasChanges: false });
+      return merged;
+    } });
+    fs.read.mockResolvedValue('changed externally');
+    fs.write.mockRejectedValueOnce(new Error('disk full'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await session.saveFile();
+      expect(session.tabs.value[0]).toMatchObject({
+        originalMarkdown: source, sourceMarkdown: source.replace('Write short notes.', 'Merged notes.'), hasChanges: true,
+      });
+      expect(fs.rename).not.toHaveBeenCalled();
+    } finally { session.editor.destroy(); log.mockRestore(); }
+  });
+
   it('preserves exact source on entering split view and on a preview edit', () => {
     const editor = makeEditor();
     const split = useSplitEditor();
@@ -246,16 +266,16 @@ describe('Markdown save round-trip', () => {
     } finally { editor.destroy(); }
   });
 
-  it('writes raw source edits exactly, including CRLF and trailing blank lines', async () => {
+  it('restores CRLF when the code editor emits LF, keeping trailing blank lines', async () => {
     const raw = '# Source\r\n\r\nText  \r\n\r\n';
     const tabs = ref<Tab[]>([{
-      id: '1', filePath: '/test/source.md', fileName: 'source.md', originalMarkdown: source,
+      id: '1', filePath: '/test/source.md', fileName: 'source.md', originalMarkdown: '# Source\r\n\r\nOld\r\n',
       content: '', hasChanges: true, scrollTop: 0,
     }]);
     fs.read.mockResolvedValue(raw);
     const { saveFile } = useFileOperations({
       tabs, activeTabId: ref('1'), activeTab: computed(() => tabs.value[0]),
-      getEditorHtml: () => '', getMarkdownOverride: () => raw, setEditorContent: () => {},
+      getEditorHtml: () => '', getMarkdownOverride: () => raw.replace(/\r\n/g, '\n'), setEditorContent: () => {},
       findTabByFilePath: () => undefined, createNewTab: () => '2', switchToTab: async () => {},
     });
     await saveFile();

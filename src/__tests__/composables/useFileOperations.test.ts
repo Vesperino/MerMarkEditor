@@ -132,6 +132,36 @@ describe('useFileOperations', () => {
     mockReadTextFile.mockResolvedValue('# hello');
   });
 
+  it('updates the captured tab after tabs reorder and the active tab changes during a write', async () => {
+    const { options, tabs } = makeOptions();
+    const target = tabs.value[0];
+    const other = makeTab({ id: 'other', filePath: '/test/other.md', originalMarkdown: 'other', hasChanges: true });
+    mockReadTextFile.mockImplementation(async () => mockWriteTextFile.mock.lastCall?.[1]);
+    mockWriteTextFile.mockImplementationOnce(async () => {
+      tabs.value.unshift(other);
+      options.activeTabId.value = 'other';
+    });
+    await useFileOperations(options).saveFile();
+    expect(target.originalMarkdown).toBe('md:<p>hello</p>');
+    expect(target.hasChanges).toBe(false);
+    expect(tabs.value[0]).toMatchObject({ id: 'other', originalMarkdown: 'other', hasChanges: true });
+  });
+
+  it('captures Save As content before the dialog and updates only that tab', async () => {
+    const { options, tabs } = makeOptions();
+    const target = tabs.value[0];
+    mockSaveDialog.mockImplementationOnce(async () => {
+      tabs.value.unshift(makeTab({ id: 'other', originalMarkdown: 'other' }));
+      options.activeTabId.value = 'other';
+      return '/test/copy.md';
+    });
+    mockReadTextFile.mockImplementation(async () => mockWriteTextFile.mock.lastCall?.[1]);
+    await useFileOperations(options).saveFileAs();
+    expect(mockWriteTextFile).toHaveBeenCalledWith('/test/copy.md.tmp', 'md:<p>hello</p>');
+    expect(target.filePath).toBe('/test/copy.md');
+    expect(tabs.value[0].originalMarkdown).toBe('other');
+  });
+
   // ----------------------------------------------------------
   // atomicWriteFile (via saveFile)
   // ----------------------------------------------------------

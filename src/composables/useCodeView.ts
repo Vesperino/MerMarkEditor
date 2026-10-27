@@ -6,6 +6,8 @@ import type { ResolvedPos } from '@tiptap/pm/model';
 import type { CodeEditorHandle } from '../types/code-editor';
 import { markdownToHtml } from '../utils/markdown-converter';
 import { sourcePreservingMarkdown } from '../utils/source-preserving-markdown';
+import { normalizeMarkdown } from '../utils/markdown-save';
+import { mapMarkdownCursor } from '../utils/markdown-cursor';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import { targetScrollTop } from '../utils/scroll';
 import { isStandaloneSafeHtmlBlock, safeHtmlSourceKey, safeHtmlTagTokens } from '../utils/safe-html';
@@ -632,16 +634,16 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   const { getActiveContent, setActiveContent, markAsChanged, forceConvertOnExit } = options;
 
   const enterCodeViewWithMarkdown = async (markdown: string): Promise<void> => {
-    codeContent.value = markdown;
-    codeContentSnapshot = markdown;
+    codeContent.value = normalizeMarkdown(markdown);
+    codeContentSnapshot = codeContent.value;
     codeView.value = true;
     await nextTick();
     codeEditorRef.value?.focus();
   };
 
   const seedCodeContent = (markdown: string): void => {
-    codeContent.value = markdown;
-    codeContentSnapshot = markdown;
+    codeContent.value = normalizeMarkdown(markdown);
+    codeContentSnapshot = codeContent.value;
   };
 
   const toggleCodeView = async (editor: Editor | null | undefined): Promise<void> => {
@@ -657,7 +659,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       if (editor) {
         const { from } = editor.state.selection;
 
-        codeContent.value = sourcePreservingMarkdown(editor.getHTML(), options.getSourceMarkdown?.());
+        codeContent.value = normalizeMarkdown(sourcePreservingMarkdown(editor.getHTML(), options.getSourceMarkdown?.()));
 
         try {
           const $pos = editor.state.doc.resolve(from);
@@ -711,10 +713,10 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             const blockNode = $pos.depth >= 1 ? $pos.node(1) : null;
             if (blockNode && (block.type === 'heading' || block.type === 'paragraph')) {
               const textOffset = from - $pos.start(1);
-              const mdLine = lines[block.startLine] || '';
-              const prefixMatch = mdLine.match(/^(#{1,6}\s|>\s)/);
-              const prefixLen = prefixMatch ? prefixMatch[0].length : 0;
-              charPos += Math.min(prefixLen + textOffset, mdLine.length);
+              const raw = lines.slice(block.startLine, block.endLine).join('\n');
+              const visible = blockNode.textBetween(0, blockNode.content.size, '', '\n');
+              const offset = mapMarkdownCursor(visible, raw, textOffset);
+              charPos = positionAtLine(codeContent.value, block.startLine) + (offset ?? 0);
             }
 
             markerPosition = Math.min(charPos, codeContent.value.length);
@@ -738,7 +740,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         }
       } else {
         const html = getActiveContent();
-        codeContent.value = sourcePreservingMarkdown(html, options.getSourceMarkdown?.());
+        codeContent.value = normalizeMarkdown(sourcePreservingMarkdown(html, options.getSourceMarkdown?.()));
       }
 
       codeContentSnapshot = codeContent.value;
@@ -778,11 +780,13 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       // ═══════════════════════════════════════════════════════════════════
 
       let cursorLine = 0;
+      let sourceCursorPosition = 0;
       let codeBlockIndex = -1;
       let lineInCodeBlock = -1;
 
       if (codeEditorRef.value) {
         const cursorPos = codeEditorRef.value.getSelection().start;
+        sourceCursorPosition = cursorPos;
         cursorLine = getLineFromPosition(codeContent.value, cursorPos);
 
         // Save scroll ratio as fallback
@@ -888,7 +892,21 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
                     ?? '0';
                   liveEditor.commands.setNodeSelection(pos);
                 } else {
+                  const $target = liveEditor.state.doc.resolve(pos);
+                  if ($target.parent.type.name === 'paragraph' || $target.parent.type.name === 'heading') {
+                    const block = parseMarkdownBlocks(codeContent.value).find(b =>
+                      cursorLine >= b.startLine && cursorLine < b.endLine);
+                    if (block?.type === 'paragraph' || block?.type === 'heading') {
+                      const raw = codeContent.value.split('\n').slice(block.startLine, block.endLine).join('\n');
+                      const node = $target.parent;
+                      const visible = node.textBetween(0, node.content.size, '', '\n');
+                      const offset = mapMarkdownCursor(raw, visible,
+                        sourceCursorPosition - positionAtLine(codeContent.value, block.startLine));
+                      if (offset !== null) pos = $target.start() + Math.min(offset, node.content.size);
+                    }
+                  }
                   liveEditor.commands.setTextSelection(pos);
+                  liveEditor.commands.focus(undefined, { scrollIntoView: false });
                 }
                 restoredVisualFrom = liveEditor.state.selection.from;
               } catch { /* posAtDOM can throw if DOM is not in sync */ }
@@ -954,7 +972,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
   };
 
   const onCodeContentUpdate = (value: string): void => {
-    codeContent.value = value;
+    codeContent.value = normalizeMarkdown(value);
     markAsChanged();
   };
 

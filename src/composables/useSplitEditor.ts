@@ -1,6 +1,7 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue';
 import { markdownToHtml } from '../utils/markdown-converter';
 import { sourcePreservingMarkdown } from '../utils/source-preserving-markdown';
+import { normalizeMarkdown } from '../utils/markdown-save';
 
 const PREVIEW_DEBOUNCE_MS = 200;
 
@@ -24,7 +25,7 @@ export function useSplitEditor(): UseSplitEditorReturn {
   const previewHtml = computed(() => markdownToHtml(debouncedSource.value));
 
   const enter = (html: string, source?: string | null): void => {
-    const md = sourcePreservingMarkdown(html, source);
+    const md = normalizeMarkdown(sourcePreservingMarkdown(html, source));
     markdownSource.value = md;
     debouncedSource.value = md;
     if (debounceTimer !== null) {
@@ -43,7 +44,7 @@ export function useSplitEditor(): UseSplitEditorReturn {
   };
 
   const onMarkdownInput = (value: string): void => {
-    markdownSource.value = value;
+    markdownSource.value = normalizeMarkdown(value);
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debouncedSource.value = markdownSource.value;

@@ -8,6 +8,7 @@ import { copyFile, writeTextFile, exists, readTextFile, remove } from '@tauri-ap
 import { open } from '@tauri-apps/plugin-dialog';
 import { htmlToMarkdown, markdownToHtml } from './utils/markdown-converter';
 import { sourcePreservingMarkdown } from './utils/source-preserving-markdown';
+import { captureMarkdownSave, matchesMarkdownSave, serializeMarkdown, type MarkdownContent } from './utils/markdown-save';
 import { inlineMarkdownImages, getDirectoryFromFilePath } from './utils/image-resolver';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
@@ -247,7 +248,7 @@ const createDocument = async (kind: 'plain' | 'marp') => {
   if (splitEditorActive.value && activeTab.value) {
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
     activeTab.value.content = exitSplitEditor();
-    activeTab.value.sourceMarkdown = splitMarkdownSource.value;
+    activeTab.value.sourceMarkdown = serializeMarkdown({ markdown: splitMarkdownSource.value }, activeTab.value.sourceMarkdown, activeTab.value.originalMarkdown);
     activeTab.value.hasChanges = true;
   }
   if (kind === 'marp') {
@@ -810,13 +811,15 @@ const {
   setActiveContent: (content: string, source?: string) => {
     if (activeTab.value) {
       activeTab.value.content = content;
-      activeTab.value.sourceMarkdown = source;
+      activeTab.value.sourceMarkdown = source === undefined ? undefined
+        : serializeMarkdown({ markdown: source }, activeTab.value.sourceMarkdown, activeTab.value.originalMarkdown);
       activeTab.value.pendingMarkdown = null;
     }
   },
   markAsChanged: () => {
     if (activeTab.value) {
       activeTab.value.hasChanges = true;
+      triggerAutoSave();
     }
   },
   forceConvertOnExit: () => isMarkdownFirst(activeTab.value),
@@ -910,7 +913,7 @@ watch(activeTabId, (_newId, oldId) => {
     const oldIndex = tabs.value.findIndex(t => t.id === oldId);
     if (oldIndex !== -1) {
       tabs.value[oldIndex].content = markdownToHtml(splitMarkdownSource.value);
-      tabs.value[oldIndex].sourceMarkdown = splitMarkdownSource.value;
+      tabs.value[oldIndex].sourceMarkdown = serializeMarkdown({ markdown: splitMarkdownSource.value }, tabs.value[oldIndex].sourceMarkdown, tabs.value[oldIndex].originalMarkdown);
       tabs.value[oldIndex].hasChanges = true;
     }
   }
@@ -920,7 +923,11 @@ watch(activeTabId, (_newId, oldId) => {
 // Markdown-first activation rule (issue #129): large tabs keep Markdown as
 // their source of truth and open in the section-virtualized visual editor.
 watch(activeTabId, (_newId, oldId) => {
-  const oldTab = tabs.value.find(t => t.id === oldId);
+  const oldTab = splitState.value.panes.flatMap(p => p.tabs).find(t => t.id === oldId);
+  if (codeView.value && oldTab) {
+    oldTab.sourceMarkdown = serializeMarkdown({ markdown: codeContent.value }, oldTab.sourceMarkdown, oldTab.originalMarkdown);
+    if (!isMarkdownFirst(oldTab)) oldTab.content = markdownToHtml(codeContent.value);
+  }
   if (largeFileVisualMode.value && oldTab) {
     oldTab.pendingMarkdown = lazyMarkdownEditorRef.value?.getMarkdown() ?? oldTab.pendingMarkdown;
   }
@@ -971,7 +978,7 @@ const toggleSplitEditor = async () => {
   const html = exitSplitEditor();
   if (activeTab.value) {
     activeTab.value.content = html;
-    activeTab.value.sourceMarkdown = splitMarkdownSource.value;
+    activeTab.value.sourceMarkdown = serializeMarkdown({ markdown: splitMarkdownSource.value }, activeTab.value.sourceMarkdown, activeTab.value.originalMarkdown);
     activeTab.value.hasChanges = true;
   }
   isLoadingContent.value = true;
@@ -984,6 +991,7 @@ const handleSplitMarkdownInput = (value: string) => {
   onSplitMarkdownInput(value);
   if (activeTab.value) {
     activeTab.value.hasChanges = true;
+    triggerAutoSave();
   }
 };
 
@@ -995,6 +1003,7 @@ const onSplitPreviewChanged = (changed: boolean) => {
   syncSplitFromVisual(splitPreviewLatestHtml.value);
   if (activeTab.value) {
     activeTab.value.hasChanges = true;
+    triggerAutoSave();
   }
 };
 
@@ -1145,6 +1154,7 @@ const switchToTabFromSplitEditor = async (tabId: string) => {
 const closeTabFromSplitEditor = async (tabId: string) => {
   if (tabId === activeTabId.value && activeTab.value && splitSourceTabId.value === tabId) {
     activeTab.value.content = exitSplitEditor();
+    activeTab.value.sourceMarkdown = serializeMarkdown({ markdown: splitMarkdownSource.value }, activeTab.value.sourceMarkdown, activeTab.value.originalMarkdown);
     activeTab.value.hasChanges = true;
   }
   handleCloseTabRequest(activePaneId.value, tabId);
@@ -1171,7 +1181,7 @@ const {
   originalMarkdown: computed(() => activeTab.value?.originalMarkdown ?? null),
   getCurrentMarkdown: () => {
     const source = getLiveMarkdownOverride();
-    if (source !== null) return source;
+    if (source !== null) return serializeMarkdown({ markdown: source }, activeTab.value?.sourceMarkdown, activeTab.value?.originalMarkdown);
     const html = getEditorContent();
     return sourcePreservingMarkdown(html, activeTab.value?.sourceMarkdown ?? activeTab.value?.originalMarkdown);
   },
@@ -1577,8 +1587,13 @@ const handleWheel = (event: WheelEvent) => {
 const syncActiveTabContent = () => {
   // In code view the SplitContainer (and its Editor) is unmounted, so
   // getEditorContent() would return the empty fallback '<p></p>' and
-  // overwrite the real tab content.  Skip syncing in that case.
-  if (codeView.value) return;
+  // overwrite the real tab content. Capture raw source instead.
+  if (codeView.value) {
+    const tab = activeTab.value;
+    tab.sourceMarkdown = serializeMarkdown({ markdown: codeContent.value }, tab.sourceMarkdown, tab.originalMarkdown);
+    if (isMarkdownFirst(tab)) tab.pendingMarkdown = codeContent.value;
+    return;
+  }
 
   // Split-editor mode also unmounts SplitContainer; the editable markdown is
   // the source of truth, so write it back as the tab's HTML content here.
@@ -1587,7 +1602,7 @@ const syncActiveTabContent = () => {
     const tabIndex = tabs.value.findIndex(t => t.id === activeTabId.value);
     if (tabIndex !== -1) {
       tabs.value[tabIndex].content = markdownToHtml(splitMarkdownSource.value);
-      tabs.value[tabIndex].sourceMarkdown = splitMarkdownSource.value;
+      tabs.value[tabIndex].sourceMarkdown = serializeMarkdown({ markdown: splitMarkdownSource.value }, tabs.value[tabIndex].sourceMarkdown, tabs.value[tabIndex].originalMarkdown);
     }
     return;
   }
@@ -1613,6 +1628,7 @@ const {
   tabs,
   activeTabId,
   getEditorHtml: getEditorContent,
+  getMarkdownOverride: getLiveMarkdownOverride,
   switchToTab,
   syncActiveTabContent,
 });
@@ -1628,23 +1644,24 @@ const saveTabFromPane = async (paneId: string, tabId: string) => {
 
   try {
     // For active tab in active pane, get fresh content from editor; for others, use stored content
-    const isActiveTab = tabId === activeTabId.value && paneId === activePaneId.value;
-    const source = isActiveTab ? getLiveMarkdownOverride() : tab.pendingMarkdown ?? null;
-    const html = source === null ? (isActiveTab ? getEditorContent() : tab.content) : null;
-    const markdown = source ?? sourcePreservingMarkdown(html!, tab.sourceMarkdown ?? tab.originalMarkdown);
+    const getContent = (): MarkdownContent => {
+      const active = tabId === activeTabId.value && paneId === activePaneId.value;
+      const raw = active ? getLiveMarkdownOverride() : tab.pendingMarkdown ?? null;
+      return raw !== null ? { markdown: raw } : { html: active ? getEditorContent() : tab.content };
+    };
+    const snapshot = captureMarkdownSave(tab, getContent());
+    const markdown = snapshot.markdown;
+    const filePath = tab.filePath;
+    markSaveStart(filePath);
+    try {
+      await writeTextFile(filePath, markdown);
+    } finally {
+      markSaveEnd(filePath, markdown);
+    }
 
-    markSaveStart(tab.filePath);
-    await writeTextFile(tab.filePath, markdown);
-    markSaveEnd(tab.filePath, markdown);
-
-    // Edits made during the write are newer than `html`; keep them and stay dirty (#164).
-    const stillActive = tabId === activeTabId.value && paneId === activePaneId.value;
-    const unchanged = source !== null
-      ? (stillActive ? getLiveMarkdownOverride() : tab.pendingMarkdown ?? tab.sourceMarkdown) === source
-      : (stillActive ? getEditorContent() : tab.content) === html;
-    if (unchanged) {
+    if (matchesMarkdownSave(snapshot, getContent())) {
       tab.hasChanges = false;
-      if (html !== null) tab.content = html;
+      if ('html' in snapshot.content) tab.content = snapshot.content.html;
       tab.sourceMarkdown = markdown;
     }
     tab.originalMarkdown = markdown;

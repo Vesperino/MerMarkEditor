@@ -39,13 +39,26 @@ test('Visual → Code highlights the source line of the clicked element', async 
   await switchTo(page, 'Visual');
 
   const cases: Array<[string, string]> = [
-    ['> p >> nth=0', 'First paragraph wraps onto a second line.'],
+    ['> p >> nth=0', 'First paragraph wraps'],
     ['li >> nth=1', '- item beta'],
     ['td >> nth=1', '| 1 | 2 |'],
     ['pre .hljs-number >> nth=1', 'const y = 2;'],
   ];
   for (const [selector, line] of cases) {
     await editor.locator(selector).click();
+    if (selector === '> p >> nth=0') {
+      // Explicitly place the caret in the first preserved source segment.
+      await editor.locator(selector).evaluate(element => {
+        const range = document.createRange();
+        range.setStart(element.firstChild!, 2);
+        range.collapse(true);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.dispatchEvent(new Event('selectionchange'));
+      });
+      await page.waitForTimeout(80);
+    }
     await switchTo(page, 'Code');
     await expect(highlightedLine(page)).toHaveText(line);
     await switchTo(page, 'Visual');
