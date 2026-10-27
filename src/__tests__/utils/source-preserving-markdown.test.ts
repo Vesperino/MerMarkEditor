@@ -1,15 +1,121 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as converter from '../../utils/markdown-converter';
 import { markdownToHtml, htmlToMarkdown } from '../../utils/markdown-converter';
 import { sourcePreservingMarkdown } from '../../utils/source-preserving-markdown';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import { isAllowedMarkdownLink } from '../../utils/markdown-link';
+import {
+  BUILTIN_MERMAID_FORMATS, getCurrentMermaidReadFormats, getCurrentMermaidWriteFormat,
+  setCurrentMermaidReadFormats, setCurrentMermaidWriteFormat,
+} from '../../utils/mermaid-formats';
 
 const fixture = readFileSync('src/__tests__/fixtures/save-churn.md', 'utf8').replace(/\r\n?/g, '\n');
 
 describe('sourcePreservingMarkdown', () => {
+  it('reuses validation as the next saved revision baseline', () => {
+    const source = '# Cache revisions\n\nfirst\nwrapped\n';
+    const html = markdownToHtml(source);
+    const convert = vi.spyOn(converter, 'markdownToHtml');
+    try {
+      const first = sourcePreservingMarkdown(html.replace('Cache revisions', 'First revision'), source);
+      expect(first).toBe(source.replace('Cache revisions', 'First revision'));
+      expect(convert).toHaveBeenCalledTimes(2); // cold baseline + validation
+      convert.mockClear();
+      const next = sourcePreservingMarkdown(html.replace('Cache revisions', 'Next revision'), first);
+      expect(next).toBe(source.replace('Cache revisions', 'Next revision'));
+      expect(convert).toHaveBeenCalledTimes(1); // validation only
+      convert.mockClear();
+      expect(sourcePreservingMarkdown(html.replace('Cache revisions', 'Next revision'), next)).toBe(next);
+      expect(convert).not.toHaveBeenCalled();
+    } finally { convert.mockRestore(); }
+  });
+
+  it('evicts old revisions instead of retaining every opened document', () => {
+    const documents = ['one', 'two', 'three'].map(id => `# Bounded cache ${id}\n\nwrapped\ntext\n`);
+    for (const source of documents) sourcePreservingMarkdown(markdownToHtml(source), source);
+    const html = markdownToHtml(documents[0]);
+    const convert = vi.spyOn(converter, 'markdownToHtml');
+    try {
+      expect(sourcePreservingMarkdown(html, documents[0])).toBe(documents[0]);
+      expect(convert).toHaveBeenCalledTimes(1);
+    } finally { convert.mockRestore(); }
+  });
+
+  it('bounds retained text across two large revisions and rejects oversized entries', () => {
+    const documents = ['first', 'second'].map(id => id + ' bounded '.repeat(80_000));
+    for (const source of documents) sourcePreservingMarkdown(markdownToHtml(source), source);
+    const html = markdownToHtml(documents[0]);
+    const convert = vi.spyOn(converter, 'markdownToHtml');
+    try {
+      expect(sourcePreservingMarkdown(html, documents[0])).toBe(documents[0]);
+      expect(convert).toHaveBeenCalledTimes(1); // total-size eviction, below the two-entry limit
+      const oversized = 'oversized ' + 'bounded '.repeat(150_000);
+      const oversizedHtml = markdownToHtml(oversized);
+      convert.mockClear();
+      expect(sourcePreservingMarkdown(oversizedHtml, oversized)).toBe(oversized);
+      expect(sourcePreservingMarkdown(oversizedHtml, oversized)).toBe(oversized);
+      expect(convert).toHaveBeenCalledTimes(2);
+    } finally { convert.mockRestore(); }
+  });
+
+  it.each(['read', 'write'])('invalidates cached baselines when Mermaid %s settings change', (kind) => {
+    const read = getCurrentMermaidReadFormats();
+    const write = getCurrentMermaidWriteFormat();
+    const source = '# Cache settings\n\n:::mermaid\ngraph TD\n  A --> B\n:::\n';
+    try {
+      setCurrentMermaidReadFormats([...BUILTIN_MERMAID_FORMATS]);
+      setCurrentMermaidWriteFormat(BUILTIN_MERMAID_FORMATS[0]);
+      const html = markdownToHtml(source);
+      expect(sourcePreservingMarkdown(html, source)).toBe(source);
+      if (kind === 'read') {
+        setCurrentMermaidReadFormats([BUILTIN_MERMAID_FORMATS[0]]);
+        // The old visual diagram is now an edit relative to the new parser.
+        expect(sourcePreservingMarkdown(html, source)).not.toBe(source);
+      } else {
+        setCurrentMermaidWriteFormat(BUILTIN_MERMAID_FORMATS[2]);
+        expect(sourcePreservingMarkdown(html, source)).toBe(source);
+      }
+    } finally {
+      setCurrentMermaidReadFormats(read);
+      setCurrentMermaidWriteFormat(write);
+    }
+  });
+
+  it.each([0, 1, 15, 29])('retains the source spelling of repeated paragraph %i', (occurrence) => {
+    const paragraphs: string[] = Array.from({ length: 30 }, (_, i) => i % 2 ? 'same paragraph\n\n' : 'same\nparagraph\n\n');
+    const source = paragraphs.join('');
+    const html = '<p>same paragraph</p>'.repeat(occurrence)
+      + '<p>same Xparagraph</p>' + '<p>same paragraph</p>'.repeat(29 - occurrence);
+    const expected = [...paragraphs];
+    expected[occurrence] = expected[occurrence].replace('paragraph', 'Xparagraph');
+    expect(sourcePreservingMarkdown(html, source)).toBe(expected.join(''));
+  });
+
+  it.each(['bold', 'strong'])('keeps HTML tag names separate from visible text anchors (%s)', (word) => {
+    const source = `first\nwrapped\n\nBefore <strong>${word}</strong> text\n\nlast\nwrapped\n`;
+    const html = markdownToHtml(source).replace(`>${word}<`, `>${word.slice(0, 2)}X${word.slice(2)}<`);
+    expect(sourcePreservingMarkdown(html, source)).toBe(source.replace(`>${word}<`, `>${word.slice(0, 2)}X${word.slice(2)}<`));
+  });
+
+  it.each([
+    'before `<widget>literal</widget>` after\n',
+    '```html\n<strong>literal</strong>\n<!-- literal comment -->\n```\n',
+    '```txt\n!!! []() <> -- ** __\n```\n',
+  ])('preserves literal syntax inside code while editing it (%#)', (block) => {
+    const source = 'neighbor\nwrapped\n\n' + block + '\nuntouched\nsource\n';
+    const before = block.includes('literal') ? 'literal' : '!!!';
+    const html = markdownToHtml(source).replace(before, before + 'X');
+    expect(sourcePreservingMarkdown(html, source)).toBe(source.replace(before, before + 'X'));
+  });
+
+  it('preserves localized deletion, replacement and separated edits in a repeated document', () => {
+    const source = 'first\nwrapped\n\n'.repeat(50) + 'a unique target\n\n' + 'last\nwrapped\n\n'.repeat(50);
+    const html = markdownToHtml(source).replace('a unique target', 'replacement').replace('first wrapped', 'first');
+    expect(sourcePreservingMarkdown(html, source)).toBe(source.replace('a unique target', 'replacement').replace('first\nwrapped', 'first'));
+  });
   it.each(['', '\n', '\n\n', '\r\n', '\r\n\r\n'])('preserves the EOF suffix %j when appending text or a paragraph', (suffix) => {
     const source = 'last' + suffix;
     expect(sourcePreservingMarkdown('<p>lastX</p>', source)).toBe('lastX' + suffix);

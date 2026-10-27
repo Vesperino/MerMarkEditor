@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { diffChars, diffLines } from 'diff';
+import { diffArrays, diffChars, diffLines } from 'diff';
 import { markdownToHtml } from '../../utils/markdown-converter';
 import { sourcePreservingMarkdown } from '../../utils/source-preserving-markdown';
 
@@ -7,7 +7,7 @@ import { sourcePreservingMarkdown } from '../../utils/source-preserving-markdown
 // would depend on machine speed. The converter and normal diff remain real.
 vi.mock('diff', async (importOriginal) => {
   const actual = await importOriginal<typeof import('diff')>();
-  return { ...actual, diffChars: vi.fn(actual.diffChars), diffLines: vi.fn(actual.diffLines) };
+  return { ...actual, diffArrays: vi.fn(actual.diffArrays), diffChars: vi.fn(actual.diffChars), diffLines: vi.fn(actual.diffLines) };
 });
 
 // Select the timeout overload; ReturnType alone picks diff's final overload,
@@ -24,17 +24,19 @@ describe('source-preserving serialization fallbacks', () => {
     expect(sourcePreservingMarkdown(markdownToHtml(source), source)).toBe(source);
     expect(diffChars).not.toHaveBeenCalled();
     expect(diffLines).not.toHaveBeenCalled();
+    expect(diffArrays).not.toHaveBeenCalled();
   });
 
   it('writes all current content with the original line endings when source alignment times out', () => {
-    characterDiff.mockReturnValueOnce(undefined);
+    vi.mocked(diffArrays).mockReturnValueOnce(undefined as never);
     const result = sourcePreservingMarkdown('<p>new content</p><p>second</p>', 'old\r\n\r\nsecond\r\n');
     expect(result).toBe('new content\r\n\r\nsecond');
   });
 
   it('writes the current content when calculating character edits times out', async () => {
     const actual = await vi.importActual<typeof import('diff')>('diff');
-    characterDiff.mockImplementationOnce(actual.diffChars).mockReturnValueOnce(undefined);
+    characterDiff.mockImplementation((before, after, options) => before === 'old content' && after === 'new content'
+      ? undefined : actual.diffChars(before, after, options));
     expect(sourcePreservingMarkdown('<p>new content</p>', 'old content\n')).toBe('new content');
   });
 

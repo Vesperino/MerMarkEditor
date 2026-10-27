@@ -8,6 +8,11 @@ import {
 } from '../../utils/safe-html';
 
 describe('safe README HTML', () => {
+  it('does not restore literal placeholder text as inline HTML', () => {
+    const html = markdownToHtml('Before __SAFE_INLINE_HTML_0__ <strong>safe</strong> __SAFE_INLINE_HTML_1__ after');
+    expect(html).toBe('<p>Before __SAFE_INLINE_HTML_0__ <strong>safe</strong> __SAFE_INLINE_HTML_1__ after</p>');
+  });
+
   it('preserves centered image blocks exactly through visual HTML', () => {
     const markdown = '<p align="center">\n  <img src="assets/banner.jpeg" alt="Banner" width="600">\n</p>';
     const html = markdownToHtml(markdown);

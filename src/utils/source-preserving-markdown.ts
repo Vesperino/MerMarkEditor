@@ -1,5 +1,7 @@
 import { diffChars, diffLines } from 'diff';
 import { applyLineEnding, detectLineEnding, htmlToMarkdown, markdownToHtml } from './markdown-converter';
+import { sourceBoundaries } from './markdown-source-alignment';
+import { getCurrentMermaidReadFormats, getCurrentMermaidWriteFormat } from './mermaid-formats';
 
 interface Edit { start: number; end: number; text: string }
 
@@ -27,30 +29,36 @@ function normalizeVisualHtml(html: string): string {
 
 const canonicalize = (source: string): string => htmlToMarkdown(normalizeVisualHtml(markdownToHtml(source)));
 
-/** Map boundaries in generated Markdown back to the original source. Two
- * positions retain gaps discarded by conversion (wrapping, alternate markers,
- * blank lines), so text edits can leave those gaps alone. */
-function sourceBoundaries(source: string, generated: string) {
-  const changes = diffChars(source, generated, { timeout: 200 });
-  if (!changes) return null;
-  const left = new Array<number>(generated.length + 1);
-  const right = new Array<number>(generated.length + 1);
-  let original = 0;
-  let offset = 0;
-  left[0] = right[0] = 0;
-  for (const change of changes) {
-    if (change.removed) {
-      original += change.value.length;
-      right[offset] = original;
-    } else {
-      for (let i = 0; i < change.value.length; i++) {
-        if (!change.added) original++;
-        offset++;
-        left[offset] = right[offset] = original;
-      }
-    }
+// Retain at most two revisions and two million UTF-16 code units total. A
+// validated save is also the next revision's canonical baseline, so a later
+// save need not parse the whole source again. Converter settings are mutable.
+const canonicalSources = new Map<string, string>();
+let cacheSettings = '';
+let cacheSize = 0;
+function rememberCanonical(source: string, canonical: string) {
+  const size = source.length + canonical.length;
+  if (size > 2_000_000 || canonicalSources.has(source)) return;
+  while (canonicalSources.size >= 2 || cacheSize + size > 2_000_000) {
+    const key = canonicalSources.keys().next().value!;
+    cacheSize -= key.length + canonicalSources.get(key)!.length;
+    canonicalSources.delete(key);
   }
-  return { left, right };
+  canonicalSources.set(source, canonical);
+  cacheSize += size;
+}
+
+function sourceCanonical(source: string): string {
+  const settings = JSON.stringify([getCurrentMermaidReadFormats(), getCurrentMermaidWriteFormat()]);
+  if (settings !== cacheSettings) {
+    canonicalSources.clear();
+    cacheSize = 0;
+    cacheSettings = settings;
+  }
+  const cached = canonicalSources.get(source);
+  if (cached !== undefined) return cached;
+  const canonical = canonicalize(source);
+  rememberCanonical(source, canonical);
+  return canonical;
 }
 
 function editsBetween(before: string, after: string, lines = false): Edit[] | null {
@@ -85,7 +93,7 @@ function editsBetween(before: string, after: string, lines = false): Edit[] | nu
 export function sourcePreservingMarkdown(html: string, source?: string | null): string {
   if (source == null) return htmlToMarkdown(html);
   const current = htmlToMarkdown(normalizeVisualHtml(html));
-  const baseline = canonicalize(source);
+  const baseline = sourceCanonical(source);
   if (baseline === current) return source;
   if (current === '') return '';
 
@@ -101,14 +109,18 @@ export function sourcePreservingMarkdown(html: string, source?: string | null): 
         // also replace alternate delimiters when the visual structure changes.
         // A caret before generated whitespace belongs before its original gap
         // too (e.g. before the newline that rendered as a soft-break space).
-        const beforeGap = edit.start === edit.end
-          && (edit.start === baseline.length || /\s/.test(baseline[edit.start] ?? ''));
+        // Deleting generated whitespace must consume its source gap as well;
+        // otherwise deleting a wrapped word leaves a spurious blank line.
+        const beforeGap = /\s/.test(baseline[edit.start] ?? '')
+          || (edit.start === edit.end && edit.start === baseline.length);
         const start = lines || beforeGap ? boundaries.left[edit.start] : boundaries.right[edit.start];
         const end = lines ? boundaries.right[edit.end] : boundaries.left[edit.end];
         result = result.slice(0, start) + edit.text + result.slice(Math.max(start, end));
       }
       if (canonicalize(result) === current) {
-        return applyLineEnding(result, detectLineEnding(source));
+        const saved = applyLineEnding(result, detectLineEnding(source));
+        rememberCanonical(saved, current);
+        return saved;
       }
     }
   }
