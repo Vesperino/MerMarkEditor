@@ -21,7 +21,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: saveDialog }));
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn() }));
 
-const source = readFileSync('src/__tests__/fixtures/save-churn.md', 'utf8');
+const source = readFileSync('src/__tests__/fixtures/save-churn.md', 'utf8').replace(/\r\n?/g, '\n');
 const makeEditor = (markdown = source) => new Editor({
   extensions: [StarterKit.configure({ link: false }), Link.extend({ name: 'customLink' }).configure({ isAllowedUri: isAllowedMarkdownLink })],
   content: markdownToHtml(markdown),

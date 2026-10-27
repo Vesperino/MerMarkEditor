@@ -7,9 +7,21 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import { isAllowedMarkdownLink } from '../../utils/markdown-link';
 
-const fixture = readFileSync('src/__tests__/fixtures/save-churn.md', 'utf8');
+const fixture = readFileSync('src/__tests__/fixtures/save-churn.md', 'utf8').replace(/\r\n?/g, '\n');
 
 describe('sourcePreservingMarkdown', () => {
+  it.each(['', '\n', '\n\n', '\r\n', '\r\n\r\n'])('preserves the EOF suffix %j when appending text or a paragraph', (suffix) => {
+    const source = 'last' + suffix;
+    expect(sourcePreservingMarkdown('<p>lastX</p>', source)).toBe('lastX' + suffix);
+    const ending = suffix.includes('\r') ? '\r\n' : '\n';
+    expect(sourcePreservingMarkdown('<p>last</p><p>new</p>', source)).toBe('last' + ending + ending + 'new' + suffix);
+  });
+
+  it.each(['\n', '\r\n'])('preserves trailing blank lines when editing the final fenced block (%j)', (ending) => {
+    const source = '```js\nconst value = 1;\n```\n\n'.replace(/\n/g, ending);
+    const html = markdownToHtml(source).replace('value = 1', 'value = 2');
+    expect(sourcePreservingMarkdown(html, source)).toBe(source.replace('value = 1', 'value = 2'));
+  });
   it.each([undefined, null])('serializes a new document without a source baseline (%s)', (source) => {
     expect(sourcePreservingMarkdown('<h2>New</h2><p><strong>text</strong></p>', source)).toBe('## New\n**text**');
   });

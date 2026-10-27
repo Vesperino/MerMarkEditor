@@ -101,7 +101,8 @@ export function sourcePreservingMarkdown(html: string, source?: string | null): 
         // also replace alternate delimiters when the visual structure changes.
         // A caret before generated whitespace belongs before its original gap
         // too (e.g. before the newline that rendered as a soft-break space).
-        const beforeGap = edit.start === edit.end && /\s/.test(baseline[edit.start] ?? '');
+        const beforeGap = edit.start === edit.end
+          && (edit.start === baseline.length || /\s/.test(baseline[edit.start] ?? ''));
         const start = lines || beforeGap ? boundaries.left[edit.start] : boundaries.right[edit.start];
         const end = lines ? boundaries.right[edit.end] : boundaries.left[edit.end];
         result = result.slice(0, start) + edit.text + result.slice(Math.max(start, end));
