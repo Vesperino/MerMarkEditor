@@ -464,13 +464,15 @@ export function markdownToHtmlWithMeta(
 
   // Inline README HTML uses native TipTap marks/nodes after allowlisting.
   const safeInlineHtml: string[] = [];
+  let safeInlinePrefix = '__SAFE_INLINE_HTML_';
+  while (html.includes(safeInlinePrefix)) safeInlinePrefix += 'X';
   let inlineCursor = 0;
   let protectedInlineHtml = '';
   for (const token of safeHtmlInlineTagTokens(html)) {
     const raw = html.slice(token.start, token.end);
     const safe = sanitizeSafeInlineHtmlTag(raw);
     if (!safe) continue;
-    const placeholder = `__SAFE_INLINE_HTML_${safeInlineHtml.length}__`;
+    const placeholder = `${safeInlinePrefix}${safeInlineHtml.length}__`;
     safeInlineHtml.push(safe);
     protectedInlineHtml += html.slice(inlineCursor, token.start) + placeholder;
     inlineCursor = token.end;
@@ -503,9 +505,9 @@ export function markdownToHtmlWithMeta(
   // Links and images
   html = convertMarkdownLinksAndImages(html);
 
-  safeInlineHtml.forEach((tag, index) => {
-    html = html.replace(`__SAFE_INLINE_HTML_${index}__`, tag);
-  });
+  // Restore all tags in one pass rather than copying/scanning the document
+  // once per tag (quadratic for README files containing repeated inline HTML).
+  html = html.replace(new RegExp(`${safeInlinePrefix}(\\d+)__`, 'g'), (token, index) => safeInlineHtml[Number(index)] ?? token);
 
   // Horizontal rule
   html = html.replace(/^---$/gim, '<hr />');

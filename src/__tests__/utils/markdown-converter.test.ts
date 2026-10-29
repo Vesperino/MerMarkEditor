@@ -322,6 +322,24 @@ describe('htmlToMarkdown', () => {
   });
 
   describe('lists', () => {
+    it('keeps text and item numbering across many adjacent lists', () => {
+      const html = '<ul><li><p>bullet</p></li></ul><p>between</p><ol><li><p>first</p></li><li><p>second</p></li></ol>';
+      expect(htmlToMarkdown(html.repeat(100))).toBe(Array(100).fill('- bullet\nbetween\n\n1. first\n2. second').join('\n\n'));
+    });
+
+    it.each([['ul', 'ol'], ['ol', 'ul']])('keeps all items when %s contains %s', (outer, inner) => {
+      const html = `<${outer}><li><p>parent</p><${inner}><li><p>child</p></li></${inner}></li><li><p>sibling</p></li></${outer}>`;
+      const result = htmlToMarkdown(html);
+      expect(result).toContain('parent');
+      expect(result).toContain('child');
+      expect(result).toContain('sibling');
+      expect(result).not.toMatch(/<\/?(?:ul|ol|li)\b/);
+    });
+
+    it('does not rescan decoded literal list tags as a second list', () => {
+      expect(htmlToMarkdown('<ul><li><p><code>&lt;ul&gt;literal&lt;/ul&gt;</code></p></li></ul>')).toBe('- `<ul>literal</ul>`');
+    });
+
     it('converts unordered lists', () => {
       const html = '<ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul>';
       const result = htmlToMarkdown(html);

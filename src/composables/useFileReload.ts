@@ -104,6 +104,7 @@ export function useFileReload(options: UseFileReloadOptions) {
     if (!result) return;
 
     const { pane, tab } = result;
+    tab.sourceMarkdown = newContent;
 
     if (tab.largeFile && tab.pendingMarkdown != null) {
       tab.pendingMarkdown = newContent;

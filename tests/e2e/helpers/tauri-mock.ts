@@ -26,6 +26,8 @@ export async function setupTauriMocks(
     version?: string;
     /** Fixed results for other IPC commands, by command name */
     commands?: Record<string, unknown>;
+    /** Pause/fail a write to exercise edits while a native save is pending. */
+    beforeWrite?: (path: string, content: string) => Promise<void>;
   } = {},
 ): Promise<{
   /** Inspect current virtual FS state from a test */
@@ -49,8 +51,9 @@ export async function setupTauriMocks(
     return fs[path];
   });
 
-  await page.exposeFunction('__mockFsWrite', (path: string, content: string): void => {
+  await page.exposeFunction('__mockFsWrite', async (path: string, content: string): Promise<void> => {
     calls.push({ cmd: 'write', args: { path, content } });
+    await opts.beforeWrite?.(path, content);
     fs[path] = content;
   });
 
@@ -115,6 +118,14 @@ export async function setupTauriMocks(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const cb = (window as any)[`_cb_${channel.id}`];
           if (cb) cb({ index: channel.index++, message: { type: 'modify', paths: [path], attrs: null } });
+        }
+      };
+
+      const eventListeners = new Map<number, { event: string; handler: number }>();
+      let nextEventId = 1;
+      (window as any).__emitMockEvent = (event: string, payload: unknown) => {
+        for (const [id, listener] of eventListeners) {
+          if (listener.event === event) (window as any)[`_cb_${listener.handler}`]?.({ event, id, payload });
         }
       };
 
@@ -195,8 +206,16 @@ export async function setupTauriMocks(
           if (cmd === 'plugin:app|version' || cmd === 'app_get_version') return version;
 
           // ── event system ──────────────────────────────────────────
-          if (cmd === 'plugin:event|listen') return 1; // return numeric event ID
-          if (cmd === 'plugin:event|unlisten') return undefined;
+          if (cmd === 'plugin:event|listen') {
+            const id = nextEventId++;
+            const { event, handler } = args as { event: string; handler: number };
+            eventListeners.set(id, { event, handler });
+            return id;
+          }
+          if (cmd === 'plugin:event|unlisten') {
+            eventListeners.delete((args as { eventId: number }).eventId);
+            return undefined;
+          }
           if (cmd === 'plugin:event|emit' || cmd === 'plugin:event|emit_to') return undefined;
 
           // ── window commands ────────────────────────────────────────

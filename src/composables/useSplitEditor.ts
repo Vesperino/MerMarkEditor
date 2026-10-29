@@ -1,5 +1,7 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue';
-import { htmlToMarkdown, markdownToHtml } from '../utils/markdown-converter';
+import { markdownToHtml } from '../utils/markdown-converter';
+import { sourcePreservingMarkdown } from '../utils/source-preserving-markdown';
+import { normalizeMarkdown } from '../utils/markdown-save';
 
 const PREVIEW_DEBOUNCE_MS = 200;
 
@@ -9,7 +11,7 @@ export interface UseSplitEditorReturn {
   splitEditorActive: Ref<boolean>;
   markdownSource: Ref<string>;
   previewHtml: ComputedRef<string>;
-  enter: (html: string) => void;
+  enter: (html: string, source?: string | null) => void;
   exit: () => string;
   onMarkdownInput: (value: string) => void;
   syncFromVisual: (html: string) => void;
@@ -22,8 +24,8 @@ export function useSplitEditor(): UseSplitEditorReturn {
 
   const previewHtml = computed(() => markdownToHtml(debouncedSource.value));
 
-  const enter = (html: string): void => {
-    const md = htmlToMarkdown(html);
+  const enter = (html: string, source?: string | null): void => {
+    const md = normalizeMarkdown(sourcePreservingMarkdown(html, source));
     markdownSource.value = md;
     debouncedSource.value = md;
     if (debounceTimer !== null) {
@@ -42,7 +44,7 @@ export function useSplitEditor(): UseSplitEditorReturn {
   };
 
   const onMarkdownInput = (value: string): void => {
-    markdownSource.value = value;
+    markdownSource.value = normalizeMarkdown(value);
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debouncedSource.value = markdownSource.value;
@@ -55,7 +57,7 @@ export function useSplitEditor(): UseSplitEditorReturn {
   // signal, so the code→visual push echo never reaches here. debouncedSource /
   // previewHtml are left untouched so the preview isn't re-rendered mid-edit.
   const syncFromVisual = (html: string): void => {
-    const md = htmlToMarkdown(html);
+    const md = sourcePreservingMarkdown(html, markdownSource.value);
     if (md === markdownSource.value) return;
     markdownSource.value = md;
   };

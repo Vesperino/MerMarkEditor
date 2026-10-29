@@ -3,7 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { exit } from '@tauri-apps/plugin-process';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
-import { htmlToMarkdown } from '../utils/markdown-converter';
+import { captureMarkdownSave, matchesMarkdownSave, type MarkdownContent } from '../utils/markdown-save';
 import type { Tab } from './useTabs';
 
 export interface TabToSave {
@@ -15,6 +15,7 @@ export interface UseCloseConfirmationOptions {
   tabs: Ref<Tab[]>;
   activeTabId: Ref<string>;
   getEditorHtml: () => string;
+  getMarkdownOverride?: () => string | null;
   switchToTab: (tabId: string, preserveHasChanges?: boolean) => Promise<void>;
   syncActiveTabContent?: () => void;
 }
@@ -31,7 +32,7 @@ export interface UseCloseConfirmationReturn {
 }
 
 export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseCloseConfirmationReturn {
-  const { tabs, activeTabId, getEditorHtml, switchToTab, syncActiveTabContent } = options;
+  const { tabs, activeTabId, getEditorHtml, getMarkdownOverride, switchToTab, syncActiveTabContent } = options;
 
   const showSaveConfirmDialog = ref(false);
   const currentTabToSave = ref<TabToSave | null>(null);
@@ -74,6 +75,12 @@ export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseC
 
   const saveTabContent = async (tab: Tab): Promise<boolean> => {
     try {
+      const getContent = (): MarkdownContent => {
+        const raw = tab.id === activeTabId.value ? getMarkdownOverride?.() ?? null : tab.pendingMarkdown ?? null;
+        return raw !== null ? { markdown: raw }
+          : { html: tab.id === activeTabId.value ? getEditorHtml() : tab.content };
+      };
+      const snapshot = captureMarkdownSave(tab, getContent());
       let filePath = tab.filePath;
 
       if (!filePath) {
@@ -84,16 +91,20 @@ export function useCloseConfirmation(options: UseCloseConfirmationOptions): UseC
       }
 
       if (filePath) {
-        // Get current content - if this is the active tab, get from editor
-        const html = tab.id === activeTabId.value ? getEditorHtml() : tab.content;
-        const markdown = htmlToMarkdown(html).trimEnd();
+        const markdown = snapshot.markdown;
         await writeTextFile(filePath, markdown);
 
         // Update the tab
         tab.filePath = filePath;
         tab.fileName = filePath.split(/[/\\]/).pop() || 'Dokument';
-        tab.hasChanges = false;
-        return true;
+        tab.originalMarkdown = markdown;
+        const unchanged = matchesMarkdownSave(snapshot, getContent());
+        if (unchanged) {
+          tab.sourceMarkdown = markdown;
+          tab.hasChanges = false;
+        }
+        // Never close the window over edits made while the write was pending.
+        return unchanged;
       }
 
       // User cancelled save dialog
