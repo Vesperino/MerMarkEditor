@@ -11,6 +11,7 @@ import type { UseFileOperationsOptions } from '../../composables/useFileOperatio
 import { useSplitEditor } from '../../composables/useSplitEditor';
 import { useCodeView } from '../../composables/useCodeView';
 import { sourcePreservingMarkdown } from '../../utils/source-preserving-markdown';
+import { VISUAL_PARSE_OPTIONS } from '../../utils/visual-html';
 import type { Tab } from '../../composables/useTabs';
 
 const fs = vi.hoisted(() => ({ write: vi.fn(), read: vi.fn(), rename: vi.fn(), remove: vi.fn() }));
@@ -25,6 +26,7 @@ const source = readFileSync('src/__tests__/fixtures/save-churn.md', 'utf8').repl
 const makeEditor = (markdown = source) => new Editor({
   extensions: [StarterKit.configure({ link: false }), Link.extend({ name: 'customLink' }).configure({ isAllowedUri: isAllowedMarkdownLink })],
   content: markdownToHtml(markdown),
+  parseOptions: VISUAL_PARSE_OPTIONS,
 });
 
 function makeSaveHarness(overrides: Partial<UseFileOperationsOptions> = {}, markdown = source) {
@@ -37,7 +39,7 @@ function makeSaveHarness(overrides: Partial<UseFileOperationsOptions> = {}, mark
   fs.read.mockImplementation(async (path: string) => path.endsWith('.tmp') ? fs.write.mock.lastCall?.[1] : tabs.value[0].originalMarkdown);
   const operations = useFileOperations({
     tabs, activeTabId: ref('1'), activeTab: computed(() => tabs.value[0]),
-    getEditorHtml: () => editor.getHTML(), setEditorContent: html => editor.commands.setContent(html),
+    getEditorHtml: () => editor.getHTML(), setEditorContent: html => editor.commands.setContent(html, { parseOptions: VISUAL_PARSE_OPTIONS }),
     findTabByFilePath: () => undefined, createNewTab: () => '2', switchToTab: async () => {},
     ...overrides,
   });
@@ -180,7 +182,7 @@ describe('Markdown save round-trip', () => {
     try {
       const latest = source.replace('Write short notes.', 'Write short\nnotes.X');
       tabs.value[0].sourceMarkdown = latest;
-      editor.commands.setContent(markdownToHtml(latest));
+      editor.commands.setContent(markdownToHtml(latest), { parseOptions: VISUAL_PARSE_OPTIONS });
       await saveFile();
       expect(onPreSaveConflict).not.toHaveBeenCalled();
       expect(fs.write).toHaveBeenLastCalledWith('/test/handbook.md.tmp', latest);
@@ -238,7 +240,7 @@ describe('Markdown save round-trip', () => {
     const session = makeSaveHarness({ onPreSaveConflict: async () => {
       const merged = source.replace('Write short notes.', 'Merged notes.');
       // Reproduce the App conflict handler's reloadTabContent side effects.
-      session.editor.commands.setContent(markdownToHtml(merged));
+      session.editor.commands.setContent(markdownToHtml(merged), { parseOptions: VISUAL_PARSE_OPTIONS });
       Object.assign(session.tabs.value[0], { sourceMarkdown: merged, originalMarkdown: merged, hasChanges: false });
       return merged;
     } });
@@ -290,7 +292,7 @@ describe('Markdown save round-trip', () => {
       getActiveContent: () => editor.getHTML(), getSourceMarkdown: () => latestSource,
       setActiveContent: (html, markdown) => {
         latestSource = markdown!;
-        editor.commands.setContent(html);
+        editor.commands.setContent(html, { parseOptions: VISUAL_PARSE_OPTIONS });
       },
       markAsChanged: () => {},
     });

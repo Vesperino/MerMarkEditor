@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as converter from '../../utils/markdown-converter';
 import { markdownToHtml, htmlToMarkdown } from '../../utils/markdown-converter';
 import { sourcePreservingMarkdown } from '../../utils/source-preserving-markdown';
+import { VISUAL_PARSE_OPTIONS } from '../../utils/visual-html';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -15,6 +16,28 @@ import {
 const fixture = readFileSync('src/__tests__/fixtures/save-churn.md', 'utf8').replace(/\r\n?/g, '\n');
 
 describe('sourcePreservingMarkdown', () => {
+  it.each(['\n', '\r\n', '\r'])('retains deliberate spaces through saves and reimports (%j)', (ending) => {
+    const source = 'alpha beta\n\nkeep   spaces\nwrapped\ttext\n\n'.replace(/\n/g, ending);
+    const editor = new Editor({ extensions: [StarterKit], content: markdownToHtml(source), parseOptions: VISUAL_PARSE_OPTIONS });
+    try {
+      // Normal visual editing, with no other changed character to reveal the
+      // edit after whitespace collapsing. Existing whitespace stays untouched.
+      editor.commands.insertContentAt(7, ' ');
+      const first = source.replace('alpha beta', 'alpha  beta');
+      expect(sourcePreservingMarkdown(editor.getHTML(), source)).toBe(first);
+      expect(sourcePreservingMarkdown(editor.getHTML(), first)).toBe(first);
+      editor.commands.insertContentAt(8, ' ');
+      const next = first.replace('alpha  beta', 'alpha   beta');
+      expect(sourcePreservingMarkdown(editor.getHTML(), first)).toBe(next);
+      editor.commands.setContent(markdownToHtml(next), { parseOptions: VISUAL_PARSE_OPTIONS });
+      expect(editor.state.doc.firstChild?.textContent).toBe('alpha   beta');
+      expect(sourcePreservingMarkdown(editor.getHTML(), next)).toBe(next);
+      // Deliberately removing a space must also persist after reopening.
+      editor.commands.deleteRange({ from: 7, to: 8 });
+      expect(sourcePreservingMarkdown(editor.getHTML(), next)).toBe(first);
+    } finally { editor.destroy(); }
+  });
+
   it('reuses validation as the next saved revision baseline', () => {
     const source = '# Cache revisions\n\nfirst\nwrapped\n';
     const html = markdownToHtml(source);
@@ -152,7 +175,7 @@ describe('sourcePreservingMarkdown', () => {
   });
 
   it('round-trips a real visual editor transaction against the synthetic document', () => {
-    const editor = new Editor({ extensions: [StarterKit.configure({ link: false }), Link.extend({ name: 'customLink' }).configure({ isAllowedUri: isAllowedMarkdownLink })], content: markdownToHtml(fixture) });
+    const editor = new Editor({ extensions: [StarterKit.configure({ link: false }), Link.extend({ name: 'customLink' }).configure({ isAllowedUri: isAllowedMarkdownLink })], content: markdownToHtml(fixture), parseOptions: VISUAL_PARSE_OPTIONS });
     try {
       editor.commands.insertContentAt(1, 'X');
       expect(sourcePreservingMarkdown(editor.getHTML(), fixture)).toBe(fixture.replace('# Sample', '# XSample'));
@@ -185,9 +208,9 @@ describe('sourcePreservingMarkdown', () => {
     expect(sourcePreservingMarkdown(html, source)).toBe('same\nparagraph\n\nsame\nXparagraph\n\nsame\nparagraph\n');
   });
 
-  it('inserts before collapsed spaces without moving them into the word', () => {
+  it('inserts before imported spaces without moving them into the word', () => {
     const source = 'alpha   beta\n\nlast\nwrapped\n';
-    expect(sourcePreservingMarkdown('<p>alphaX beta</p><p>last wrapped</p>', source)).toBe(source.replace('alpha', 'alphaX'));
+    expect(sourcePreservingMarkdown('<p>alphaX   beta</p><p>last wrapped</p>', source)).toBe(source.replace('alpha', 'alphaX'));
   });
 
   it.each(['  \n', '\\\n'])('keeps the original hard-break marker %j', (marker) => {

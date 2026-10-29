@@ -31,6 +31,86 @@ async function visualCaret(page: Page, text: string, offset: number) {
   await page.waitForTimeout(80);
 }
 
+test('visual whitespace edits survive repeated saves, view cycles, and reopening with Save As', async ({ page }) => {
+  const original = '# Spaces\r\n\r\nalpha beta\r\n\r\nkeep   spaces\r\nwrapped\ttext\r\n\r\n';
+  const { getFs } = await setupTauriMocks(page, { initialFs: { [path]: original }, openFilePath: path });
+  const dirty = page.locator('.tab.active .tab-unsaved');
+  await page.goto('/');
+  await visualCaret(page, 'alpha beta', 6);
+  await page.keyboard.press('Space');
+  await expect(dirty).toBeVisible();
+  const first = original.replace('alpha beta', 'alpha  beta');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(() => getFs()[path]).toBe(first);
+  await expect(dirty).toHaveCount(0);
+
+  // A second space-only edit exercises the cached saved baseline.
+  await visualCaret(page, 'alpha  beta', 7);
+  await page.keyboard.press('Space');
+  const next = original.replace('alpha beta', 'alpha   beta');
+  // Switch views while this second whitespace edit is still unsaved.
+  await openCodeView(page);
+  expect(await getCodeEditorValue(page)).toBe(next.replace(/\r\n/g, '\n'));
+  await page.waitForTimeout(350); // code/visual transition guard
+  await openVisualView(page);
+  await page.locator('.split-editor-toggle-btn').click();
+  expect(await getCodeEditorValue(page)).toBe(next.replace(/\r\n/g, '\n'));
+  await page.locator('.split-editor-toggle-btn').click();
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(() => getFs()[path]).toBe(next);
+  await expect(dirty).toHaveCount(0);
+  await visualCaret(page, 'alpha   beta', 12);
+  await page.keyboard.insertText('X');
+  const withText = next.replace('alpha   beta', 'alpha   betaX');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(() => getFs()[path]).toBe(withText);
+  await expect(dirty).toHaveCount(0);
+
+  await page.reload();
+  await visualCaret(page, 'alpha   betaX', 6);
+  // This Save As must write unchanged source after the editor is reimported,
+  // including spaces/tabs in the other paragraph and the CRLF EOF suffix.
+  await page.evaluate(() => { (window as any).__mockDialogSavePath = '/test/spaces-copy.md'; });
+  await page.keyboard.press('ControlOrMeta+Shift+s');
+  await expect.poll(() => getFs()['/test/spaces-copy.md']).toBe(withText);
+  await expect(dirty).toHaveCount(0);
+});
+
+test('visual whitespace and text edits before the first save preserve untouched whitespace', async ({ page }) => {
+  const original = 'alpha beta\n\nkeep   spaces\nwrapped\ttext\n\n';
+  const { getFs } = await setupTauriMocks(page, { initialFs: { [path]: original }, openFilePath: path });
+  await page.goto('/');
+  await visualCaret(page, 'alpha beta', 6);
+  await page.keyboard.press('Space');
+  await page.keyboard.insertText('X');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(() => getFs()[path]).toBe(original.replace('alpha beta', 'alpha  Xbeta'));
+});
+
+test('visual whitespace-only edits are retained by autosave', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('mermark-settings', JSON.stringify({ ai: { hasSeenFirstRun: true }, autoSave: true })));
+  const original = 'alpha beta\n\nkeep   spaces\n';
+  const { getFs } = await setupTauriMocks(page, { initialFs: { [path]: original }, openFilePath: path });
+  await page.goto('/');
+  await visualCaret(page, 'alpha beta', 6);
+  await page.keyboard.press('Space');
+  await expect(page.locator('.tab.active .tab-unsaved')).toBeVisible();
+  await expect.poll(() => getFs()[path], { timeout: 9000 }).toBe(original.replace('alpha beta', 'alpha  beta'));
+  await expect(page.locator('.tab.active .tab-unsaved')).toHaveCount(0);
+});
+
+test('window-close save retains visual whitespace edits', async ({ page }) => {
+  const original = 'alpha beta\r\n\r\nkeep   spaces\r\n';
+  const { getFs } = await setupTauriMocks(page, { initialFs: { [path]: original }, openFilePath: path });
+  await page.goto('/');
+  await visualCaret(page, 'alpha beta', 6);
+  await page.keyboard.press('Space');
+  await page.evaluate(() => (window as any).__emitMockEvent('tauri://close-requested', null));
+  await page.locator('.dialog .btn-save').click();
+  await expect.poll(() => getFs()[path]).toBe(original.replace('alpha beta', 'alpha  beta'));
+  await expect(page.locator('.dialog .btn-save')).toHaveCount(0);
+});
+
 for (const mode of ['visual', 'code', 'split'] as const) {
   test(`${mode}: manual save and Save As retain CRLF, source wrapping, and EOF blank lines`, async ({ page }) => {
     const { getFs } = await setupTauriMocks(page, { initialFs: { [path]: source }, openFilePath: path });

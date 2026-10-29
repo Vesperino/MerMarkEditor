@@ -2,30 +2,9 @@ import { diffChars, diffLines } from 'diff';
 import { applyLineEnding, detectLineEnding, htmlToMarkdown, markdownToHtml } from './markdown-converter';
 import { sourceBoundaries } from './markdown-source-alignment';
 import { getCurrentMermaidReadFormats, getCurrentMermaidWriteFormat } from './mermaid-formats';
+import { normalizeVisualHtml } from './visual-html';
 
 interface Edit { start: number; end: number; text: string }
-
-// TipTap removes whitespace between blocks and collapses HTML text whitespace
-// on import. Apply that normalization to both sides, so loading alone is never
-// mistaken for a user edit. Code and raw-HTML node source remain verbatim.
-function normalizeVisualHtml(html: string): string {
-  // A detached element in the active document can still load images and run
-  // their event handlers. Normalize in an inert document, never mounted in UI.
-  const root = document.implementation.createHTMLDocument('').createElement('div');
-  root.innerHTML = html;
-  const walk = (element: Element) => {
-    if (element.matches('pre, code, [data-safe-html-block]')) return;
-    for (const node of Array.from(element.childNodes)) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const value = (node.textContent ?? '').replace(/[\t\r\n ]+/g, ' ');
-        if (value.trim() === '' && element.matches('div, ul, ol, blockquote, table, thead, tbody, tr')) node.remove();
-        else node.textContent = value;
-      } else if (node.nodeType === Node.ELEMENT_NODE) walk(node as Element);
-    }
-  };
-  walk(root);
-  return root.innerHTML;
-}
 
 const canonicalize = (source: string): string => htmlToMarkdown(normalizeVisualHtml(markdownToHtml(source)));
 
