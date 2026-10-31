@@ -46,7 +46,9 @@ const markdownHighlightStyle = HighlightStyle.define([
   { tag: [tags.meta, tags.processingInstruction, tags.contentSeparator], color: 'var(--code-md-meta)' },
 ]);
 
-const codeZoomStyle = computed(() => ({ zoom: zoomScale.value }));
+// CSS zoom would break CodeMirror's click mapping on WebKit before Safari 26.4,
+// which reports client rects with the zoom divided out (#178).
+const codeZoomStyle = computed(() => ({ '--code-font-size': `${14 * zoomScale.value}px` }));
 
 const editor: CodeEditorHandle = {
   focus: () => view?.focus(),
@@ -200,6 +202,8 @@ watch(() => props.modelValue, (value) => {
   lastSyncedValue = value;
   applyingExternalValue = false;
 });
+
+watch(zoomScale, () => view?.requestMeasure(), { flush: 'post' });
 
 watch(() => settings.value.codeWordWrap, (enabled) => {
   view?.dispatch({ effects: wrapConfig.reconfigure(enabled ? EditorView.lineWrapping : []) });
