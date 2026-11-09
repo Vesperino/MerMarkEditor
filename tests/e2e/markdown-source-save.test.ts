@@ -87,6 +87,41 @@ test('visual whitespace and text edits before the first save preserve untouched 
   await expect.poll(() => getFs()[path]).toBe(original.replace('alpha beta', 'alpha  Xbeta'));
 });
 
+test('a paragraph split by an inline image keeps its source and gains no hard breaks', async ({ page }) => {
+  const original = [
+    '# Images', '', 'Keys like @, [, { need AltGr.', '',
+    'See ![logo](logo.png) here.', '',
+    '[![CI](https://img.shields.io/badge/ci-ok-green.svg)](https://ci.example) [![MIT](https://img.shields.io/badge/l-MIT-blue.svg)](https://l.example)', '',
+    'Next para.', '', '- [Node.js](https://nodejs.org/) 18+', '',
+  ].join('\n');
+  const { getFs } = await setupTauriMocks(page, { initialFs: { [path]: original }, openFilePath: path });
+  await page.goto('/');
+  await expect(page.locator('.ProseMirror img')).toHaveCount(3);
+  await expect(page.locator('.ProseMirror br:not(.ProseMirror-trailingBreak)')).toHaveCount(0);
+  await visualCaret(page, 'Next para', 4);
+  await page.keyboard.insertText('X');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(() => getFs()[path]).toBe(original.replace('Next para', 'NextX para'));
+});
+
+test('a tab saved in the code view stays clean after returning to the visual view', async ({ page }) => {
+  const { getFs } = await setupTauriMocks(page, { initialFs: { [path]: source }, openFilePath: path });
+  const dirty = page.locator('.tab.active .tab-unsaved');
+  await page.goto('/');
+  await expect(page.locator('.ProseMirror')).toContainText('first');
+  await openCodeView(page);
+  await setCodeCursor(page, '# Title'.length);
+  await page.keyboard.insertText('X');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect.poll(() => getFs()[path]).toBe(source.replace('# Title', '# TitleX'));
+  await expect(dirty).toHaveCount(0);
+  await page.waitForTimeout(350);
+  await openVisualView(page);
+  await expect(page.locator('.ProseMirror h1')).toHaveText('TitleX');
+  await page.waitForTimeout(600);
+  await expect(dirty).toHaveCount(0);
+});
+
 test('visual whitespace-only edits are retained by autosave', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('mermark-settings', JSON.stringify({ ai: { hasSeenFirstRun: true }, autoSave: true })));
   const original = 'alpha beta\n\nkeep   spaces\n';

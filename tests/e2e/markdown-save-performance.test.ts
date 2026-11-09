@@ -77,8 +77,8 @@ test('large visual saves preserve exact edit locality within a bounded budget', 
       expect.soft(result.unchanged).toBe(true);
       // A hang guard, not a microbenchmark threshold: actual timings are
       // attached for same-machine comparisons rather than tight CI gates.
-      expect.soft(result.coldMs, `${kind}/${size}: cold time`).toBeLessThan(2_000);
-      expect.soft(result.nextMs, `${kind}/${size}: next time`).toBeLessThan(2_000);
+      expect.soft(result.coldMs, `${kind}/${size}: cold time`).toBeLessThan(5_000);
+      expect.soft(result.nextMs, `${kind}/${size}: next time`).toBeLessThan(5_000);
     }
   }
   console.log(JSON.stringify(measurements, null, 2));

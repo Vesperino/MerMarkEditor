@@ -2,17 +2,30 @@ import { diffChars, diffLines } from 'diff';
 import { applyLineEnding, detectLineEnding, htmlToMarkdown, markdownToHtml } from './markdown-converter';
 import { sourceBoundaries } from './markdown-source-alignment';
 import { getCurrentMermaidReadFormats, getCurrentMermaidWriteFormat } from './mermaid-formats';
-import { normalizeVisualHtml } from './visual-html';
+import { currentVisualSchema, editorHtml, normalizeVisualHtml } from './visual-html';
 
 interface Edit { start: number; end: number; text: string }
 
-const canonicalize = (source: string): string => htmlToMarkdown(normalizeVisualHtml(markdownToHtml(source)));
+const canonicalize = (source: string): string => {
+  const html = markdownToHtml(source);
+  return htmlToMarkdown(normalizeVisualHtml(editorHtml(html) ?? html));
+};
+
+/** Parsing through the editor schema is costly for long lists, and most
+ * documents already match without it; only reshaped markup needs it. */
+function reimportsAs(candidate: string, current: string): boolean {
+  const html = markdownToHtml(candidate);
+  if (htmlToMarkdown(normalizeVisualHtml(html)) === current) return true;
+  const visual = editorHtml(html);
+  return visual !== null && htmlToMarkdown(normalizeVisualHtml(visual)) === current;
+}
 
 // Retain at most two revisions and two million UTF-16 code units total. A
 // validated save is also the next revision's canonical baseline, so a later
 // save need not parse the whole source again. Converter settings are mutable.
 const canonicalSources = new Map<string, string>();
 let cacheSettings = '';
+let cacheSchema = currentVisualSchema();
 let cacheSize = 0;
 function rememberCanonical(source: string, canonical: string) {
   const size = source.length + canonical.length;
@@ -28,10 +41,11 @@ function rememberCanonical(source: string, canonical: string) {
 
 function sourceCanonical(source: string): string {
   const settings = JSON.stringify([getCurrentMermaidReadFormats(), getCurrentMermaidWriteFormat()]);
-  if (settings !== cacheSettings) {
+  if (settings !== cacheSettings || currentVisualSchema() !== cacheSchema) {
     canonicalSources.clear();
     cacheSize = 0;
     cacheSettings = settings;
+    cacheSchema = currentVisualSchema();
   }
   const cached = canonicalSources.get(source);
   if (cached !== undefined) return cached;
@@ -71,7 +85,7 @@ function editsBetween(before: string, after: string, lines = false): Edit[] | nu
  * Bound diff work and fall back to the normal serializer for ambiguous edits. */
 export function sourcePreservingMarkdown(html: string, source?: string | null): string {
   if (source == null) return htmlToMarkdown(html);
-  const current = htmlToMarkdown(normalizeVisualHtml(html));
+  const current = htmlToMarkdown(normalizeVisualHtml(editorHtml(html) ?? html));
   const baseline = sourceCanonical(source);
   if (baseline === current) return source;
   if (current === '') return '';
@@ -96,7 +110,7 @@ export function sourcePreservingMarkdown(html: string, source?: string | null): 
         const end = lines ? boundaries.right[edit.end] : boundaries.left[edit.end];
         result = result.slice(0, start) + edit.text + result.slice(Math.max(start, end));
       }
-      if (canonicalize(result) === current) {
+      if (reimportsAs(result, current)) {
         const saved = applyLineEnding(result, detectLineEnding(source));
         rememberCanonical(saved, current);
         return saved;

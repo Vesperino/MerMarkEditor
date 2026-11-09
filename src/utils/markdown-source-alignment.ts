@@ -32,7 +32,7 @@ export function sourceBoundaries(source: string, generated: string) {
   const generatedTokens = tokens(generated);
   if (!generatedTokens || Date.now() >= deadline) return null;
   const changes = diffArrays(originalTokens.map(t => t[0]), generatedTokens.map(t => t[0]), {
-    timeout: Math.max(1, Math.min(50, deadline - Date.now())),
+    timeout: Math.max(1, deadline - Date.now()),
   });
   if (!changes || Date.now() >= deadline) return null;
 
