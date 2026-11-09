@@ -4,6 +4,14 @@
 
 ---
 
+# Release v0.8.5 — Accurate clicks in the Code view when zoomed in
+
+## Bug fixes
+
+- Fix clicks and selections in the Code view landing several lines below the pointer on macOS when the editor is zoomed in (#178)
+
+---
+
 # Release v0.8.4 — Newest AI models, one-click CLI updates and synced split scrolling
 
 Three updates came out today: 0.8.2, 0.8.3 and 0.8.4. If you skipped any of them, everything they bring is listed below, newest first.
