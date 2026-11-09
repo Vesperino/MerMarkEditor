@@ -8,7 +8,7 @@ import { copyFile, writeTextFile, exists, readTextFile, remove } from '@tauri-ap
 import { open } from '@tauri-apps/plugin-dialog';
 import { htmlToMarkdown, markdownToHtml } from './utils/markdown-converter';
 import { sourcePreservingMarkdown } from './utils/source-preserving-markdown';
-import { captureMarkdownSave, matchesMarkdownSave, serializeMarkdown, type MarkdownContent } from './utils/markdown-save';
+import { captureMarkdownSave, matchesMarkdownSave, normalizeMarkdown, serializeMarkdown, type MarkdownContent } from './utils/markdown-save';
 import { inlineMarkdownImages, getDirectoryFromFilePath } from './utils/image-resolver';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
@@ -821,6 +821,11 @@ const {
       activeTab.value.hasChanges = true;
       triggerAutoSave();
     }
+  },
+  isSavedMarkdown: (markdown: string) => {
+    const tab = activeTab.value;
+    return !!tab && !tab.hasChanges && tab.originalMarkdown != null
+      && normalizeMarkdown(markdown) === normalizeMarkdown(tab.originalMarkdown);
   },
   forceConvertOnExit: () => isMarkdownFirst(activeTab.value),
 });

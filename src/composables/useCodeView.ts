@@ -24,6 +24,8 @@ export interface UseCodeViewOptions {
   setActiveContent: (content: string, source?: string) => void;
   getSourceMarkdown?: () => string | null | undefined;
   markAsChanged: () => void;
+  /** True when this Markdown is exactly what the clean tab last saved. */
+  isSavedMarkdown?: (markdown: string) => boolean;
   /** When true at CODE→VISUAL time, convert even if the snapshot is unchanged —
    *  used for markdown-first tabs whose HTML was never generated (issue #129). */
   forceConvertOnExit?: () => boolean;
@@ -815,7 +817,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       if (contentChanged) {
         const html = markdownToHtml(codeContent.value);
         setActiveContent(html, codeContent.value);
-        if (editedInCode) markAsChanged();
+        if (editedInCode && !options.isSavedMarkdown?.(codeContent.value)) markAsChanged();
       }
 
       codeView.value = false;
