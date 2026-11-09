@@ -30,11 +30,10 @@ modules:
         npm_config_manage_package_manager_versions: 'false'
         CI: 'true'
     sources:
-      # Final form for Flathub. Fill the commit line once the v0.8.6 tag exists.
       - type: git
         url: https://github.com/Vesperino/MerMarkEditor.git
         tag: v0.8.6
-        commit: FILL_WITH_COMMIT_SHA_OF_TAG_v0.8.6
+        commit: 710c4602353f58f863d029d2720346e1a5d5666d
       - cargo-sources.json
       - node-sources.json
       - type: archive
