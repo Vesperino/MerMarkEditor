@@ -199,8 +199,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 ### Markdown Editing
 - Full **GitHub Flavored Markdown** (GFM) support
 - **WYSIWYG editor** with live preview
-- Repeated spaces and tabs within text are retained when opening and saving in visual mode, including space-only edits.
-- **Source-preserving saves** — small visual edits keep existing line wrapping, blank lines, Markdown markers, and trailing newlines. Manual saves, Save As, autosave, and saving before closing keep raw code/split edits and the file's LF, CRLF, or CR convention. Unchanged files retain mixed line endings exactly; after edits, mixed endings use the saved dominant convention. Ambiguous visual edits can still use regenerated Markdown. Deleting one of several visually identical paragraphs cannot reliably identify which paragraph's source spelling to retain.
+- **Source-preserving saves**: editing a word in visual mode changes only that line on disk; wrapping, blank lines, list markers, spacing and line endings stay as you wrote them
 - **Syntax highlighting** for code blocks (50+ languages)
 - Tables, task lists, blockquotes, and more
 - **Keyboard shortcuts** for efficient editing
@@ -496,14 +495,7 @@ pnpm test
 
 # Run tests once
 pnpm test:run
-
-# Browser save preservation and performance (100 KB and 500 KB fixtures)
-pnpm exec playwright test tests/e2e/markdown-save-performance.test.ts --project=chromium
 ```
-
-The save benchmark checks exact source locations and attaches cold, subsequent,
-unchanged, and plain-serialization timings as `save-performance.json`. Its time
-limits guard against hangs; compare timings on the same machine and browser.
 
 ### Tech Stack
 
