@@ -468,7 +468,9 @@ export function markdownToHtmlWithMeta(
   while (html.includes(safeInlinePrefix)) safeInlinePrefix += 'X';
   let inlineCursor = 0;
   let protectedInlineHtml = '';
+  const codeSpans = Array.from(html.matchAll(/`[^`]+`/g), m => [m.index, m.index + m[0].length]);
   for (const token of safeHtmlInlineTagTokens(html)) {
+    if (codeSpans.some(([start, end]) => token.start > start && token.start < end)) continue;
     const raw = html.slice(token.start, token.end);
     const safe = sanitizeSafeInlineHtmlTag(raw);
     if (!safe) continue;

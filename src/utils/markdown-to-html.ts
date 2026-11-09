@@ -327,7 +327,9 @@ export function convertMarkdownLinksAndImages(html: string): string {
     const originalSrcAttr = isLocalPath ? ` data-original-src="${src}"` : '';
     return `<img class="editor-image" src="${src}" alt="${alt}"${titleAttr}${originalSrcAttr} />`;
   });
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text: string, href: string) => `<a class="editor-link" href="${attr(href)}">${text}</a>`);
+  // Runs before paragraphs are split: a stray "[" must not open a link that
+  // closes at a "](url)" further down, across blank lines and other blocks.
+  result = result.replace(/\[((?:[^[\]\n]|\n(?![ \t]*\n))+)\]\(([^)\n]+)\)/g, (_match, text: string, href: string) => `<a class="editor-link" href="${attr(href)}">${text}</a>`);
   return result;
 }
 
@@ -369,6 +371,21 @@ export interface ExtractedBlocks {
   detectedMermaidFormatIds: string[];
 }
 
+function fencedCodeRanges(md: string): Array<{ contentStart: number; end: number }> {
+  const ranges: Array<{ contentStart: number; end: number }> = [];
+  const fences = /^( {0,3})(`{3,}|~{3,})([^\n]*)\n/gm;
+  let fence: RegExpExecArray | null;
+  while ((fence = fences.exec(md))) {
+    const close = new RegExp(`^ {0,3}${fence[2][0]}{${fence[2].length},}[ \\t]*(?=\\n|$)`, 'gm');
+    close.lastIndex = fences.lastIndex;
+    const end = close.exec(md);
+    const blockEnd = end ? end.index + end[0].length : md.length;
+    ranges.push({ contentStart: fences.lastIndex, end: blockEnd });
+    fences.lastIndex = blockEnd;
+  }
+  return ranges;
+}
+
 export function extractCodeBlocks(
   md: string,
   readFormats: MermaidFormat[] = getCurrentMermaidReadFormats(),
@@ -383,7 +400,10 @@ export function extractCodeBlocks(
   // reload. Multi-format aware: a single document may mix `\`\`\`mermaid`,
   // `:::mermaid`, `~~~mermaid` and the user's custom pair, so iterate over
   // every enabled format and merge matches by position.
-  const matches = findAllMermaidMatches(md, readFormats);
+  // A mermaid fence shown as an example inside another code block is code.
+  const codeRanges = fencedCodeRanges(md);
+  const matches = findAllMermaidMatches(md, readFormats)
+    .filter(m => !codeRanges.some(r => m.start >= r.contentStart && m.start < r.end));
   let html = '';
   let cursor = 0;
   for (const m of matches) {

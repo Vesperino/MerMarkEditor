@@ -509,6 +509,16 @@ describe('markdownToHtml', () => {
   });
 
   describe('mermaid', () => {
+    it('keeps a mermaid example inside another code block as code', () => {
+      const md = 'Type:\n\n~~~markdown\n```mermaid\ngraph LR\n  A --> B\n```\n~~~\n\nAfter.\n\n```mermaid\ngraph TD\n  C --> D\n```\n';
+      const html = markdownToHtml(md);
+      expect(html).not.toContain('MERMAID_BLOCK');
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      expect(doc.querySelector('pre code.language-markdown')?.textContent).toBe('```mermaid\ngraph LR\n  A --> B\n```\n');
+      expect(doc.querySelectorAll('[data-type="mermaid"]')).toHaveLength(1);
+      expect(htmlToMarkdown(html)).toContain('```mermaid\ngraph LR\n  A --> B\n```');
+    });
+
     it('converts mermaid blocks to div with data-code', () => {
       const md = '```mermaid\ngraph LR\n  A --> B\n```';
       const result = markdownToHtml(md);
@@ -563,6 +573,31 @@ describe('markdownToHtml', () => {
       expect(link.getAttributeNames().filter(name => name.startsWith('on'))).toEqual([]);
       expect(img.getAttribute('src')).toMatch(/^p\.png" onerror="/);
       expect(link.getAttribute('href')).toBe('u" onmouseover="z');
+    });
+
+    it('does not start a link at an unrelated literal bracket earlier in the document', () => {
+      const doc = new DOMParser().parseFromString(
+        markdownToHtml('Keys like @, [, { are typed with AltGr.\n\n## Setup\n\n- [Node.js](https://nodejs.org/) 18+\n'),
+        'text/html',
+      );
+      const links = Array.from(doc.querySelectorAll('a'));
+      expect(links.map(a => [a.textContent, a.getAttribute('href')])).toEqual([['Node.js', 'https://nodejs.org/']]);
+      expect(doc.querySelector('p')?.textContent).toBe('Keys like @, [, { are typed with AltGr.');
+    });
+
+    it('treats HTML written inside inline code as code, not as an open link', () => {
+      const doc = new DOMParser().parseFromString(
+        markdownToHtml('TipTap turns it into `<a href="http://CLAUDE.md">` here.\n\nLater paragraph.\n'),
+        'text/html',
+      );
+      expect(doc.querySelector('code')?.textContent).toBe('<a href="http://CLAUDE.md">');
+      expect(doc.querySelectorAll('a')).toHaveLength(0);
+    });
+
+    it('keeps a link whose text wraps onto the next line of the same paragraph', () => {
+      const doc = new DOMParser().parseFromString(markdownToHtml('See [the long\nlink text](https://example.com) here.'), 'text/html');
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://example.com');
+      expect(doc.querySelector('a')?.textContent).toMatch(/^the long\slink text$/);
     });
   });
 
