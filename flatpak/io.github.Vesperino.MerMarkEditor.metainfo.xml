@@ -100,6 +100,50 @@
   </screenshots>
 
   <releases>
+    <release version="0.8.6" date="2026-11-09">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.6</url>
+      <description>
+        <p>Saving from the visual editor keeps your Markdown as you wrote it.</p>
+        <ul>
+          <li>Changing a word changes only that line in the file</li>
+          <li>Fixes for links and code examples that could be damaged on save</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.8.5" date="2026-10-31">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.5</url>
+      <description>
+        <p>Clicks and selections in the Code view land on the right line when the editor is zoomed in.</p>
+      </description>
+    </release>
+    <release version="0.8.4" date="2026-10-26">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.4</url>
+      <description>
+        <p>Newer AI models, one-click CLI updates and synced scrolling in the split view.</p>
+        <ul>
+          <li>Newest Claude Code and Codex models show up in the AI panel without waiting for an app update</li>
+          <li>Code and preview panes scroll together again</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.8.3" date="2026-10-25">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.3</url>
+      <description>
+        <p>Security update: bundled components with reported issues were updated.</p>
+      </description>
+    </release>
+    <release version="0.8.2" date="2026-10-25">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.2</url>
+      <description>
+        <p>Page margins, a keyboard-friendly file tree and better printing.</p>
+        <ul>
+          <li>Editor margins: Small, Medium, Large or Pageless</li>
+          <li>Move through the workspace file tree with the keyboard</li>
+          <li>Print preview split into real pages, with headers, footers and page numbers on Linux</li>
+          <li>Fixes for quotes, auto-save in the code view and formulas in printouts</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.1" date="2026-10-12">
       <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.1</url>
       <description>
