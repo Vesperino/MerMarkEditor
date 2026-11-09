@@ -10,6 +10,9 @@ export interface Tab {
   hasChanges: boolean;
   scrollTop: number;
   originalMarkdown: string | null;
+  /** Latest source revision, including unsaved code edits. Visual serialization
+   * patches this source; originalMarkdown remains the saved disk/conflict base. */
+  sourceMarkdown?: string | null;
   /**
    * User-pinned flag. Pinned tabs are protected from "Close all" / "Close
    * others" actions and may be visually rendered differently. Persisted

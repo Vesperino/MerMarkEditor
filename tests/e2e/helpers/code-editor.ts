@@ -15,7 +15,7 @@ export async function openVisualView(page: Page): Promise<void> {
 export async function fillCodeEditor(page: Page, value: string): Promise<void> {
   const editor = codeEditor(page);
   await editor.click();
-  await page.keyboard.press('Control+a');
+  await page.keyboard.press('ControlOrMeta+a');
   const trailingNewlines = value.match(/\n+$/)?.[0].length ?? 0;
   const body = trailingNewlines > 0 ? value.slice(0, -trailingNewlines) : value;
   if (body) await page.keyboard.insertText(body);

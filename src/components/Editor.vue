@@ -2,6 +2,8 @@
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Link as TiptapLink } from "@tiptap/extension-link";
+import { isAllowedMarkdownLink } from '../utils/markdown-link';
+import { VISUAL_PARSE_OPTIONS, normalizeVisualHtml, registerVisualSchema, rememberEditorOutput } from '../utils/visual-html';
 
 // Extend Link with a custom name to avoid TipTap v3 duplicate warning
 const Link = TiptapLink.extend({
@@ -455,13 +457,16 @@ async function handlePastedImage(file: File): Promise<void> {
 }
 
 const editor = useEditor({
-  content: props.modelValue || `<p>${t.value.placeholder}</p>`,
+  content: normalizeVisualHtml(props.modelValue || `<p>${t.value.placeholder}</p>`),
+  parseOptions: VISUAL_PARSE_OPTIONS,
   editable: props.editable,
   // Resolve local image paths to blob URLs when the editor is first created.
   // This is essential because: (1) the watch on modelValue doesn't fire for the
   // initial value, and (2) onUpdate doesn't fire during initial content creation.
   // Without this, images wouldn't display after code→visual switch (Editor recreated).
   onCreate: ({ editor: ed }) => {
+    registerVisualSchema(ed.schema);
+    rememberEditorOutput(ed.getHTML());
     nextTick(() => {
       const editorEl = editorContainerRef.value?.querySelector('.ProseMirror');
       if (!editorEl) return;
@@ -492,6 +497,7 @@ const editor = useEditor({
     ListKeymap,
     Link.configure({
       openOnClick: false,
+      isAllowedUri: isAllowedMarkdownLink,
       HTMLAttributes: {
         class: "editor-link",
       },
@@ -537,6 +543,7 @@ const editor = useEditor({
   ],
   onUpdate: ({ editor: ed }) => {
     const html = ed.getHTML();
+    rememberEditorOutput(html);
     emit("update:modelValue", html);
     if (settingContentCount === 0) {
       emit("update:hasChanges", html !== lastSavedHtml);
@@ -623,8 +630,9 @@ watch(
   async (newValue) => {
     if (editor.value && newValue !== editor.value.getHTML()) {
       settingContentCount++;
-      editor.value.commands.setContent(newValue || "");
+      editor.value.commands.setContent(normalizeVisualHtml(newValue || ""), { parseOptions: VISUAL_PARSE_OPTIONS });
       lastSavedHtml = editor.value.getHTML();
+      rememberEditorOutput(lastSavedHtml);
       await nextTick();
       // Resolve local image paths to blob URLs.
       // Stop ProseMirror's DOM observer so blob URLs don't get synced into the model.

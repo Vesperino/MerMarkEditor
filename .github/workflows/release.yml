@@ -6,6 +6,7 @@ on:
       - master
     paths-ignore:
       - '**.md'
+      - 'flatpak/**'
       - '.github/**'
       - '!.github/workflows/release.yml'
 

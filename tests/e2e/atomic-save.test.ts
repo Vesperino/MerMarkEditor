@@ -20,7 +20,7 @@ async function saveAs(page: import('@playwright/test').Page, savePath: string) {
   await page.evaluate((path) => {
     (window as Record<string, unknown>).__mockDialogSavePath = path;
   }, savePath);
-  await page.keyboard.press('Control+Shift+s');
+  await page.keyboard.press('ControlOrMeta+Shift+s');
   await page.waitForTimeout(1_000);
 }
 
@@ -154,8 +154,8 @@ test.describe('Code View Save — no 0KB bug (#28)', () => {
     await saveAs(page, SAVE_PATH);
 
     const finalFs = getFs();
-    // Save normalizes trailing whitespace but otherwise keeps raw Markdown (no HTML conversion).
-    expect(finalFs[SAVE_PATH]).toBe(expectedContent.trimEnd());
+    // Raw saves retain trailing whitespace and the final newline.
+    expect(finalFs[SAVE_PATH]).toBe(expectedContent);
   });
 
   test('code view does not save empty file (regression test for 0KB bug)', async ({ page }) => {
@@ -222,7 +222,7 @@ test.describe('Save As', () => {
       (window as Record<string, unknown>).__mockDialogSavePath = null;
     });
 
-    await page.keyboard.press('Control+Shift+s');
+    await page.keyboard.press('ControlOrMeta+Shift+s');
     await page.waitForTimeout(500);
 
     const finalFs = getFs();

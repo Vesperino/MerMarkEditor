@@ -247,44 +247,30 @@ function findMatchingCloseTag(html: string, openTag: string, closeTag: string, s
 }
 
 export function processHtmlLists(html: string): string {
-  let result = html;
-
   // Process unordered lists with proper nesting support. Task lists are
   // ordinary <ul data-type="taskList"> elements — parseHtmlList detects the
   // per-item data-type="taskItem" and emits `- [ ]`, so they're handled by
   // the same balanced walk (no separate non-greedy pass that broke nesting).
-  let ulMatch;
-  const ulRegex = /<ul[^>]*>/gi;
-
-  while ((ulMatch = ulRegex.exec(result)) !== null) {
-    const startPos = ulMatch.index;
-    const contentStart = startPos + ulMatch[0].length;
-    const closePos = findMatchingCloseTag(result, '<ul', '</ul>', contentStart);
-
-    if (closePos !== -1) {
-      const content = result.slice(contentStart, closePos);
-      const replacement = '\n' + parseHtmlList(content, 0, false);
-      result = result.slice(0, startPos) + replacement + result.slice(closePos + 5);
-      ulRegex.lastIndex = 0;
+  const convert = (source: string, ordered: boolean) => {
+    const open = ordered ? '<ol' : '<ul';
+    const close = ordered ? '</ol>' : '</ul>';
+    const pattern = ordered ? /<ol[^>]*>/gi : /<ul[^>]*>/gi;
+    const parts: string[] = [];
+    let cursor = 0;
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      const contentStart = match.index + match[0].length;
+      const closePos = findMatchingCloseTag(source, open, close, contentStart);
+      if (closePos !== -1) {
+        parts.push(source.slice(cursor, match.index), '\n', parseHtmlList(source.slice(contentStart, closePos), 0, ordered));
+        cursor = closePos + close.length;
+        // Nested lists are consumed by parseHtmlList. Continue after this
+        // outer list rather than copying and rescanning the entire document.
+        pattern.lastIndex = cursor;
+      }
     }
-  }
-
-  // Process ordered lists with proper nesting support
-  let olMatch;
-  const olRegex = /<ol[^>]*>/gi;
-
-  while ((olMatch = olRegex.exec(result)) !== null) {
-    const startPos = olMatch.index;
-    const contentStart = startPos + olMatch[0].length;
-    const closePos = findMatchingCloseTag(result, '<ol', '</ol>', contentStart);
-
-    if (closePos !== -1) {
-      const content = result.slice(contentStart, closePos);
-      const replacement = '\n' + parseHtmlList(content, 0, true);
-      result = result.slice(0, startPos) + replacement + result.slice(closePos + 5);
-      olRegex.lastIndex = 0;
-    }
-  }
-
-  return result;
+    parts.push(source.slice(cursor));
+    return parts.join('');
+  };
+  return convert(convert(html, false), true);
 }

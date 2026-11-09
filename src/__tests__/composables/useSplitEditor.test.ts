@@ -4,6 +4,8 @@ import { nextTick } from 'vue';
 vi.mock('../../utils/markdown-converter', () => ({
   markdownToHtml: (md: string) => `<p>HTML:${md}</p>`,
   htmlToMarkdown: (html: string) => `MD:${html}`,
+  detectLineEnding: () => '\n',
+  applyLineEnding: (source: string) => source,
 }));
 
 const localStorageMock = (() => {

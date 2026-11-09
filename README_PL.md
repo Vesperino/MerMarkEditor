@@ -179,6 +179,7 @@ Pełna lista funkcji — łącznie z rotacją snapshotów, recovery tmp po zawie
 ### Edycja Markdown
 - Pełna obsługa **GitHub Flavored Markdown** (GFM)
 - **Edytor WYSIWYG** z podglądem na żywo
+- **Zapis bez przepisywania pliku**: zmiana słowa w trybie wizualnym zmienia na dysku tylko tę linię; zawijanie, puste linie, znaczniki list, odstępy i końce linii zostają bez zmian
 - **Kolorowanie składni** dla bloków kodu (50+ języków)
 - Tabele, listy zadań, cytaty i więcej
 - **Skróty klawiszowe** dla efektywnej edycji

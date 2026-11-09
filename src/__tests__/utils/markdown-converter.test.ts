@@ -322,6 +322,24 @@ describe('htmlToMarkdown', () => {
   });
 
   describe('lists', () => {
+    it('keeps text and item numbering across many adjacent lists', () => {
+      const html = '<ul><li><p>bullet</p></li></ul><p>between</p><ol><li><p>first</p></li><li><p>second</p></li></ol>';
+      expect(htmlToMarkdown(html.repeat(100))).toBe(Array(100).fill('- bullet\nbetween\n\n1. first\n2. second').join('\n\n'));
+    });
+
+    it.each([['ul', 'ol'], ['ol', 'ul']])('keeps all items when %s contains %s', (outer, inner) => {
+      const html = `<${outer}><li><p>parent</p><${inner}><li><p>child</p></li></${inner}></li><li><p>sibling</p></li></${outer}>`;
+      const result = htmlToMarkdown(html);
+      expect(result).toContain('parent');
+      expect(result).toContain('child');
+      expect(result).toContain('sibling');
+      expect(result).not.toMatch(/<\/?(?:ul|ol|li)\b/);
+    });
+
+    it('does not rescan decoded literal list tags as a second list', () => {
+      expect(htmlToMarkdown('<ul><li><p><code>&lt;ul&gt;literal&lt;/ul&gt;</code></p></li></ul>')).toBe('- `<ul>literal</ul>`');
+    });
+
     it('converts unordered lists', () => {
       const html = '<ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul>';
       const result = htmlToMarkdown(html);
@@ -491,6 +509,16 @@ describe('markdownToHtml', () => {
   });
 
   describe('mermaid', () => {
+    it('keeps a mermaid example inside another code block as code', () => {
+      const md = 'Type:\n\n~~~markdown\n```mermaid\ngraph LR\n  A --> B\n```\n~~~\n\nAfter.\n\n```mermaid\ngraph TD\n  C --> D\n```\n';
+      const html = markdownToHtml(md);
+      expect(html).not.toContain('MERMAID_BLOCK');
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      expect(doc.querySelector('pre code.language-markdown')?.textContent).toBe('```mermaid\ngraph LR\n  A --> B\n```\n');
+      expect(doc.querySelectorAll('[data-type="mermaid"]')).toHaveLength(1);
+      expect(htmlToMarkdown(html)).toContain('```mermaid\ngraph LR\n  A --> B\n```');
+    });
+
     it('converts mermaid blocks to div with data-code', () => {
       const md = '```mermaid\ngraph LR\n  A --> B\n```';
       const result = markdownToHtml(md);
@@ -545,6 +573,31 @@ describe('markdownToHtml', () => {
       expect(link.getAttributeNames().filter(name => name.startsWith('on'))).toEqual([]);
       expect(img.getAttribute('src')).toMatch(/^p\.png" onerror="/);
       expect(link.getAttribute('href')).toBe('u" onmouseover="z');
+    });
+
+    it('does not start a link at an unrelated literal bracket earlier in the document', () => {
+      const doc = new DOMParser().parseFromString(
+        markdownToHtml('Keys like @, [, { are typed with AltGr.\n\n## Setup\n\n- [Node.js](https://nodejs.org/) 18+\n'),
+        'text/html',
+      );
+      const links = Array.from(doc.querySelectorAll('a'));
+      expect(links.map(a => [a.textContent, a.getAttribute('href')])).toEqual([['Node.js', 'https://nodejs.org/']]);
+      expect(doc.querySelector('p')?.textContent).toBe('Keys like @, [, { are typed with AltGr.');
+    });
+
+    it('treats HTML written inside inline code as code, not as an open link', () => {
+      const doc = new DOMParser().parseFromString(
+        markdownToHtml('TipTap turns it into `<a href="http://CLAUDE.md">` here.\n\nLater paragraph.\n'),
+        'text/html',
+      );
+      expect(doc.querySelector('code')?.textContent).toBe('<a href="http://CLAUDE.md">');
+      expect(doc.querySelectorAll('a')).toHaveLength(0);
+    });
+
+    it('keeps a link whose text wraps onto the next line of the same paragraph', () => {
+      const doc = new DOMParser().parseFromString(markdownToHtml('See [the long\nlink text](https://example.com) here.'), 'text/html');
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://example.com');
+      expect(doc.querySelector('a')?.textContent).toMatch(/^the long\slink text$/);
     });
   });
 

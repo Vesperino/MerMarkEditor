@@ -199,6 +199,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 ### Markdown Editing
 - Full **GitHub Flavored Markdown** (GFM) support
 - **WYSIWYG editor** with live preview
+- **Source-preserving saves**: editing a word in visual mode changes only that line on disk; wrapping, blank lines, list markers, spacing and line endings stay as you wrote them
 - **Syntax highlighting** for code blocks (50+ languages)
 - Tables, task lists, blockquotes, and more
 - **Keyboard shortcuts** for efficient editing
