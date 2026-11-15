@@ -7,6 +7,8 @@ import { useWindowManager } from '../composables/useWindowManager';
 import { htmlToMarkdown } from '../utils/markdown-converter';
 import EditorPane from './EditorPane.vue';
 
+defineProps<{ showIndex: boolean }>();
+
 const {
   splitState,
   isSplitActive,
@@ -293,6 +295,7 @@ defineExpose({
       ref="leftPaneRef"
       :pane="leftPane"
       :is-active="activePaneId === 'left'"
+      :show-index="showIndex"
       :style="leftPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('left', tabId)"
       @close-tab="(tabId) => handleCloseTab('left', tabId)"
@@ -323,6 +326,7 @@ defineExpose({
       ref="rightPaneRef"
       :pane="rightPane"
       :is-active="activePaneId === 'right'"
+      :show-index="showIndex"
       :style="rightPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('right', tabId)"
       @close-tab="(tabId) => handleCloseTab('right', tabId)"

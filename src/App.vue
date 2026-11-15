@@ -2280,6 +2280,7 @@ useCommandShortcuts(appCommands);
         <!-- Split Container with Editor Panes -->
         <SplitContainer
           ref="splitContainerRef"
+          :show-index="!showTocPanel"
           @link-click="handleLinkClick"
           @close-tab-request="handleCloseTabRequest"
           @changes-updated="handleChangesUpdated"

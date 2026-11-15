@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { Pane } from '../types/pane';
 import TabBar from './TabBar.vue';
 import Editor from './Editor.vue';
+import TableOfContents from './TableOfContents.vue';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useWorkspace } from '../composables/useWorkspace';
 import { useI18n } from '../i18n';
@@ -13,6 +14,7 @@ const ws = useWorkspace();
 const props = defineProps<{
   pane: Pane;
   isActive: boolean;
+  showIndex: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,6 +34,7 @@ const emit = defineEmits<{
 const isFileDragOver = computed(() => ws.dropTargetPaneId.value === props.pane.id);
 
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
+const hasIndexHeadings = ref(false);
 const { isDragging, draggedTab, setDropZone, clearDropZone } = useTabDrag();
 
 const isEmpty = computed(() => props.pane.tabs.length === 0);
@@ -134,7 +137,10 @@ defineExpose({
     />
 
     <!-- Editor content or empty state -->
-    <div class="editor-wrapper">
+    <div
+      class="editor-wrapper"
+      :class="{ 'with-editor-index': showIndex && activeTab && hasIndexHeadings }"
+    >
       <Editor
         v-if="!isEmpty"
         ref="editorRef"
@@ -145,8 +151,16 @@ defineExpose({
         @link-click="handleLinkClick"
       />
 
+      <TableOfContents
+        v-if="showIndex && activeTab && editorRef?.editor"
+        :key="activeTab.id"
+        floating
+        :editor-instance="editorRef.editor"
+        @headings-change="hasIndexHeadings = $event > 0"
+      />
+
       <!-- Empty state - shown when no tabs -->
-      <div v-else class="empty-pane">
+      <div v-if="isEmpty" class="empty-pane">
         <div class="empty-icon">📄</div>
         <div class="empty-title">{{ t.dragTabHere }}</div>
         <div class="empty-subtitle">{{ t.orOpenFileInPane }}</div>
@@ -188,11 +202,28 @@ defineExpose({
 }
 
 .editor-wrapper {
+  --editor-index-width: 36px;
+  --editor-index-inset: 14px;
+  container-type: inline-size;
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+@media screen {
+  @container (width >= 200px) {
+    .editor-wrapper.with-editor-index > :deep(.editor-container) {
+      margin-right: calc(var(--editor-index-width) + var(--editor-index-inset));
+    }
+  }
+
+  @container (width < 200px) {
+    .editor-wrapper > :deep(.editor-index) {
+      display: none;
+    }
+  }
 }
 
 .empty-pane {
