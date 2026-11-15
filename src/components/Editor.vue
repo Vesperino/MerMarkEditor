@@ -68,7 +68,7 @@ const IndentAwareCodeBlock = CodeBlockLowlight.extend({
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import { common, createLowlight } from "lowlight";
-import { watch, ref, nextTick, computed, watchEffect } from "vue";
+import { watch, ref, nextTick, computed, watchEffect, inject } from "vue";
 import { addTableBordersToClipboard } from "../utils/table-copy";
 import { Extension, Node, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { useEditorZoom } from "../composables/useEditorZoom";
@@ -80,6 +80,7 @@ import { useLineNumbers } from "../composables/useLineNumbers";
 import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
 import { importImageBytes } from "../services/imageImport";
 import TableContextMenu from "./TableContextMenu.vue";
+import { editorSelectionMenuKey } from "./EditorSelectionMenu.vue";
 import ImagePreview from "./ImagePreview.vue";
 import EditorGutter from "./EditorGutter.vue";
 
@@ -698,8 +699,10 @@ const handleEditorClick = (event: MouseEvent) => {
 
 };
 
-// Handle right-click context menu on tables
+const openSelectionMenu = inject(editorSelectionMenuKey, null);
 const handleContextMenu = (event: MouseEvent) => {
+  openSelectionMenu?.(event);
+  if (event.defaultPrevented) return;
   const target = event.target as HTMLElement;
   const tableCell = target.closest('td, th');
   if (!tableCell || !editor.value) return;
