@@ -554,6 +554,8 @@ export interface Translations {
   addWorkspace: string;
   expandAllSections: string;
   collapseAllSections: string;
+  expandAllFolders: string;
+  collapseAllFolders: string;
   workspaceSortByName: string;
   workspaceSortByModified: string;
   workspaceSortMenu: string;

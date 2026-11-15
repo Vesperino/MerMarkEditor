@@ -45,7 +45,7 @@ function resetWorkspaceState() {
   settings.value.workspace.recentRoots = [];
   settings.value.workspace.sidebarVisible = true;
   const ws = useWorkspace();
-  ws.expandedFolders.value = new Set();
+  ws.expandedFoldersByRoot.value.clear();
   ws.collapsedWorkspaceIds.value = new Set();
   ws.highlightedPath.value = null;
   ws.revealSignal.value = null;
