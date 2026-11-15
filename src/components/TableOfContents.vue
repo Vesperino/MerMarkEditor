@@ -398,19 +398,20 @@ const detachScrollSpy = () => {
 };
 
 const attachScrollSpy = () => {
-  detachScrollSpy();
-  const dom = editor?.value?.view.dom as HTMLElement | undefined;
-  scrollContainer = (dom?.closest('.editor-container') as HTMLElement | null) ?? null;
-  if (props.floating) editorPage = dom?.closest<HTMLElement>('.editor-content') ?? null;
-  scrollContainer?.addEventListener('scroll', onContainerScroll, { passive: true });
+  const dom = editor.value?.view.dom;
+  const container = dom?.closest<HTMLElement>('.editor-container');
+  if (!dom || !container) return false;
+
+  scrollContainer = container;
+  if (props.floating) editorPage = dom.closest<HTMLElement>('.editor-content');
+  container.addEventListener('scroll', onContainerScroll, { passive: true });
   window.addEventListener('resize', onEditorResize);
-  if (dom && scrollContainer) {
-    documentResizeObserver = new ResizeObserver(onEditorResize);
-    documentResizeObserver.observe(dom);
-    documentResizeObserver.observe(scrollContainer);
-    if (editorPage) documentResizeObserver.observe(editorPage, { box: 'border-box' });
-  }
+  documentResizeObserver = new ResizeObserver(onEditorResize);
+  documentResizeObserver.observe(dom);
+  documentResizeObserver.observe(container);
+  if (editorPage) documentResizeObserver.observe(editorPage, { box: 'border-box' });
   onEditorResize();
+  return true;
 };
 
 if (props.floating) watch(zoomScale, onEditorResize, { flush: 'post' });
@@ -423,24 +424,33 @@ const onEditorUpdate = () => {
   onContainerScroll();
 };
 
-// Watch for editor instance changes
 watch(
-  () => editor?.value,
-  (newEditor, oldEditor) => {
-    if (oldEditor) {
-      oldEditor.off('update', onEditorUpdate);
-      detachScrollSpy();
-    }
-    if (props.markdown !== null) return;
+  [editor, indexRoot],
+  ([currentEditor, root], _, onCleanup) => {
+    if (!root || props.markdown !== null) return;
     extractHeadings();
-    if (newEditor) {
-      newEditor.on('update', onEditorUpdate);
-      nextTick(() => {
-        if (indexRoot.value && editor.value === newEditor) attachScrollSpy();
-      });
-    }
+    if (!currentEditor) return;
+
+    const attachAfterCreate = () => {
+      currentEditor.off('create', attachAfterCreate);
+      if (editor.value === currentEditor) attachScrollSpy();
+    };
+    let disposed = false;
+    currentEditor.on('update', onEditorUpdate);
+    nextTick(() => {
+      // TipTap's EditorContent can still be moving its DOM into the pane.
+      if (!disposed && editor.value === currentEditor && !attachScrollSpy()) {
+        currentEditor.on('create', attachAfterCreate);
+      }
+    });
+    onCleanup(() => {
+      disposed = true;
+      currentEditor.off('create', attachAfterCreate);
+      currentEditor.off('update', onEditorUpdate);
+      detachScrollSpy();
+    });
   },
-  { immediate: true }
+  { flush: 'post' },
 );
 
 watch(
@@ -464,10 +474,6 @@ watch(tocContentRef, (content, _, onCleanup) => {
 onUnmounted(() => {
   clearTimeout(hoverTimer);
   removeOpenListeners();
-  if (editor?.value) {
-    editor.value.off('update', onEditorUpdate);
-  }
-  detachScrollSpy();
   tocWorker?.terminate();
   tocWorker = null;
 });

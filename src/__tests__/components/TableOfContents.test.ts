@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { nextTick, shallowRef } from 'vue';
-import { Editor } from '@tiptap/vue-3';
+import { defineComponent, h, nextTick, ref, shallowRef } from 'vue';
+import { Editor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import { TableKit } from '@tiptap/extension-table';
 import TableOfContents from '../../components/TableOfContents.vue';
@@ -206,8 +206,7 @@ describe('floating document index', () => {
     wrapper = mount(TableOfContents, { props: { floating: true, editorInstance: editor }, attachTo: document.body });
     const rail = wrapper.get<HTMLElement>('.editor-index').element;
     vi.spyOn(rail.parentElement!, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, 800, 600));
-    await nextTick();
-    await nextTick();
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(observe).toHaveBeenCalledWith(container);
     expect(observe).toHaveBeenCalledWith(page, { box: 'border-box' });
@@ -225,6 +224,41 @@ describe('floating document index', () => {
     notifyResize();
     await nextTick();
     expect(rail.style.getPropertyValue('--editor-index-inset')).toBe('14px');
+  });
+
+  it('attaches to an initially detached TipTap editor and tracks headings added after mount', async () => {
+    const observe = vi.fn();
+    vi.stubGlobal('ResizeObserver', class {
+      observe = observe;
+      disconnect() {}
+    });
+    const editor = new Editor({ extensions: [StarterKit], content: '<p></p>' });
+    editors.push(editor);
+    const contentReady = ref(false);
+    const Pane = defineComponent({
+      setup: () => () => h('div', [
+        h('div', { class: 'editor-container' }, contentReady.value
+          ? [h(EditorContent, { class: 'editor-content', editor })]
+          : []),
+        h(TableOfContents, { floating: true, editorInstance: editor }),
+      ]),
+    });
+    wrapper = mount(Pane, { attachTo: document.body });
+    await nextTick();
+    await nextTick();
+    expect(editor.view.dom.isConnected).toBe(false);
+
+    contentReady.value = true;
+    await nextTick();
+    await nextTick();
+    expect(editor.view.dom.isConnected).toBe(true);
+    await vi.advanceTimersByTimeAsync(32);
+    expect(observe).toHaveBeenCalledWith(wrapper.get('.editor-container').element);
+    expect(observe).toHaveBeenCalledWith(wrapper.get('.editor-content').element, { box: 'border-box' });
+
+    editor.commands.setContent('<h1>Pasted section</h1><p>Body</p>');
+    await vi.advanceTimersByTimeAsync(32);
+    expect(wrapper.find('.index-mark.active').exists()).toBe(true);
   });
 
   it('tracks the visible section as its own editor scrolls', async () => {

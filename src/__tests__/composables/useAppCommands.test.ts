@@ -70,6 +70,36 @@ describe('command dispatch', () => {
     expect(commands.enabled('show-settings')).toBe(true);
     wrapper.unmount(); first.destroy(); second.destroy(); layout.resetToDefaults();
   });
+
+  it('uses outline availability even when the active editor has no TipTap instance', async () => {
+    const state = reactive({ ...context(), outlineAvailable: true });
+    const toggleOutline = vi.fn(() => { state.toc = !state.toc; });
+    let commands!: ReturnType<typeof useAppCommands>;
+    const wrapper = mount(defineComponent({ setup() {
+      commands = useAppCommands({
+        editor: shallowRef(null),
+        context: () => state,
+        actions: { 'toggle-toc': toggleOutline },
+      });
+      return () => h('div');
+    } }));
+    try {
+      expect(commands.enabled('toggle-toc')).toBe(true);
+      await commands.execute('toggle-toc');
+      expect(commands.all.value.get('toggle-toc')?.checked).toBe(true);
+      state.modal = true;
+      expect(commands.enabled('toggle-toc')).toBe(false);
+      await commands.execute('toggle-toc');
+      state.modal = false;
+      state.outlineAvailable = false;
+      expect(commands.enabled('toggle-toc')).toBe(false);
+      await commands.execute('toggle-toc');
+      expect(toggleOutline).toHaveBeenCalledOnce();
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
   it('sets heading levels 1–6 without toggling them off and respects focus/mode restrictions', async () => {
     const editor = new Editor({ extensions: [StarterKit], content: '<p>Heading text</p>' });
     const state = reactive(context());

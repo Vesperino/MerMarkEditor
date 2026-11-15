@@ -255,6 +255,9 @@ export interface Translations {
   showLineNumbers: string;
   expandTabs: string;
   appearance: string;
+  documentOutline: string;
+  outlineStyleHover: string;
+  outlineStylePanel: string;
   editor: string;
   code: string;
   general: string;
