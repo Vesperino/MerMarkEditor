@@ -13,6 +13,7 @@ function makeEditor(content: string) {
   const container = document.createElement('div');
   container.className = 'editor-container';
   const element = document.createElement('div');
+  element.className = 'editor-content';
   container.append(element);
   document.body.append(container);
   container.scrollTo = vi.fn();
@@ -177,10 +178,53 @@ describe('floating document index', () => {
     await nextTick();
     expect(wrapper.find('.editor-index').isVisible()).toBe(true);
     expect(wrapper.findAll('.index-mark')).toHaveLength(18);
-    expect(wrapper.emitted('headings-change')).toEqual([[0], [100]]);
     expect(wrapper.findAll('.toc-item')).toHaveLength(0);
     await wrapper.find('.index-trigger').trigger('click');
     expect(wrapper.findAll('.toc-item')).toHaveLength(100);
+  });
+
+  it('positions the rail beside the rendered page and clamps it inside the scrollbar', async () => {
+    const observe = vi.fn();
+    let notifyResize = () => {};
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { notifyResize = callback; }
+      observe = observe;
+      disconnect() {}
+    });
+
+    const editor = makeEditor('<h1>Overview</h1>');
+    const container = editor.view.dom.closest<HTMLElement>('.editor-container')!;
+    const page = editor.view.dom.closest<HTMLElement>('.editor-content')!;
+    let clientWidth = 790;
+    Object.defineProperties(container, {
+      clientLeft: { value: 2 },
+      clientWidth: { get: () => clientWidth },
+    });
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, 800, 600));
+    const pageRect = vi.spyOn(page, 'getBoundingClientRect').mockReturnValue(new DOMRect(360, 20, 280, 580));
+
+    wrapper = mount(TableOfContents, { props: { floating: true, editorInstance: editor }, attachTo: document.body });
+    const rail = wrapper.get<HTMLElement>('.editor-index').element;
+    vi.spyOn(rail.parentElement!, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, 800, 600));
+    await nextTick();
+    await nextTick();
+
+    expect(observe).toHaveBeenCalledWith(container);
+    expect(observe).toHaveBeenCalledWith(page, { box: 'border-box' });
+    // The rail starts 8 px past the page edge, with the remaining space to its right.
+    expect(rail.style.getPropertyValue('--editor-index-inset')).toBe('216px');
+
+    pageRect.mockReturnValue(new DOMRect(102, 0, 790, 600));
+    notifyResize();
+    await nextTick();
+    // Keep 14 px clear inside the usable viewport, before the 8 px classic track.
+    expect(rail.style.getPropertyValue('--editor-index-inset')).toBe('22px');
+
+    clientWidth = 798;
+    pageRect.mockReturnValue(new DOMRect(102, 0, 798, 600));
+    notifyResize();
+    await nextTick();
+    expect(rail.style.getPropertyValue('--editor-index-inset')).toBe('14px');
   });
 
   it('tracks the visible section as its own editor scrolls', async () => {

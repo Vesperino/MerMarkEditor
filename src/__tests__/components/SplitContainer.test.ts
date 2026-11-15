@@ -35,15 +35,13 @@ describe('editor pane index', () => {
     expect(left.get('.toc-item').attributes('title')).toBe('Left document');
     await right.get('.index-trigger').trigger('click');
     expect(right.get('.toc-item').attributes('title')).toBe('Right document');
-    expect(wrapper.findAll('.with-editor-index')).toHaveLength(2);
 
     await wrapper.setProps({ showIndex: false });
     expect(wrapper.findAll('.editor-index')).toHaveLength(0);
-    expect(wrapper.findAll('.with-editor-index')).toHaveLength(0);
     expect(wrapper.findAll('.editor-container')).toHaveLength(2);
   });
 
-  it('resets the flyout and updates the gutter when switching tabs', async () => {
+  it('resets the flyout on tab switches and hides it in headingless documents', async () => {
     const headingless = splitState.value.panes[0].activeTabId;
     const first = createTab('left', null, '<h1>First document</h1>');
     const second = createTab('left', null, '<h1>Second document</h1>');
@@ -64,7 +62,6 @@ describe('editor pane index', () => {
 
     switchTab('left', headingless);
     await nextTick();
-    expect(wrapper.find('.with-editor-index').exists()).toBe(false);
     expect(wrapper.find('.index-trigger').isVisible()).toBe(false);
   });
 });

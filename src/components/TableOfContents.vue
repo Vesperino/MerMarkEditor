@@ -5,9 +5,15 @@ import { useI18n } from '../i18n';
 import { SCROLL_OFFSET } from '../constants';
 import { targetScrollTop } from '../utils/scroll';
 import { pickActiveHeading } from '../composables/useScrollSpy';
+import { useEditorZoom } from '../composables/useEditorZoom';
 import type { MarkdownTocItem } from '../utils/markdown-toc';
 
+const INDEX_WIDTH = 36;
+const INDEX_SCROLLBAR_INSET = 14;
+const INDEX_PAGE_GAP = 8;
+
 const { t } = useI18n();
+const { zoomScale } = useEditorZoom();
 const injectedEditor = inject<Ref<Editor | null>>('editor', ref(null));
 const props = withDefaults(defineProps<{
   markdown?: string | null;
@@ -18,6 +24,7 @@ const editor = computed(() => props.editorInstance === undefined ? injectedEdito
 const panelId = useId();
 const indexRoot = ref<HTMLElement | null>(null);
 const triggerRef = ref<HTMLButtonElement | null>(null);
+const indexInset = ref(INDEX_SCROLLBAR_INSET);
 const isOpen = ref(false);
 let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -105,13 +112,11 @@ interface TocItem {
 
 const emit = defineEmits<{
   close: [];
-  'headings-change': [count: number];
   'markdown-heading-click': [offset: number];
 }>();
 
 const headings = shallowRef<TocItem[]>([]);
 let hasTableHeadings = false;
-watch(() => headings.value.length, count => emit('headings-change', count), { immediate: true });
 const activeHeadingId = ref<string | null>(null);
 const headingIndices = computed(() => new Map(headings.value.map((item, index) => [item.id, index])));
 // Keep the resting rail quiet even for documents with hundreds of sections.
@@ -291,6 +296,7 @@ const scrollToHeading = (item: TocItem) => {
 
 // ── Scrollspy: highlight the heading of the current section while scrolling ──
 let scrollContainer: HTMLElement | null = null;
+let editorPage: HTMLElement | null = null;
 let rafId = 0;
 let documentResizeObserver: ResizeObserver | null = null;
 const headingElements = new Map<number, HTMLElement>();
@@ -364,12 +370,26 @@ const onContainerScroll = () => {
   });
 };
 
+const onEditorResize = () => {
+  const pane = indexRoot.value?.parentElement;
+  if (editorPage && scrollContainer?.clientWidth && pane) {
+    const viewportRight = scrollContainer.getBoundingClientRect().left
+      + scrollContainer.clientLeft + scrollContainer.clientWidth;
+    const pageRight = editorPage.getBoundingClientRect().right;
+    // clientWidth excludes classic scrollbars. Leave room for an overlay track too.
+    const indexRight = Math.min(viewportRight - INDEX_SCROLLBAR_INSET, pageRight + INDEX_PAGE_GAP + INDEX_WIDTH);
+    indexInset.value = pane.getBoundingClientRect().right - indexRight;
+  }
+  onContainerScroll();
+};
+
 const detachScrollSpy = () => {
   scrollContainer?.removeEventListener('scroll', onContainerScroll);
-  window.removeEventListener('resize', onContainerScroll);
+  window.removeEventListener('resize', onEditorResize);
   documentResizeObserver?.disconnect();
   documentResizeObserver = null;
   scrollContainer = null;
+  editorPage = null;
   headingElements.clear();
   if (rafId) {
     cancelAnimationFrame(rafId);
@@ -381,15 +401,19 @@ const attachScrollSpy = () => {
   detachScrollSpy();
   const dom = editor?.value?.view.dom as HTMLElement | undefined;
   scrollContainer = (dom?.closest('.editor-container') as HTMLElement | null) ?? null;
+  if (props.floating) editorPage = dom?.closest<HTMLElement>('.editor-content') ?? null;
   scrollContainer?.addEventListener('scroll', onContainerScroll, { passive: true });
-  window.addEventListener('resize', onContainerScroll);
+  window.addEventListener('resize', onEditorResize);
   if (dom && scrollContainer) {
-    documentResizeObserver = new ResizeObserver(onContainerScroll);
+    documentResizeObserver = new ResizeObserver(onEditorResize);
     documentResizeObserver.observe(dom);
     documentResizeObserver.observe(scrollContainer);
+    if (editorPage) documentResizeObserver.observe(editorPage, { box: 'border-box' });
   }
-  onContainerScroll();
+  onEditorResize();
 };
+
+if (props.floating) watch(zoomScale, onEditorResize, { flush: 'post' });
 
 // Update headings on editor changes
 const onEditorUpdate = () => {
@@ -454,6 +478,7 @@ onUnmounted(() => {
     ref="indexRoot"
     v-show="!floating || headings.length > 0"
     :class="floating ? 'editor-index' : 'toc-sidebar'"
+    :style="floating ? { '--editor-index-inset': `${indexInset}px`, '--editor-index-width': `${INDEX_WIDTH}px` } : undefined"
     @pointerenter="floating && onPointerEnter($event)"
     @pointerleave="floating && onPointerLeave($event)"
     @focusout="floating && onFocusOut($event)"
@@ -528,9 +553,9 @@ onUnmounted(() => {
 .editor-index {
   position: absolute;
   top: 24px;
-  right: var(--editor-index-inset, 14px);
+  right: var(--editor-index-inset);
   bottom: 24px;
-  width: var(--editor-index-width, 36px);
+  width: var(--editor-index-width);
   z-index: 20;
   pointer-events: none;
 }
@@ -566,10 +591,10 @@ onUnmounted(() => {
 .toc-panel.index-flyout {
   position: absolute;
   top: 0;
-  right: var(--editor-index-width, 36px);
+  right: var(--editor-index-width);
   width: 264px;
   min-width: 0;
-  max-width: min(calc(100vw - 90px), calc(100cqw - 70px));
+  max-width: min(calc(100vw - 90px), calc(100cqw - var(--editor-index-inset) - var(--editor-index-width) - 20px));
   height: auto;
   max-height: min(480px, 100%);
   border: 1px solid var(--border-primary);

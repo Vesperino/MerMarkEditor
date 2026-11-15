@@ -34,7 +34,6 @@ const emit = defineEmits<{
 const isFileDragOver = computed(() => ws.dropTargetPaneId.value === props.pane.id);
 
 const editorRef = ref<InstanceType<typeof Editor> | null>(null);
-const hasIndexHeadings = ref(false);
 const { isDragging, draggedTab, setDropZone, clearDropZone } = useTabDrag();
 
 const isEmpty = computed(() => props.pane.tabs.length === 0);
@@ -137,10 +136,7 @@ defineExpose({
     />
 
     <!-- Editor content or empty state -->
-    <div
-      class="editor-wrapper"
-      :class="{ 'with-editor-index': showIndex && activeTab && hasIndexHeadings }"
-    >
+    <div class="editor-wrapper">
       <Editor
         v-if="!isEmpty"
         ref="editorRef"
@@ -156,7 +152,6 @@ defineExpose({
         :key="activeTab.id"
         floating
         :editor-instance="editorRef.editor"
-        @headings-change="hasIndexHeadings = $event > 0"
       />
 
       <!-- Empty state - shown when no tabs -->
@@ -202,8 +197,6 @@ defineExpose({
 }
 
 .editor-wrapper {
-  --editor-index-width: 36px;
-  --editor-index-inset: 14px;
   container-type: inline-size;
   position: relative;
   flex: 1;
@@ -213,12 +206,6 @@ defineExpose({
 }
 
 @media screen {
-  @container (width >= 200px) {
-    .editor-wrapper.with-editor-index > :deep(.editor-container) {
-      margin-right: calc(var(--editor-index-width) + var(--editor-index-inset));
-    }
-  }
-
   @container (width < 200px) {
     .editor-wrapper > :deep(.editor-index) {
       display: none;
