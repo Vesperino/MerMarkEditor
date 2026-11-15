@@ -31,7 +31,7 @@ function resetWorkspaceState() {
   // Module-level tree-view state must also be reset between tests since
   // `useWorkspace` is a singleton.
   const ws = useWorkspace();
-  ws.expandedFolders.value = new Set();
+  ws.expandedFoldersByRoot.value.clear();
   ws.collapsedWorkspaceIds.value = new Set();
   ws.highlightedPath.value = null;
   ws.revealSignal.value = null;
@@ -290,11 +290,11 @@ describe('useWorkspace', () => {
   describe('tree view state', () => {
     it('toggleFolder flips expanded state', () => {
       const ws = useWorkspace();
-      expect(ws.isFolderExpanded('/a/b')).toBe(false);
-      ws.toggleFolder('/a/b');
-      expect(ws.isFolderExpanded('/a/b')).toBe(true);
-      ws.toggleFolder('/a/b');
-      expect(ws.isFolderExpanded('/a/b')).toBe(false);
+      expect(ws.isFolderExpanded('/a', '/a/b')).toBe(false);
+      ws.toggleFolder('/a', '/a/b');
+      expect(ws.isFolderExpanded('/a', '/a/b')).toBe(true);
+      ws.toggleFolder('/a', '/a/b');
+      expect(ws.isFolderExpanded('/a', '/a/b')).toBe(false);
     });
 
     it('expandAncestorsOf adds parents (not the file itself or root)', async () => {
@@ -303,12 +303,12 @@ describe('useWorkspace', () => {
       await ws.openWorkspace('/r');
 
       ws.expandAncestorsOf('/r/sub/deep/file.md');
-      expect(ws.isFolderExpanded('/r/sub')).toBe(true);
-      expect(ws.isFolderExpanded('/r/sub/deep')).toBe(true);
+      expect(ws.isFolderExpanded('/r', '/r/sub')).toBe(true);
+      expect(ws.isFolderExpanded('/r', '/r/sub/deep')).toBe(true);
       // The root is implicitly expanded (rendered as `isRoot`); should NOT be added.
-      expect(ws.isFolderExpanded('/r')).toBe(false);
+      expect(ws.isFolderExpanded('/r', '/r')).toBe(false);
       // The file itself is not a folder.
-      expect(ws.isFolderExpanded('/r/sub/deep/file.md')).toBe(false);
+      expect(ws.isFolderExpanded('/r', '/r/sub/deep/file.md')).toBe(false);
     });
 
     it('setHighlightedPath stores path and expands ancestors', async () => {
@@ -318,7 +318,7 @@ describe('useWorkspace', () => {
 
       ws.setHighlightedPath('/r/sub/file.md');
       expect(ws.highlightedPath.value).toBe('/r/sub/file.md');
-      expect(ws.isFolderExpanded('/r/sub')).toBe(true);
+      expect(ws.isFolderExpanded('/r', '/r/sub')).toBe(true);
     });
 
     it('setHighlightedPath(null) clears the highlight', () => {

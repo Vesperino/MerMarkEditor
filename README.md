@@ -223,6 +223,7 @@ The full feature list — including snapshot rotation, tmp-recovery on crashed s
 ### Workspaces
 - **Multi-root sidebar** — open one folder or many; each gets a collapsible section with its own file tree
 - **File tree** — expand / collapse folders, open files in tabs, OS-level reveal, rename, delete, new file / new folder
+- **Bulk folder actions** — right-click a workspace header and choose **Collapse all folders** or **Expand all folders**. Option-click on macOS or Alt-click on Windows/Linux to toggle a folder and its descendants.
 - **AI sees the workspace** — workspace root is added to the AI preamble as a read-only scope automatically
 - **Quick switcher** (`Ctrl+Shift+E`) — workspaces, files, full-text grep across the active workspace
 - **Drag to reorder** workspaces; expanded folders persist between sessions
