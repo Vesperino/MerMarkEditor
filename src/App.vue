@@ -1223,12 +1223,6 @@ const compareTabs = () => {
   openComparePreview(leftMd, rightMd, leftTab.fileName, rightTab.fileName);
 };
 
-// ============ Table of Contents ============
-const showTocPanel = ref(false);
-const toggleTocPanel = () => {
-  showTocPanel.value = !showTocPanel.value;
-};
-
 // ============ Keyboard Shortcuts Modal ============
 const showShortcutsModal = ref(false);
 
@@ -1445,6 +1439,25 @@ const {
 
 // ============ Settings ============
 const { settings } = useSettings();
+
+// ============ Table of Contents ============
+const outlineStyle = computed(() => settings.value.outlineStyle);
+const showOutline = ref(true);
+const outlineAvailable = computed(() => {
+  if (codeView.value || splitEditorActive.value) return false;
+  if (outlineStyle.value === 'panel') return !!activeTab.value.id;
+  return !largeFileVisualMode.value && splitState.value.panes.some(pane =>
+    pane.tabs.some(tab => tab.id === pane.activeTabId)
+  );
+});
+const outlineActive = computed(() => outlineAvailable.value && showOutline.value);
+const showTocPanel = computed(() => outlineActive.value && outlineStyle.value === 'panel');
+const showHoverOutline = computed(() => outlineActive.value && outlineStyle.value === 'hover');
+watch(outlineStyle, () => { showOutline.value = true; });
+
+const toggleOutline = () => {
+  showOutline.value = !showOutline.value;
+};
 
 // ============ Workspace ============
 const workspace = useWorkspace();
@@ -2075,7 +2088,7 @@ const appCommands = useAppCommands({
   context: () => ({
     codeView: codeView.value, splitEditor: splitEditorActive.value, splitView: isSplitActive.value,
     hasDocument: !!activeTab.value, canDiff: canShowDiff.value, canCompare: canCompareTabs.value,
-    diff: showDiffPreview.value, toc: showTocPanel.value, ai: aiPanelOpen.value,
+    diff: showDiffPreview.value, toc: outlineActive.value, outlineAvailable: outlineAvailable.value, ai: aiPanelOpen.value,
     marp: isMarp.value, marpPreview: showMarpPreview.value,
     modal: !!pickerMode.value || showWorkspaceQuickSwitcher.value || !!tmpRecovery.value || showSettingsModal.value || showShortcutsModal.value || showNewFileModal.value ||
       showPdfDialog.value || showMarpDialog.value || showSaveConfirmDialog.value || showTabCloseDialog.value ||
@@ -2095,7 +2108,7 @@ const appCommands = useAppCommands({
     'quick-open': () => openWorkspacePicker('files'), 'workspace-search': () => openWorkspacePicker('content'),
     'next-tab': () => switchTabByOffset(1), 'previous-tab': () => switchTabByOffset(-1), 'select-tab': switchTabByIndex, 'show-settings': () => openSettings(),
     'customize-layout': () => openSettings(true), 'restore-layout': () => openSettings(true, true),
-    'toggle-toc': toggleTocPanel, 'toggle-code-view': toggleCodeView, 'toggle-split-view': toggleSplit,
+    'toggle-toc': toggleOutline, 'toggle-code-view': toggleCodeView, 'toggle-split-view': toggleSplit,
     'toggle-split-editor': toggleSplitEditor, 'toggle-diff': toggleDiffPreview, 'compare-tabs': compareTabs,
     'ai-toggle': toggleAiPanel, 'workspace-switcher': () => openWorkspacePicker('all'),
     'show-shortcuts': () => { showShortcutsModal.value = !showShortcutsModal.value; },
@@ -2120,7 +2133,7 @@ useCommandShortcuts(appCommands);
       :diff-active="showDiffPreview"
       :can-show-diff="canShowDiff"
       :can-compare-tabs="canCompareTabs"
-      :toc-active="showTocPanel"
+      :toc-active="outlineActive"
       :ai-active="aiPanelOpen"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
@@ -2139,7 +2152,7 @@ useCommandShortcuts(appCommands);
       @compare-tabs="compareTabs"
       @show-shortcuts="showShortcutsModal = true"
       @show-settings="showSettingsModal = true"
-      @toggle-toc="toggleTocPanel"
+      @toggle-toc="toggleOutline"
       @toggle-ai="toggleAiPanel"
     />
 
@@ -2187,7 +2200,7 @@ useCommandShortcuts(appCommands);
         :diff-active="showDiffPreview"
         :can-show-diff="canShowDiff"
         :can-compare-tabs="canCompareTabs"
-        :toc-active="showTocPanel"
+        :toc-active="outlineActive"
         :ai-active="aiPanelOpen"
         @new-file="newFile"
         @open-file="openFileWithCrossWindowDialog"
@@ -2205,7 +2218,7 @@ useCommandShortcuts(appCommands);
         @compare-tabs="compareTabs"
         @show-shortcuts="showShortcutsModal = true"
         @show-settings="showSettingsModal = true"
-        @toggle-toc="toggleTocPanel"
+        @toggle-toc="toggleOutline"
         @toggle-ai="toggleAiPanel"
       />
 
@@ -2251,7 +2264,7 @@ useCommandShortcuts(appCommands);
             v-if="showTocPanel"
             :markdown="activeTab?.pendingMarkdown ?? ''"
             @markdown-heading-click="(offset: number) => lazyMarkdownEditorRef?.scrollToMarkdownOffset(offset)"
-            @close="showTocPanel = false"
+            @close="showOutline = false"
           />
           <LazyMarkdownPreview
             ref="lazyMarkdownEditorRef"
@@ -2274,12 +2287,13 @@ useCommandShortcuts(appCommands);
         <!-- Table of Contents Panel -->
         <TableOfContents
           v-if="showTocPanel"
-          @close="showTocPanel = false"
+          @close="showOutline = false"
         />
 
         <!-- Split Container with Editor Panes -->
         <SplitContainer
           ref="splitContainerRef"
+          :show-index="showHoverOutline"
           @link-click="handleLinkClick"
           @close-tab-request="handleCloseTabRequest"
           @changes-updated="handleChangesUpdated"
@@ -2327,7 +2341,7 @@ useCommandShortcuts(appCommands);
       :diff-active="showDiffPreview"
       :can-show-diff="canShowDiff"
       :can-compare-tabs="canCompareTabs"
-      :toc-active="showTocPanel"
+      :toc-active="outlineActive"
       :ai-active="aiPanelOpen"
       @new-file="newFile"
       @open-file="openFileWithCrossWindowDialog"
@@ -2346,7 +2360,7 @@ useCommandShortcuts(appCommands);
       @compare-tabs="compareTabs"
       @show-shortcuts="showShortcutsModal = true"
       @show-settings="showSettingsModal = true"
-      @toggle-toc="toggleTocPanel"
+      @toggle-toc="toggleOutline"
       @toggle-ai="toggleAiPanel"
     />
 

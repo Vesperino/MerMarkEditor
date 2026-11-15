@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useSettings, OLLAMA_DEFAULT_NUM_CTX, OLLAMA_MIN_NUM_CTX } from '../../composables/useSettings';
+import { nextTick } from 'vue';
+import { useSettings, OLLAMA_DEFAULT_NUM_CTX, OLLAMA_MIN_NUM_CTX, type OutlineStyle } from '../../composables/useSettings';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -202,6 +203,45 @@ describe('useSettings', () => {
       setExpandTabs(true);
       setExpandTabs(false);
       expect(settings.value.expandTabs).toBe(false);
+    });
+  });
+
+  describe('document outline style', () => {
+    it('defaults to Hover when existing settings have no outline style', async () => {
+      localStorageMock.setItem('mermark-settings', JSON.stringify({ expandTabs: true }));
+      vi.resetModules();
+      const fresh = await import('../../composables/useSettings');
+      expect(fresh.useSettings().settings.value).toMatchObject({ outlineStyle: 'hover', expandTabs: true });
+    });
+
+    it('loads Panel from storage and persists changes to both styles', async () => {
+      localStorageMock.setItem('mermark-settings', JSON.stringify({ outlineStyle: 'panel' }));
+      vi.resetModules();
+      const fresh = await import('../../composables/useSettings');
+      const { settings, setOutlineStyle } = fresh.useSettings();
+      expect(settings.value.outlineStyle).toBe('panel');
+
+      setOutlineStyle('hover');
+      await nextTick();
+      expect(JSON.parse(localStorageMock.getItem('mermark-settings')!).outlineStyle).toBe('hover');
+
+      setOutlineStyle('panel');
+      await nextTick();
+      expect(JSON.parse(localStorageMock.getItem('mermark-settings')!).outlineStyle).toBe('panel');
+    });
+
+    it('falls back from invalid saved values and ignores invalid setter calls', async () => {
+      localStorageMock.setItem('mermark-settings', JSON.stringify({ outlineStyle: 'sidebar' }));
+      vi.resetModules();
+      const fresh = await import('../../composables/useSettings');
+      const { settings, setOutlineStyle } = fresh.useSettings();
+      expect(settings.value.outlineStyle).toBe('hover');
+
+      setOutlineStyle('panel');
+      setOutlineStyle('sidebar' as OutlineStyle);
+      await nextTick();
+      expect(settings.value.outlineStyle).toBe('panel');
+      expect(JSON.parse(localStorageMock.getItem('mermark-settings')!).outlineStyle).toBe('panel');
     });
   });
 

@@ -52,6 +52,8 @@ test.describe('Large file open (#129)', () => {
     await expect(visualChunks.first()).toBeEditable();
     await expect(visualChunks.first().locator('h1').first()).toContainText('Section header');
     expect(await visualChunks.count()).toBeLessThan(10);
+    await expect(page.locator('.toc-toggle-btn').first()).toBeDisabled();
+    await expect(page.locator('.toc-sidebar, .editor-index')).toHaveCount(0);
   });
 
   test('explicit toggle opens bounded editable lazy visual mode', async ({ page }) => {
@@ -86,12 +88,12 @@ test.describe('Large file open (#129)', () => {
     await expect(firstChunkEditor).toContainText('Edited in lazy visual mode');
     await page.waitForTimeout(500);
 
-    await page.keyboard.press('Control+Shift+V');
+    await page.keyboard.press('ControlOrMeta+Shift+V');
     const codeEditor = page.locator('.code-editor .cm-editor');
     await expect(codeEditor).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.code-editor .cm-line').first()).toContainText('Edited in lazy visual mode');
 
-    await page.keyboard.press('Control+Shift+V');
+    await page.keyboard.press('ControlOrMeta+Shift+V');
     await expect(page.locator('.lazy-editor')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.lazy-editor-chunk[data-lazy-chunk="0"] .ProseMirror')).toContainText('Edited in lazy visual mode');
   });
@@ -137,6 +139,12 @@ test.describe('Large file open (#129)', () => {
   });
 
   test('large-file table of contents is virtualized and navigates to a lazy section', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('mermark-settings', JSON.stringify({
+        outlineStyle: 'panel',
+        ai: { hasSeenFirstRun: true },
+      }));
+    });
     await setupTauriMocks(page, {
       initialFs: { [PATH_BIG]: BIG_MD },
       openFilePath: PATH_BIG,
@@ -144,10 +152,14 @@ test.describe('Large file open (#129)', () => {
 
     await page.goto('/');
     await expect(page.locator('.lazy-editor')).toBeVisible({ timeout: 10_000 });
-    await page.locator('.toc-toggle-btn').first().click();
 
     const toc = page.locator('.toc-panel');
     await expect(toc).toBeVisible();
+    const outlineToggle = page.locator('.toc-toggle-btn').first();
+    await expect(outlineToggle).toBeEnabled();
+    await outlineToggle.click();
+    await expect(toc).toHaveCount(0);
+    await outlineToggle.click();
     await expect(toc.locator('.toc-item').first()).toContainText('Section header', { timeout: 10_000 });
     expect(await toc.locator('.toc-item').count()).toBeLessThan(100);
 
