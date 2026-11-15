@@ -543,7 +543,7 @@ const en: Translations = {
   workspaceLoading: 'Loading workspace…',
   workspaces: 'Workspaces',
   addWorkspace: 'Add workspace',
-  expandAllSections: 'Expand all workspace sections',
+  expandAllSections: 'Expand all workspaces',
   collapseAllSections: 'Collapse all workspace sections',
   expandAllFolders: 'Expand all folders',
   collapseAllFolders: 'Collapse all folders',
