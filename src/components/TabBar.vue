@@ -408,7 +408,8 @@ const handleBarMouseLeave = () => {
 <style>
 .tab-tooltip {
   position: fixed;
-  z-index: 99999;
+  /* Keep the automatic path flyout below the tab context menu. */
+  z-index: 9999;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
