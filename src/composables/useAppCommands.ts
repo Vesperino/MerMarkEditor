@@ -21,7 +21,7 @@ export interface AppCommand {
   checked?: boolean;
   run: () => unknown;
 }
-export interface CommandMenu { label: string; items: (AppCommand | CommandMenu)[] }
+export interface CommandMenu { id?: string; label: string; items: (AppCommand | CommandMenu)[] }
 export interface CommandContext {
   codeView: boolean; splitEditor: boolean; splitView: boolean; hasDocument: boolean;
   canDiff: boolean; canCompare: boolean; diff: boolean; toc: boolean; ai: boolean;
@@ -151,7 +151,7 @@ export function useAppCommands(options: {
       active ? visualDocument && a.isActive(active) : undefined);
     const invoke = (id: string, ...args: unknown[]) => () => options.actions[id]?.(...args);
     const chain = (fn: (editor: Editor) => void) => () => a.runCommand(fn);
-    const menu = (label: string, items: (AppCommand | CommandMenu)[]): CommandMenu => ({ label, items });
+    const menu = (label: string, items: (AppCommand | CommandMenu)[], id?: string): CommandMenu => ({ label, items, id });
     return [
       menu(l.file, [
         command('new-file', tr.new, undefined, !c.modal, 'CmdOrCtrl+N'),
@@ -204,7 +204,7 @@ export function useAppCommands(options: {
         edit('ordered-list', l.orderedList, chain(e => { e.chain().focus().toggleOrderedList().run(); }), 'orderedList'),
         edit('task-list', l.taskList, chain(e => { e.chain().focus().toggleTaskList().run(); }), 'taskList'),
         edit('blockquote', l.blockquote, chain(e => { e.chain().focus().toggleBlockquote().run(); }), 'blockquote'),
-      ]),
+      ], 'format'),
       menu(l.insert, [
         edit('link', l.link, a.setLink),
         menu(l.image, [edit('image-url', tr.imageFromUrl, a.insertImageFromUrl), edit('image-file', tr.imageFromFile, a.insertImageFromFile)]),
@@ -215,13 +215,13 @@ export function useAppCommands(options: {
             ['column-before', tr.addColumnBefore, a.addColumnBefore], ['column-after', tr.addColumnAfter, a.addColumnAfter],
             ['delete-row', tr.deleteRow, a.deleteRow], ['delete-column', tr.deleteColumn, a.deleteColumn], ['delete-table', tr.deleteTable, a.deleteTable],
           ] as const).map(([id, label, run]) => command(id, label, run, visual && a.isActive('table'))),
-        ]),
+        ], 'table'),
         edit('code-block', l.codeBlock, chain(e => { e.chain().focus().toggleCodeBlock().run(); })),
         edit('mermaid', tr.insertMermaid, a.insertMermaid), edit('footnote', tr.insertFootnote, a.insertFootnote),
         edit('math-inline', tr.mathInline, () => a.insertMath(false)), edit('math-block', tr.mathBlock, () => a.insertMath(true)),
         edit('horizontal-rule', l.horizontalRule, chain(e => { e.chain().focus().setHorizontalRule().run(); })),
         edit('page-break', l.pageBreak, chain(e => { e.chain().focus().insertContent({ type: 'pageBreak' }).run(); })),
-      ]),
+      ], 'insert'),
       menu(l.view, [
         command('toggle-workspace-sidebar', tr.workspace, workspace.toggleSidebarVisible, !c.modal, undefined, workspace.sidebarVisible.value),
         command('command-palette', tr.commandPalette, undefined, !c.modal, 'CmdOrCtrl+Shift+P', undefined, ['F1']),
