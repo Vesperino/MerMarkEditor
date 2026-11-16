@@ -21,7 +21,8 @@ const SHOW_FONTS: isize = 41;
 const SHOW_STYLES: isize = 46;
 const SHOW_COLORS: isize = 47;
 const CUT: isize = 13;
-const PASTE: isize = 14;
+const UNDERLINE: isize = 44;
+const START_SPEAKING: isize = 49;
 
 #[derive(Deserialize)]
 pub(crate) struct MenuGroup {
@@ -131,26 +132,41 @@ fn submenu(mtm: MainThreadMarker, source: &SelectionMenu, group: MenuGroup) -> R
     item
 }
 
+fn webkit_action_index(menu: &NSMenu, tag: isize) -> Option<isize> {
+    (0..menu.numberOfItems()).find(|&index| {
+        menu.itemAtIndex(index).is_some_and(|item| {
+            item.action() == Some(sel!(forwardContextMenuAction:)) && item.tag() == tag
+        })
+    })
+}
+
+fn webkit_submenu_index(menu: &NSMenu, child_tag: isize) -> Option<isize> {
+    (0..menu.numberOfItems()).find(|&index| {
+        menu.itemAtIndex(index)
+            .and_then(|item| item.submenu())
+            .is_some_and(|submenu| webkit_action_index(&submenu, child_tag).is_some())
+    })
+}
+
 fn add_selection_menu(view: *mut AnyObject, menu: &NSMenu) {
     let Some(mut source) = SELECTION_MENU.take().filter(|source| {
         source.view == view as usize && source.opened_at.elapsed() < Duration::from_secs(2)
     }) else {
         return;
     };
-    let webkit_item = |tag| (0..menu.numberOfItems()).find(|&index| {
-        menu.itemAtIndex(index).is_some_and(|item| {
-            item.action() == Some(sel!(forwardContextMenuAction:)) && item.tag() == tag
-        })
-    });
     // A context event in an editable selection normally supplies WebKit's Cut command.
-    let Some(cut) = webkit_item(CUT).and_then(|index| menu.itemAtIndex(index)) else {
+    let Some(cut) = webkit_action_index(menu, CUT).and_then(|index| menu.itemAtIndex(index)) else {
         return;
     };
     if !cut.isEnabled() {
         return;
     }
     let mtm = MainThreadMarker::from(menu);
-    let index = webkit_item(PASTE).map_or(menu.numberOfItems(), |index| index + 1);
+    // WebKit tags the actions inside submenus, so identify Font and Speech by
+    // their child actions and keep the placement independent of the OS language.
+    let index = webkit_submenu_index(menu, UNDERLINE)
+        .or_else(|| webkit_submenu_index(menu, START_SPEAKING))
+        .unwrap_or(menu.numberOfItems());
     for (offset, group) in std::mem::take(&mut source.groups).into_iter().enumerate() {
         menu.insertItem_atIndex(&submenu(mtm, &source, group), index + offset as isize);
     }
