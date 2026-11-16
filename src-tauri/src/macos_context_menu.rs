@@ -14,15 +14,10 @@ static WEBVIEW_SUPERCLASS: OnceLock<&'static AnyClass> = OnceLock::new();
 
 type WillOpenMenu = unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut NSMenu, *mut NSEvent);
 
-// WebCore ContextMenuAction tags forwarded by WKMenuTarget. The native panels
-// require editing to be enabled for the entire web view.
+// WebCore ContextMenuAction tags forwarded by WKMenuTarget.
 // https://github.com/WebKit/WebKit/blob/main/Source/WebCore/platform/ContextMenuItem.h
-const SHOW_FONTS: isize = 41;
-const SHOW_STYLES: isize = 46;
-const SHOW_COLORS: isize = 47;
 const CUT: isize = 13;
 const UNDERLINE: isize = 44;
-const START_SPEAKING: isize = 49;
 
 #[derive(Deserialize)]
 pub(crate) struct MenuGroup {
@@ -132,20 +127,22 @@ fn submenu(mtm: MainThreadMarker, source: &SelectionMenu, group: MenuGroup) -> R
     item
 }
 
-fn webkit_action_index(menu: &NSMenu, tag: isize) -> Option<isize> {
-    (0..menu.numberOfItems()).find(|&index| {
-        menu.itemAtIndex(index).is_some_and(|item| {
-            item.action() == Some(sel!(forwardContextMenuAction:)) && item.tag() == tag
-        })
-    })
+fn webkit_action(menu: &NSMenu, tag: isize) -> Option<Retained<NSMenuItem>> {
+    (0..menu.numberOfItems())
+        .filter_map(|index| menu.itemAtIndex(index))
+        .find(|item| item.action() == Some(sel!(forwardContextMenuAction:)) && item.tag() == tag)
 }
 
-fn webkit_submenu_index(menu: &NSMenu, child_tag: isize) -> Option<isize> {
-    (0..menu.numberOfItems()).find(|&index| {
+fn remove_font_menu(menu: &NSMenu) {
+    // The submenu itself has no WebKit tag. Its Underline action identifies it
+    // independently of the system language.
+    if let Some(index) = (0..menu.numberOfItems()).find(|&index| {
         menu.itemAtIndex(index)
             .and_then(|item| item.submenu())
-            .is_some_and(|submenu| webkit_action_index(&submenu, child_tag).is_some())
-    })
+            .is_some_and(|submenu| webkit_action(&submenu, UNDERLINE).is_some())
+    }) {
+        menu.removeItemAtIndex(index);
+    }
 }
 
 fn add_selection_menu(view: *mut AnyObject, menu: &NSMenu) {
@@ -155,44 +152,22 @@ fn add_selection_menu(view: *mut AnyObject, menu: &NSMenu) {
         return;
     };
     // A context event in an editable selection normally supplies WebKit's Cut command.
-    let Some(cut) = webkit_action_index(menu, CUT).and_then(|index| menu.itemAtIndex(index)) else {
-        return;
-    };
-    if !cut.isEnabled() {
+    if !webkit_action(menu, CUT).is_some_and(|item| item.isEnabled()) {
         return;
     }
     let mtm = MainThreadMarker::from(menu);
-    // WebKit tags the actions inside submenus, so identify Font and Speech by
-    // their child actions and keep the placement independent of the OS language.
-    let index = webkit_submenu_index(menu, UNDERLINE)
-        .or_else(|| webkit_submenu_index(menu, START_SPEAKING))
-        .unwrap_or(menu.numberOfItems());
-    for (offset, group) in std::mem::take(&mut source.groups).into_iter().enumerate() {
-        menu.insertItem_atIndex(&submenu(mtm, &source, group), index + offset as isize);
+    let mut groups = std::mem::take(&mut source.groups).into_iter();
+    let Some(format) = groups.next() else { return };
+    menu.insertItem_atIndex(&submenu(mtm, &source, format), 0);
+    if !menu.itemAtIndex(1).is_some_and(|item| item.isSeparatorItem()) {
+        menu.insertItem_atIndex(&NSMenuItem::separatorItem(mtm), 1);
     }
-}
-
-fn remove_unsupported_items(menu: &NSMenu) {
-    let mut removed_item = false;
-    for index in (0..menu.numberOfItems()).rev() {
-        let Some(item) = menu.itemAtIndex(index) else {
-            continue;
-        };
-        if item.action() == Some(sel!(forwardContextMenuAction:))
-            && matches!(item.tag(), SHOW_FONTS | SHOW_STYLES | SHOW_COLORS)
-        {
-            menu.removeItemAtIndex(index);
-            removed_item = true;
-        } else if let Some(submenu) = item.submenu() {
-            remove_unsupported_items(&submenu);
+    // A selection in a table may also offer table actions below the native items.
+    if groups.len() > 0 {
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        for group in groups {
+            menu.addItem(&submenu(mtm, &source, group));
         }
-    }
-    // Show Fonts is followed by a separator at the top of the Font submenu.
-    if removed_item
-        && menu.numberOfItems() > 0
-        && menu.itemAtIndex(0).is_some_and(|item| item.isSeparatorItem())
-    {
-        menu.removeItemAtIndex(0);
     }
 }
 
@@ -208,7 +183,7 @@ unsafe extern "C-unwind" fn will_open_menu(
     }
     // SAFETY: AppKit provides the live menu for the duration of this callback.
     if let Some(menu) = unsafe { menu.as_ref() } {
-        remove_unsupported_items(menu);
+        remove_font_menu(menu);
         add_selection_menu(view, menu);
     }
 }
