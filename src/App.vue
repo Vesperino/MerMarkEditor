@@ -27,7 +27,7 @@ import LoadingOverlay from './components/LoadingOverlay.vue';
 import ExternalLinkDialog from './components/ExternalLinkDialog.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import CodeEditor from './components/CodeEditor.vue';
-import EditorSelectionMenu, { editorSelectionMenuKey } from './components/EditorSelectionMenu.vue';
+import { editorSelectionMenuKey, useMacSelectionMenu } from './composables/useMacSelectionMenu';
 import LazyMarkdownPreview from './components/LazyMarkdownPreview.vue';
 import Editor from './components/Editor.vue';
 import SaveConfirmDialog from './components/SaveConfirmDialog.vue';
@@ -2110,13 +2110,11 @@ const appCommands = useAppCommands({
 provide(appCommandsKey, appCommands);
 useNativeMenus(appCommands);
 useCommandShortcuts(appCommands);
-const editorSelectionMenu = ref<InstanceType<typeof EditorSelectionMenu> | null>(null);
-provide(editorSelectionMenuKey, event => editorSelectionMenu.value?.open(event));
+provide(editorSelectionMenuKey, useMacSelectionMenu(appCommands, editorInstance));
 </script>
 
 <template>
   <div class="app">
-    <EditorSelectionMenu ref="editorSelectionMenu" :editor="editorInstance" />
     <Toolbar
       :code-view="codeView"
       :is-split-active="isSplitActive"

@@ -80,7 +80,7 @@ import { useLineNumbers } from "../composables/useLineNumbers";
 import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
 import { importImageBytes } from "../services/imageImport";
 import TableContextMenu from "./TableContextMenu.vue";
-import { editorSelectionMenuKey } from "./EditorSelectionMenu.vue";
+import { editorSelectionMenuKey } from "../composables/useMacSelectionMenu";
 import ImagePreview from "./ImagePreview.vue";
 import EditorGutter from "./EditorGutter.vue";
 
@@ -701,8 +701,7 @@ const handleEditorClick = (event: MouseEvent) => {
 
 const openSelectionMenu = inject(editorSelectionMenuKey, null);
 const handleContextMenu = (event: MouseEvent) => {
-  openSelectionMenu?.(event);
-  if (event.defaultPrevented) return;
+  if (openSelectionMenu?.(event) || event.defaultPrevented) return;
   const target = event.target as HTMLElement;
   const tableCell = target.closest('td, th');
   if (!tableCell || !editor.value) return;

@@ -46,13 +46,13 @@ export function createDispatcher(find: (id: string) => AppCommand | undefined) {
   };
 }
 
-/** Clipboard actions for menus rendered in the webview. */
+/** Menu-driven clipboard for webviews without native clipboard roles (Linux). */
 async function clipboardCommand(action: 'cut' | 'copy' | 'paste') {
   if (document.execCommand(action)) return;
   if (action !== 'paste') {
     const text = window.getSelection()?.toString() ?? '';
-    if (!text || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(text);
+    if (!text) return;
+    await navigator.clipboard?.writeText(text);
     if (action === 'cut') document.execCommand('delete');
     return;
   }
@@ -192,7 +192,7 @@ export function useAppCommands(options: {
         command('toggle-comment', tr.toggleComment, () => { if (code) toggleBlockComment(code); }, source, 'CmdOrCtrl+/'),
         command('select-next-occurrence', tr.selectNextOccurrence, () => { if (code) selectNextOccurrence(code); }, source, 'CmdOrCtrl+D'),
         command('show-settings', `${tr.settings}…`, undefined, !recording, 'CmdOrCtrl+Comma'),
-      ], 'edit'),
+      ]),
       menu(l.format, [
         menu(tr.heading, Array.from({ length: 7 }, (_, level) => command(`heading:${level}`, level ? tr.headingLevel(level) : tr.paragraph,
           () => { if (source && code) formatSource(code, level); else a.setHeading(level); }, formatting, `CmdOrCtrl+Alt+${level}`, source ? sourceHeading === level : level ? a.isActive('heading', { level }) : a.isActive('paragraph')))),

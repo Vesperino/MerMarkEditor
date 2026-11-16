@@ -1087,6 +1087,8 @@ pub fn run() {
         .manage(PrintHtmlState(Mutex::new(None)))
         .manage(ai::process::ChildRegistry::new())
         .invoke_handler(tauri::generate_handler![
+            #[cfg(target_os = "macos")]
+            macos_context_menu::prepare_macos_selection_menu,
             get_open_file_path,
             create_new_window,
             get_all_windows,
