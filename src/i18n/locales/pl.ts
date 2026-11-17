@@ -196,6 +196,7 @@ const pl: Translations = {
   basic: 'Podstawowe',
   deleteDiagram: 'Usuń',
   deleteImage: 'Usuń obraz',
+  imageLoadError: 'Nie udało się wczytać obrazu.',
   moreTemplates: 'Więcej szablonów...',
   mermaidDiagramTemplates: 'Szablony diagramów Mermaid',
   enterMermaidCode: 'Wprowadź kod Mermaid...',

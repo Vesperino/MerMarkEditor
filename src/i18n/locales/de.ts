@@ -196,6 +196,7 @@ const de: Translations = {
   basic: 'Einfach',
   deleteDiagram: 'Löschen',
   deleteImage: 'Bild löschen',
+  imageLoadError: 'Bild konnte nicht geladen werden.',
   moreTemplates: 'Weitere Vorlagen...',
   mermaidDiagramTemplates: 'Mermaid-Diagrammvorlagen',
   enterMermaidCode: 'Mermaid-Code eingeben...',

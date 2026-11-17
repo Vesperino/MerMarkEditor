@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { Pane } from '../types/pane';
 import TabBar from './TabBar.vue';
 import Editor from './Editor.vue';
+import ImagePreview from './ImagePreview.vue';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useWorkspace } from '../composables/useWorkspace';
 import { useI18n } from '../i18n';
@@ -48,13 +49,13 @@ const isValidDropTarget = computed(() => {
 });
 
 const handleContentUpdate = (content: string) => {
-  if (activeTab.value) {
+  if (activeTab.value && !activeTab.value.image) {
     emit('updateContent', activeTab.value.id, content);
   }
 };
 
 const handleChangesUpdate = (hasChanges: boolean) => {
-  if (activeTab.value) {
+  if (activeTab.value && !activeTab.value.image) {
     emit('updateChanges', activeTab.value.id, hasChanges);
   }
 };
@@ -135,8 +136,15 @@ defineExpose({
 
     <!-- Editor content or empty state -->
     <div class="editor-wrapper">
+      <ImagePreview
+        v-if="activeTab?.image"
+        :src="activeTab.image.src"
+        :local-file="activeTab.image.localFile"
+        :alt="activeTab.fileName"
+        in-pane
+      />
       <Editor
-        v-if="!isEmpty"
+        v-else-if="!isEmpty"
         ref="editorRef"
         :model-value="editorContent"
         :file-path="editorFilePath"

@@ -86,12 +86,12 @@ test.describe('Large file open (#129)', () => {
     await expect(firstChunkEditor).toContainText('Edited in lazy visual mode');
     await page.waitForTimeout(500);
 
-    await page.keyboard.press('Control+Shift+V');
+    await page.keyboard.press('ControlOrMeta+Shift+V');
     const codeEditor = page.locator('.code-editor .cm-editor');
     await expect(codeEditor).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.code-editor .cm-line').first()).toContainText('Edited in lazy visual mode');
 
-    await page.keyboard.press('Control+Shift+V');
+    await page.keyboard.press('ControlOrMeta+Shift+V');
     await expect(page.locator('.lazy-editor')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.lazy-editor-chunk[data-lazy-chunk="0"] .ProseMirror')).toContainText('Edited in lazy visual mode');
   });
