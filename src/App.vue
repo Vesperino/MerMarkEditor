@@ -141,10 +141,7 @@ watchEffect(() => {
       ? splitContainerRef.value.leftPaneRef
       : splitContainerRef.value.rightPaneRef;
     // Vue automatically unwraps ComputedRef from defineExpose, so paneRef.editor is already Editor | undefined
-    const editor = paneRef?.editor;
-    if (editor) {
-      editorInstance.value = editor;
-    }
+    editorInstance.value = paneRef?.editor ?? null;
   }
 });
 
@@ -203,11 +200,13 @@ const switchToTab = async (tabId: string) => {
     activePane.value.scrollTop = editorContainer.scrollTop;
   }
 
-  const targetTab = tabs.value.find(t => t.id === tabId);
+  const targetPane = splitState.value.panes.find(pane => pane.tabs.some(tab => tab.id === tabId));
+  if (!targetPane) return;
+  const targetTab = targetPane.tabs.find(t => t.id === tabId);
   const targetScrollTop = targetTab?.scrollTop || 0;
 
-  // Switch tab in the active pane
-  switchTab(activePaneId.value, tabId);
+  splitState.value.activePaneId = targetPane.id;
+  switchTab(targetPane.id, tabId);
 
   // Restore scroll position after content is loaded
   await nextTick();
@@ -497,6 +496,9 @@ const {
   activeTabId,
   activeTab,
   findTabByFilePath,
+  findTabByImageSource: (src, localFile) => splitState.value.panes
+    .flatMap(pane => pane.tabs)
+    .find(tab => tab.image?.src === src && tab.image.localFile === localFile),
   createNewTab,
   switchToTab,
   getEditorHtml: getEditorContent,
@@ -504,6 +506,7 @@ const {
   setEditorContent,
   markSaveStart: (filePath: string) => markSaveStart(filePath),
   markSaveEnd: (filePath: string, content: string) => markSaveEnd(filePath, content),
+  onImageFileOpened: (path: string) => addRecentFile(path, path.split(/[/\\]/).pop() ?? path),
   onFileOpened: (filePath: string, content: string) => {
     watchFile(filePath, content);
     const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
@@ -912,46 +915,34 @@ const enterSplitEditor = (html: string): void => {
 // activeTabId change and this flush, or the commit-old step would persist the
 // new edit into the old tab. This is why manual enter/exit seeding was removed
 // from switchToTabFromSplitEditor and onFileOpened.
-watch(activeTabId, (_newId, oldId) => {
-  if (!splitEditorActive.value) return;
-  if (splitSourceTabId.value === oldId) {
-    const oldIndex = tabs.value.findIndex(t => t.id === oldId);
-    if (oldIndex !== -1) {
-      tabs.value[oldIndex].content = markdownToHtml(splitMarkdownSource.value);
-      tabs.value[oldIndex].sourceMarkdown = serializeMarkdown({ markdown: splitMarkdownSource.value }, tabs.value[oldIndex].sourceMarkdown, tabs.value[oldIndex].originalMarkdown);
-      tabs.value[oldIndex].hasChanges = true;
-    }
-  }
-  enterSplitEditor(activeTab.value?.content || '<p></p>');
-});
-
-// Markdown-first activation rule (issue #129): large tabs keep Markdown as
-// their source of truth and open in the section-virtualized visual editor.
-watch(activeTabId, (_newId, oldId) => {
+watch([activeTabId, () => !!activeTab.value.image], ([, isImage], [oldId]) => {
   const oldTab = splitState.value.panes.flatMap(p => p.tabs).find(t => t.id === oldId);
-  if (codeView.value && oldTab) {
+  if (oldTab && !oldTab.image && splitEditorActive.value && splitSourceTabId.value === oldId) {
+    oldTab.content = markdownToHtml(splitMarkdownSource.value);
+    oldTab.sourceMarkdown = serializeMarkdown({ markdown: splitMarkdownSource.value }, oldTab.sourceMarkdown, oldTab.originalMarkdown);
+  }
+  if (oldTab && !oldTab.image && codeView.value) {
     oldTab.sourceMarkdown = serializeMarkdown({ markdown: codeContent.value }, oldTab.sourceMarkdown, oldTab.originalMarkdown);
-    if (!isMarkdownFirst(oldTab)) oldTab.content = markdownToHtml(codeContent.value);
+    if (isMarkdownFirst(oldTab)) oldTab.pendingMarkdown = codeContent.value;
+    else oldTab.content = markdownToHtml(codeContent.value);
   }
   if (largeFileVisualMode.value && oldTab) {
     oldTab.pendingMarkdown = lazyMarkdownEditorRef.value?.getMarkdown() ?? oldTab.pendingMarkdown;
   }
   largeFileVisualMode.value = false;
-  if (codeView.value && isMarkdownFirst(oldTab)) {
-    oldTab!.pendingMarkdown = codeContent.value;
-  }
-
   const tab = activeTab.value;
-  if (isMarkdownFirst(tab)) {
+  if (isImage || isMarkdownFirst(tab)) {
     if (splitEditorActive.value) {
       scrollSync.detach();
       splitEditorActive.value = false;
+      splitSourceTabId.value = null;
     }
     codeView.value = false;
-    largeFileVisualMode.value = true;
+    largeFileVisualMode.value = !isImage;
     return;
   }
 
+  if (splitEditorActive.value) enterSplitEditor(tab.content || '<p></p>');
   if (codeView.value) {
     seedCodeContent(sourcePreservingMarkdown(tab?.content || '<p></p>', tab?.sourceMarkdown ?? tab?.originalMarkdown));
   }
@@ -1294,7 +1285,7 @@ function onAiShowDiff(_orig: string, candidate: string) {
 }
 
 // Compute panel inputs from the active tab.
-const aiDocPath = computed(() => activeTab.value?.filePath ?? '');
+const aiDocPath = computed(() => activeTab.value.image ? '' : activeTab.value.filePath ?? '');
 const aiDocContent = computed(() => getEditorContent() ?? '');
 // Re-evaluate selection on every render tick so the AI panel sees the
 // current editor/code-view selection.
@@ -1381,7 +1372,7 @@ const aiWorkspaceRoot = computed<string>(() => {
 // ============ AI Tmp Recovery ============
 const tmpRecovery = ref<{ tmpPath: string; content: string; modifiedAt: string } | null>(null);
 
-watch(() => activeTab.value?.filePath, async (path) => {
+watch(aiDocPath, async (path) => {
   if (!path) { tmpRecovery.value = null; return; }
   const tmpPath = `${path}.mermark-ai.tmp`;
   try {
@@ -1458,12 +1449,8 @@ const insertImageIntoActivePane = (path: string) => {
   void handleImageDrop([path], { x: x * dpr, y: y * dpr });
 };
 
-// Triggered by the workspace tree's double-click (single click only selects
-// the row now). Markdown opens as a tab; images intentionally noop — the user
-// inserts them by dragging into the editor, which keeps select / insert
-// gestures distinct and prevents accidental document mutation on dblclick.
+// Double-click opens a tab. Dragging an image into a document inserts it.
 const handleWorkspaceOpenFile = (path: string) => {
-  if (isImageFile(path)) return;
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   openFileWithCrossWindowCheck(path).catch((e) => console.error('[App] open from workspace:', e));
 };
@@ -1590,6 +1577,7 @@ const handleWheel = (event: WheelEvent) => {
 // This ensures that the active tab's content and hasChanges are up to date
 // before checking for unsaved changes (e.g., when closing the window)
 const syncActiveTabContent = () => {
+  if (activeTab.value.image) return;
   // In code view the SplitContainer (and its Editor) is unmounted, so
   // getEditorContent() would return the empty fallback '<p></p>' and
   // overwrite the real tab content. Capture raw source instead.
@@ -1645,7 +1633,7 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 const saveTabFromPane = async (paneId: string, tabId: string) => {
   const pane = splitState.value.panes.find(p => p.id === paneId);
   const tab = pane?.tabs.find(t => t.id === tabId);
-  if (!tab?.filePath || !tab?.hasChanges) return;
+  if (!tab?.filePath || !tab.hasChanges || tab.image) return;
 
   try {
     // For active tab in active pane, get fresh content from editor; for others, use stored content
@@ -2074,7 +2062,7 @@ const appCommands = useAppCommands({
   editor: editorInstance,
   context: () => ({
     codeView: codeView.value, splitEditor: splitEditorActive.value, splitView: isSplitActive.value,
-    hasDocument: !!activeTab.value, canDiff: canShowDiff.value, canCompare: canCompareTabs.value,
+    hasDocument: !!activeTab.value.id, imageTab: !!activeTab.value.image, canDiff: canShowDiff.value, canCompare: canCompareTabs.value,
     diff: showDiffPreview.value, toc: showTocPanel.value, ai: aiPanelOpen.value,
     marp: isMarp.value, marpPreview: showMarpPreview.value,
     modal: !!pickerMode.value || showWorkspaceQuickSwitcher.value || !!tmpRecovery.value || showSettingsModal.value || showShortcutsModal.value || showNewFileModal.value ||
@@ -2230,6 +2218,7 @@ useCommandShortcuts(appCommands);
               :model-value="splitPreviewHtml"
               :file-path="activeTab?.filePath || null"
               :editable="false"
+              @link-click="handleLinkClick"
               @update:model-value="(h: string) => (splitPreviewLatestHtml = h)"
               @update:has-changes="onSplitPreviewChanged"
             />
@@ -2273,7 +2262,7 @@ useCommandShortcuts(appCommands);
       >
         <!-- Table of Contents Panel -->
         <TableOfContents
-          v-if="showTocPanel"
+          v-if="showTocPanel && !activeTab.image"
           @close="showTocPanel = false"
         />
 
@@ -2457,7 +2446,7 @@ useCommandShortcuts(appCommands);
 
     <!-- Current Document Search (Ctrl/Cmd+F) -->
     <DocumentSearchBar
-      v-if="documentSearch.state.value.open"
+      v-if="documentSearch.state.value.open && !activeTab.image"
       ref="documentSearchBarRef"
       :replace-open="replaceOpen"
       :replacement="replacement"

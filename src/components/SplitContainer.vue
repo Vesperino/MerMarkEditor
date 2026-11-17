@@ -76,7 +76,7 @@ onMounted(() => {
       const tab = pane?.tabs.find(t => t.id === tabId);
 
       // Save file content before transfer
-      if (tab && tab.content) {
+      if (tab && !tab.image && tab.content) {
         const markdownContent = htmlToMarkdown(tab.content).trimEnd();
         await writeTextFile(filePath, markdownContent);
       }
@@ -181,7 +181,8 @@ const handleChangesUpdate = (paneId: string, tabId: string, hasChanges: boolean)
   emit('changesUpdated', paneId, tabId, hasChanges);
 };
 
-const handleLinkClick = (href: string) => {
+const handleLinkClick = (paneId: string, href: string) => {
+  setActivePane(paneId);
   emit('linkClick', href);
 };
 
@@ -234,7 +235,7 @@ const findVisualTargetAt = (x: number, y: number) => {
   const panes = Array.from(container.querySelectorAll(':scope > .editor-pane')) as HTMLElement[];
   const idx = panes.indexOf(paneEl);
   const targetRef = idx === 0 ? leftPaneRef.value : rightPaneRef.value;
-  if (!targetRef) return null;
+  if (!targetRef?.editor) return null;
 
   return {
     filePath: targetRef.getFilePath?.() ?? null,
@@ -303,7 +304,7 @@ defineExpose({
       @close-saved="emit('closeSaved', 'left')"
       @update-content="(tabId, content) => handleContentUpdate('left', tabId, content)"
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('left', tabId, hasChanges)"
-      @link-click="handleLinkClick"
+      @link-click="(href) => handleLinkClick('left', href)"
       @focus="handlePaneFocus('left')"
     />
 
@@ -333,7 +334,7 @@ defineExpose({
       @close-saved="emit('closeSaved', 'right')"
       @update-content="(tabId, content) => handleContentUpdate('right', tabId, content)"
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('right', tabId, hasChanges)"
-      @link-click="handleLinkClick"
+      @link-click="(href) => handleLinkClick('right', href)"
       @focus="handlePaneFocus('right')"
     />
   </div>

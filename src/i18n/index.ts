@@ -205,6 +205,7 @@ export interface Translations {
   basic: string;
   deleteDiagram: string;
   deleteImage: string;
+  imageLoadError: string;
   moreTemplates: string;
   mermaidDiagramTemplates: string;
   enterMermaidCode: string;
