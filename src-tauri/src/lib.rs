@@ -2,6 +2,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::collections::{HashMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use tauri::{Manager, Emitter, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
 use tauri_plugin_fs::FsExt;
 use serde::{Deserialize, Serialize};
@@ -802,6 +803,259 @@ fn read_file_capped(path: &Path, max_bytes: usize) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
+// ============== Git (business-friendly workspace sync) commands ==============
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitContext {
+    repo_root: String,
+    current_branch: String,
+    branches: Vec<String>,
+    tracking_branch: Option<String>,
+    dirty: bool,
+    ahead: u32,
+    behind: u32,
+    operation_in_progress: bool,
+}
+
+#[derive(Serialize)]
+struct GitSyncResult {
+    state: GitContext,
+    fetched: bool,
+    pulled: bool,
+    message: String,
+}
+
+fn run_git(repo: &Path, args: &[&str]) -> Result<String, String> {
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .map_err(|e| format!("failed to run git {:?}: {}", args, e))?;
+
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        Err(format!("git {:?} failed: {}", args, detail))
+    }
+}
+
+fn maybe_run_git(repo: &Path, args: &[&str]) -> Option<String> {
+    run_git(repo, args).ok().filter(|s| !s.is_empty())
+}
+
+fn resolve_git_repo_root(path: &Path) -> Option<PathBuf> {
+    let base = if path.is_dir() {
+        path.to_path_buf()
+    } else {
+        path.parent()?.to_path_buf()
+    };
+    let out = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(&base)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let root = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if root.is_empty() { None } else { Some(PathBuf::from(root)) }
+}
+
+fn parse_ahead_behind(raw: &str) -> (u32, u32) {
+    let mut parts = raw.split_whitespace();
+    let ahead = parts.next().and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+    let behind = parts.next().and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+    (ahead, behind)
+}
+
+fn git_operation_in_progress(repo: &Path) -> bool {
+    let git_dir_raw = match maybe_run_git(repo, &["rev-parse", "--git-dir"]) {
+        Some(v) => v,
+        None => return false,
+    };
+    let git_dir = PathBuf::from(git_dir_raw);
+    let git_dir = if git_dir.is_absolute() { git_dir } else { repo.join(git_dir) };
+    [
+        "MERGE_HEAD",
+        "CHERRY_PICK_HEAD",
+        "REVERT_HEAD",
+        "rebase-merge",
+        "rebase-apply",
+        "BISECT_LOG",
+    ]
+    .iter()
+    .any(|marker| git_dir.join(marker).exists())
+}
+
+fn collect_git_context(repo: &Path) -> Result<GitContext, String> {
+    let repo_root = run_git(repo, &["rev-parse", "--show-toplevel"])?;
+    let current_branch = maybe_run_git(repo, &["symbolic-ref", "--short", "HEAD"])
+        .or_else(|| maybe_run_git(repo, &["rev-parse", "--short", "HEAD"]))
+        .unwrap_or_else(|| "HEAD".to_string());
+    let branches = run_git(repo, &["for-each-ref", "--format=%(refname:short)", "refs/heads"])?
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    let tracking_branch = maybe_run_git(repo, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
+    let dirty = !run_git(repo, &["status", "--porcelain"])?.trim().is_empty();
+    let (ahead, behind) = match tracking_branch {
+        Some(_) => maybe_run_git(repo, &["rev-list", "--left-right", "--count", "HEAD...@{u}"])
+            .map(|raw| parse_ahead_behind(&raw))
+            .unwrap_or((0, 0)),
+        None => (0, 0),
+    };
+
+    Ok(GitContext {
+        repo_root,
+        current_branch,
+        branches,
+        tracking_branch,
+        dirty,
+        ahead,
+        behind,
+        operation_in_progress: git_operation_in_progress(repo),
+    })
+}
+
+#[tauri::command]
+async fn git_get_context(path: String) -> Result<Option<GitContext>, String> {
+    let target = PathBuf::from(path);
+    tokio::task::spawn_blocking(move || {
+        let Some(repo) = resolve_git_repo_root(&target) else {
+            return Ok(None);
+        };
+        collect_git_context(&repo).map(Some)
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
+}
+
+#[tauri::command]
+async fn git_checkout_branch(path: String, branch: String) -> Result<GitContext, String> {
+    let target = PathBuf::from(path);
+    tokio::task::spawn_blocking(move || {
+        let repo = resolve_git_repo_root(&target)
+            .ok_or_else(|| "no git repository found for this workspace".to_string())?;
+        run_git(&repo, &["checkout", branch.trim()])?;
+        collect_git_context(&repo)
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
+}
+
+#[tauri::command]
+async fn git_sync(path: String, auto_pull: bool, allow_pull: bool) -> Result<GitSyncResult, String> {
+    let target = PathBuf::from(path);
+    tokio::task::spawn_blocking(move || {
+        let repo = resolve_git_repo_root(&target)
+            .ok_or_else(|| "no git repository found for this workspace".to_string())?;
+
+        run_git(&repo, &["fetch", "--prune"])?;
+        let mut state = collect_git_context(&repo)?;
+        let mut pulled = false;
+        let mut message = "Fetched remote updates.".to_string();
+
+        let can_pull = allow_pull
+            && auto_pull
+            && state.tracking_branch.is_some()
+            && !state.dirty
+            && !state.operation_in_progress
+            && state.behind > 0;
+
+        if can_pull {
+            match run_git(&repo, &["pull", "--ff-only", "--no-rebase"]) {
+                Ok(_) => {
+                    pulled = true;
+                    message = "Pulled latest changes.".to_string();
+                }
+                Err(err) => {
+                    message = format!("Fetch succeeded, pull skipped: {}", err);
+                }
+            }
+        } else if state.behind > 0 {
+            message = "Remote updates available. Commit or save local work, then sync.".to_string();
+        }
+
+        state = collect_git_context(&repo)?;
+        Ok(GitSyncResult {
+            state,
+            fetched: true,
+            pulled,
+            message,
+        })
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
+}
+
+/// Push the current branch, automatically setting up tracking on the first
+/// push of a brand-new local branch. Business users creating a branch (e.g.
+/// `dev`) and committing have no reason to know about `--set-upstream` —
+/// plain `git push` fails with "No configured push destination" until a
+/// remote tracking branch exists, so this detects exactly that failure and
+/// retries once with `--set-upstream <remote> <branch>`. Prefers the `origin`
+/// remote when present, falling back to whichever remote is configured.
+fn push_with_upstream_fallback(repo: &Path, branch: &str) -> Result<(), String> {
+    if let Err(err) = run_git(repo, &["push"]) {
+        let needs_upstream = err.contains("No configured push destination")
+            || err.contains("has no upstream branch")
+            || err.contains("set-upstream");
+        if !needs_upstream {
+            return Err(err);
+        }
+        let remotes = maybe_run_git(repo, &["remote"]).unwrap_or_default();
+        let remote = remotes
+            .lines()
+            .map(str::trim)
+            .find(|s| *s == "origin")
+            .or_else(|| remotes.lines().map(str::trim).find(|s| !s.is_empty()))
+            .map(str::to_string)
+            .ok_or_else(|| "no git remote configured to push to".to_string())?;
+        run_git(repo, &["push", "--set-upstream", &remote, branch])?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn git_commit_and_push(path: String, message: String) -> Result<GitContext, String> {
+    let target = PathBuf::from(path);
+    tokio::task::spawn_blocking(move || {
+        let repo = resolve_git_repo_root(&target)
+            .ok_or_else(|| "no git repository found for this workspace".to_string())?;
+
+        let msg = message.trim();
+        if msg.is_empty() {
+            return Err("commit message cannot be empty".to_string());
+        }
+        if git_operation_in_progress(&repo) {
+            return Err("git operation in progress (merge/rebase/cherry-pick). Resolve it first.".to_string());
+        }
+
+        run_git(&repo, &["add", "-A"])?;
+        let commit_out = run_git(&repo, &["commit", "-m", msg]);
+        if let Err(err) = commit_out {
+            if err.contains("nothing to commit") || err.contains("no changes added to commit") {
+                return Err("nothing to commit".to_string());
+            }
+            return Err(err);
+        }
+        let branch = maybe_run_git(&repo, &["symbolic-ref", "--short", "HEAD"])
+            .ok_or_else(|| "cannot push a detached HEAD".to_string())?;
+        push_with_upstream_fallback(&repo, &branch)?;
+        collect_git_context(&repo)
+    })
+    .await
+    .map_err(|e| format!("worker join: {}", e))?
+}
+
 /// `Some(open target)` when `path` is a filesystem root — a drive (`C:`) or a UNC
 /// share (`\\server\share`). A root cannot be selected inside a parent, and
 /// `/select,` on one drops explorer at "This PC", so roots get opened directly.
@@ -1106,6 +1360,10 @@ pub fn run() {
             classify_paths,
             reveal_in_os,
             search_workspace_content,
+            git_get_context,
+            git_checkout_branch,
+            git_sync,
+            git_commit_and_push,
             ai_health_check,
             ai_ollama_models,
             ai_openai_models,

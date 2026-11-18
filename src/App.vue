@@ -538,6 +538,9 @@ const {
     // the file watcher is registered so external edits (e.g., AI) are
     // detected and trigger an editor reload.
     watchFile(filePath, content);
+    // Let the Git bar know a file just hit disk so it can refresh its
+    // dirty/clean status right away instead of waiting for the next poll.
+    workspace.notifyFileSaved(filePath);
   },
   onAnchorNotFound: (anchor: string) => {
     showToastNotification(t.value.anchorNotFound(anchor), 'warning');
