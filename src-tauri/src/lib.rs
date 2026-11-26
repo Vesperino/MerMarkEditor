@@ -9,6 +9,8 @@ use font_kit::source::SystemSource;
 
 mod ai;
 mod flatpak;
+#[cfg(target_os = "macos")]
+mod macos_context_menu;
 
 // Store the file path to be opened (from CLI args or file association)
 pub struct OpenFileState(pub Mutex<Option<String>>);
@@ -1085,6 +1087,8 @@ pub fn run() {
         .manage(PrintHtmlState(Mutex::new(None)))
         .manage(ai::process::ChildRegistry::new())
         .invoke_handler(tauri::generate_handler![
+            #[cfg(target_os = "macos")]
+            macos_context_menu::prepare_macos_selection_menu,
             get_open_file_path,
             create_new_window,
             get_all_windows,
@@ -1147,9 +1151,12 @@ pub fn run() {
                 }
             }
 
-            #[cfg(debug_assertions)]
+            #[cfg(any(target_os = "macos", debug_assertions))]
             {
                 let window = app.get_webview_window("main").unwrap();
+                #[cfg(target_os = "macos")]
+                macos_context_menu::install(&window);
+                #[cfg(debug_assertions)]
                 window.open_devtools();
             }
             Ok(())
