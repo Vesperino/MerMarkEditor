@@ -26,6 +26,7 @@ export interface CommandContext {
   codeView: boolean; splitEditor: boolean; splitView: boolean; hasDocument: boolean;
   imageTab?: boolean;
   canDiff: boolean; canCompare: boolean; diff: boolean; toc: boolean; ai: boolean;
+  outlineAvailable?: boolean;
   marp: boolean; marpPreview: boolean; modal: boolean;
 }
 export interface AppCommands {
@@ -129,6 +130,7 @@ export function useAppCommands(options: {
     const tab = c.hasDocument && !c.modal;
     const doc = tab && !c.imageTab;
     const visualDocument = doc && !!options.editor.value && !c.codeView && !c.splitEditor;
+    const canToggleOutline = (c.outlineAvailable ?? visualDocument) && !c.modal;
     const visual = visualDocument && !textEntryFocused();
     const code = focusedCodeEditor();
     const source = doc && !!code;
@@ -234,7 +236,7 @@ export function useAppCommands(options: {
         command('previous-tab', tr.previousTab, undefined, tab, 'Control+Shift+Tab', undefined, ['Control+PageUp']),
         menu(tr.jumpToTab, Array.from({ length: 9 }, (_, i) => command(`tab:${i}`, `${i + 1}`, invoke('select-tab', i), tab, `CmdOrCtrl+${i + 1}`))),
         command('workspace-switcher', tr.searchWorkspace, undefined, !c.modal, 'CmdOrCtrl+Shift+E'),
-        command('toggle-toc', tr.tableOfContents, undefined, visualDocument, 'CmdOrCtrl+Shift+T', c.toc),
+        command('toggle-toc', tr.tableOfContents, undefined, canToggleOutline, 'CmdOrCtrl+Shift+T', c.toc),
         command('toggle-code-view', tr.codeView, undefined, doc && !c.splitEditor, 'CmdOrCtrl+Shift+V', c.codeView),
         command('toggle-split-view', tr.splitView, undefined, visualDocument || (tab && !!c.imageTab), undefined, c.splitView),
         command('toggle-split-editor', tr.splitEditor, undefined, doc && !c.splitView, undefined, c.splitEditor),

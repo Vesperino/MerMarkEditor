@@ -19,6 +19,7 @@ import {
 
 export type ThemeMode = 'light' | 'dark';
 export type ThemeVariant = 'default' | 'minimal';
+export type OutlineStyle = 'hover' | 'panel';
 export type CodeThemeMode = 'dark' | 'light';
 export type CliKind = 'claude' | 'codex' | 'ollama' | 'openai';
 export type PanelSide = 'left' | 'right';
@@ -150,6 +151,7 @@ export interface AppSettings {
   tokenModel: TokenModelId;
   theme: ThemeMode;
   themeVariant: ThemeVariant;
+  outlineStyle: OutlineStyle;
   codeTheme: CodeThemeMode;
   codeWordWrap: boolean;
   documentStyle: DocumentStyleId;
@@ -184,6 +186,10 @@ export interface AppSettings {
 
 
 const STORAGE_KEY = 'mermark-settings';
+
+function isOutlineStyle(value: unknown): value is OutlineStyle {
+  return value === 'hover' || value === 'panel';
+}
 
 /** crypto.randomUUID is available in modern browsers; fall back to Math.random for very old engines (test envs). */
 function makeWorkspaceId(): string {
@@ -323,6 +329,7 @@ function loadSettings(): AppSettings {
         ...defaults,
         ...parsed,
         themeVariant,
+        outlineStyle: isOutlineStyle(parsed.outlineStyle) ? parsed.outlineStyle : defaults.outlineStyle,
         workspace: mergedWorkspace,
         ai: mergedAi,
       };
@@ -382,6 +389,7 @@ function getDefaultSettings(): AppSettings {
     tokenModel: 'gpt',
     theme: 'light',
     themeVariant: 'default',
+    outlineStyle: 'hover',
     codeTheme: 'dark',
     codeWordWrap: true,
     documentStyle: 'github',
@@ -483,6 +491,10 @@ export function useSettings() {
   const setThemeVariant = (variant: ThemeVariant) => {
     settings.value.themeVariant = variant;
     applyThemeVariant(variant);
+  };
+
+  const setOutlineStyle = (style: OutlineStyle) => {
+    if (isOutlineStyle(style)) settings.value.outlineStyle = style;
   };
 
   const setOpenWorkspaces = (list: OpenWorkspaceEntry[]) => {
@@ -720,6 +732,7 @@ export function useSettings() {
     setTheme,
     toggleTheme,
     setThemeVariant,
+    setOutlineStyle,
     toggleCodeWordWrap,
     setCodeTheme,
     setDocumentStyle,

@@ -24,6 +24,7 @@ const {
   toggleAutoSave,
   setTheme,
   setThemeVariant,
+  setOutlineStyle,
   setCodeTheme,
   setDocumentStyle,
   setDocumentStyleOverride,
@@ -590,6 +591,32 @@ onUnmounted(() => {
                     @click="setExpandTabs(true)"
                   >
                     {{ t.on }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <span id="document-outline-label" class="setting-label">{{ t.documentOutline }}</span>
+              <div class="setting-control">
+                <div class="toggle-group" role="group" aria-labelledby="document-outline-label">
+                  <button
+                    type="button"
+                    class="toggle-option"
+                    :class="{ active: settings.outlineStyle === 'hover' }"
+                    :aria-pressed="settings.outlineStyle === 'hover'"
+                    @click="setOutlineStyle('hover')"
+                  >
+                    {{ t.outlineStyleHover }}
+                  </button>
+                  <button
+                    type="button"
+                    class="toggle-option"
+                    :class="{ active: settings.outlineStyle === 'panel' }"
+                    :aria-pressed="settings.outlineStyle === 'panel'"
+                    @click="setOutlineStyle('panel')"
+                  >
+                    {{ t.outlineStylePanel }}
                   </button>
                 </div>
               </div>
