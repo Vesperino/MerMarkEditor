@@ -196,6 +196,7 @@ const en: Translations = {
   basic: 'Basic',
   deleteDiagram: 'Delete',
   deleteImage: 'Delete image',
+  imageLoadError: 'Could not load image.',
   moreTemplates: 'More templates...',
   mermaidDiagramTemplates: 'Mermaid Diagram Templates',
   enterMermaidCode: 'Enter Mermaid code...',

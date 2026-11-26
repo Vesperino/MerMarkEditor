@@ -1,15 +1,16 @@
 import { readFile } from '@tauri-apps/plugin-fs';
+import { isImageFile } from './image-file-utils';
 
 /**
  * Resolves a relative image path to an absolute file path.
  */
 function resolveToAbsolutePath(src: string, baseDir: string): string {
-  if (/^[a-zA-Z]:/.test(src) || src.startsWith('/')) {
-    return src; // Already absolute
-  }
-
-  let absolutePath = `${baseDir}/${src}`.replace(/\\/g, '/');
-  const parts = absolutePath.split('/');
+  const path = src.replace(/\\/g, '/');
+  const absolutePath = /^(?:[a-z]:\/|\/)/i.test(path)
+    ? path
+    : `${baseDir.replace(/\\/g, '/').replace(/\/$/, '')}/${path}`;
+  const root = absolutePath.match(/^(?:\/\/[^/]+\/[^/]+\/?|[a-z]:\/|\/)/i)?.[0] ?? '';
+  const parts = absolutePath.slice(root.length).split('/');
   const normalized: string[] = [];
   for (const part of parts) {
     if (part === '..') {
@@ -18,16 +19,32 @@ function resolveToAbsolutePath(src: string, baseDir: string): string {
       normalized.push(part);
     }
   }
-  absolutePath = normalized.join('/');
-  if (/^[a-zA-Z]\//.test(absolutePath)) {
-    absolutePath = absolutePath.replace(/^([a-zA-Z])\//, '$1:/');
-  }
-  return absolutePath;
+  return root + normalized.join('/');
 }
 
-/**
- * Reads a local file and returns a blob URL.
- */
+export function resolveImageLink(href: string, documentPath?: string | null) {
+  if (/^(?:https?:)?\/\//i.test(href)) {
+    try {
+      const url = new URL(href.startsWith('//') ? `https:${href}` : href);
+      return isImageFile(url.pathname) ? { src: url.href, localFile: false } : null;
+    } catch {
+      return null;
+    }
+  }
+  if (/^[a-z][\w+.-]*:/i.test(href) && !/^[a-z]:[/\\]/i.test(href)) return null;
+
+  let path = href.split(/[?#]/, 1)[0];
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // A literal percent sign is valid in a filename.
+  }
+  if (!isImageFile(path)) return null;
+  const baseDir = documentPath ? getDirectoryFromFilePath(documentPath) : '';
+  const absolute = /^(?:[a-z]:[/\\]|[/\\])/i.test(path);
+  return { src: absolute || baseDir ? resolveToAbsolutePath(path, baseDir) : '', localFile: true };
+}
+
 function mimeForPath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || '';
   const mimeMap: Record<string, string> = {
@@ -43,7 +60,7 @@ function mimeForPath(path: string): string {
   return mimeMap[ext] || 'image/png';
 }
 
-async function fileToBlobUrl(absolutePath: string): Promise<string> {
+export async function fileToBlobUrl(absolutePath: string): Promise<string> {
   const bytes = await readFile(absolutePath);
   const blob = new Blob([bytes], { type: mimeForPath(absolutePath) });
   return URL.createObjectURL(blob);
@@ -162,5 +179,5 @@ export async function resolveEditorImages(container: Element, baseDir?: string):
  */
 export function getDirectoryFromFilePath(filePath: string): string {
   const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
-  return lastSlash > 0 ? filePath.substring(0, lastSlash) : '';
+  return lastSlash === 0 ? filePath[0] : filePath.substring(0, lastSlash);
 }

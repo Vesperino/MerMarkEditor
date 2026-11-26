@@ -196,6 +196,7 @@ const ja: Translations = {
   basic: '基本',
   deleteDiagram: '削除',
   deleteImage: '画像を削除',
+  imageLoadError: '画像を読み込めませんでした。',
   moreTemplates: 'その他のテンプレート…',
   mermaidDiagramTemplates: 'Mermaid 図のテンプレート',
   enterMermaidCode: 'Mermaid コードを入力…',

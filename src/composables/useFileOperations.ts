@@ -4,8 +4,10 @@ import { readTextFile, writeTextFile, rename, remove } from '@tauri-apps/plugin-
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { markdownToHtml, generateSlug } from '../utils/markdown-converter';
 import { captureMarkdownSave, matchesMarkdownSave, type MarkdownContent, type MarkdownSaveSnapshot } from '../utils/markdown-save';
+import { isImageFile, toForwardSlashes } from '../utils/image-file-utils';
+import { resolveImageLink } from '../utils/image-resolver';
 import { aiCommands } from '../services/aiCommands';
-import type { Tab } from './useTabs';
+import type { Tab, TabImage } from './useTabs';
 import { EMPTY_TAB_CONTENT, DEFAULT_FILE_NAME, DOM_SELECTORS, LARGE_FILE_CHAR_THRESHOLD } from '../constants';
 
 export interface UseFileOperationsOptions {
@@ -13,6 +15,7 @@ export interface UseFileOperationsOptions {
   activeTabId: Ref<string>;
   activeTab: ComputedRef<Tab>;
   findTabByFilePath: (filePath: string) => Tab | undefined;
+  findTabByImageSource?: (src: string, localFile: boolean) => Tab | undefined;
   createNewTab: (filePath?: string | null, fileContent?: string, fileName?: string) => string;
   switchToTab: (tabId: string, preserveHasChanges?: boolean) => Promise<void>;
   getEditorHtml: () => string;
@@ -23,6 +26,7 @@ export interface UseFileOperationsOptions {
   markSaveStart?: (filePath: string) => void;
   markSaveEnd?: (filePath: string, content: string) => void;
   onFileOpened?: (filePath: string, content: string) => void;
+  onImageFileOpened?: (filePath: string) => void;
   /** Fired when a file above LARGE_FILE_CHAR_THRESHOLD was opened markdown-first
    *  (tab.pendingMarkdown set, no HTML generated) — the host must present it in
    *  code view because the visual editor has nothing to show. */
@@ -60,6 +64,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     activeTabId,
     activeTab,
     findTabByFilePath,
+    findTabByImageSource,
     createNewTab,
     switchToTab,
     getEditorHtml,
@@ -69,6 +74,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     markSaveEnd,
     onAfterSave,
     onFileOpened,
+    onImageFileOpened,
     onLargeFileOpened,
     onPreSaveConflict,
     onAnchorNotFound,
@@ -91,12 +97,57 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     filePath.split(/[/\\]/).pop() || DEFAULT_FILE_NAME;
 
   const isActiveTabEmpty = (): boolean =>
-    !activeTab.value?.filePath && !activeTab.value?.hasChanges && activeTab.value?.content === EMPTY_TAB_CONTENT;
+    !activeTab.value?.image && !activeTab.value?.filePath &&
+    !activeTab.value?.hasChanges && activeTab.value?.content === EMPTY_TAB_CONTENT;
 
   const findActiveTabIndex = (): number =>
     tabs.value.findIndex(t => t.id === activeTabId.value);
 
+  const imageLinkName = (image: TabImage, href: string): string => {
+    if (image.localFile && image.src) return extractFileName(image.src);
+    const path = image.localFile ? href.split(/[?#]/, 1)[0] : new URL(image.src).pathname;
+    const name = extractFileName(path);
+    try {
+      return decodeURIComponent(name);
+    } catch {
+      return name;
+    }
+  };
+
+  const openImageInTab = async (
+    image: TabImage,
+    fileName: string,
+    filePath: string | null,
+    reuseEmptyTab = false,
+  ): Promise<void> => {
+    if (image.src) {
+      const existingTab = findTabByImageSource?.(image.src, image.localFile) ??
+        tabs.value.find(tab => tab.image?.src === image.src && tab.image.localFile === image.localFile);
+      if (existingTab) {
+        await switchToTab(existingTab.id);
+        return;
+      }
+    }
+
+    const emptyTab = reuseEmptyTab && isActiveTabEmpty() ? tabs.value[findActiveTabIndex()] : undefined;
+    if (emptyTab) {
+      Object.assign(emptyTab, { filePath, fileName, image });
+    } else {
+      const newTabId = createNewTab(filePath, EMPTY_TAB_CONTENT, fileName);
+      const tab = tabs.value.find(t => t.id === newTabId);
+      if (!tab) return;
+      tab.image = image;
+      await switchToTab(newTabId);
+    }
+    if (filePath) onImageFileOpened?.(filePath);
+  };
+
   const loadFileIntoTab = async (filePath: string): Promise<void> => {
+    if (isImageFile(filePath)) {
+      await openImageInTab({ src: toForwardSlashes(filePath), localFile: true }, extractFileName(filePath), filePath, true);
+      return;
+    }
+
     // Check if file is already open
     const existingTab = findTabByFilePath(filePath);
     if (existingTab) {
@@ -245,7 +296,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
   const saveFile = async (): Promise<void> => {
     try {
       const tab = tabs.value.find(t => t.id === activeTabId.value);
-      if (!tab || (tab.filePath && !tab.hasChanges)) return;
+      if (!tab || tab.image || (tab.filePath && !tab.hasChanges)) return;
       const snapshot = captureMarkdownSave(tab, getTabContent(tab));
       const filePath = tab.filePath ?? await save({
         filters: [{ name: 'Markdown', extensions: ['md'] }], defaultPath: 'dokument.md',
@@ -259,7 +310,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
   const saveFileAs = async (): Promise<void> => {
     try {
       const tab = tabs.value.find(t => t.id === activeTabId.value);
-      if (!tab) return;
+      if (!tab || tab.image) return;
       const oldPath = tab.filePath;
       const snapshot = captureMarkdownSave(tab, getTabContent(tab));
       const filePath = await save({
@@ -280,7 +331,10 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
-  const openFileInNewTab = async (relativePath: string): Promise<void> => {
+  const openFileInNewTab = async (
+    relativePath: string,
+    image = resolveImageLink(relativePath, currentFile.value),
+  ): Promise<void> => {
     try {
       // Save current scroll position before navigating
       const editorContainer = document.querySelector(DOM_SELECTORS.EDITOR_CONTAINER);
@@ -292,6 +346,12 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       }
 
       isLoadingFile.value = true;
+
+      if (image) {
+        const filePath = image.localFile ? image.src || null : null;
+        await openImageInTab(image, imageLinkName(image, relativePath), filePath);
+        return;
+      }
 
       // Get current file's directory as base
       const baseDir = currentFile.value ? getDirectoryFromPath(currentFile.value) : '';
@@ -319,7 +379,6 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       const existingTab = findTabByFilePath(fullPath);
       if (existingTab) {
         await switchToTab(existingTab.id);
-        isLoadingFile.value = false;
         return;
       }
 
@@ -341,9 +400,9 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       await switchToTab(newTabId);
       if (isLarge) onLargeFileOpened?.(fullPath, fileContent);
       onFileOpened?.(fullPath, fileContent);
-      isLoadingFile.value = false;
     } catch (error) {
       console.error('Error opening file in new tab:', error);
+    } finally {
       isLoadingFile.value = false;
     }
   };
@@ -353,11 +412,8 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
    * `.editor-container` elements in the document and taking the first in DOM
    * order searched the wrong pane.
    *
-   * The fallback covers layouts with no `.editor-pane` ancestor — code+preview
-   * replaces the whole SplitContainer. Note that mode's preview pane does not
-   * currently bind `@link-click` at all, so clicks there never reach this
-   * function; the fallback is for robustness, not for that mode. Same order as
-   * usePdfExport and App.vue's scroll helpers.
+   * The fallback covers code+preview, where the preview pane has no
+   * `.editor-pane` ancestor. Same order as usePdfExport and App.vue's scroll helpers.
    */
   const findEditorContainer = (): Element | null =>
     document.querySelector(DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER) ??
@@ -429,16 +485,22 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       return;
     }
 
+    const image = resolveImageLink(href, currentFile.value);
+    if (image) {
+      void openFileInNewTab(href, image);
+      return;
+    }
+
     // Relative markdown link
     if (href.endsWith('.md') || href.endsWith('.markdown')) {
-      openFileInNewTab(href);
+      void openFileInNewTab(href, null);
     } else if (href.startsWith('http://') || href.startsWith('https://') || (href.includes('.') && !href.includes('/'))) {
       // External link
       pendingExternalUrl.value = href.startsWith('http') ? href : `https://${href}`;
       showExternalLinkDialog.value = true;
     } else {
       // Could be a relative link to any file
-      openFileInNewTab(href);
+      void openFileInNewTab(href, null);
     }
   };
 

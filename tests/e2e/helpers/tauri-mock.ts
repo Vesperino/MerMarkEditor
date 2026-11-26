@@ -20,6 +20,7 @@ export async function setupTauriMocks(
   opts: {
     /** Initial file system contents */
     initialFs?: MockFs;
+    binaryFiles?: Record<string, number[]>;
     /** Initial file path to report from get_open_file_path (or null) */
     openFilePath?: string | null;
     /** App version string */
@@ -51,6 +52,13 @@ export async function setupTauriMocks(
     return fs[path];
   });
 
+  await page.exposeFunction('__mockFsReadBinary', (path: string): number[] => {
+    calls.push({ cmd: 'readBinary', args: path });
+    const bytes = opts.binaryFiles?.[path];
+    if (!bytes) throw new Error(`ENOENT: ${path}`);
+    return bytes;
+  });
+
   await page.exposeFunction('__mockFsWrite', async (path: string, content: string): Promise<void> => {
     calls.push({ cmd: 'write', args: { path, content } });
     await opts.beforeWrite?.(path, content);
@@ -75,6 +83,11 @@ export async function setupTauriMocks(
 
   await page.exposeFunction('__mockFsWatch', (): void => {
     // no-op — watcher registration is tracked browser-side via __watchCallbacks
+  });
+
+  await page.exposeFunction('__mockDialogSave', (path: string | null): string | null => {
+    calls.push({ cmd: 'dialogSave', args: path });
+    return path;
   });
 
   // NOTE: dialogSavePath is intentionally NOT exposed via page.exposeFunction
@@ -147,6 +160,9 @@ export async function setupTauriMocks(
 
         async invoke(cmd: string, args: Record<string, unknown> | Uint8Array = {}, options: Record<string, unknown> = {}) {
           // ── fs plugin ──────────────────────────────────────────────
+          if (cmd === 'plugin:fs|read_file') {
+            return call('__mockFsReadBinary', (args as Record<string, unknown>).path);
+          }
           if (cmd === 'plugin:fs|read_text_file') {
             const path = (args as Record<string, unknown>).path as string;
             const content = await call('__mockFsRead', path) as string;
@@ -191,7 +207,7 @@ export async function setupTauriMocks(
           }
           if (cmd === 'plugin:dialog|save') {
             // Read the mutable path variable (overridable from tests via page.evaluate)
-            return (window as Record<string, unknown>).__mockDialogSavePath ?? null;
+            return call('__mockDialogSave', (window as Record<string, unknown>).__mockDialogSavePath ?? null);
           }
 
           // ── shell plugin ───────────────────────────────────────────
