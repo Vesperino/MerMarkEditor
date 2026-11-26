@@ -19,6 +19,7 @@ const props = defineProps<{
   dragOverPath?: string | null;
   /** Id of the owning workspace — used to resolve per-workspace/folder sort. */
   workspaceId: string;
+  workspaceRoot: string;
 }>();
 
 const emit = defineEmits<{
@@ -36,13 +37,13 @@ const indentPx = computed(() => `${props.depth * 12}px`);
 
 /**
  * Folder is expanded when it's the workspace root (always renders its
- * children) or when its path is tracked in the shared expanded-folders set.
+ * children) or when its path is tracked in this workspace's expanded folders.
  * Top-level folders get added to that set automatically on first tree load,
  * which gives the "expanded by default" feel while still letting the user
  * collapse them.
  */
 const expanded = computed(
-  () => props.isRoot === true || ws.isFolderExpanded(props.node.path),
+  () => props.isRoot === true || ws.isFolderExpanded(props.workspaceRoot, props.node.path),
 );
 
 const isDropTarget = computed(
@@ -66,14 +67,15 @@ function onViewChanges(e: MouseEvent) {
 }
 
 /**
- * Single click = select (with Ctrl=toggle, Shift=range). Folders toggle on the
- * chevron only — clicking the row never opens or expands. Use double-click to
- * open files / expand folders, drag to insert/open in editor.
+ * Click to select, double-click to open a file or toggle a folder.
+ * Option/Alt-click on a folder toggles the entire branch.
  */
 function onRowClick(e: MouseEvent) {
   rowEl.value?.focus({ preventScroll: true });
   const path = props.node.path;
-  if (e.shiftKey) {
+  if (e.altKey && isFolder.value) {
+    ws.toggleFolderBranch(props.workspaceRoot, props.node);
+  } else if (e.shiftKey) {
     ws.rangeSelect(path);
   } else if (e.ctrlKey || e.metaKey) {
     ws.toggleSelect(path);
@@ -82,9 +84,9 @@ function onRowClick(e: MouseEvent) {
   }
 }
 
-function onRowDblClick() {
+function onRowDblClick(e: MouseEvent) {
   if (isFolder.value) {
-    ws.toggleFolder(props.node.path);
+    if (!e.altKey) ws.toggleFolder(props.workspaceRoot, props.node.path);
   } else {
     emit('open-file', props.node.path);
   }
@@ -92,8 +94,10 @@ function onRowDblClick() {
 
 function onChevronClick(e: MouseEvent) {
   e.stopPropagation();
+  if (!isFolder.value) return;
   rowEl.value?.focus({ preventScroll: true });
-  if (isFolder.value) ws.toggleFolder(props.node.path);
+  if (e.altKey) ws.toggleFolderBranch(props.workspaceRoot, props.node);
+  else ws.toggleFolder(props.workspaceRoot, props.node.path);
 }
 
 function onContextMenu(e: MouseEvent) {
@@ -243,6 +247,7 @@ watch(
         :depth="isRoot ? depth : depth + 1"
         :drag-over-path="dragOverPath"
         :workspace-id="workspaceId"
+        :workspace-root="workspaceRoot"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
         @sort-folder="(payload) => emit('sort-folder', payload)"

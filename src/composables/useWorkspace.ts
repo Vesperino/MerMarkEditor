@@ -31,9 +31,9 @@ const treesById = ref<Record<string, WorkspaceNode | null>>({});
 const loadingById = ref<Record<string, boolean>>({});
 const errorById = ref<Record<string, string | null>>({});
 
-/** Set of folder paths the user has expanded in any workspace's tree. */
-const expandedFolders = ref<Set<string>>(new Set());
-const autoExpandedSeen = new Set<string>();
+/** Folder expansion is local to each root, even when two workspace trees overlap. */
+const expandedFoldersByRoot = ref(new Map<string, Set<string>>());
+const autoExpandedSeenByRoot = new Map<string, Set<string>>();
 /** Workspace ids the user has collapsed in the multi-root sidebar (default expanded). */
 const collapsedWorkspaceIds = ref<Set<string>>(new Set());
 /** File path that should be highlighted in the tree (usually the active editor tab). */
@@ -63,6 +63,14 @@ function moveToFront(list: string[], item: string, limit: number): string[] {
 /** Comparison key for workspace roots — a dropped path may carry a trailing or foreign separator. */
 function rootKey(path: string): string {
   return trimTrailingSep(path.replace(/\\/g, '/'));
+}
+
+function* folderPaths(nodes: WorkspaceNode[]): Generator<string> {
+  for (const node of nodes) {
+    if (node.kind !== 'folder') continue;
+    yield node.path;
+    if (node.children) yield* folderPaths(node.children);
+  }
 }
 
 function newId(): string {
@@ -168,7 +176,7 @@ export function useWorkspace() {
     try {
       const node = await workspaceFs.readTree(entry.rootPath);
       treesById.value[entry.id] = node;
-      autoExpandTopLevel(node);
+      autoExpandTopLevel(entry.rootPath, node);
       return node;
     } catch (e) {
       const msg = String(e);
@@ -365,8 +373,20 @@ export function useWorkspace() {
 
   // ===== Public API: tree-view UI state =====
 
-  function isFolderExpanded(path: string): boolean {
-    return expandedFolders.value.has(path);
+  function isFolderExpanded(rootPath: string, path: string): boolean {
+    return expandedFoldersByRoot.value.get(rootPath)?.has(path) ?? false;
+  }
+
+  function setExpandedPaths(rootPath: string, paths: Iterable<string>, expanded: boolean) {
+    const current = expandedFoldersByRoot.value.get(rootPath);
+    const next = new Set(current);
+    for (const path of paths) {
+      if (expanded) next.add(path);
+      else next.delete(path);
+    }
+    if (next.size !== (current?.size ?? 0)) {
+      expandedFoldersByRoot.value.set(rootPath, next);
+    }
   }
 
   /**
@@ -374,46 +394,50 @@ export function useWorkspace() {
    * but only the first time they appear — once the user collapses one, the
    * next refresh won't auto-expand it again.
    */
-  function autoExpandTopLevel(root: WorkspaceNode) {
+  function autoExpandTopLevel(rootPath: string, root: WorkspaceNode) {
     if (!root.children || root.children.length === 0) return;
-    const next = new Set(expandedFolders.value);
-    let changed = false;
+    const seen = autoExpandedSeenByRoot.get(rootPath) ?? new Set<string>();
+    const paths: string[] = [];
     for (const child of root.children) {
-      if (child.kind !== 'folder') continue;
-      if (autoExpandedSeen.has(child.path)) continue;
-      autoExpandedSeen.add(child.path);
-      next.add(child.path);
-      changed = true;
+      if (child.kind !== 'folder' || seen.has(child.path)) continue;
+      seen.add(child.path);
+      paths.push(child.path);
     }
-    if (changed) expandedFolders.value = next;
+    if (paths.length === 0) return;
+    autoExpandedSeenByRoot.set(rootPath, seen);
+    setExpandedPaths(rootPath, paths, true);
   }
 
-  function expandFolder(path: string) {
-    if (!expandedFolders.value.has(path)) {
-      const next = new Set(expandedFolders.value);
-      next.add(path);
-      expandedFolders.value = next;
-    }
+  function expandFolder(rootPath: string, path: string) {
+    setExpandedPaths(rootPath, [path], true);
   }
 
-  function collapseFolder(path: string) {
-    if (expandedFolders.value.has(path)) {
-      const next = new Set(expandedFolders.value);
-      next.delete(path);
-      expandedFolders.value = next;
-    }
+  function collapseFolder(rootPath: string, path: string) {
+    setExpandedPaths(rootPath, [path], false);
   }
 
-  function toggleFolder(path: string) {
-    if (expandedFolders.value.has(path)) collapseFolder(path);
-    else expandFolder(path);
+  function toggleFolder(rootPath: string, path: string) {
+    setExpandedPaths(rootPath, [path], !isFolderExpanded(rootPath, path));
+  }
+
+  function toggleFolderBranch(rootPath: string, folder: WorkspaceNode) {
+    setExpandedPaths(rootPath, folderPaths([folder]), !isFolderExpanded(rootPath, folder.path));
+  }
+
+  function setWorkspaceFoldersExpanded(id: string, expanded: boolean) {
+    const workspace = openWorkspaces.value.find((entry) => entry.id === id);
+    const root = treesById.value[id];
+    if (!workspace || !root) return;
+    if (expanded) setExpandedPaths(workspace.rootPath, folderPaths(root.children ?? []), true);
+    else expandedFoldersByRoot.value.delete(workspace.rootPath);
+    expandWorkspaceSection(id);
   }
 
   /** Expand all ancestor folders of a target path so it becomes visible. */
   function expandAncestorsOf(target: string) {
     const owning = findOwningWorkspace(target);
     if (!owning) return;
-    const next = new Set(expandedFolders.value);
+    const paths: string[] = [];
     // Walk up from target's parent until we reach the workspace root.
     // Each ancestor folder gets added to the expanded set.
     let cur = target;
@@ -424,9 +448,9 @@ export function useWorkspace() {
       cur = cur.slice(0, sepIdx);
       const curNorm = cur.replace(/\\/g, '/');
       if (curNorm === rootNorm || curNorm.length < rootNorm.length) break;
-      next.add(cur);
+      paths.push(cur);
     }
-    expandedFolders.value = next;
+    setExpandedPaths(owning.rootPath, paths, true);
   }
 
   /**
@@ -499,20 +523,20 @@ export function useWorkspace() {
    */
   const visibleNodePaths = computed<string[]>(() => {
     const out: string[] = [];
-    const walk = (node: WorkspaceNode, isWorkspaceRoot: boolean, workspaceId: string) => {
+    const walk = (node: WorkspaceNode, isWorkspaceRoot: boolean, workspace: OpenWorkspaceEntry) => {
       // Workspace root is invisible in the tree — only its children render.
       if (!isWorkspaceRoot) out.push(node.path);
       if (node.kind !== 'folder') return;
-      const isExpanded = isWorkspaceRoot || expandedFolders.value.has(node.path);
+      const isExpanded = isWorkspaceRoot || isFolderExpanded(workspace.rootPath, node.path);
       if (!isExpanded) return;
-      for (const child of sortChildren(node.children ?? [], node.path, workspaceId)) {
-        walk(child, false, workspaceId);
+      for (const child of sortChildren(node.children ?? [], node.path, workspace.id)) {
+        walk(child, false, workspace);
       }
     };
     for (const ws of openWorkspaces.value) {
       if (collapsedWorkspaceIds.value.has(ws.id)) continue;
       const tree = treesById.value[ws.id];
-      if (tree) walk(tree, true, ws.id);
+      if (tree) walk(tree, true, ws);
     }
     return out;
   });
@@ -589,7 +613,7 @@ export function useWorkspace() {
     isLoading,
     error,
     treesById,
-    expandedFolders,
+    expandedFoldersByRoot,
     collapsedWorkspaceIds,
     highlightedPath,
     selectedPaths,
@@ -625,6 +649,8 @@ export function useWorkspace() {
     expandFolder,
     collapseFolder,
     toggleFolder,
+    toggleFolderBranch,
+    setWorkspaceFoldersExpanded,
     expandAncestorsOf,
     setHighlightedPath,
 

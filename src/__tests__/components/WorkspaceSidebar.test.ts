@@ -62,7 +62,7 @@ describe('workspace tree keyboard navigation', () => {
       ]), folder('/one/empty', [])]),
       two: folder('/two', [file('/two/a.md')]),
     };
-    ws.expandedFolders.value = new Set();
+    ws.expandedFoldersByRoot.value.clear();
     ws.collapsedWorkspaceIds.value = new Set();
     ws.highlightedPath.value = null;
     ws.revealSignal.value = null;
@@ -87,6 +87,53 @@ describe('workspace tree keyboard navigation', () => {
     selected('/one/z.md');
     expect(wrapper.findAll('.tree-row[tabindex="0"]')).toHaveLength(1);
     expect(row('/one/z.md').attributes('tabindex')).toBe('0');
+  });
+
+  it('recursively toggles a folder through both the row and its chevron', async () => {
+    await row('/one/docs').trigger('click', { altKey: true });
+    expect(row('/one/docs/nested/a.md')).toBeDefined();
+    expect(row('/one/empty').attributes('aria-expanded')).toBe('false');
+
+    await row('/one/docs').get('.tree-chevron').trigger('click', { altKey: true });
+    expect(row('/one/docs').attributes('aria-expanded')).toBe('false');
+
+    await row('/one/docs').get('.tree-chevron').trigger('click');
+    expect(row('/one/docs/nested').attributes('aria-expanded')).toBe('false');
+    expect(row('/one/docs/nested/a.md')).toBeUndefined();
+  });
+
+  it('expands and collapses folders in the workspace whose header was clicked', async () => {
+    const { settings } = useSettings();
+    settings.value.workspace.openWorkspaces[1] = { id: 'two', rootPath: '/one/docs', name: 'docs' };
+    ws.treesById.value.two = folder('/one/docs', [
+      folder('/one/docs/nested', [file('/one/docs/nested/a.md')]),
+    ]);
+    ws.collapseWorkspaceSection('one');
+    await nextTick();
+
+    const first = wrapper.get('[data-ws-id="one"]');
+    const second = wrapper.get('[data-ws-id="two"]');
+    const nestedFile = '[data-tree-path="/one/docs/nested/a.md"]';
+    const nestedFolder = '[data-tree-path="/one/docs/nested"]';
+    async function chooseFolderAction(label: string) {
+      await first.get('.ws-section-header').trigger('contextmenu');
+      const actions = document.querySelectorAll<HTMLButtonElement>('.workspace-context-menu button');
+      const action = Array.from(actions).find((button) => button.textContent?.trim() === label);
+      expect(action).toBeDefined();
+      action!.click();
+      await nextTick();
+    }
+
+    await chooseFolderAction('Expand all folders');
+    expect(first.find(nestedFile).exists()).toBe(true);
+    expect(second.get(nestedFolder).attributes('aria-expanded')).toBe('false');
+    await second.get(nestedFolder).find('.tree-chevron').trigger('click');
+
+    await chooseFolderAction('Collapse all folders');
+    expect(first.find(nestedFolder).exists()).toBe(false);
+    expect(first.get('[data-tree-path="/one/docs"]').attributes('aria-expanded')).toBe('false');
+    expect(first.find('[data-tree-path="/one/z.md"]').exists()).toBe(true);
+    expect(second.find(nestedFile).exists()).toBe(true);
   });
 
   it('moves through sorted visible rows and stops at both ends without opening files', async () => {
@@ -133,15 +180,15 @@ describe('workspace tree keyboard navigation', () => {
   });
 
   it('collapses on Left, then moves from a closed folder or file to its parent', async () => {
-    ws.expandFolder('/one/docs');
-    ws.expandFolder('/one/docs/nested');
+    ws.expandFolder('/one', '/one/docs');
+    ws.expandFolder('/one', '/one/docs/nested');
     await nextTick();
     await row('/one/docs/nested/a.md').trigger('click');
     await press('ArrowLeft');
     selected('/one/docs/nested');
     await press('ArrowLeft');
     selected('/one/docs/nested');
-    expect(ws.isFolderExpanded('/one/docs/nested')).toBe(false);
+    expect(ws.isFolderExpanded('/one', '/one/docs/nested')).toBe(false);
     await press('ArrowLeft');
     selected('/one/docs');
     await press('ArrowLeft');
@@ -195,7 +242,7 @@ describe('workspace tree keyboard navigation', () => {
     await press('Home');
     selected('/one/docs');
     await press('Enter');
-    expect(ws.isFolderExpanded('/one/docs')).toBe(true);
+    expect(ws.isFolderExpanded('/one', '/one/docs')).toBe(true);
     await press(' ');
     expect(ws.selectedPaths.value.size).toBe(0);
     await press(' ');
@@ -209,7 +256,7 @@ describe('workspace tree keyboard navigation', () => {
     expect(wrapper.emitted('open-file')).toEqual([['/one/z.md']]);
     await row('/one/docs').trigger('click');
     await press('ArrowDown', { metaKey: true });
-    expect(ws.isFolderExpanded('/one/docs')).toBe(true);
+    expect(ws.isFolderExpanded('/one', '/one/docs')).toBe(true);
     await row('/one/z.md').trigger('click');
     await press('Enter');
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
@@ -258,17 +305,17 @@ describe('workspace tree keyboard navigation', () => {
   });
 
   it('restores a visible Tab stop when a selected descendant is hidden', async () => {
-    ws.expandFolder('/one/docs');
+    ws.expandFolder('/one', '/one/docs');
     await nextTick();
     await row('/one/docs/b.md').trigger('click');
-    ws.collapseFolder('/one/docs');
+    ws.collapseFolder('/one', '/one/docs');
     await nextTick();
     expect(wrapper.findAll('.tree-row[tabindex="0"]').map((r) => r.attributes('data-tree-path'))).toEqual(['/one/docs']);
   });
 
   it('re-renders only the rows that lose and gain focus', async () => {
-    ws.expandFolder('/one/docs');
-    ws.expandFolder('/one/docs/nested');
+    ws.expandFolder('/one', '/one/docs');
+    ws.expandFolder('/one', '/one/docs/nested');
     await nextTick();
     await row('/one/z.md').trigger('click');
     updatedRows.length = 0;
@@ -300,7 +347,7 @@ describe('workspace tree keyboard navigation', () => {
   });
 
   it('exposes one tree per workspace holding only tree items and groups', async () => {
-    ws.expandFolder('/one/docs');
+    ws.expandFolder('/one', '/one/docs');
     await nextTick();
     const trees = wrapper.findAll('[role="tree"]');
     expect(trees.map((tree) => tree.attributes('aria-label'))).toEqual(['one', 'two']);

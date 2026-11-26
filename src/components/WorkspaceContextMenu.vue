@@ -8,6 +8,8 @@ export type WorkspaceContextAction =
   | 'new-file-sibling'
   | 'new-folder-sibling'
   | 'sort-folder'
+  | 'collapse-all-folders'
+  | 'expand-all-folders'
   | 'rename'
   | 'delete'
   | 'reveal'
@@ -23,6 +25,7 @@ const props = defineProps<{
   /** Right-click on a workspace root section: show new-file/new-folder/reveal,
    *  hide rename/delete (those would destroy the workspace folder itself). */
   isRoot?: boolean;
+  hasFolderExpansionActions?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -134,6 +137,15 @@ const handle = (action: WorkspaceContextAction) => {
       >
         {{ t.workspaceSortFolder }}
       </button>
+      <template v-if="hasFolderExpansionActions">
+        <div class="context-menu-divider"></div>
+        <button class="context-menu-item" @click="handle('collapse-all-folders')">
+          {{ t.collapseAllFolders }}
+        </button>
+        <button class="context-menu-item" @click="handle('expand-all-folders')">
+          {{ t.expandAllFolders }}
+        </button>
+      </template>
       <div class="context-menu-divider"></div>
       <button v-if="!isRoot" class="context-menu-item" @click="handle('rename')">
         {{ t.workspaceContextRename }}
