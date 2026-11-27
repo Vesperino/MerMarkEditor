@@ -277,6 +277,8 @@ const pl: Translations = {
   checkingForUpdates: 'Sprawdzam...',
   upToDate: 'Masz najnowszą wersję',
   flatpakUpdatesNote: 'Wersję Flatpak aktualizuje Flathub lub Twoje centrum oprogramowania.',
+  downloadPortable: 'Pobierz ZIP',
+  portableUpdateNote: 'Wersję przenośną aktualizujesz ręcznie: pobierz nowy ZIP i podmień pliki w jej folderze.',
 
   // Split view / Panes
   dragTabHere: 'Przeciągnij kartę tutaj',

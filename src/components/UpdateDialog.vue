@@ -11,10 +11,12 @@ const props = withDefaults(defineProps<{
   progress?: number;
   isUpdating?: boolean;
   error?: string | null;
+  portable?: boolean;
 }>(), {
   progress: 0,
   isUpdating: false,
   error: null,
+  portable: false,
 });
 
 const notesExpanded = ref(true);
@@ -58,12 +60,13 @@ const emit = defineEmits<{
             <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
           </div>
         </div>
+        <p v-if="portable" class="update-portable-note">{{ t.portableUpdateNote }}</p>
         <p v-if="error" class="update-error">{{ error }}</p>
       </div>
       <div class="dialog-actions">
         <button @click="emit('close')" class="btn-cancel" :disabled="isUpdating">{{ t.later }}</button>
         <button @click="emit('update')" class="btn-confirm" :disabled="isUpdating">
-          {{ isUpdating ? t.updating : t.updateNow }}
+          {{ isUpdating ? t.updating : portable ? t.downloadPortable : t.updateNow }}
         </button>
       </div>
     </div>
@@ -222,6 +225,12 @@ const emit = defineEmits<{
   height: 100%;
   background: var(--progress-fill);
   transition: width 0.3s ease;
+}
+
+.update-portable-note {
+  color: var(--text-secondary);
+  margin-top: 12px;
+  font-size: 13px;
 }
 
 .update-error {

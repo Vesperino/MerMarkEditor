@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { check } from '@tauri-apps/plugin-updater';
+import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useAutoUpdate } from '../../composables/useAutoUpdate';
 
 const DISMISSED_KEY = 'mermark-dismissed-update-version';
 
 // Hoisted mock state for @tauri-apps/plugin-updater
-const mockCheckResult = vi.hoisted(() => ({ value: null as { version: string; body: string } | null }));
+const mockCheckResult = vi.hoisted(() => ({ value: null as { version: string; body: string; downloadAndInstall?: () => Promise<void> } | null }));
 
 vi.mock('@tauri-apps/plugin-updater', () => ({
   check: vi.fn(async () => mockCheckResult.value),
@@ -17,17 +18,29 @@ vi.mock('../../services/flatpak', () => ({
   isFlatpak: vi.fn(async () => mockFlatpak.value),
 }));
 
+const mockPortable = vi.hoisted(() => ({ value: false }));
+
+vi.mock('../../services/portable', () => ({
+  isPortable: vi.fn(async () => mockPortable.value),
+}));
+
+vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn(async () => {}) }));
+vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: vi.fn(async () => {}) }));
+
 describe('useAutoUpdate', () => {
   beforeEach(() => {
     localStorage.clear();
     mockCheckResult.value = null;
     mockFlatpak.value = false;
+    mockPortable.value = false;
     vi.mocked(check).mockClear();
+    vi.mocked(openExternal).mockClear();
     // Prevent real network calls via fetch
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     // The composable uses module-level singleton refs (so App.vue and the
     // settings modal share state). Reset them between tests to avoid leakage.
-    const { showUpdateDialog, updateInfo, updateError, isUpdating, noUpdateFound } = useAutoUpdate();
+    const { showUpdateDialog, updateInfo, updateError, isUpdating, noUpdateFound, portableBuild } = useAutoUpdate();
+    portableBuild.value = null;
     showUpdateDialog.value = false;
     updateInfo.value = null;
     updateError.value = null;
@@ -169,6 +182,33 @@ describe('useAutoUpdate', () => {
 
     expect(check).toHaveBeenCalledTimes(1);
     expect(updatesViaFlatpak.value).toBe(false);
+  });
+
+  it('sends a portable copy to the release page instead of running the installer', async () => {
+    mockPortable.value = true;
+    const downloadAndInstall = vi.fn(async () => {});
+    mockCheckResult.value = { version: '0.8.8', body: 'notes', downloadAndInstall };
+    const { checkForUpdates, downloadAndInstallUpdate, showUpdateDialog, portableBuild } = useAutoUpdate();
+
+    await checkForUpdates();
+    await downloadAndInstallUpdate();
+
+    expect(portableBuild.value).toBe(true);
+    expect(openExternal).toHaveBeenCalledWith('https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.8');
+    expect(downloadAndInstall).not.toHaveBeenCalled();
+    expect(showUpdateDialog.value).toBe(false);
+  });
+
+  it('installs in place when the copy is not portable', async () => {
+    const downloadAndInstall = vi.fn(async () => {});
+    mockCheckResult.value = { version: '0.8.8', body: 'notes', downloadAndInstall };
+    const { checkForUpdates, downloadAndInstallUpdate } = useAutoUpdate();
+
+    await checkForUpdates();
+    await downloadAndInstallUpdate();
+
+    expect(downloadAndInstall).toHaveBeenCalledTimes(1);
+    expect(openExternal).not.toHaveBeenCalled();
   });
 
   it('handles GitHub API failure silently (empty notes)', async () => {

@@ -277,6 +277,8 @@ const ja: Translations = {
   checkingForUpdates: '確認中…',
   upToDate: "最新の状態です",
   flatpakUpdatesNote: 'Flatpak 版は Flathub またはソフトウェアセンターから更新されます。',
+  downloadPortable: 'ZIP をダウンロード',
+  portableUpdateNote: 'ポータブル版は手動で更新します。新しい ZIP をダウンロードし、フォルダー内のファイルを置き換えてください。',
 
   // Split view / Panes
   dragTabHere: 'ここにタブをドラッグ',

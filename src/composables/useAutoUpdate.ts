@@ -1,5 +1,7 @@
 import { ref } from 'vue';
+import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { isFlatpak } from '../services/flatpak';
+import { isPortable } from '../services/portable';
 
 export interface UpdateInfo {
   version: string;
@@ -15,6 +17,7 @@ export interface UseAutoUpdateReturn {
   isCheckingForUpdates: ReturnType<typeof ref<boolean>>;
   noUpdateFound: ReturnType<typeof ref<boolean>>;
   updatesViaFlatpak: ReturnType<typeof ref<boolean | null>>;
+  portableBuild: ReturnType<typeof ref<boolean | null>>;
   checkForUpdates: () => Promise<void>;
   checkForUpdatesManual: () => Promise<void>;
   downloadAndInstallUpdate: () => Promise<void>;
@@ -33,6 +36,7 @@ const updateError = ref<string | null>(null);
 const isCheckingForUpdates = ref(false);
 const noUpdateFound = ref(false);
 const updatesViaFlatpak = ref<boolean | null>(null);
+const portableBuild = ref<boolean | null>(null);
 
 /** Fetch release notes from GitHub API as fallback when Tauri updater body is empty. */
 async function fetchGitHubReleaseNotes(version: string): Promise<string> {
@@ -51,6 +55,13 @@ async function fetchGitHubReleaseNotes(version: string): Promise<string> {
 async function managedByFlatpak(): Promise<boolean> {
   if (updatesViaFlatpak.value === null) updatesViaFlatpak.value = await isFlatpak();
   return updatesViaFlatpak.value;
+}
+
+// The installer needs admin rights the portable ZIP was chosen to avoid, so a
+// portable copy sends the user to the release page for the new ZIP instead.
+async function isPortableBuild(): Promise<boolean> {
+  if (portableBuild.value === null) portableBuild.value = await isPortable();
+  return portableBuild.value;
 }
 
 async function runCheck(ignoreDismissed: boolean): Promise<void> {
@@ -87,10 +98,18 @@ async function runCheck(ignoreDismissed: boolean): Promise<void> {
 
 export function useAutoUpdate(): UseAutoUpdateReturn {
   void managedByFlatpak();
+  void isPortableBuild();
   const checkForUpdates = (): Promise<void> => runCheck(false);
   const checkForUpdatesManual = (): Promise<void> => runCheck(true);
 
   const downloadAndInstallUpdate = async (): Promise<void> => {
+    if (await isPortableBuild()) {
+      const version = updateInfo.value?.version;
+      await openExternal(`https://github.com/${GITHUB_REPO}/releases/${version ? `tag/v${version.replace(/^v/, '')}` : 'latest'}`);
+      showUpdateDialog.value = false;
+      updateInfo.value = null;
+      return;
+    }
     try {
       isUpdating.value = true;
       updateError.value = null;
@@ -148,6 +167,7 @@ export function useAutoUpdate(): UseAutoUpdateReturn {
     isCheckingForUpdates,
     noUpdateFound,
     updatesViaFlatpak,
+    portableBuild,
     checkForUpdates,
     checkForUpdatesManual,
     downloadAndInstallUpdate,

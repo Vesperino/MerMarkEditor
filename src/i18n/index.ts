@@ -286,6 +286,8 @@ export interface Translations {
   checkingForUpdates: string;
   upToDate: string;
   flatpakUpdatesNote: string;
+  downloadPortable: string;
+  portableUpdateNote: string;
 
   // Split view / Panes
   dragTabHere: string;

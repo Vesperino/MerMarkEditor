@@ -1424,6 +1424,7 @@ const {
   updateProgress,
   isUpdating,
   updateError,
+  portableBuild,
   checkForUpdates,
   downloadAndInstallUpdate,
   closeUpdateDialog,
@@ -2397,6 +2398,7 @@ provide(editorSelectionMenuKey, useNativeSelectionMenu(appCommands, editorInstan
       :progress="updateProgress"
       :is-updating="isUpdating"
       :error="updateError"
+      :portable="!!portableBuild"
       @close="closeUpdateDialog"
       @update="downloadAndInstallUpdate"
     />

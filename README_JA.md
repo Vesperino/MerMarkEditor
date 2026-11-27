@@ -349,7 +349,7 @@
 
 | プラットフォーム | ダウンロード |
 |----------|----------|
-| Windows  | [.exe / .msi インストーラー](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| Windows  | [.exe / .msi インストーラー](https://github.com/Vesperino/MerMarkEditor/releases/latest)、または管理者権限なしで使えるポータブル版 .zip |
 | macOS    | [.dmg（ユニバーサル: Apple Silicon + Intel）](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 | Linux    | [.deb / .AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 
