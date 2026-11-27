@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount, provide, watch } from 'vue';
+import { ref, computed, reactive, nextTick, onMounted, onBeforeUnmount, provide, watch } from 'vue';
 import { useI18n } from '../i18n';
 import { treeFocusKey, useWorkspace, type WorkspaceNode } from '../composables/useWorkspace';
 import { SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '../composables/useSettings';
@@ -11,6 +11,7 @@ import WorkspaceConfirmDialog from './WorkspaceConfirmDialog.vue';
 import type { WorkspaceSortMode } from '../utils/workspace-sort';
 import { basenameOf } from '../utils/path-utils';
 import { isMacPlatform } from '../utils/platform';
+import { gitClient, type GitContext } from '../services/gitClient';
 import {
   autoScrollStep,
   exceedsThreshold,
@@ -52,6 +53,20 @@ const emit = defineEmits<{
 }>();
 
 const showHeaderMenu = ref(false);
+
+// ===== Built-in Git workflow =====
+const gitState = ref<GitContext | null>(null);
+// Roots with a git operation currently in flight. Scoped per-root (not a
+// single global flag) so a slow check for a repo the user has since
+// navigated away from can never block — or be blocked by — work on the repo
+// actually shown right now. Must be `reactive` (not a plain Set): a plain
+// Set's add/delete/has calls are invisible to Vue's reactivity system, so the
+// `gitBusy` computed below would never re-evaluate when it changed.
+const gitBusyRoots = reactive(new Set<string>());
+const gitMessage = ref('');
+const gitBranchChoice = ref('');
+let gitTimer: number | null = null;
+const GIT_POLL_MS = 120000;
 
 // ===== Sort menu state =====
 // Reused for the global default (scope='global') and per-folder overrides
@@ -122,7 +137,8 @@ type PendingAction =
   | { kind: 'new-folder'; parent: string }
   | { kind: 'rename'; from: string; originalName: string }
   | { kind: 'delete'; path: string; name: string }
-  | { kind: 'delete-many'; paths: string[]; name: string };
+  | { kind: 'delete-many'; paths: string[]; name: string }
+  | { kind: 'git-commit' };
 
 const pendingAction = ref<PendingAction | null>(null);
 
@@ -197,6 +213,193 @@ async function onContextAction(action: WorkspaceContextAction) {
 function dismissDialog() {
   pendingAction.value = null;
 }
+
+const gitWorkspaceRoot = computed<string | null>(() => {
+  const hl = ws.highlightedPath.value;
+  if (hl) {
+    const owning = ws.findOwningWorkspace(hl);
+    if (owning) return owning.rootPath;
+  }
+  if (ws.activeWorkspace.value) return ws.activeWorkspace.value.rootPath;
+  return ws.openWorkspaces.value[0]?.rootPath ?? null;
+});
+
+/** Busy state of the repo currently shown in the Git bar — used to disable
+ *  its buttons. A busy OTHER root (e.g. one the user just switched away from)
+ *  never affects this. */
+const gitBusy = computed(() => {
+  const root = gitWorkspaceRoot.value;
+  return !!root && gitBusyRoots.has(root);
+});
+
+const gitSyncDisabled = computed(() => gitBusy.value || !gitState.value);
+const gitCommitDisabled = computed(() => gitBusy.value || !gitState.value);
+const gitDirtyLabel = computed(() => (gitState.value?.dirty ? 'Local changes' : 'No local changes'));
+const gitNeedsCommit = computed(() => !!gitState.value?.dirty);
+
+function setGitMessage(message: string) {
+  gitMessage.value = message;
+}
+
+// Every async Git op captures the workspace root it was issued for. Multiple
+// repos/branches can be in flight in quick succession (user clicking through
+// files/workspaces, the poll timer, an explicit Sync) — without this guard a
+// slow response for a repo the user has since navigated away from can land
+// AFTER a faster response for the new repo and silently overwrite it, which
+// is what caused the dirty flag / branch name to look wrong or "stuck".
+function isStaleGitRoot(root: string): boolean {
+  return gitWorkspaceRoot.value !== root;
+}
+
+async function loadGitContext(root: string) {
+  // Mutually exclusive with every OTHER git operation on this SAME root
+  // (sync/checkout/commit). Without this, a cheap local-status check queued
+  // by the post-save debounce could still be in flight when the user clicks
+  // Commit + Push, and resolve AFTER the commit finishes — silently
+  // overwriting the fresh "clean" state with the stale "dirty" snapshot it
+  // read before the commit happened. Scoped per-root so a check for a
+  // DIFFERENT repo never blocks this one.
+  if (gitBusyRoots.has(root)) return;
+  gitBusyRoots.add(root);
+  try {
+    const ctx = await gitClient.getContext(root);
+    if (isStaleGitRoot(root)) return;
+    gitState.value = ctx;
+    gitBranchChoice.value = ctx?.currentBranch ?? '';
+    if (!ctx) setGitMessage('No Git repository in this workspace.');
+  } catch (e) {
+    if (isStaleGitRoot(root)) return;
+    gitState.value = null;
+    gitBranchChoice.value = '';
+    setGitMessage(String(e));
+  } finally {
+    gitBusyRoots.delete(root);
+  }
+}
+
+async function runGitSync(autoPull = true) {
+  const root = gitWorkspaceRoot.value;
+  if (!root || gitBusyRoots.has(root)) return;
+  gitBusyRoots.add(root);
+  try {
+    const result = await gitClient.sync(root, autoPull, ws.dirtyPaths.value.size === 0);
+    if (isStaleGitRoot(root)) return;
+    gitState.value = result.state;
+    gitBranchChoice.value = result.state.currentBranch;
+    setGitMessage(result.message);
+  } catch (e) {
+    if (isStaleGitRoot(root)) return;
+    setGitMessage(String(e));
+  } finally {
+    gitBusyRoots.delete(root);
+  }
+}
+
+/** Initial/workspace-switch load: show the cheap local status first, then
+ *  layer the network-dependent fetch/pull result on top. Sequential (not
+ *  parallel) so the two responses can never race each other for the same root. */
+async function loadAndSyncGit() {
+  const root = gitWorkspaceRoot.value;
+  if (!root) {
+    gitState.value = null;
+    gitBranchChoice.value = '';
+    return;
+  }
+  await loadGitContext(root);
+  await runGitSync(true);
+}
+
+async function onBranchChange(branch: string) {
+  const root = gitWorkspaceRoot.value;
+  if (!root || !branch || gitBusyRoots.has(root)) return;
+  gitBusyRoots.add(root);
+  try {
+    const next = await gitClient.checkoutBranch(root, branch);
+    if (isStaleGitRoot(root)) return;
+    gitState.value = next;
+    gitBranchChoice.value = next.currentBranch;
+    setGitMessage(`Switched to ${next.currentBranch}.`);
+  } catch (e) {
+    if (isStaleGitRoot(root)) return;
+    setGitMessage(String(e));
+    gitBranchChoice.value = gitState.value?.currentBranch ?? '';
+  } finally {
+    gitBusyRoots.delete(root);
+  }
+}
+
+async function onConfirmGitCommit(message: string) {
+  pendingAction.value = null;
+  const root = gitWorkspaceRoot.value;
+  if (!root || gitBusyRoots.has(root)) return;
+  gitBusyRoots.add(root);
+  // `commit` and `push` are two separate git operations behind one backend
+  // call: commit can succeed while push fails (no remote configured, no
+  // network, rejected non-fast-forward, ...). That failure must not skip the
+  // status re-check below — the working tree really did change (the commit
+  // went through), so leaving `gitState` untouched on the catch path is
+  // exactly what left the UI stuck showing "Local changes" after a commit
+  // that had actually succeeded locally.
+  let commitError: string | null = null;
+  try {
+    await gitClient.commitAndPush(root, message);
+  } catch (e) {
+    commitError = String(e);
+  }
+  try {
+    // Don't trust the context bundled in the commit response as ground
+    // truth — re-check with a fresh `git status`-equivalent call right
+    // after, regardless of whether the push step above succeeded. The
+    // periodic poll and the post-save debounce both run independently, and
+    // relying on one response object makes the UI fragile to whichever one
+    // of them happens to apply last. A fresh, authoritative re-check removes
+    // that dependency entirely.
+    const verified = await gitClient.getContext(root);
+    if (isStaleGitRoot(root)) return;
+    gitState.value = verified;
+    gitBranchChoice.value = verified?.currentBranch ?? '';
+    setGitMessage(commitError ? `Committed locally. Push failed: ${commitError}` : 'Committed and pushed successfully.');
+  } catch (e) {
+    if (isStaleGitRoot(root)) return;
+    setGitMessage(commitError ?? String(e));
+  } finally {
+    gitBusyRoots.delete(root);
+  }
+}
+
+function startGitPolling() {
+  if (gitTimer !== null) window.clearInterval(gitTimer);
+  gitTimer = window.setInterval(() => {
+    void runGitSync(true);
+  }, GIT_POLL_MS);
+}
+
+function stopGitPolling() {
+  if (gitTimer !== null) {
+    window.clearInterval(gitTimer);
+    gitTimer = null;
+  }
+}
+
+// A save can fire mid-keystroke (autosave) or in quick succession across
+// several tabs — debounce so a burst of saves triggers one cheap, local-only
+// status check (no network) instead of one per file.
+let gitSaveDebounce: number | null = null;
+const GIT_SAVE_DEBOUNCE_MS = 400;
+
+watch(
+  () => ws.fileSavedSignal.value,
+  (signal) => {
+    if (!signal) return;
+    const root = gitWorkspaceRoot.value;
+    if (!root) return;
+    if (gitSaveDebounce !== null) window.clearTimeout(gitSaveDebounce);
+    gitSaveDebounce = window.setTimeout(() => {
+      gitSaveDebounce = null;
+      void loadGitContext(root);
+    }, GIT_SAVE_DEBOUNCE_MS);
+  },
+);
 
 // Closing a dialog removes its focused input; hand focus back to what opened it.
 let dialogOpener: HTMLElement | null = null;
@@ -686,15 +889,23 @@ watch(
   },
 );
 
+watch(gitWorkspaceRoot, () => {
+  void loadAndSyncGit();
+});
+
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
   document.addEventListener('mousedown', onDocMouseDown);
   document.addEventListener('click', onDocClickCapture, true);
+  startGitPolling();
+  void loadAndSyncGit();
 });
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown);
   document.removeEventListener('mousedown', onDocMouseDown);
   document.removeEventListener('click', onDocClickCapture, true);
+  stopGitPolling();
+  if (gitSaveDebounce !== null) window.clearTimeout(gitSaveDebounce);
   endDrag();
 });
 </script>
@@ -812,6 +1023,41 @@ onBeforeUnmount(() => {
       </div>
       </div>
     </header>
+
+    <div v-if="gitState" class="ws-git-bar">
+      <select
+        class="ws-git-branch"
+        :value="gitBranchChoice"
+        :disabled="gitBusy"
+        @change="onBranchChange(($event.target as HTMLSelectElement).value)"
+      >
+        <option v-if="!gitState.branches.length" :value="gitState.currentBranch">{{ gitState.currentBranch }}</option>
+        <option v-for="branch in gitState.branches" :key="branch" :value="branch">
+          {{ branch }}
+        </option>
+      </select>
+
+      <button class="ws-git-btn" :disabled="gitSyncDisabled" @click="runGitSync(true)">
+        Sync
+      </button>
+      <button
+        class="ws-git-btn ws-git-btn-primary"
+        :class="{ 'ws-git-btn-warning': gitNeedsCommit }"
+        :disabled="gitCommitDisabled"
+        @click="pendingAction = { kind: 'git-commit' }"
+      >
+        Commit + Push
+      </button>
+
+      <span class="ws-git-state">
+        <span class="ws-git-dot" :class="{ dirty: gitNeedsCommit }" aria-hidden="true"></span>
+        {{ gitDirtyLabel }}
+        <template v-if="gitState.behind > 0"> · ↓{{ gitState.behind }}</template>
+        <template v-if="gitState.ahead > 0"> · ↑{{ gitState.ahead }}</template>
+      </span>
+    </div>
+
+    <div v-if="gitState && gitMessage" class="ws-git-message" :title="gitMessage">{{ gitMessage }}</div>
 
     <div class="ws-body" ref="sidebarEl" @mousedown="onBodyMouseDown">
       <div v-if="!hasOpen" class="ws-empty">
@@ -935,6 +1181,19 @@ onBeforeUnmount(() => {
       @cancel="dismissDialog"
     />
 
+    <WorkspaceInputDialog
+      v-if="pendingAction?.kind === 'git-commit'"
+      title="Commit + Push"
+      label="Commit message"
+      initial-value=""
+      :placeholder="'Describe your changes'"
+      confirm-label="Commit + Push"
+      :cancel-label="t.cancel"
+      :validate="(v) => v.trim() ? null : 'Commit message is required'"
+      @confirm="onConfirmGitCommit"
+      @cancel="dismissDialog"
+    />
+
     <Teleport to="body">
       <div
         v-if="dragGhost"
@@ -1001,6 +1260,90 @@ onBeforeUnmount(() => {
   background: var(--bg-secondary);
   flex-shrink: 0;
   height: 32px;
+}
+
+.ws-git-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  row-gap: 6px;
+  /* Extra right padding clears the resize handle's hit area (a few px
+     reserved along the sidebar's right edge, see .ws-resize-handle) so its
+     buttons stay reliably clickable even at the minimum sidebar width. */
+  padding: 6px 10px 6px 6px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-tertiary);
+}
+
+.ws-git-branch {
+  min-width: 120px;
+  max-width: 180px;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.ws-git-btn {
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ws-git-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ws-git-btn-primary {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.ws-git-btn-warning {
+  border-color: #d97706;
+  color: #d97706;
+  font-weight: 600;
+}
+
+.ws-git-state {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.ws-git-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+
+.ws-git-dot.dirty {
+  background: #d97706;
+}
+
+.ws-git-message {
+  padding: 0 8px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ws-title {

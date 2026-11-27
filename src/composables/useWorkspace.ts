@@ -54,6 +54,12 @@ const dirtyPaths = ref<Set<string>>(new Set());
 const revealSignal = ref<{ id: string; seq: number } | null>(null);
 let revealSeq = 0;
 
+/** Bumped after every successful on-disk file save; the Git bar watches this
+ *  to refresh its dirty/clean status immediately instead of waiting for the
+ *  next poll tick or a workspace switch. */
+const fileSavedSignal = ref<{ path: string; seq: number } | null>(null);
+let fileSavedSeq = 0;
+
 function moveToFront(list: string[], item: string, limit: number): string[] {
   const filtered = list.filter((p) => p !== item);
   filtered.unshift(item);
@@ -595,9 +601,16 @@ export function useWorkspace() {
     if (dropTargetPaneId.value !== paneId) dropTargetPaneId.value = paneId;
   }
 
+  /** Notify listeners (the Git bar) that `path` was just written to disk. */
+  function notifyFileSaved(path: string) {
+    fileSavedSignal.value = { path, seq: ++fileSavedSeq };
+  }
+
   return {
     // State
     openWorkspaces,
+    fileSavedSignal,
+    notifyFileSaved,
     activeWorkspaceId,
     activeWorkspace,
     recentWorkspaces,
