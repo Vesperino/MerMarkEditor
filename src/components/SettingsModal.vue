@@ -182,6 +182,7 @@ const {
   isCheckingForUpdates,
   noUpdateFound,
   updatesViaFlatpak,
+  portableBuild,
   checkForUpdatesManual,
   downloadAndInstallUpdate,
 } = useAutoUpdate();
@@ -1031,8 +1032,9 @@ onUnmounted(() => {
                   :disabled="isUpdating"
                   @click="downloadAndInstallUpdate()"
                 >
-                  {{ isUpdating ? t.updating : t.updateNow }}
+                  {{ isUpdating ? t.updating : portableBuild ? t.downloadPortable : t.updateNow }}
                 </button>
+                <span v-if="portableBuild" class="update-status">{{ t.portableUpdateNote }}</span>
                 <div v-if="isUpdating" class="update-progress-bar">
                   <div class="update-progress-fill" :style="{ width: updateProgress + '%' }"></div>
                 </div>

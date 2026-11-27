@@ -329,7 +329,7 @@ Pobierz najnowszą wersję ze [strony wydań](https://github.com/Vesperino/MerMa
 
 | Platforma | Pobierz |
 |-----------|---------|
-| Windows   | [.exe / .msi installer](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| Windows   | [instalator .exe / .msi](https://github.com/Vesperino/MerMarkEditor/releases/latest) lub przenośny .zip, który działa bez uprawnień administratora |
 | macOS     | [.dmg (universal: Apple Silicon + Intel)](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 | Linux     | [.deb / .AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 

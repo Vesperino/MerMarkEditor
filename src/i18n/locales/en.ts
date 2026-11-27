@@ -277,6 +277,8 @@ const en: Translations = {
   checkingForUpdates: 'Checking...',
   upToDate: "You're up to date",
   flatpakUpdatesNote: 'This Flatpak build is updated by Flathub or your software center.',
+  downloadPortable: 'Download ZIP',
+  portableUpdateNote: 'This portable copy updates by hand: download the new ZIP and replace the files in its folder.',
 
   // Split view / Panes
   dragTabHere: 'Drag tab here',

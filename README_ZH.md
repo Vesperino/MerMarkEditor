@@ -329,7 +329,7 @@
 
 | 平台    | 下载                                                                                          |
 |---------|-----------------------------------------------------------------------------------------------|
-| Windows | [.exe / .msi 安装程序](https://github.com/Vesperino/MerMarkEditor/releases/latest)             |
+| Windows | [.exe / .msi 安装程序](https://github.com/Vesperino/MerMarkEditor/releases/latest)，或无需管理员权限的便携版 .zip             |
 | macOS   | [.dmg（通用：Apple Silicon + Intel）](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 | Linux   | [.deb / .AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest)                |
 

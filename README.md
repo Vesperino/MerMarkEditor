@@ -350,7 +350,7 @@ Download the latest version from the [Releases page](https://github.com/Vesperin
 
 | Platform | Download |
 |----------|----------|
-| Windows  | [.exe / .msi installer](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
+| Windows  | [.exe / .msi installer](https://github.com/Vesperino/MerMarkEditor/releases/latest), or a portable .zip that runs without admin rights |
 | macOS    | [.dmg (universal: Apple Silicon + Intel)](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 | Linux    | [.deb / .AppImage](https://github.com/Vesperino/MerMarkEditor/releases/latest) |
 

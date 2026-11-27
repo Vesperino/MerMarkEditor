@@ -9,6 +9,7 @@ use font_kit::source::SystemSource;
 
 mod ai;
 mod flatpak;
+mod portable;
 #[cfg(target_os = "macos")]
 mod macos_context_menu;
 #[cfg(any(windows, target_os = "linux"))]
@@ -222,6 +223,11 @@ fn get_current_window_label(window: tauri::Window) -> String {
 #[tauri::command]
 fn is_flatpak() -> bool {
     flatpak::is_sandboxed()
+}
+
+#[tauri::command]
+fn is_portable() -> bool {
+    portable::is_portable()
 }
 
 #[tauri::command]
@@ -1100,6 +1106,7 @@ pub fn run() {
             get_all_windows,
             get_current_window_label,
             is_flatpak,
+            is_portable,
             print_document,
             transfer_tab_to_window,
             register_open_file,

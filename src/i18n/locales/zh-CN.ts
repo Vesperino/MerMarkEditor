@@ -277,6 +277,8 @@ const zhCN: Translations = {
   checkingForUpdates: '正在检查...',
   upToDate: '已是最新版本',
   flatpakUpdatesNote: 'Flatpak 版本由 Flathub 或软件中心负责更新。',
+  downloadPortable: '下载 ZIP',
+  portableUpdateNote: '便携版需要手动更新：下载新的 ZIP 并替换其文件夹中的文件。',
 
   // Split view / Panes
   dragTabHere: '将标签页拖放至此',

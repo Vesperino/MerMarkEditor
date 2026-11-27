@@ -201,6 +201,23 @@ jobs:
           includeUpdaterJson: true
           args: ${{ matrix.args }}
 
+      # Installing needs admin rights, which managed machines often lack (#185).
+      # The portable marker makes the app offer the new ZIP instead of the installer.
+      - name: Upload portable Windows ZIP (#185)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          $dir = "portable/MerMark Editor"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item src-tauri/target/release/mdreader.exe "$dir/MerMark Editor.exe"
+          Set-Content -Encoding utf8 "$dir/portable" "Keep this file next to MerMark Editor.exe: it marks this folder as a portable copy that updates by downloading a new ZIP."
+          $zip = "MerMark.Editor_${env:VERSION}_x64-portable.zip"
+          Compress-Archive -Path $dir -DestinationPath $zip
+          gh release upload "v${env:VERSION}" $zip --clobber
+
       - name: Assert AppImage bundles no libwayland-client (#106)
         if: matrix.platform == 'ubuntu-24.04'
         run: |
