@@ -1,8 +1,8 @@
 import { ref, nextTick, type Ref } from 'vue';
 import type { Editor } from '@tiptap/vue-3';
-import type { TiptapEditorHTMLElement } from '@tiptap/core';
+import type { Editor as CoreEditor, TiptapEditorHTMLElement } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
-import type { ResolvedPos } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { CodeEditorHandle } from '../types/code-editor';
 import { markdownToHtml } from '../utils/markdown-converter';
 import { sourcePreservingMarkdown } from '../utils/source-preserving-markdown';
@@ -10,7 +10,17 @@ import { normalizeMarkdown } from '../utils/markdown-save';
 import { mapMarkdownCursor } from '../utils/markdown-cursor';
 import { getCurrentMermaidReadFormats, type MermaidFormat } from '../utils/mermaid-formats';
 import { targetScrollTop } from '../utils/scroll';
-import { isStandaloneSafeHtmlBlock, safeHtmlSourceKey, safeHtmlTagTokens } from '../utils/safe-html';
+import { isStandaloneSafeHtmlBlock, safeHtmlTagTokens } from '../utils/safe-html';
+import {
+  alignKinds,
+  listItemLines,
+  listMarkerLength,
+  sourceEntries,
+  tableCells,
+  visualKind,
+  type SourceBlock,
+  type SourceEntry,
+} from '../utils/view-cursor-map';
 import {
   DOM_SELECTORS,
   TIMING,
@@ -57,54 +67,6 @@ const buildOpenIndex = (formats: MermaidFormat[]): Map<string, MermaidFormat> =>
   const m = new Map<string, MermaidFormat>();
   for (const f of formats) m.set(f.open, f);
   return m;
-};
-
-// Check if cursor position is inside a code block (``` ... ```)
-// Returns { inside: boolean, blockIndex: number } - blockIndex is 0-based index of which code block
-const getCodeBlockInfo = (text: string, cursorPos: number): { inside: boolean; blockIndex: number } => {
-  const openIndex = buildOpenIndex(getCurrentMermaidReadFormats());
-  const textBefore = text.slice(0, cursorPos);
-  const lines = textBefore.split('\n');
-  let activeKind: 'code' | 'mermaid' | null = null;
-  let activeCloseDelim: string | null = null;
-  let activeIndex = -1;
-  let nextIndex = 0;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    if (activeKind === null) {
-      const fmt = openIndex.get(trimmed);
-      if (fmt) {
-        activeKind = 'mermaid';
-        activeCloseDelim = fmt.close;
-        activeIndex = nextIndex++;
-        continue;
-      }
-      if (trimmed.startsWith('```')) {
-        activeKind = 'code';
-        activeCloseDelim = '```';
-        activeIndex = nextIndex++;
-      }
-      continue;
-    }
-
-    if (activeKind === 'mermaid' && trimmed === activeCloseDelim) {
-      activeKind = null;
-      activeCloseDelim = null;
-      activeIndex = -1;
-      continue;
-    }
-
-    if (activeKind === 'code' && trimmed.startsWith('```')) {
-      activeKind = null;
-      activeCloseDelim = null;
-      activeIndex = -1;
-    }
-  }
-
-  return { inside: activeKind !== null, blockIndex: activeKind !== null ? activeIndex : -1 };
 };
 
 // Inject CSS for cursor highlight animation
@@ -167,7 +129,7 @@ const clearVisualHighlight = () => {
   }
 };
 
-const getHighlightRect = (element: HTMLElement) => {
+const getHighlightRect = (element: HTMLElement): HighlightRect => {
   const content = element.closest(DOM_SELECTORS.EDITOR_CONTENT) as HTMLElement | null;
   const contentRect = content ? content.getBoundingClientRect() : element.getBoundingClientRect();
   const targetRect = element.getBoundingClientRect();
@@ -179,21 +141,31 @@ const getHighlightRect = (element: HTMLElement) => {
   };
 };
 
-const highlightVisualElement = (element: HTMLElement) => {
+interface HighlightRect { left: number; top: number; width: number; height: number }
+
+// The overlay follows its target every frame because the page can still
+// reflow and scroll while it is shown.
+const showVisualHighlight = (rectOf: () => HighlightRect) => {
   clearVisualHighlight();
-  const rect = getHighlightRect(element);
-  if (rect.width <= 0 || rect.height <= 0) return;
+  const first = rectOf();
+  if (first.width <= 0 || first.height <= 0) return;
 
   const highlight = document.createElement('div');
   highlight.className = 'cursor-highlight';
   highlight.style.position = 'fixed';
-  highlight.style.left = `${rect.left}px`;
-  highlight.style.top = `${rect.top}px`;
-  highlight.style.width = `${rect.width}px`;
-  highlight.style.height = `${rect.height}px`;
+  const place = () => {
+    if (activeHighlightElement !== highlight) return;
+    const rect = rectOf();
+    highlight.style.left = `${rect.left}px`;
+    highlight.style.top = `${rect.top}px`;
+    highlight.style.width = `${rect.width}px`;
+    highlight.style.height = `${rect.height}px`;
+    requestAnimationFrame(place);
+  };
 
   document.body.appendChild(highlight);
   activeHighlightElement = highlight;
+  place();
 
   highlightTimer = window.setTimeout(() => {
     highlight.remove();
@@ -222,17 +194,45 @@ const scrollContainerToElement = (container: HTMLElement, target: HTMLElement, o
   container.scrollTop = targetScrollTop(containerRect.top, targetRect.top, container.scrollTop, offset);
 };
 
+const SCROLL_HOLD_QUIET_MS = 250;
+const SCROLL_HOLD_MAX_MS = 2500;
+const SCROLL_HOLD_CANCEL_EVENTS = ['wheel', 'pointerdown', 'keydown', 'touchstart'];
+let cancelScrollHold: (() => void) | null = null;
+
+// The remounted editor keeps growing while diagrams and images above the
+// target render, which drags a one-off scroll away from it. Re-apply the
+// scroll until the layout holds still or the user takes over.
+const holdScroll = (container: HTMLElement, apply: () => void) => {
+  cancelScrollHold?.();
+  const started = performance.now();
+  let quietSince = started;
+  let frame = 0;
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    SCROLL_HOLD_CANCEL_EVENTS.forEach(type => container.removeEventListener(type, stop));
+    if (cancelScrollHold === stop) cancelScrollHold = null;
+  };
+  const step = () => {
+    if (!container.isConnected) { stop(); return; }
+    const before = container.scrollTop;
+    apply();
+    const now = performance.now();
+    if (Math.abs(container.scrollTop - before) > 1) quietSince = now;
+    if (now - quietSince > SCROLL_HOLD_QUIET_MS || now - started > SCROLL_HOLD_MAX_MS) { stop(); return; }
+    frame = requestAnimationFrame(step);
+  };
+  SCROLL_HOLD_CANCEL_EVENTS.forEach(type => container.addEventListener(type, stop, { passive: true }));
+  cancelScrollHold = stop;
+  step();
+};
+
 const getProseMirrorRoot = (container: HTMLElement): HTMLElement | null => {
   return container.querySelector(DOM_SELECTORS.PROSE_MIRROR) as HTMLElement | null;
 };
 
 // ── Source-line block map: precise markdown → DOM mapping ──────────────────
 
-interface MarkdownBlock {
-  startLine: number;
-  endLine: number; // exclusive
-  type: 'code' | 'mermaid' | 'html' | 'table' | 'heading' | 'list' | 'taskList' | 'blockquote' | 'hr' | 'paragraph';
-}
+type MarkdownBlock = SourceBlock;
 
 // Parse markdown into blocks with exact source-line ranges.
 // Each block corresponds to one top-level ProseMirror child element.
@@ -285,11 +285,14 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
       continue;
     }
 
-    // Code blocks: ``` ... ```
-    if (trimmed.startsWith('```')) {
+    // Fenced code: the closing fence repeats the opening character at least as
+    // many times, so a longer fence can hold a shorter one.
+    const fence = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fence) {
+      const closing = new RegExp(`^${fence[1][0]}{${fence[1].length},}\\s*$`);
       const startLine = i;
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) i++;
+      while (i < lines.length && !closing.test(lines[i].trim())) i++;
       if (i < lines.length) i++;
       blocks.push({ startLine, endLine: i, type: 'code' });
       continue;
@@ -394,229 +397,225 @@ const parseMarkdownBlocks = (markdown: string): MarkdownBlock[] => {
   return blocks;
 };
 
-// Find DOM element using markdown block structure mapped to ProseMirror children.
-// Each markdown block corresponds 1:1 to a top-level ProseMirror child in order.
-const findElementByBlockMap = (
-  root: HTMLElement,
-  markdown: string,
-  cursorLine: number,
-): HTMLElement | null => {
+// ── Block alignment: Markdown source ↔ editor document ─────────────────────
+
+interface ViewAlignment {
+  lines: string[];
+  lineStarts: number[];
+  blocks: MarkdownBlock[];
+  entries: SourceEntry[];
+  /** Document offset of every top-level editor node. */
+  starts: number[];
+  toVisual: number[];
+  toSource: number[];
+}
+
+interface VisualTarget {
+  pos: number;
+  element: HTMLElement | null;
+  lineInCode?: number;
+}
+
+const isFenced = (line: string): boolean => /^\s*(?:`{3,}|~{3,})/.test(line);
+const codeIndent = (line: string): number => line.match(/^(?: {4}|\t)?/)![0].length;
+const isListItem = (node: ProseMirrorNode): boolean => node.type.name === 'listItem' || node.type.name === 'taskItem';
+const visibleText = (node: ProseMirrorNode): string => node.textBetween(0, node.content.size, '', '\n');
+
+// Block counts differ between the two views (inline images become their own
+// editor blocks, some syntax has no parsed counterpart), so blocks are paired
+// by kind instead of by index.
+const buildAlignment = (editor: CoreEditor, markdown: string): ViewAlignment => {
+  const lines = markdown.split('\n');
+  const lineStarts: number[] = [];
+  let position = 0;
+  for (const line of lines) {
+    lineStarts.push(position);
+    position += line.length + 1;
+  }
   const blocks = parseMarkdownBlocks(markdown);
-  const children = Array.from(root.children) as HTMLElement[];
-
-  if (blocks.length === 0 || children.length === 0) return null;
-
-  // Find the block containing the cursor line
-  let blockIndex = -1;
-  for (let bi = 0; bi < blocks.length; bi++) {
-    if (cursorLine >= blocks[bi].startLine && cursorLine < blocks[bi].endLine) {
-      blockIndex = bi;
-      break;
-    }
-  }
-
-  // Cursor on a blank line between blocks — snap to nearest
-  if (blockIndex === -1) {
-    let minDist = Infinity;
-    for (let bi = 0; bi < blocks.length; bi++) {
-      const dist = Math.min(
-        Math.abs(cursorLine - blocks[bi].startLine),
-        Math.abs(cursorLine - (blocks[bi].endLine - 1)),
-      );
-      if (dist < minDist) { minDist = dist; blockIndex = bi; }
-    }
-  }
-
-  if (blockIndex < 0) return null;
-
-  const block = blocks[blockIndex];
-  if (block.type === 'html') {
-    const lines = markdown.split('\n');
-    const raw = lines.slice(block.startLine, block.endLine).join('\n').trim();
-    const key = safeHtmlSourceKey(raw);
-    const occurrence = blocks.slice(0, blockIndex).filter((candidate) => {
-      if (candidate.type !== 'html') return false;
-      return safeHtmlSourceKey(lines.slice(candidate.startLine, candidate.endLine).join('\n').trim()) === key;
-    }).length;
-    const matching = Array.from(root.querySelectorAll<HTMLElement>(':scope > .safe-html-block'))
-      .filter(element => element.dataset.safeHtmlSourceKey === key);
-    const element = matching[occurrence];
-    if (!element) return null;
-    const lineInBlock = Math.max(0, cursorLine - block.startLine);
-    element.dataset.safeHtmlCursorLine = String(lineInBlock);
-    return element.querySelector<HTMLElement>(`[data-safe-html-source-line="${lineInBlock}"]`) || element;
-  }
-
-  // If ordinary block count diverges too far from DOM children, mapping is unreliable.
-  // Raw HTML above bypasses this heuristic and matches its exact source identity.
-  if (Math.abs(blocks.length - children.length) > Math.max(2, Math.ceil(blocks.length * 0.1))) {
-    return null;
-  }
-
-  const clampedIndex = Math.min(blockIndex, children.length - 1);
-  const element = children[clampedIndex];
-
-  // Drill into list items for more precision
-  if (block.type === 'list' || block.type === 'taskList') {
-    const items = Array.from(element.querySelectorAll(':scope > li')) as HTMLElement[];
-    if (items.length > 0) {
-      const lineInBlock = cursorLine - block.startLine;
-      const itemIndex = Math.min(Math.max(0, lineInBlock), items.length - 1);
-      return items[itemIndex];
-    }
-  }
-
-  return element;
+  const entries = sourceEntries(blocks, lines);
+  const kinds: string[] = [];
+  const starts: number[] = [];
+  editor.state.doc.forEach((node, offset) => {
+    kinds.push(visualKind(node.type.name, node.attrs.level));
+    starts.push(offset);
+  });
+  return { lines, lineStarts, blocks, entries, starts, ...alignKinds(entries.map(entry => entry.kind), kinds) };
 };
 
-// Lists, tables and code blocks span several source lines; pick the one the
-// visual cursor is on instead of the block's first line.
-const sourceLineInBlock = (block: MarkdownBlock, lines: string[], $pos: ResolvedPos): number => {
+const visualToSource = (
+  editor: CoreEditor,
+  a: ViewAlignment,
+  pos: number,
+  bias: 'before' | 'after' = 'before',
+): number => {
+  const { doc } = editor.state;
+  const $pos = doc.resolve(pos);
+  const top = Math.min($pos.index(0), doc.childCount - 1);
+  const entry = a.entries[a.toSource[top]];
+  if (!entry) return -1;
+
+  const block = a.blocks[entry.block];
+  const node = doc.child(top);
   const last = block.endLine - 1;
-  if ((block.type === 'list' || block.type === 'taskList') && $pos.depth >= 2) {
-    const itemIndex = $pos.index(1);
-    const indent = lines[block.startLine].match(/^\s*/)![0].length;
-    let seen = -1;
-    for (let line = block.startLine; line <= last; line++) {
-      const marker = lines[line].match(/^(\s*)(?:[-*+]|\d+[.)])\s/);
-      if (marker && marker[1].length === indent && ++seen === itemIndex) return line;
-    }
+  const blockStart = a.lineStarts[block.startLine] + entry.from;
+  const parent = $pos.parent;
+  const mapped = (raw: string) => mapMarkdownCursor(visibleText(parent), raw, $pos.parentOffset, bias) ?? 0;
+
+  if (entry.kind === 'paragraph' || block.type === 'heading') {
+    if (parent !== node || !node.isTextblock) return blockStart;
+    const raw = a.lines.slice(block.startLine, block.endLine).join('\n').slice(entry.from, entry.to);
+    return blockStart + mapped(raw);
   }
-  if (block.type === 'table' && $pos.depth >= 2) {
+
+  if (block.type === 'list' || block.type === 'taskList') {
+    let ordinal = -1;
+    node.descendants((child, offset) => {
+      if (isListItem(child) && a.starts[top] + 1 + offset < pos) ordinal++;
+    });
+    const itemLines = listItemLines(a.lines, block);
+    const line = itemLines[Math.min(Math.max(ordinal, 0), itemLines.length - 1)] ?? block.startLine;
+    const marker = listMarkerLength(a.lines[line]);
+    const firstInItem = parent.isTextblock && $pos.depth >= 2
+      && $pos.index($pos.depth - 1) === 0 && isListItem($pos.node($pos.depth - 1));
+    if (marker < 0 || !firstInItem) return a.lineStarts[line];
+    return a.lineStarts[line] + marker + mapped(a.lines[line].slice(marker));
+  }
+
+  if (block.type === 'table' && node.type.name === 'table' && $pos.depth >= 3) {
     const row = $pos.index(1);
     // Row 0 is the header; the separator line follows it.
-    return Math.min(last, block.startLine + (row === 0 ? 0 : row + 1));
+    const line = Math.min(last, block.startLine + (row === 0 ? 0 : row + 1));
+    const cell = tableCells(a.lines[line])[$pos.index(2)];
+    if (!cell || !parent.isTextblock) return a.lineStarts[line];
+    return a.lineStarts[line] + cell.from + mapped(a.lines[line].slice(cell.from, cell.to));
   }
-  if (block.type === 'code' && $pos.parent.type.name === 'codeBlock') {
-    const fenced = lines[block.startLine].trim().startsWith('```');
-    const lineInCode = $pos.parent.textBetween(0, $pos.parentOffset).split('\n').length - 1;
-    return Math.min(last, block.startLine + (fenced ? 1 : 0) + lineInCode);
+
+  if (block.type === 'code' && parent.type.name === 'codeBlock') {
+    const before = parent.textBetween(0, $pos.parentOffset);
+    const fenced = isFenced(a.lines[block.startLine]);
+    const line = Math.min(last, block.startLine + (fenced ? 1 : 0) + before.split('\n').length - 1);
+    const column = (fenced ? 0 : codeIndent(a.lines[line])) + before.length - before.lastIndexOf('\n') - 1;
+    return a.lineStarts[line] + Math.min(column, a.lines[line].length);
   }
-  return block.startLine;
+
+  if (block.type === 'html') {
+    const dom = editor.view.nodeDOM(a.starts[top]);
+    const offset = dom instanceof HTMLElement ? Number(dom.dataset.safeHtmlCursorLine ?? 0) || 0 : 0;
+    return a.lineStarts[Math.min(last, block.startLine + Math.max(0, offset))];
+  }
+
+  return blockStart;
 };
 
-const positionAtLine = (source: string, line: number): number => {
-  const lines = source.split('\n');
-  let position = 0;
-  for (let i = 0; i < line && i < lines.length; i++) position += lines[i].length + 1;
-  return Math.min(position, source.length);
-};
+const sourceToVisual = (editor: CoreEditor, a: ViewAlignment, offset: number): VisualTarget | null => {
+  const { doc } = editor.state;
+  let line = 0;
+  while (line + 1 < a.lineStarts.length && a.lineStarts[line + 1] <= offset) line++;
 
-// Try to find a DOM element by matching the text content of the cursor's
-// markdown line. This is more robust than line counting for large documents
-// where cumulative estimation drift causes misses.
-const findElementByText = (root: HTMLElement, markdown: string, cursorLine: number): HTMLElement | null => {
-  const lines = markdown.split('\n');
-  const line = lines[cursorLine];
-  if (!line) return null;
-
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-
-  // Raw HTML has its own source-identity and per-tag line map. A textual
-  // search can otherwise select an earlier rendered block containing the same
-  // words (common in README badges/header sections).
-  const sourceBlock = parseMarkdownBlocks(markdown).find(block => (
-    cursorLine >= block.startLine && cursorLine < block.endLine
-  ));
-  if (sourceBlock?.type === 'html') return null;
-
-  // Heading: strip # prefix and search heading elements
-  const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
-  if (headingMatch) {
-    const level = headingMatch[1].length;
-    const text = headingMatch[2].replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/`(.+?)`/g, '$1').trim();
-    const headings = root.querySelectorAll(`h${level}`) as NodeListOf<HTMLElement>;
-    for (const h of headings) {
-      if (h.textContent?.trim() === text) return h;
-    }
-    // Partial match fallback
-    for (const h of headings) {
-      if (text.length >= 5 && h.textContent?.includes(text.slice(0, 30))) return h;
-    }
-    return null;
+  let blockIndex = a.blocks.findIndex(block => line >= block.startLine && line < block.endLine);
+  let column = offset - a.lineStarts[line];
+  if (blockIndex < 0) {
+    // A blank line between blocks snaps to the nearest one.
+    let distance = Infinity;
+    a.blocks.forEach((block, index) => {
+      const before = line < block.startLine;
+      const gap = before ? block.startLine - line : line - (block.endLine - 1);
+      if (gap < distance) { distance = gap; blockIndex = index; }
+    });
+    if (blockIndex < 0) return null;
+    const block = a.blocks[blockIndex];
+    line = line < block.startLine ? block.startLine : block.endLine - 1;
+    column = line === block.startLine ? 0 : a.lines[line].length;
   }
 
-  // List item: strip bullet/number prefix
-  const listMatch = trimmed.match(/^(?:[-*+]|\d+\.)\s+(.+)$/);
-  if (listMatch) {
-    const text = listMatch[1].replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/`(.+?)`/g, '$1').trim();
-    if (text.length < 5) return null;
-    const items = root.querySelectorAll('li') as NodeListOf<HTMLElement>;
-    for (const li of items) {
-      if (li.textContent?.includes(text.slice(0, 40))) return li;
-    }
-    return null;
+  const block = a.blocks[blockIndex];
+  const inBlock = a.lineStarts[line] + column - a.lineStarts[block.startLine];
+  let entryIndex = -1;
+  a.entries.forEach((entry, index) => {
+    if (entry.block === blockIndex && (entryIndex < 0 || entry.from <= inBlock)) entryIndex = index;
+  });
+  const top = a.toVisual[entryIndex];
+  if (top === undefined || top < 0) return null;
+
+  const entry = a.entries[entryIndex];
+  const node = doc.child(top);
+  const start = a.starts[top];
+  const domAt = (pos: number): HTMLElement | null => {
+    const dom = editor.view.nodeDOM(pos);
+    return dom instanceof HTMLElement ? dom : null;
+  };
+  const mapped = (raw: string, textblock: ProseMirrorNode, at: number) => Math.min(
+    mapMarkdownCursor(raw, visibleText(textblock), Math.max(0, Math.min(at, raw.length))) ?? 0,
+    textblock.content.size,
+  );
+
+  if ((entry.kind === 'paragraph' || block.type === 'heading') && node.isTextblock) {
+    const raw = a.lines.slice(block.startLine, block.endLine).join('\n').slice(entry.from, entry.to);
+    return { pos: start + 1 + mapped(raw, node, inBlock - entry.from), element: domAt(start) };
   }
 
-  // Blockquote: strip > prefix
-  if (trimmed.startsWith('>')) {
-    const text = trimmed.replace(/^>\s*/, '').replace(/\*\*(.+?)\*\*/g, '$1').trim();
-    if (text.length < 5) return null;
-    const quotes = root.querySelectorAll('blockquote') as NodeListOf<HTMLElement>;
-    for (const bq of quotes) {
-      if (bq.textContent?.includes(text.slice(0, 40))) return bq;
-    }
-    return null;
-  }
-
-  // Plain paragraph text (skip code fences, HRs, table rows, blank lines)
-  if (trimmed.startsWith('```') || trimmed === '---' || trimmed.startsWith('|')) return null;
-  if (trimmed.length < 8) return null;
-
-  const plainText = trimmed
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/`(.+?)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .trim();
-
-  if (plainText.length < 8) return null;
-
-  const searchText = plainText.slice(0, 50);
-  const blocks = Array.from(root.children) as HTMLElement[];
-  for (const block of blocks) {
-    const tag = block.tagName.toLowerCase();
-    // Skip code blocks — their content is code, not matching paragraph text
-    if (tag === 'pre') continue;
-    if (block.textContent?.includes(searchText)) return block;
-  }
-  return null;
-};
-
-// Find code block element by index (for when cursor is inside a specific code block)
-const findCodeBlockElement = (root: HTMLElement, blockIndex: number): HTMLElement | null => {
-  // Look for mermaid diagrams, pre/code blocks, or custom code block components
-  // We need to find top-level code blocks, not nested ones
-  const codeSelector = 'pre, [data-type="mermaidDiagram"], .mermaid-diagram, .mermaid-wrapper, [data-node-view-wrapper]';
-
-  // Get all direct children and their code elements
-  const codeBlocks: HTMLElement[] = [];
-  const children = Array.from(root.children) as HTMLElement[];
-
-  for (const child of children) {
-    // Check if child itself is a code block
-    if (child.matches(codeSelector)) {
-      codeBlocks.push(child);
-    } else {
-      // Check if child contains a code block (but only direct descendant)
-      const codeChild = child.querySelector(codeSelector);
-      if (codeChild) {
-        codeBlocks.push(codeChild as HTMLElement);
-      }
+  if (block.type === 'list' || block.type === 'taskList') {
+    const ordinal = Math.max(0, listItemLines(a.lines, block).filter(itemLine => itemLine <= line).length - 1);
+    const items: Array<{ node: ProseMirrorNode; pos: number }> = [];
+    node.descendants((child, childOffset) => {
+      if (isListItem(child)) items.push({ node: child, pos: start + 1 + childOffset });
+    });
+    const item = items[Math.min(ordinal, items.length - 1)];
+    if (item) {
+      const first = item.node.firstChild;
+      const marker = listMarkerLength(a.lines[line]);
+      const pos = first?.isTextblock
+        ? item.pos + 2 + (marker >= 0 ? mapped(a.lines[line].slice(marker), first, column - marker) : 0)
+        : item.pos + 1;
+      return { pos, element: domAt(item.pos) };
     }
   }
 
-  if (codeBlocks.length === 0) {
-    return null;
+  if (block.type === 'table' && node.type.name === 'table' && node.childCount > 0) {
+    const lineInBlock = line - block.startLine;
+    const rowIndex = Math.min(lineInBlock <= 1 ? 0 : lineInBlock - 1, node.childCount - 1);
+    const cells = tableCells(a.lines[line]);
+    const sourceCell = Math.max(0, cells.filter(cell => cell.from <= column).length - 1);
+    let rowPos = start + 1;
+    for (let i = 0; i < rowIndex; i++) rowPos += node.child(i).nodeSize;
+    const row = node.child(rowIndex);
+    const cellIndex = Math.min(sourceCell, row.childCount - 1);
+    let cellPos = rowPos + 1;
+    for (let i = 0; i < cellIndex; i++) cellPos += row.child(i).nodeSize;
+    const first = row.child(cellIndex).firstChild;
+    const cell = cells[sourceCell];
+    // Line 1 is the separator row, which has no visual counterpart.
+    const pos = first?.isTextblock
+      ? cellPos + 2 + (cell && lineInBlock !== 1 ? mapped(a.lines[line].slice(cell.from, cell.to), first, column - cell.from) : 0)
+      : cellPos + 1;
+    return { pos, element: domAt(cellPos) ?? domAt(start) };
   }
 
-  // Return the code block at the specified index
-  if (blockIndex >= 0 && blockIndex < codeBlocks.length) {
-    return codeBlocks[blockIndex];
+  if (block.type === 'code' && node.type.name === 'codeBlock') {
+    const fenced = isFenced(a.lines[block.startLine]);
+    const codeLines = node.textContent.split('\n');
+    const sourceLine = line - block.startLine - (fenced ? 1 : 0);
+    const lineInCode = Math.max(0, Math.min(sourceLine, codeLines.length - 1));
+    let pos = start + 1;
+    for (let i = 0; i < lineInCode; i++) pos += codeLines[i].length + 1;
+    if (sourceLine === lineInCode) {
+      const indent = fenced ? 0 : codeIndent(a.lines[line]);
+      pos += Math.max(0, Math.min(column - indent, codeLines[lineInCode].length));
+    }
+    return { pos, element: domAt(start), lineInCode };
   }
 
-  return null;
+  const element = domAt(start);
+  if (block.type === 'html' && element) {
+    const lineInBlock = line - block.startLine;
+    element.dataset.safeHtmlCursorLine = String(lineInBlock);
+    return {
+      pos: start,
+      element: element.querySelector<HTMLElement>(`[data-safe-html-source-line="${lineInBlock}"]`) ?? element,
+    };
+  }
+  return { pos: start, element };
 };
 
 export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
@@ -657,71 +656,19 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
       // ═══════════════════════════════════════════════════════════════════
 
       let markerPosition = -1;
+      let markerEnd = -1;
 
       if (editor) {
-        const { from } = editor.state.selection;
+        const { from, to } = editor.state.selection;
 
         codeContent.value = normalizeMarkdown(sourcePreservingMarkdown(editor.getHTML(), options.getSourceMarkdown?.()));
 
         try {
-          const $pos = editor.state.doc.resolve(from);
-          const topBlockIndex = $pos.index(0);
-          const selectedNode = editor.state.selection instanceof NodeSelection
-            ? editor.state.selection.node
-            : editor.state.doc.nodeAt(from);
-
-          if (selectedNode?.type.name === 'safeHtmlBlock') {
-            const raw = String(selectedNode.attrs.raw ?? '');
-            let occurrence = 0;
-            for (let i = 0; i < topBlockIndex; i++) {
-              const sibling = editor.state.doc.child(i);
-              if (sibling.type.name === 'safeHtmlBlock' && String(sibling.attrs.raw ?? '') === raw) occurrence++;
-            }
-            const rawLines = raw.split('\n');
-            const sourceLines = codeContent.value.split('\n');
-            const matchingBlocks = parseMarkdownBlocks(codeContent.value).filter((block) => {
-              if (block.type !== 'html') return false;
-              return sourceLines.slice(block.startLine, block.endLine).join('\n').trim() === raw;
-            });
-            const sourceBlock = matchingBlocks[occurrence];
-            // The exact parsed block boundary avoids matching this raw source
-            // as a substring of a different/larger HTML block.
-            const rawStart = sourceBlock ? positionAtLine(codeContent.value, sourceBlock.startLine) : -1;
-            const nodeDom = editor.view.nodeDOM(from) as HTMLElement | null;
-            const clickedLine = Math.max(0, Number(nodeDom?.dataset.safeHtmlCursorLine ?? 0) || 0);
-            let offset = 0;
-            for (let i = 0; i < clickedLine && i < rawLines.length; i++) offset += rawLines[i].length + 1;
-            if (rawStart >= 0) markerPosition = Math.min(rawStart + offset, codeContent.value.length);
-          }
-
-          const blocks = parseMarkdownBlocks(codeContent.value);
-
-          if (markerPosition < 0 && topBlockIndex >= 0 && topBlockIndex < blocks.length) {
-            const block = blocks[topBlockIndex];
-            const lines = codeContent.value.split('\n');
-            let sourceLine = sourceLineInBlock(block, lines, $pos);
-            if (block.type === 'html') {
-              const nodeDom = editor.view.nodeDOM(from) as HTMLElement | null;
-              const offset = Number(nodeDom?.dataset.safeHtmlCursorLine ?? 0);
-              if (Number.isFinite(offset)) {
-                sourceLine = Math.min(block.endLine - 1, block.startLine + Math.max(0, offset));
-              }
-            }
-            let charPos = 0;
-            for (let i = 0; i < sourceLine && i < lines.length; i++) {
-              charPos += lines[i].length + 1;
-            }
-
-            const blockNode = $pos.depth >= 1 ? $pos.node(1) : null;
-            if (blockNode && (block.type === 'heading' || block.type === 'paragraph')) {
-              const textOffset = from - $pos.start(1);
-              const raw = lines.slice(block.startLine, block.endLine).join('\n');
-              const visible = blockNode.textBetween(0, blockNode.content.size, '', '\n');
-              const offset = mapMarkdownCursor(visible, raw, textOffset);
-              charPos = positionAtLine(codeContent.value, block.startLine) + (offset ?? 0);
-            }
-
-            markerPosition = Math.min(charPos, codeContent.value.length);
+          const alignment = buildAlignment(editor, codeContent.value);
+          const range = to > from && !(editor.state.selection instanceof NodeSelection);
+          markerPosition = Math.min(visualToSource(editor, alignment, from, range ? 'after' : 'before'), codeContent.value.length);
+          if (markerPosition >= 0 && range) {
+            markerEnd = Math.min(visualToSource(editor, alignment, to), codeContent.value.length);
           }
         } catch { /* resolve() can throw for invalid positions */ }
 
@@ -738,6 +685,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
               pos += lines[i].length + 1;
             }
             markerPosition = Math.min(pos, codeContent.value.length);
+            markerEnd = -1;
           }
         }
       } else {
@@ -763,7 +711,7 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
         codeEditorRef.value.focus();
 
         if (markerPosition >= 0) {
-          codeEditorRef.value.setSelection(markerPosition);
+          codeEditorRef.value.setSelection(markerPosition, Math.max(markerPosition, markerEnd));
           codeEditorRef.value.scrollToPosition(markerPosition);
         } else {
           codeEditorRef.value.scrollToRatio(savedScrollRatio.value);
@@ -783,29 +731,16 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
 
       let cursorLine = 0;
       let sourceCursorPosition = 0;
-      let codeBlockIndex = -1;
-      let lineInCodeBlock = -1;
+      let sourceSelectionEnd = 0;
 
       if (codeEditorRef.value) {
-        const cursorPos = codeEditorRef.value.getSelection().start;
-        sourceCursorPosition = cursorPos;
-        cursorLine = getLineFromPosition(codeContent.value, cursorPos);
+        const selection = codeEditorRef.value.getSelection();
+        sourceCursorPosition = selection.start;
+        sourceSelectionEnd = selection.end;
+        cursorLine = getLineFromPosition(codeContent.value, sourceCursorPosition);
 
         // Save scroll ratio as fallback
         savedScrollRatio.value = codeEditorRef.value.getScrollRatio();
-
-        // Check if cursor is inside a code block
-        const codeBlockInfo = getCodeBlockInfo(codeContent.value, cursorPos);
-        if (codeBlockInfo.inside) {
-          codeBlockIndex = codeBlockInfo.blockIndex;
-          // Find the exact line offset within this code block using parseMarkdownBlocks
-          const mdBlocks = parseMarkdownBlocks(codeContent.value);
-          const codeBlocks = mdBlocks.filter(b => b.type === 'code' || b.type === 'mermaid');
-          if (codeBlockIndex >= 0 && codeBlockIndex < codeBlocks.length) {
-            // -1 to skip the opening ``` line
-            lineInCodeBlock = cursorLine - codeBlocks[codeBlockIndex].startLine - 1;
-          }
-        }
       }
 
       savedCursorLine.value = cursorLine;
@@ -855,106 +790,54 @@ export function useCodeView(options: UseCodeViewOptions): UseCodeViewReturn {
             return;
           }
 
-          // Find target element: text match first, then block map (structural)
-          let targetElement: HTMLElement | null;
-          if (codeBlockIndex >= 0) {
-            targetElement = findCodeBlockElement(proseMirror, codeBlockIndex);
-          } else {
-            targetElement = findElementByText(proseMirror, codeContent.value, savedCursorLine.value)
-              || findElementByBlockMap(proseMirror, codeContent.value, savedCursorLine.value);
+          // The editor passed in was unmounted with Visual; use the instance owning this DOM.
+          const liveEditor = (proseMirror as TiptapEditorHTMLElement).editor ?? editor;
+          let target: VisualTarget | null = null;
+          let targetEnd = -1;
+          if (liveEditor) {
+            try {
+              const alignment = buildAlignment(liveEditor, codeContent.value);
+              target = sourceToVisual(liveEditor, alignment, sourceCursorPosition);
+              if (target && sourceSelectionEnd > sourceCursorPosition) {
+                targetEnd = sourceToVisual(liveEditor, alignment, sourceSelectionEnd)?.pos ?? -1;
+              }
+            } catch { /* positions can be invalid while the DOM is not in sync */ }
           }
+          const targetElement = target?.element ?? null;
 
-          if (targetElement) {
-            // Set TipTap cursor on the target element so the marker mechanism
-            // preserves position when toggling back to code view.
-            // The editor passed in was unmounted with Visual; use the instance owning this DOM.
-            const liveEditor = (proseMirror as TiptapEditorHTMLElement).editor ?? editor;
-            if (liveEditor) {
-              try {
-                const safeHtmlBlock = targetElement.closest<HTMLElement>('.safe-html-block');
-                const selectionElement = safeHtmlBlock || targetElement;
-                let pos = liveEditor.view.posAtDOM(selectionElement, 0);
-                // For code blocks with a line offset, advance into the code
-                if (codeBlockIndex >= 0 && lineInCodeBlock > 0) {
-                  const codeEl = targetElement.querySelector('code');
-                  if (codeEl) {
-                    const codeText = codeEl.textContent || '';
-                    const codeLines = codeText.split('\n');
-                    let charOffset = 0;
-                    for (let li = 0; li < lineInCodeBlock && li < codeLines.length; li++) {
-                      charOffset += codeLines[li].length + 1;
-                    }
-                    const codePos = liveEditor.view.posAtDOM(codeEl, 0);
-                    pos = Math.min(codePos + charOffset, liveEditor.state.doc.content.size);
-                  }
-                }
-                if (safeHtmlBlock) {
-                  safeHtmlBlock.dataset.safeHtmlCursorLine = targetElement.dataset.safeHtmlSourceLine
-                    ?? safeHtmlBlock.dataset.safeHtmlCursorLine
-                    ?? '0';
-                  liveEditor.commands.setNodeSelection(pos);
-                } else {
-                  const $target = liveEditor.state.doc.resolve(pos);
-                  if ($target.parent.type.name === 'paragraph' || $target.parent.type.name === 'heading') {
-                    const block = parseMarkdownBlocks(codeContent.value).find(b =>
-                      cursorLine >= b.startLine && cursorLine < b.endLine);
-                    if (block?.type === 'paragraph' || block?.type === 'heading') {
-                      const raw = codeContent.value.split('\n').slice(block.startLine, block.endLine).join('\n');
-                      const node = $target.parent;
-                      const visible = node.textBetween(0, node.content.size, '', '\n');
-                      const offset = mapMarkdownCursor(raw, visible,
-                        sourceCursorPosition - positionAtLine(codeContent.value, block.startLine));
-                      if (offset !== null) pos = $target.start() + Math.min(offset, node.content.size);
-                    }
-                  }
-                  liveEditor.commands.setTextSelection(pos);
-                  liveEditor.commands.focus(undefined, { scrollIntoView: false });
-                }
-                restoredVisualFrom = liveEditor.state.selection.from;
-              } catch { /* posAtDOM can throw if DOM is not in sync */ }
-            }
+          if (target && targetElement && liveEditor) {
+            try {
+              if (targetElement.closest('.safe-html-block')) {
+                liveEditor.commands.setNodeSelection(target.pos);
+              } else {
+                liveEditor.commands.setTextSelection(targetEnd > target.pos ? { from: target.pos, to: targetEnd } : target.pos);
+                liveEditor.commands.focus(undefined, { scrollIntoView: false });
+              }
+              restoredVisualFrom = liveEditor.state.selection.from;
+            } catch { /* the selection can be rejected if the DOM is not in sync */ }
 
-            // For code blocks with a known line offset, drill down to the
-            // specific line within the <pre> and highlight just that line.
-            if (codeBlockIndex >= 0 && lineInCodeBlock > 0) {
-              const codeEl = targetElement.querySelector('code') as HTMLElement | null;
-              const block = codeEl || targetElement;
-              const blockCs = window.getComputedStyle(block);
-              const codeLh = blockCs.lineHeight === 'normal'
+            const lineInCodeBlock = target.lineInCode ?? 0;
+            let lineTop = 0;
+            let lineHeight = 0;
+            if (lineInCodeBlock > 0) {
+              const blockCs = window.getComputedStyle(targetElement.querySelector('code') ?? targetElement);
+              lineHeight = blockCs.lineHeight === 'normal'
                 ? parseFloat(blockCs.fontSize) * 1.2
                 : parseFloat(blockCs.lineHeight);
-              const blockPadTop = parseFloat(window.getComputedStyle(targetElement).paddingTop) || 0;
-
-              // Scroll: first to the code block, then adjust for the line offset
-              scrollContainerToElement(editorContainer, targetElement, SCROLL_OFFSET);
-              const extraScroll = Math.max(0, lineInCodeBlock * codeLh + blockPadTop - SCROLL_OFFSET);
-              editorContainer.scrollTop += extraScroll;
-
-              // Highlight the specific line within the code block
-              requestAnimationFrame(() => {
-                clearVisualHighlight();
-                const blockRect = targetElement!.getBoundingClientRect();
-                const lineTop = blockRect.top + blockPadTop + lineInCodeBlock * codeLh;
-                const highlight = document.createElement('div');
-                highlight.className = 'cursor-highlight';
-                highlight.style.position = 'fixed';
-                highlight.style.left = `${blockRect.left}px`;
-                highlight.style.top = `${lineTop - HIGHLIGHT_PADDING}px`;
-                highlight.style.width = `${blockRect.width}px`;
-                highlight.style.height = `${codeLh + HIGHLIGHT_PADDING * 2}px`;
-                document.body.appendChild(highlight);
-                activeHighlightElement = highlight;
-                highlightTimer = window.setTimeout(() => {
-                  highlight.remove();
-                  if (activeHighlightElement === highlight) activeHighlightElement = null;
-                  highlightTimer = null;
-                }, TIMING.HIGHLIGHT_DURATION);
-                isToggling = false;
-              });
-            } else {
-              scrollContainerToElement(editorContainer, targetElement, SCROLL_OFFSET);
-              requestAnimationFrame(() => { highlightVisualElement(targetElement!); isToggling = false; });
+              lineTop = (parseFloat(window.getComputedStyle(targetElement).paddingTop) || 0) + lineInCodeBlock * lineHeight;
             }
+            // A line deep inside a long code block is brought to the offset instead of the block's top.
+            const scrollOffset = SCROLL_OFFSET - Math.max(0, lineTop - SCROLL_OFFSET);
+            holdScroll(editorContainer, () => scrollContainerToElement(editorContainer, targetElement, scrollOffset));
+            requestAnimationFrame(() => {
+              showVisualHighlight(lineInCodeBlock > 0
+                ? () => {
+                  const rect = targetElement.getBoundingClientRect();
+                  return { left: rect.left, top: rect.top + lineTop - HIGHLIGHT_PADDING, width: rect.width, height: lineHeight + HIGHLIGHT_PADDING * 2 };
+                }
+                : () => getHighlightRect(targetElement));
+              isToggling = false;
+            });
             return;
           }
 
