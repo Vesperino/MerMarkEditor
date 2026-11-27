@@ -32,8 +32,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/Vesperino/MerMarkEditor.git
-        tag: v0.8.6
-        commit: 710c4602353f58f863d029d2720346e1a5d5666d
+        tag: v0.8.7
+        commit: ba63d662aee10466d145b0ffbd48de97e7101a48
       - cargo-sources.json
       - node-sources.json
       - type: archive

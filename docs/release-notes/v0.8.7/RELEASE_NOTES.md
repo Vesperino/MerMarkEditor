@@ -9,6 +9,7 @@ Thanks to @zkendall and @tobiasgrossmann for these contributions.
 - Collapse or expand every folder of a workspace at once from the workspace's right-click menu, or Alt-click a folder to open or close its whole branch (#182)
 - Format selected text from the right-click menu on Windows, macOS and Linux: headings, bold, italic, lists, quotes and table actions are now one click away (#183)
 - Keep your selection when you switch between the Visual and Code views: the same text stays selected and in view on the other side
+- Run MerMark on Windows without admin rights: download the portable ZIP, unzip it anywhere and start MerMark Editor.exe (#185)
 
 ## Bug fixes
 
