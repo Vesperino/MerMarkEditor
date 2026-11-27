@@ -11,6 +11,8 @@ mod ai;
 mod flatpak;
 #[cfg(target_os = "macos")]
 mod macos_context_menu;
+#[cfg(any(windows, target_os = "linux"))]
+mod selection_menu;
 
 // Store the file path to be opened (from CLI args or file association)
 pub struct OpenFileState(pub Mutex<Option<String>>);
@@ -935,6 +937,8 @@ async fn create_new_window(app: tauri::AppHandle, file_path: Option<String>) -> 
     .build()
     .map_err(|e| e.to_string())?;
 
+    #[cfg(any(windows, target_os = "linux"))]
+    selection_menu::install(&window);
     window.set_focus().map_err(|e| e.to_string())?;
 
     Ok(window_label)
@@ -1089,6 +1093,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             #[cfg(target_os = "macos")]
             macos_context_menu::prepare_macos_selection_menu,
+            #[cfg(any(windows, target_os = "linux"))]
+            selection_menu::prepare_selection_menu,
             get_open_file_path,
             create_new_window,
             get_all_windows,
@@ -1151,11 +1157,13 @@ pub fn run() {
                 }
             }
 
-            #[cfg(any(target_os = "macos", debug_assertions))]
+            #[cfg(any(target_os = "macos", windows, target_os = "linux", debug_assertions))]
             {
                 let window = app.get_webview_window("main").unwrap();
                 #[cfg(target_os = "macos")]
                 macos_context_menu::install(&window);
+                #[cfg(any(windows, target_os = "linux"))]
+                selection_menu::install(&window);
                 #[cfg(debug_assertions)]
                 window.open_devtools();
             }

@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { EditorView } from '@codemirror/view';
 import { TextSelection } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/vue-3';
-import { isMacPlatform } from '../utils/platform';
+import { isLinuxPlatform, isMacPlatform, isWindowsPlatform } from '../utils/platform';
 import type { AppCommands, CommandMenu } from './useAppCommands';
 
 export const editorSelectionMenuKey: InjectionKey<(event: MouseEvent) => boolean> = Symbol('editorSelectionMenu');
@@ -21,14 +21,32 @@ function menuItems(menu: CommandMenu): object[] {
     : { label: item.label, id: item.id, enabled: item.enabled, checked: item.checked });
 }
 
-export function useMacSelectionMenu(commands: AppCommands, editor: Ref<Editor | null>) {
-  if (!isTauri() || !isMacPlatform()) return () => false;
+function nativeMenu() {
+  if (isMacPlatform()) return { command: 'prepare_macos_selection_menu', declines: false };
+  if (isWindowsPlatform() || isLinuxPlatform()) return { command: 'prepare_selection_menu', declines: true };
+}
+
+export function useNativeSelectionMenu(commands: AppCommands, editor: Ref<Editor | null>) {
+  const native = isTauri() ? nativeMenu() : undefined;
+  if (!native) return () => false;
+  const { command, declines } = native;
 
   const window = getCurrentWindow();
   let nextRequestId = 0;
   let pending: { id: number; restore: () => boolean } | undefined;
+  let prepared: MouseEvent | undefined;
   let unlisten: UnlistenFn | undefined;
   let disposed = false;
+
+  // The native menu of an editable selection waits until this right-click is answered.
+  const decline = (event: MouseEvent) => {
+    if (event === prepared || event.defaultPrevented) return;
+    void invoke(command, { requestId: ++nextRequestId, groups: [] }).catch(console.error);
+  };
+  if (declines) {
+    document.addEventListener('contextmenu', decline);
+    onScopeDispose(() => document.removeEventListener('contextmenu', decline));
+  }
 
   onMounted(async () => {
     try {
@@ -40,7 +58,7 @@ export function useMacSelectionMenu(commands: AppCommands, editor: Ref<Editor | 
       });
       if (disposed) unlisten();
     } catch (error) {
-      console.error('Could not listen for macOS selection commands:', error);
+      console.error('Could not listen for selection menu commands:', error);
     }
   });
   onScopeDispose(() => {
@@ -112,7 +130,8 @@ export function useMacSelectionMenu(commands: AppCommands, editor: Ref<Editor | 
 
     const requestId = ++nextRequestId;
     pending = { id: requestId, restore };
-    void invoke('prepare_macos_selection_menu', { requestId, groups }).catch(console.error);
+    prepared = event;
+    void invoke(command, { requestId, groups }).catch(console.error);
     return true;
   };
 }

@@ -9,7 +9,7 @@ import { tags } from '@lezer/highlight';
 import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
 import type { CodeEditorHandle } from '../types/code-editor';
-import { editorSelectionMenuKey } from '../composables/useMacSelectionMenu';
+import { editorSelectionMenuKey } from '../composables/useNativeSelectionMenu';
 
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();

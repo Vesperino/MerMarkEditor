@@ -80,7 +80,7 @@ import { useLineNumbers } from "../composables/useLineNumbers";
 import { resolveEditorImages, getDirectoryFromFilePath } from "../utils/image-resolver";
 import { importImageBytes } from "../services/imageImport";
 import TableContextMenu from "./TableContextMenu.vue";
-import { editorSelectionMenuKey } from "../composables/useMacSelectionMenu";
+import { editorSelectionMenuKey } from "../composables/useNativeSelectionMenu";
 import ImagePreview from "./ImagePreview.vue";
 import EditorGutter from "./EditorGutter.vue";
 
