@@ -1,6 +1,6 @@
 [package]
 name = "mdreader"
-version = "0.8.6"
+version = "0.8.7"
 description = "Markdown editor with Mermaid support"
 authors = ["you"]
 edition = "2021"
@@ -38,6 +38,10 @@ futures-util = "0.3"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSCell", "NSEvent", "NSMenu", "NSMenuItem"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["NSString"] }
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = { version = "0.61", features = ["Win32_System_Com"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
