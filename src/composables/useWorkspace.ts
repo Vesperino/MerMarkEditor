@@ -374,18 +374,19 @@ export function useWorkspace() {
   // ===== Public API: tree-view UI state =====
 
   function isFolderExpanded(rootPath: string, path: string): boolean {
-    return expandedFoldersByRoot.value.get(rootPath)?.has(path) ?? false;
+    return expandedFoldersByRoot.value.get(rootKey(rootPath))?.has(path) ?? false;
   }
 
   function setExpandedPaths(rootPath: string, paths: Iterable<string>, expanded: boolean) {
-    const current = expandedFoldersByRoot.value.get(rootPath);
+    const key = rootKey(rootPath);
+    const current = expandedFoldersByRoot.value.get(key);
     const next = new Set(current);
     for (const path of paths) {
       if (expanded) next.add(path);
       else next.delete(path);
     }
     if (next.size !== (current?.size ?? 0)) {
-      expandedFoldersByRoot.value.set(rootPath, next);
+      expandedFoldersByRoot.value.set(key, next);
     }
   }
 
@@ -396,7 +397,8 @@ export function useWorkspace() {
    */
   function autoExpandTopLevel(rootPath: string, root: WorkspaceNode) {
     if (!root.children || root.children.length === 0) return;
-    const seen = autoExpandedSeenByRoot.get(rootPath) ?? new Set<string>();
+    const key = rootKey(rootPath);
+    const seen = autoExpandedSeenByRoot.get(key) ?? new Set<string>();
     const paths: string[] = [];
     for (const child of root.children) {
       if (child.kind !== 'folder' || seen.has(child.path)) continue;
@@ -404,7 +406,7 @@ export function useWorkspace() {
       paths.push(child.path);
     }
     if (paths.length === 0) return;
-    autoExpandedSeenByRoot.set(rootPath, seen);
+    autoExpandedSeenByRoot.set(key, seen);
     setExpandedPaths(rootPath, paths, true);
   }
 
@@ -429,7 +431,7 @@ export function useWorkspace() {
     const root = treesById.value[id];
     if (!workspace || !root) return;
     if (expanded) setExpandedPaths(workspace.rootPath, folderPaths(root.children ?? []), true);
-    else expandedFoldersByRoot.value.delete(workspace.rootPath);
+    else expandedFoldersByRoot.value.delete(rootKey(workspace.rootPath));
     expandWorkspaceSection(id);
   }
 

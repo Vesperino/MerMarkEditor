@@ -297,6 +297,14 @@ describe('useWorkspace', () => {
       expect(ws.isFolderExpanded('/a', '/a/b')).toBe(false);
     });
 
+    it('shares expansion state between spellings of the same root', () => {
+      const ws = useWorkspace();
+      ws.expandFolder('C:\\ws', 'C:\\ws\\docs');
+      expect(ws.isFolderExpanded('C:/ws/', 'C:\\ws\\docs')).toBe(true);
+      ws.collapseFolder('C:/ws', 'C:\\ws\\docs');
+      expect(ws.isFolderExpanded('C:\\ws\\', 'C:\\ws\\docs')).toBe(false);
+    });
+
     it('expandAncestorsOf adds parents (not the file itself or root)', async () => {
       const ws = useWorkspace();
       invokeMock.mockResolvedValueOnce(makeFolderNode('/r'));

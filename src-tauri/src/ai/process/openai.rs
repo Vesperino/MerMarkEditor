@@ -50,27 +50,16 @@ fn build_chat_body(req: &AiSendRequest) -> serde_json::Value {
     })
 }
 
-/// Some OpenAI-compatible servers (notably llama.cpp) reject any `system`
-/// turn that is not the very first message. Our history trim marker and fresh
-/// document attachment are authored as system turns, so coerce every non-
-/// leading system turn to a user turn to keep strict servers happy while
-/// preserving content order.
+/// llama.cpp and other strict OpenAI-compatible servers reject a `system`
+/// message that is not the first one.
 fn ensure_single_leading_system(messages: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
     let mut out = Vec::with_capacity(messages.len());
-    let mut seen_non_system = false;
     for msg in messages {
         let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
-        if role != "system" {
-            seen_non_system = true;
+        if role != "system" || out.is_empty() {
             out.push(msg);
             continue;
         }
-
-        if !seen_non_system && out.is_empty() {
-            out.push(msg);
-            continue;
-        }
-
         let content = msg.get("content").cloned().unwrap_or(serde_json::Value::String(String::new()));
         out.push(serde_json::json!({ "role": "user", "content": content }));
     }

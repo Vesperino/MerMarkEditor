@@ -15,7 +15,7 @@ export interface UseFileOperationsOptions {
   activeTabId: Ref<string>;
   activeTab: ComputedRef<Tab>;
   findTabByFilePath: (filePath: string) => Tab | undefined;
-  findTabByImageSource?: (src: string, localFile: boolean) => Tab | undefined;
+  findTabByImageSource: (src: string, localFile: boolean) => Tab | undefined;
   createNewTab: (filePath?: string | null, fileContent?: string, fileName?: string) => string;
   switchToTab: (tabId: string, preserveHasChanges?: boolean) => Promise<void>;
   getEditorHtml: () => string;
@@ -121,8 +121,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     reuseEmptyTab = false,
   ): Promise<void> => {
     if (image.src) {
-      const existingTab = findTabByImageSource?.(image.src, image.localFile) ??
-        tabs.value.find(tab => tab.image?.src === image.src && tab.image.localFile === image.localFile);
+      const existingTab = findTabByImageSource(image.src, image.localFile);
       if (existingTab) {
         await switchToTab(existingTab.id);
         return;
@@ -331,10 +330,7 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
     }
   };
 
-  const openFileInNewTab = async (
-    relativePath: string,
-    image = resolveImageLink(relativePath, currentFile.value),
-  ): Promise<void> => {
+  const openLinkInNewTab = async (relativePath: string, image: TabImage | null): Promise<void> => {
     try {
       // Save current scroll position before navigating
       const editorContainer = document.querySelector(DOM_SELECTORS.EDITOR_CONTAINER);
@@ -406,6 +402,9 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
       isLoadingFile.value = false;
     }
   };
+
+  const openFileInNewTab = (relativePath: string): Promise<void> =>
+    openLinkInNewTab(relativePath, resolveImageLink(relativePath, currentFile.value));
 
   /**
    * The pane the user is actually looking at. Split view puts several
@@ -487,20 +486,20 @@ export function useFileOperations(options: UseFileOperationsOptions): UseFileOpe
 
     const image = resolveImageLink(href, currentFile.value);
     if (image) {
-      void openFileInNewTab(href, image);
+      void openLinkInNewTab(href, image);
       return;
     }
 
     // Relative markdown link
     if (href.endsWith('.md') || href.endsWith('.markdown')) {
-      void openFileInNewTab(href, null);
+      void openLinkInNewTab(href, null);
     } else if (href.startsWith('http://') || href.startsWith('https://') || (href.includes('.') && !href.includes('/'))) {
       // External link
       pendingExternalUrl.value = href.startsWith('http') ? href : `https://${href}`;
       showExternalLinkDialog.value = true;
     } else {
       // Could be a relative link to any file
-      void openFileInNewTab(href, null);
+      void openLinkInNewTab(href, null);
     }
   };
 

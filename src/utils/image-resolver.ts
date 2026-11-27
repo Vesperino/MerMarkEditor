@@ -1,5 +1,6 @@
 import { readFile } from '@tauri-apps/plugin-fs';
 import { isImageFile } from './image-file-utils';
+import type { TabImage } from '../composables/useTabs';
 
 /**
  * Resolves a relative image path to an absolute file path.
@@ -22,7 +23,7 @@ function resolveToAbsolutePath(src: string, baseDir: string): string {
   return root + normalized.join('/');
 }
 
-export function resolveImageLink(href: string, documentPath?: string | null) {
+export function resolveImageLink(href: string, documentPath?: string | null): TabImage | null {
   if (/^(?:https?:)?\/\//i.test(href)) {
     try {
       const url = new URL(href.startsWith('//') ? `https:${href}` : href);
