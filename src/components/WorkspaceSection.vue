@@ -34,7 +34,7 @@ const emit = defineEmits<{
   (e: 'open-file', path: string): void;
   (e: 'view-changes', path: string): void;
   (e: 'sort-folder', payload: { path: string; x: number; y: number }): void;
-  (e: 'context', payload: { x: number; y: number; node: WorkspaceNode }): void;
+  (e: 'context', payload: { x: number; y: number; node: WorkspaceNode; workspaceId?: string }): void;
   /** New file/folder inside this workspace's root — bubbles up to the
    *  sidebar so the same pending-action dialog flow handles it. */
   (e: 'new-file-at', parent: string): void;
@@ -90,7 +90,7 @@ function onHeaderContextMenu(ev: MouseEvent) {
     kind: 'folder',
     children: tree.value?.children ?? [],
   };
-  emit('context', { x: ev.clientX, y: ev.clientY, node: rootNode });
+  emit('context', { x: ev.clientX, y: ev.clientY, node: rootNode, workspaceId: props.workspace.id });
 }
 
 function newFileHere(ev: MouseEvent) {
@@ -210,6 +210,7 @@ function newFolderHere(ev: MouseEvent) {
         :is-root="true"
         :drag-over-path="dragOverPath"
         :workspace-id="workspace.id"
+        :workspace-root="workspace.rootPath"
         @open-file="(p) => emit('open-file', p)"
         @view-changes="(p) => emit('view-changes', p)"
         @sort-folder="(payload) => emit('sort-folder', payload)"

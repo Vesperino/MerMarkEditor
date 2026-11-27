@@ -7,6 +7,8 @@ import { useWindowManager } from '../composables/useWindowManager';
 import { htmlToMarkdown } from '../utils/markdown-converter';
 import EditorPane from './EditorPane.vue';
 
+defineProps<{ showIndex: boolean }>();
+
 const {
   splitState,
   isSplitActive,
@@ -76,7 +78,7 @@ onMounted(() => {
       const tab = pane?.tabs.find(t => t.id === tabId);
 
       // Save file content before transfer
-      if (tab && tab.content) {
+      if (tab && !tab.image && tab.content) {
         const markdownContent = htmlToMarkdown(tab.content).trimEnd();
         await writeTextFile(filePath, markdownContent);
       }
@@ -181,7 +183,8 @@ const handleChangesUpdate = (paneId: string, tabId: string, hasChanges: boolean)
   emit('changesUpdated', paneId, tabId, hasChanges);
 };
 
-const handleLinkClick = (href: string) => {
+const handleLinkClick = (paneId: string, href: string) => {
+  setActivePane(paneId);
   emit('linkClick', href);
 };
 
@@ -234,7 +237,7 @@ const findVisualTargetAt = (x: number, y: number) => {
   const panes = Array.from(container.querySelectorAll(':scope > .editor-pane')) as HTMLElement[];
   const idx = panes.indexOf(paneEl);
   const targetRef = idx === 0 ? leftPaneRef.value : rightPaneRef.value;
-  if (!targetRef) return null;
+  if (!targetRef?.editor) return null;
 
   return {
     filePath: targetRef.getFilePath?.() ?? null,
@@ -293,6 +296,7 @@ defineExpose({
       ref="leftPaneRef"
       :pane="leftPane"
       :is-active="activePaneId === 'left'"
+      :show-index="showIndex"
       :style="leftPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('left', tabId)"
       @close-tab="(tabId) => handleCloseTab('left', tabId)"
@@ -303,7 +307,7 @@ defineExpose({
       @close-saved="emit('closeSaved', 'left')"
       @update-content="(tabId, content) => handleContentUpdate('left', tabId, content)"
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('left', tabId, hasChanges)"
-      @link-click="handleLinkClick"
+      @link-click="(href) => handleLinkClick('left', href)"
       @focus="handlePaneFocus('left')"
     />
 
@@ -323,6 +327,7 @@ defineExpose({
       ref="rightPaneRef"
       :pane="rightPane"
       :is-active="activePaneId === 'right'"
+      :show-index="showIndex"
       :style="rightPaneStyle"
       @switch-tab="(tabId) => handleSwitchTab('right', tabId)"
       @close-tab="(tabId) => handleCloseTab('right', tabId)"
@@ -333,7 +338,7 @@ defineExpose({
       @close-saved="emit('closeSaved', 'right')"
       @update-content="(tabId, content) => handleContentUpdate('right', tabId, content)"
       @update-changes="(tabId, hasChanges) => handleChangesUpdate('right', tabId, hasChanges)"
-      @link-click="handleLinkClick"
+      @link-click="(href) => handleLinkClick('right', href)"
       @focus="handlePaneFocus('right')"
     />
   </div>

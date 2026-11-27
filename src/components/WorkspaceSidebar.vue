@@ -98,11 +98,13 @@ const ctxX = ref(0);
 const ctxY = ref(0);
 const ctxNode = ref<WorkspaceNode | null>(null);
 const ctxIsRoot = ref(false);
+const ctxWorkspaceId = ref<string | null>(null);
 
-function openContext(payload: { x: number; y: number; node: WorkspaceNode }) {
+function openContext(payload: { x: number; y: number; node: WorkspaceNode; workspaceId?: string }) {
   ctxX.value = payload.x;
   ctxY.value = payload.y;
   ctxNode.value = payload.node;
+  ctxWorkspaceId.value = payload.workspaceId ?? null;
   // A right-click on a workspace section header carries a synthetic node whose
   // path matches one of the open workspace roots — flag it so the menu hides
   // rename/delete (those would target the workspace folder itself).
@@ -128,6 +130,12 @@ async function onContextAction(action: WorkspaceContextAction) {
   const node = ctxNode.value;
   if (!node) return;
 
+  if (action === 'expand-all-folders' || action === 'collapse-all-folders') {
+    if (ctxWorkspaceId.value) {
+      ws.setWorkspaceFoldersExpanded(ctxWorkspaceId.value, action === 'expand-all-folders');
+    }
+    return;
+  }
   if (action === 'reveal') {
     try { await ws.revealInOs(node.path); } catch (e) { console.error('reveal:', e); }
     return;
@@ -586,6 +594,8 @@ const TREE_NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home'
 /** Returns true when the key was a tree command for the focused row. */
 function onTreeRowKeyDown(e: KeyboardEvent, row: HTMLElement): boolean {
   const path = row.dataset.treePath!;
+  const rootPath = row.closest<HTMLElement>('[data-workspace-root]')?.dataset.workspaceRoot;
+  if (rootPath === undefined) return false;
   const folder = row.dataset.treeKind === 'folder';
   const mac = isMacPlatform();
   if (e.key === (mac ? 'Enter' : 'F2') && !e.metaKey && !e.shiftKey) {
@@ -594,7 +604,7 @@ function onTreeRowKeyDown(e: KeyboardEvent, row: HTMLElement): boolean {
     return true;
   }
   if (mac ? e.metaKey && !e.shiftKey && e.key === 'ArrowDown' : !e.metaKey && e.key === 'Enter') {
-    if (folder) ws.toggleFolder(path);
+    if (folder) ws.toggleFolder(rootPath, path);
     else emit('open-file', path);
     return true;
   }
@@ -608,13 +618,13 @@ function onTreeRowKeyDown(e: KeyboardEvent, row: HTMLElement): boolean {
   } else if (e.key === 'Home' || e.key === 'End') {
     focusTreeRow(e.key === 'Home' ? paths[0] : paths[paths.length - 1], e.shiftKey);
   } else if (e.key === 'ArrowRight' && folder) {
-    if (!ws.isFolderExpanded(path)) ws.expandFolder(path);
+    if (!ws.isFolderExpanded(rootPath, path)) ws.expandFolder(rootPath, path);
     else {
       const child = row.parentElement?.querySelector<HTMLElement>(':scope > .tree-children > .file-tree-node > .tree-row');
       if (child?.dataset.treePath) focusTreeRow(child.dataset.treePath);
     }
   } else if (e.key === 'ArrowLeft') {
-    if (folder && ws.isFolderExpanded(path)) ws.collapseFolder(path);
+    if (folder && ws.isFolderExpanded(rootPath, path)) ws.collapseFolder(rootPath, path);
     else {
       const parent = row.parentElement?.parentElement?.closest('.file-tree-node');
       const parentRow = parent?.querySelector<HTMLElement>(':scope > .tree-row');
@@ -857,6 +867,7 @@ onBeforeUnmount(() => {
       :y="ctxY"
       :kind="ctxNode.kind"
       :is-root="ctxIsRoot"
+      :has-folder-expansion-actions="ctxWorkspaceId !== null && !!ws.treesById.value[ctxWorkspaceId]"
       @action="onContextAction"
       @close="closeContext"
     />

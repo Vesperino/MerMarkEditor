@@ -21,10 +21,12 @@ export interface AppCommand {
   checked?: boolean;
   run: () => unknown;
 }
-export interface CommandMenu { label: string; items: (AppCommand | CommandMenu)[] }
+export interface CommandMenu { id?: string; label: string; items: (AppCommand | CommandMenu)[] }
 export interface CommandContext {
   codeView: boolean; splitEditor: boolean; splitView: boolean; hasDocument: boolean;
+  imageTab?: boolean;
   canDiff: boolean; canCompare: boolean; diff: boolean; toc: boolean; ai: boolean;
+  outlineAvailable?: boolean;
   marp: boolean; marpPreview: boolean; modal: boolean;
 }
 export interface AppCommands {
@@ -125,9 +127,11 @@ export function useAppCommands(options: {
     void revision.value;
     const c = options.context(), l = labels.value, tr = t.value;
     const recording = !!document.activeElement?.closest('[data-shortcut-recorder]');
-    const visualDocument = c.hasDocument && !!options.editor.value && !c.codeView && !c.splitEditor && !c.modal;
+    const tab = c.hasDocument && !c.modal;
+    const doc = tab && !c.imageTab;
+    const visualDocument = doc && !!options.editor.value && !c.codeView && !c.splitEditor;
+    const canToggleOutline = (c.outlineAvailable ?? visualDocument) && !c.modal;
     const visual = visualDocument && !textEntryFocused();
-    const doc = c.hasDocument && !c.modal;
     const code = focusedCodeEditor();
     const source = doc && !!code;
     const formatting = visual || source;
@@ -151,7 +155,7 @@ export function useAppCommands(options: {
       active ? visualDocument && a.isActive(active) : undefined);
     const invoke = (id: string, ...args: unknown[]) => () => options.actions[id]?.(...args);
     const chain = (fn: (editor: Editor) => void) => () => a.runCommand(fn);
-    const menu = (label: string, items: (AppCommand | CommandMenu)[]): CommandMenu => ({ label, items });
+    const menu = (label: string, items: (AppCommand | CommandMenu)[], id?: string): CommandMenu => ({ label, items, id });
     return [
       menu(l.file, [
         command('new-file', tr.new, undefined, !c.modal, 'CmdOrCtrl+N'),
@@ -172,7 +176,7 @@ export function useAppCommands(options: {
         command('print', `${l.print}…`, invoke('export-pdf'), doc, 'CmdOrCtrl+P'),
         command('export-pdf', `${tr.exportPdf}…`, undefined, doc),
         command('export-docx', `${tr.exportDocx}…`, undefined, doc),
-        command('close-tab', tr.closeTab, undefined, doc, 'CmdOrCtrl+W'),
+        command('close-tab', tr.closeTab, undefined, tab, 'CmdOrCtrl+W'),
         command('close-window', l.closeWindow, undefined, !c.modal, 'CmdOrCtrl+Shift+W'),
       ]),
       menu(l.edit, [
@@ -204,7 +208,7 @@ export function useAppCommands(options: {
         edit('ordered-list', l.orderedList, chain(e => { e.chain().focus().toggleOrderedList().run(); }), 'orderedList'),
         edit('task-list', l.taskList, chain(e => { e.chain().focus().toggleTaskList().run(); }), 'taskList'),
         edit('blockquote', l.blockquote, chain(e => { e.chain().focus().toggleBlockquote().run(); }), 'blockquote'),
-      ]),
+      ], 'format'),
       menu(l.insert, [
         edit('link', l.link, a.setLink),
         menu(l.image, [edit('image-url', tr.imageFromUrl, a.insertImageFromUrl), edit('image-file', tr.imageFromFile, a.insertImageFromFile)]),
@@ -215,26 +219,26 @@ export function useAppCommands(options: {
             ['column-before', tr.addColumnBefore, a.addColumnBefore], ['column-after', tr.addColumnAfter, a.addColumnAfter],
             ['delete-row', tr.deleteRow, a.deleteRow], ['delete-column', tr.deleteColumn, a.deleteColumn], ['delete-table', tr.deleteTable, a.deleteTable],
           ] as const).map(([id, label, run]) => command(id, label, run, visual && a.isActive('table'))),
-        ]),
+        ], 'table'),
         edit('code-block', l.codeBlock, chain(e => { e.chain().focus().toggleCodeBlock().run(); })),
         edit('mermaid', tr.insertMermaid, a.insertMermaid), edit('footnote', tr.insertFootnote, a.insertFootnote),
         edit('math-inline', tr.mathInline, () => a.insertMath(false)), edit('math-block', tr.mathBlock, () => a.insertMath(true)),
         edit('horizontal-rule', l.horizontalRule, chain(e => { e.chain().focus().setHorizontalRule().run(); })),
         edit('page-break', l.pageBreak, chain(e => { e.chain().focus().insertContent({ type: 'pageBreak' }).run(); })),
-      ]),
+      ], 'insert'),
       menu(l.view, [
         command('toggle-workspace-sidebar', tr.workspace, workspace.toggleSidebarVisible, !c.modal, undefined, workspace.sidebarVisible.value),
         command('command-palette', tr.commandPalette, undefined, !c.modal, 'CmdOrCtrl+Shift+P', undefined, ['F1']),
         command('quick-open', tr.quickOpen, undefined, !c.modal),
         command('workspace-search', l.contentSearch, undefined, !c.modal, 'CmdOrCtrl+Shift+F'),
         command('go-to-heading', tr.goToHeading, undefined, doc, 'CmdOrCtrl+Shift+O'),
-        command('next-tab', tr.nextTab, undefined, doc, 'Control+Tab', undefined, ['Control+PageDown']),
-        command('previous-tab', tr.previousTab, undefined, doc, 'Control+Shift+Tab', undefined, ['Control+PageUp']),
-        menu(tr.jumpToTab, Array.from({ length: 9 }, (_, i) => command(`tab:${i}`, `${i + 1}`, invoke('select-tab', i), doc, `CmdOrCtrl+${i + 1}`))),
+        command('next-tab', tr.nextTab, undefined, tab, 'Control+Tab', undefined, ['Control+PageDown']),
+        command('previous-tab', tr.previousTab, undefined, tab, 'Control+Shift+Tab', undefined, ['Control+PageUp']),
+        menu(tr.jumpToTab, Array.from({ length: 9 }, (_, i) => command(`tab:${i}`, `${i + 1}`, invoke('select-tab', i), tab, `CmdOrCtrl+${i + 1}`))),
         command('workspace-switcher', tr.searchWorkspace, undefined, !c.modal, 'CmdOrCtrl+Shift+E'),
-        command('toggle-toc', tr.tableOfContents, undefined, visualDocument, 'CmdOrCtrl+Shift+T', c.toc),
+        command('toggle-toc', tr.tableOfContents, undefined, canToggleOutline, 'CmdOrCtrl+Shift+T', c.toc),
         command('toggle-code-view', tr.codeView, undefined, doc && !c.splitEditor, 'CmdOrCtrl+Shift+V', c.codeView),
-        command('toggle-split-view', tr.splitView, undefined, visualDocument, undefined, c.splitView),
+        command('toggle-split-view', tr.splitView, undefined, visualDocument || (tab && !!c.imageTab), undefined, c.splitView),
         command('toggle-split-editor', tr.splitEditor, undefined, doc && !c.splitView, undefined, c.splitEditor),
         command('toggle-diff', tr.changes, undefined, visualDocument && c.canDiff, 'CmdOrCtrl+Shift+D', c.diff),
         command('compare-tabs', tr.compareTabs, undefined, visualDocument && c.canCompare, 'CmdOrCtrl+Shift+C'),

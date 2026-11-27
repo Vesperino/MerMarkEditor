@@ -40,7 +40,7 @@ function makeSaveHarness(overrides: Partial<UseFileOperationsOptions> = {}, mark
   const operations = useFileOperations({
     tabs, activeTabId: ref('1'), activeTab: computed(() => tabs.value[0]),
     getEditorHtml: () => editor.getHTML(), setEditorContent: html => editor.commands.setContent(html, { parseOptions: VISUAL_PARSE_OPTIONS }),
-    findTabByFilePath: () => undefined, createNewTab: () => '2', switchToTab: async () => {},
+    findTabByFilePath: () => undefined, findTabByImageSource: () => undefined, createNewTab: () => '2', switchToTab: async () => {},
     ...overrides,
   });
   return { editor, tabs, ...operations };
@@ -278,7 +278,7 @@ describe('Markdown save round-trip', () => {
     const { saveFile } = useFileOperations({
       tabs, activeTabId: ref('1'), activeTab: computed(() => tabs.value[0]),
       getEditorHtml: () => '', getMarkdownOverride: () => raw.replace(/\r\n/g, '\n'), setEditorContent: () => {},
-      findTabByFilePath: () => undefined, createNewTab: () => '2', switchToTab: async () => {},
+      findTabByFilePath: () => undefined, findTabByImageSource: () => undefined, createNewTab: () => '2', switchToTab: async () => {},
     });
     await saveFile();
     expect(fs.write).toHaveBeenLastCalledWith('/test/source.md.tmp', raw);

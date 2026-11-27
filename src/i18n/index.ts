@@ -205,6 +205,7 @@ export interface Translations {
   basic: string;
   deleteDiagram: string;
   deleteImage: string;
+  imageLoadError: string;
   moreTemplates: string;
   mermaidDiagramTemplates: string;
   enterMermaidCode: string;
@@ -255,6 +256,9 @@ export interface Translations {
   showLineNumbers: string;
   expandTabs: string;
   appearance: string;
+  documentOutline: string;
+  outlineStyleHover: string;
+  outlineStylePanel: string;
   editor: string;
   code: string;
   general: string;
@@ -554,6 +558,8 @@ export interface Translations {
   addWorkspace: string;
   expandAllSections: string;
   collapseAllSections: string;
+  expandAllFolders: string;
+  collapseAllFolders: string;
   workspaceSortByName: string;
   workspaceSortByModified: string;
   workspaceSortMenu: string;

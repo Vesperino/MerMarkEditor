@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Compartment, EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
@@ -9,12 +9,14 @@ import { tags } from '@lezer/highlight';
 import { useEditorZoom } from '../composables/useEditorZoom';
 import { useSettings } from '../composables/useSettings';
 import type { CodeEditorHandle } from '../types/code-editor';
+import { editorSelectionMenuKey } from '../composables/useNativeSelectionMenu';
 
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
 const { zoomScale } = useEditorZoom();
 const { settings } = useSettings();
+const openSelectionMenu = inject(editorSelectionMenuKey, null);
 const hostRef = ref<HTMLDivElement | null>(null);
 const wrapConfig = new Compartment();
 const gutterConfig = new Compartment();
@@ -227,6 +229,7 @@ onBeforeUnmount(() => {
       class="code-editor"
       :style="codeZoomStyle"
       :data-document-length="modelValue.length"
+      @contextmenu="openSelectionMenu?.($event)"
     ></div>
   </div>
 </template>

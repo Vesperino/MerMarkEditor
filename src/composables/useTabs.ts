@@ -2,6 +2,11 @@ import { ref, computed, nextTick, type Ref, type ComputedRef } from 'vue';
 import { t } from '../i18n';
 import { EMPTY_TAB_CONTENT } from '../constants';
 
+export interface TabImage {
+  src: string;
+  localFile: boolean;
+}
+
 export interface Tab {
   id: string;
   filePath: string | null;
@@ -10,6 +15,8 @@ export interface Tab {
   hasChanges: boolean;
   scrollTop: number;
   originalMarkdown: string | null;
+  /** Read-only image displayed in place of the Markdown editor. */
+  image?: TabImage;
   /** Latest source revision, including unsaved code edits. Visual serialization
    * patches this source; originalMarkdown remains the saved disk/conflict base. */
   sourceMarkdown?: string | null;

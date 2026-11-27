@@ -3,6 +3,8 @@ import { ref, computed } from 'vue';
 import type { Pane } from '../types/pane';
 import TabBar from './TabBar.vue';
 import Editor from './Editor.vue';
+import ImagePreview from './ImagePreview.vue';
+import TableOfContents from './TableOfContents.vue';
 import { useTabDrag } from '../composables/useTabDrag';
 import { useWorkspace } from '../composables/useWorkspace';
 import { useI18n } from '../i18n';
@@ -13,6 +15,7 @@ const ws = useWorkspace();
 const props = defineProps<{
   pane: Pane;
   isActive: boolean;
+  showIndex: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -48,13 +51,13 @@ const isValidDropTarget = computed(() => {
 });
 
 const handleContentUpdate = (content: string) => {
-  if (activeTab.value) {
+  if (activeTab.value && !activeTab.value.image) {
     emit('updateContent', activeTab.value.id, content);
   }
 };
 
 const handleChangesUpdate = (hasChanges: boolean) => {
-  if (activeTab.value) {
+  if (activeTab.value && !activeTab.value.image) {
     emit('updateChanges', activeTab.value.id, hasChanges);
   }
 };
@@ -135,8 +138,15 @@ defineExpose({
 
     <!-- Editor content or empty state -->
     <div class="editor-wrapper">
+      <ImagePreview
+        v-if="activeTab?.image"
+        :src="activeTab.image.src"
+        :local-file="activeTab.image.localFile"
+        :alt="activeTab.fileName"
+        in-pane
+      />
       <Editor
-        v-if="!isEmpty"
+        v-else-if="!isEmpty"
         ref="editorRef"
         :model-value="editorContent"
         :file-path="editorFilePath"
@@ -145,8 +155,15 @@ defineExpose({
         @link-click="handleLinkClick"
       />
 
+      <TableOfContents
+        v-if="showIndex && activeTab && !activeTab.image && editorRef?.editor"
+        :key="activeTab.id"
+        floating
+        :editor-instance="editorRef.editor"
+      />
+
       <!-- Empty state - shown when no tabs -->
-      <div v-else class="empty-pane">
+      <div v-if="isEmpty" class="empty-pane">
         <div class="empty-icon">📄</div>
         <div class="empty-title">{{ t.dragTabHere }}</div>
         <div class="empty-subtitle">{{ t.orOpenFileInPane }}</div>
@@ -188,11 +205,20 @@ defineExpose({
 }
 
 .editor-wrapper {
+  container-type: inline-size;
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+@media screen {
+  @container (width < 200px) {
+    .editor-wrapper > :deep(.editor-index) {
+      display: none;
+    }
+  }
 }
 
 .empty-pane {

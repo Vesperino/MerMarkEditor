@@ -33,10 +33,9 @@ let onDropOutsideCallback: ((tabId: string, paneId: string, filePath: string | n
 function createGhostElement(tab: DraggedTab): HTMLElement {
   const ghost = document.createElement('div');
   ghost.className = 'tab-drag-ghost';
-  ghost.innerHTML = `
-    <span class="ghost-icon">📄</span>
-    <span class="ghost-name">${tab.fileName}</span>
-  `;
+  const icon = document.createElement('span');
+  icon.textContent = '📄';
+  ghost.append(icon, document.createTextNode(tab.fileName));
   ghost.style.cssText = `
     position: fixed;
     z-index: 10000;

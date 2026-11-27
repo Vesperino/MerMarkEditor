@@ -2432,13 +2432,16 @@ checksum = "2532096657941c2fea9c289d370a250971c689d4f143798ff67113ec042024a5"
 
 [[package]]
 name = "mdreader"
-version = "0.8.6"
+version = "0.8.7"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "font-kit",
  "futures-util",
  "gtk",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "reqwest",
  "serde",
  "serde_json",
@@ -2456,7 +2459,9 @@ dependencies = [
  "urlencoding",
  "uuid",
  "webkit2gtk",
+ "webview2-com",
  "which",
+ "windows",
 ]
 
 [[package]]
@@ -2510,9 +2515,9 @@ dependencies = [
 
 [[package]]
 name = "muda"
-version = "0.19.1"
+version = "0.19.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ae8844f63b5b118e334e205585b8c5c17b984121dbdb179d44aeb087ffad3cb"
+checksum = "1dd04e60bc0b07438a6771710ee1698f98f6ebbc7f89b61264af1563b8aeb878"
 dependencies = [
  "crossbeam-channel",
  "dpi",
@@ -2526,7 +2531,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.18",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5297,7 +5302,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.18",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

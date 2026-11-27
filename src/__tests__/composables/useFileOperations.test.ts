@@ -96,6 +96,8 @@ const makeOptions = (tabOverrides: Partial<Tab> = {}, extraOptions: Record<strin
   const createNewTab = vi.fn(() => 'new-tab-id');
   const switchToTab = vi.fn(async () => {});
   const findTabByFilePath = vi.fn(() => undefined);
+  const findTabByImageSource = vi.fn((src: string, localFile: boolean) =>
+    tabs.value.find(t => t.image?.src === src && t.image.localFile === localFile));
 
   return {
     options: {
@@ -103,6 +105,7 @@ const makeOptions = (tabOverrides: Partial<Tab> = {}, extraOptions: Record<strin
       activeTabId,
       activeTab,
       findTabByFilePath,
+      findTabByImageSource,
       createNewTab,
       switchToTab,
       getEditorHtml,
@@ -579,6 +582,48 @@ describe('useFileOperations', () => {
       expect(markdownToHtml).not.toHaveBeenCalled();
       expect(onLargeFileOpened).toHaveBeenCalledWith('test/big.md', bigContent);
     });
+  });
+});
+
+describe('image links', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('openFileInNewTab opens a relative image path as an image tab', async () => {
+    const { options, createNewTab, tabs } = makeOptions();
+    tabs.value.push(makeTab({ id: 'new-tab-id', filePath: null, content: '', originalMarkdown: null }));
+    const { openFileInNewTab } = useFileOperations(options);
+
+    await openFileInNewTab('img/pic.png');
+
+    expect(createNewTab).toHaveBeenCalledWith('/test/img/pic.png', '<p></p>', 'pic.png');
+    expect(tabs.value.find(t => t.id === 'new-tab-id')!.image).toEqual({ src: '/test/img/pic.png', localFile: true });
+    expect(mockReadTextFile).not.toHaveBeenCalled();
+  });
+
+  it('handleLinkClick opens a remote image as an image tab instead of the external link dialog', async () => {
+    const { options, tabs, switchToTab } = makeOptions();
+    tabs.value.push(makeTab({ id: 'new-tab-id', filePath: null, content: '', originalMarkdown: null }));
+    const { handleLinkClick, showExternalLinkDialog } = useFileOperations(options);
+
+    handleLinkClick('https://example.com/a.png');
+
+    await vi.waitFor(() => expect(switchToTab).toHaveBeenCalledWith('new-tab-id'));
+    expect(tabs.value.find(t => t.id === 'new-tab-id')!.image).toEqual({ src: 'https://example.com/a.png', localFile: false });
+    expect(showExternalLinkDialog.value).toBe(false);
+  });
+
+  it('switches to the tab already showing the image instead of opening another', async () => {
+    const { options, createNewTab, switchToTab, tabs } = makeOptions();
+    tabs.value.push(makeTab({ id: 'img-tab', filePath: '/test/pic.png', image: { src: '/test/pic.png', localFile: true } }));
+    const { openFileInNewTab } = useFileOperations(options);
+
+    await openFileInNewTab('pic.png');
+
+    expect(switchToTab).toHaveBeenCalledWith('img-tab');
+    expect(createNewTab).not.toHaveBeenCalled();
   });
 });
 

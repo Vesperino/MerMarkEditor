@@ -50,6 +50,22 @@ fn build_chat_body(req: &AiSendRequest) -> serde_json::Value {
     })
 }
 
+/// llama.cpp and other strict OpenAI-compatible servers reject a `system`
+/// message that is not the first one.
+fn ensure_single_leading_system(messages: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    let mut out = Vec::with_capacity(messages.len());
+    for msg in messages {
+        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
+        if role != "system" || out.is_empty() {
+            out.push(msg);
+            continue;
+        }
+        let content = msg.get("content").cloned().unwrap_or(serde_json::Value::String(String::new()));
+        out.push(serde_json::json!({ "role": "user", "content": content }));
+    }
+    out
+}
+
 /// Seed the message history for a turn: system preamble, then the trimmed prior
 /// turns (user/assistant alternating), then the fresh document attachment (when
 /// sent), then the live user message (per-turn context joined with the prompt).
@@ -67,7 +83,7 @@ fn initial_messages(req: &AiSendRequest) -> Vec<serde_json::Value> {
     }
     let user = crate::ai::process::join_message_parts(&[req.turn_context.as_str(), req.prompt.as_str()]);
     messages.push(serde_json::json!({ "role": "user", "content": user }));
-    messages
+    ensure_single_leading_system(messages)
 }
 
 pub async fn stream(
@@ -655,12 +671,33 @@ mod tests {
         req.doc_content = Some("# Doc\nbody".into());
         let msgs = initial_messages(&req);
         assert_eq!(msgs.len(), 5);
-        assert_eq!(msgs[3]["role"], "system");
+        assert_eq!(msgs[3]["role"], "user");
         let content = msgs[3]["content"].as_str().unwrap();
         assert!(content.starts_with("Current content of the main file"));
         assert!(content.contains("<<<\n# Doc\nbody\n>>>"));
         assert_eq!(msgs[4]["role"], "user");
         assert_eq!(msgs[4]["content"], "hello");
+    }
+
+    #[test]
+    fn initial_messages_keeps_only_leading_system_role() {
+        let history: Vec<file_tools::HistoryTurn> = (0..file_tools::HISTORY_MAX_TURNS + 5)
+            .map(|i| file_tools::HistoryTurn { role: "user".into(), content: format!("t{}", i) })
+            .collect();
+        let mut req = req_with_history(None, Some("qwen3.5"), "sys", history);
+        req.doc_content = Some("# Doc\nbody".into());
+
+        let msgs = initial_messages(&req);
+        let system_positions: Vec<usize> = msgs
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, msg)| (msg["role"] == "system").then_some(idx))
+            .collect();
+
+        assert_eq!(system_positions, vec![0]);
+        assert!(msgs
+            .iter()
+            .any(|msg| msg["role"] == "user" && msg["content"] == file_tools::HISTORY_OMITTED_MARKER));
     }
 
     #[test]
