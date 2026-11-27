@@ -100,6 +100,18 @@
   </screenshots>
 
   <releases>
+    <release version="0.8.7" date="2026-11-27">
+      <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.7</url>
+      <description>
+        <p>Image tabs, a document outline and a view switch that stays put.</p>
+        <ul>
+          <li>Open images in their own tab with zoom and pan</li>
+          <li>Jump around long documents with the new outline</li>
+          <li>Format selected text from the right-click menu</li>
+          <li>Switching between the Visual and Code views keeps your place and selection</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.6" date="2026-11-09">
       <url type="details">https://github.com/Vesperino/MerMarkEditor/releases/tag/v0.8.6</url>
       <description>

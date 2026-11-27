@@ -3213,14 +3213,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/muda/muda-0.19.1.crate",
-        "sha256": "0ae8844f63b5b118e334e205585b8c5c17b984121dbdb179d44aeb087ffad3cb",
-        "dest": "cargo/vendor/muda-0.19.1"
+        "url": "https://static.crates.io/crates/muda/muda-0.19.3.crate",
+        "sha256": "1dd04e60bc0b07438a6771710ee1698f98f6ebbc7f89b61264af1563b8aeb878",
+        "dest": "cargo/vendor/muda-0.19.3"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"0ae8844f63b5b118e334e205585b8c5c17b984121dbdb179d44aeb087ffad3cb\", \"files\": {}}",
-        "dest": "cargo/vendor/muda-0.19.1",
+        "contents": "{\"package\": \"1dd04e60bc0b07438a6771710ee1698f98f6ebbc7f89b61264af1563b8aeb878\", \"files\": {}}",
+        "dest": "cargo/vendor/muda-0.19.3",
         "dest-filename": ".cargo-checksum.json"
     },
     {
