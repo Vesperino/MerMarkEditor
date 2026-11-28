@@ -52,7 +52,7 @@ import FileConflictModal from './components/FileConflictModal.vue';
 import { useAutoUpdate } from './composables/useAutoUpdate';
 import { useCodeView } from './composables/useCodeView';
 import { useSplitEditor } from './composables/useSplitEditor';
-import { useScrollSync } from './composables/useScrollSync';
+import { holdScrollRatio, scrollRatioOf, useScrollSync } from './composables/useScrollSync';
 import { useSettings } from './composables/useSettings';
 import { useSplitView } from './composables/useSplitView';
 import { useFileOperations } from './composables/useFileOperations';
@@ -894,6 +894,11 @@ const {
 
 // Proportional scroll-sync between the split code pane and the live preview.
 const scrollSync = useScrollSync();
+let cancelSplitScrollHold: (() => void) | null = null;
+const clearSplitScrollHold = () => {
+  cancelSplitScrollHold?.();
+  cancelSplitScrollHold = null;
+};
 
 // Latest HTML emitted by the read-only preview editor. Committed back to the
 // code source only on a real in-preview edit (see onSplitPreviewChanged).
@@ -917,6 +922,7 @@ const enterSplitEditor = (html: string): void => {
 // new edit into the old tab. This is why manual enter/exit seeding was removed
 // from switchToTabFromSplitEditor and onFileOpened.
 watch([activeTabId, () => !!activeTab.value.image], ([, isImage], [oldId]) => {
+  clearSplitScrollHold();
   const oldTab = splitState.value.panes.flatMap(p => p.tabs).find(t => t.id === oldId);
   if (oldTab && !oldTab.image && splitEditorActive.value && splitSourceTabId.value === oldId) {
     oldTab.content = markdownToHtml(splitMarkdownSource.value);
@@ -950,9 +956,15 @@ watch([activeTabId, () => !!activeTab.value.image], ([, isImage], [oldId]) => {
 });
 
 const toggleSplitEditor = async () => {
+  clearSplitScrollHold();
   if (!splitEditorActive.value) {
+    const initialScrollRatio = codeView.value
+      ? (getCodeEditor()?.getScrollRatio()
+        ?? scrollRatioOf(document.querySelector<HTMLElement>('.code-view-area .cm-scroller')))
+      : scrollRatioOf(document.querySelector<HTMLElement>(DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER));
     if (codeView.value) {
       await toggleCodeView();
+      if (codeView.value) return;
     }
     // Read the live editor HTML so the latest (still-debounced) edit isn't lost
     // when seeding the markdown source.
@@ -966,11 +978,25 @@ const toggleSplitEditor = async () => {
     await nextTick();
     const codeEl = document.querySelector<HTMLElement>('.split-editor-code .cm-scroller');
     const previewEl = document.querySelector<HTMLElement>('.split-editor-preview .editor-container');
+    if (initialScrollRatio > 0) {
+      cancelSplitScrollHold = holdScrollRatio(
+        [
+          () => document.querySelector<HTMLElement>('.split-editor-code .cm-scroller'),
+          () => document.querySelector<HTMLElement>('.split-editor-preview .editor-container'),
+        ],
+        initialScrollRatio,
+      );
+    }
     if (codeEl && previewEl) scrollSync.attach(codeEl, previewEl);
     isLoadingContent.value = false;
     return;
   }
 
+  const previewEl = document.querySelector<HTMLElement>('.split-editor-preview .editor-container');
+  const codeEl = document.querySelector<HTMLElement>('.split-editor-code .cm-scroller');
+  const splitScrollRatio = previewEl && previewEl.scrollHeight > previewEl.clientHeight
+    ? scrollRatioOf(previewEl)
+    : scrollRatioOf(codeEl);
   scrollSync.detach();
   const html = exitSplitEditor();
   if (activeTab.value) {
@@ -981,6 +1007,12 @@ const toggleSplitEditor = async () => {
   isLoadingContent.value = true;
   splitEditorActive.value = false;
   await nextTick();
+  if (splitScrollRatio > 0) {
+    cancelSplitScrollHold = holdScrollRatio(
+      [() => document.querySelector<HTMLElement>(DOM_SELECTORS.ACTIVE_EDITOR_CONTAINER)],
+      splitScrollRatio,
+    );
+  }
   isLoadingContent.value = false;
 };
 
