@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
-import { proportionalTarget, scrollTopFromRatio, useScrollSync } from '../../composables/useScrollSync';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import {
+  holdScrollRatio,
+  proportionalTarget,
+  scrollRatioOf,
+  scrollTopFromRatio,
+  useScrollSync,
+} from '../../composables/useScrollSync';
 
 describe('proportionalTarget', () => {
   it('maps the top of the source to the top of the destination', () => {
@@ -57,6 +63,101 @@ describe('scrollTopFromRatio', () => {
 
   it('rounds to an integer scrollTop', () => {
     expect(scrollTopFromRatio(1 / 3, 1000, 100)).toBe(300);
+  });
+});
+
+describe('scrollRatioOf', () => {
+  const makeScrollable = (scrollTop: number, scrollHeight: number, clientHeight: number) => {
+    const el = document.createElement('div');
+    Object.defineProperties(el, {
+      scrollTop: { value: scrollTop, writable: true },
+      scrollHeight: { value: scrollHeight, configurable: true },
+      clientHeight: { value: clientHeight, configurable: true },
+    });
+    return el;
+  };
+
+  it('returns 0 for null or non-scrollable elements', () => {
+    expect(scrollRatioOf(null)).toBe(0);
+    expect(scrollRatioOf(makeScrollable(0, 400, 400))).toBe(0);
+    expect(scrollRatioOf(makeScrollable(50, 200, 400))).toBe(0);
+  });
+
+  it('computes the clamped scroll ratio in [0, 1]', () => {
+    expect(scrollRatioOf(makeScrollable(400, 1000, 200))).toBe(0.5);
+    expect(scrollRatioOf(makeScrollable(-20, 1000, 200))).toBe(0);
+    expect(scrollRatioOf(makeScrollable(9999, 1000, 200))).toBe(1);
+  });
+});
+
+describe('holdScrollRatio', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('re-applies ratio as container height grows and stops when user interacts', () => {
+    let now = 0;
+    let height = 1000;
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    Object.defineProperties(el, {
+      scrollTop: { value: 0, writable: true },
+      scrollHeight: { get: () => height },
+      clientHeight: { value: 200 },
+    });
+
+    const cancel = holdScrollRatio([() => el], 0.5, { quietMs: 250, maxMs: 2500 });
+    expect(el.scrollTop).toBe(400);
+
+    // Simulate async layout growth (e.g., images / Mermaid rendering)
+    height = 2000;
+    now = 16;
+    rafQueue.shift()?.(now);
+    expect(el.scrollTop).toBe(900);
+
+    // User takes over with wheel: subsequent frames must not overwrite user scroll
+    el.dispatchEvent(new Event('wheel'));
+    el.scrollTop = 120;
+    now = 32;
+    rafQueue.shift()?.(now);
+    expect(el.scrollTop).toBe(120);
+
+    cancel();
+  });
+
+  it('stops automatically once layout stays quiet', () => {
+    let now = 0;
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    Object.defineProperties(el, {
+      scrollTop: { value: 0, writable: true },
+      scrollHeight: { value: 1000 },
+      clientHeight: { value: 200 },
+    });
+
+    holdScrollRatio([() => el], 0.5, { quietMs: 100, maxMs: 1000 });
+    expect(el.scrollTop).toBe(400);
+    expect(rafQueue.length).toBe(1);
+
+    now = 150;
+    rafQueue.shift()?.(now);
+    expect(rafQueue.length).toBe(0);
   });
 });
 
